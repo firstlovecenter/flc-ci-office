@@ -16,6 +16,7 @@ import {
     InputAdornment,
     Box,
     Chip,
+    Typography,
 } from '@mui/material';
 
 type TransactionType = 'INCOME' | 'EXPENSE';
@@ -39,7 +40,12 @@ export default function EditTransactionDialog({
     const [amount, setAmount] = useState('');
     const [description, setDescription] = useState('');
     const [departmentId, setDepartmentId] = useState('');
+    const [currencyId, setCurrencyId] = useState('');
     const [departments, setDepartments] = useState<any[]>([]);
+    const [currencies, setCurrencies] = useState<any[]>([]);
+    const [baseCurrency, setBaseCurrency] = useState<any>(null);
+    const [exchangeRate, setExchangeRate] = useState<number | null>(null);
+    const [files, setFiles] = useState<File[]>([]);
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
 
@@ -49,19 +55,117 @@ export default function EditTransactionDialog({
             setAmount(transaction.amount.toString());
             setDescription(transaction.description);
             setDepartmentId(transaction.departmentId);
+            setCurrencyId(transaction.currencyId || '');
         }
     }, [transaction]);
 
     useEffect(() => {
-        fetchDepartments();
-    }, []);
+        if (open) {
+            fetchDepartments();
+            fetchCurrencies();
+            fetchUserProfile();
+        }
+    }, [open]);
+
+    useEffect(() => {
+        // Fetch exchange rate when currency changes
+        if (currencyId && baseCurrency && currencyId !== baseCurrency.id) {
+            fetchExchangeRate(currencyId, baseCurrency.id);
+        } else {
+            setExchangeRate(null);
+        }
+    }, [currencyId, baseCurrency]);
 
     const fetchDepartments = async () => {
-        const response = await fetch('/api/departments');
+        const response = await fetch('/api/departments?all=true');
         if (response.ok) {
             const data = await response.json();
             setDepartments(data);
         }
+    };
+
+    const fetchCurrencies = async () => {
+        const response = await fetch('/api/currencies?active=true');
+        if (response.ok) {
+            const data = await response.json();
+            setCurrencies(data);
+        }
+    };
+
+    const fetchUserProfile = async () => {
+        try {
+            const response = await fetch('/api/profile');
+            if (response.ok) {
+                const profile = await response.json();
+                
+                // Set base currency from user's preference or system default
+                if (profile.baseCurrency) {
+                    setBaseCurrency(profile.baseCurrency);
+                    if (!transaction?.currencyId) {
+                        setCurrencyId(profile.baseCurrency.id);
+                    }
+                } else {
+                    // Fall back to system base currency
+                    const currenciesResponse = await fetch('/api/currencies?active=true');
+                    if (currenciesResponse.ok) {
+                        const currencies = await currenciesResponse.json();
+                        const defaultBase = currencies.find((c: any) => c.isBase);
+                        if (defaultBase) {
+                            setBaseCurrency(defaultBase);
+                            if (!transaction?.currencyId) {
+                                setCurrencyId(defaultBase.id);
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (error) {
+            console.error('Error fetching user profile:', error);
+        }
+    };
+
+    const fetchExchangeRate = async (fromId: string, toId: string) => {
+        try {
+            const response = await fetch('/api/exchange-rates');
+            if (response.ok) {
+                const rates = await response.json();
+                const rate = rates.find((r: any) => 
+                    r.fromCurrencyId === fromId && r.toCurrencyId === toId
+                );
+                if (rate) {
+                    setExchangeRate(parseFloat(rate.rate));
+                } else {
+                    setExchangeRate(null);
+                }
+            }
+        } catch (error) {
+            console.error('Error fetching exchange rate:', error);
+        }
+    };
+
+    const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files) {
+            setFiles(Array.from(e.target.files));
+        }
+    };
+
+    const uploadFiles = async () => {
+        const uploadedFiles = [];
+        for (const file of files) {
+            const formData = new FormData();
+            formData.append('file', file);
+
+            const response = await fetch('/api/upload', {
+                method: 'POST',
+                body: formData,
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                uploadedFiles.push(data);
+            }
+        }
+        return uploadedFiles;
     };
 
     const handleSubmit = async () => {
@@ -69,6 +173,8 @@ export default function EditTransactionDialog({
         setError('');
 
         try {
+            const uploadedFiles = await uploadFiles();
+
             const response = await fetch(`/api/transactions/${transaction.id}`, {
                 method: 'PUT',
                 headers: {
@@ -79,6 +185,9 @@ export default function EditTransactionDialog({
                     amount: parseFloat(amount),
                     description,
                     departmentId,
+                    currencyId: currencyId || null,
+                    exchangeRate: exchangeRate || null,
+                    files: uploadedFiles,
                 }),
             });
 
@@ -137,6 +246,24 @@ export default function EditTransactionDialog({
                     </Select>
                 </FormControl>
 
+                <FormControl fullWidth sx={{ mb: 3 }}>
+                    <InputLabel>Currency</InputLabel>
+                    <Select
+                        value={currencyId}
+                        label="Currency"
+                        onChange={(e) => setCurrencyId(e.target.value)}
+                        required
+                        disabled={transaction?.locked && !isSuperAdmin}
+                    >
+                        {currencies.map((currency) => (
+                            <MenuItem key={currency.id} value={currency.id}>
+                                {currency.code} - {currency.name} ({currency.symbol})
+                                {currency.isBase && ' [Base]'}
+                            </MenuItem>
+                        ))}
+                    </Select>
+                </FormControl>
+
                 <TextField
                     fullWidth
                     label="Amount"
@@ -147,8 +274,17 @@ export default function EditTransactionDialog({
                     sx={{ mb: 3 }}
                     disabled={transaction?.locked && !isSuperAdmin}
                     InputProps={{
-                        startAdornment: <InputAdornment position="start">$</InputAdornment>,
+                        startAdornment: (
+                            <InputAdornment position="start">
+                                {currencies.find(c => c.id === currencyId)?.symbol || '₵'}
+                            </InputAdornment>
+                        ),
                     }}
+                    helperText={
+                        exchangeRate && amount
+                            ? `≈ ${baseCurrency?.symbol}${(parseFloat(amount) * exchangeRate).toFixed(2)} (${baseCurrency?.code})`
+                            : ''
+                    }
                 />
 
                 <TextField
@@ -170,6 +306,7 @@ export default function EditTransactionDialog({
                         label="Department"
                         onChange={(e) => setDepartmentId(e.target.value)}
                         disabled={transaction?.locked && !isSuperAdmin}
+                        required
                     >
                         {departments.map((dept) => (
                             <MenuItem key={dept.id} value={dept.id}>
@@ -178,6 +315,35 @@ export default function EditTransactionDialog({
                         ))}
                     </Select>
                 </FormControl>
+
+                <Box sx={{ mb: 3 }}>
+                    <Button
+                        variant="outlined"
+                        component="label"
+                        fullWidth
+                        disabled={transaction?.locked && !isSuperAdmin}
+                    >
+                        Upload Files
+                        <input
+                            type="file"
+                            hidden
+                            multiple
+                            onChange={handleFileSelect}
+                        />
+                    </Button>
+                    {files.length > 0 && (
+                        <Box sx={{ mt: 2 }}>
+                            <Typography variant="subtitle2" gutterBottom>
+                                Selected Files:
+                            </Typography>
+                            {files.map((file, index) => (
+                                <Typography key={index} variant="body2" color="text.secondary">
+                                    {file.name}
+                                </Typography>
+                            ))}
+                        </Box>
+                    )}
+                </Box>
             </DialogContent>
             <DialogActions sx={{ px: 3, pb: 3 }}>
                 <Button onClick={onClose} disabled={loading}>
