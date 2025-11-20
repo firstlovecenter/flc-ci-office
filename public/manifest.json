@@ -2,12 +2,15 @@
   "name": "FLC CI Office",
   "short_name": "FLC CI",
   "description": "Church accounting system for managing finances across departments",
-  "start_url": "/",
+  "start_url": "/dashboard",
   "display": "standalone",
   "background_color": "#0f172a",
   "theme_color": "#60a5fa",
-  "orientation": "portrait-primary",
+  "orientation": "any",
   "gcm_sender_id": "103953800507",
+  "scope": "/",
+  "categories": ["finance", "business"],
+  "prefer_related_applications": false,
   "icons": [
     {
       "src": "/icon-192x192.png",
@@ -20,6 +23,29 @@
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "New Transaction",
+      "short_name": "New",
+      "description": "Create a new transaction",
+      "url": "/transactions/new",
+      "icons": [{ "src": "/icon-192x192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "View Transactions",
+      "short_name": "Transactions",
+      "description": "View all transactions",
+      "url": "/transactions",
+      "icons": [{ "src": "/icon-192x192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Dashboard",
+      "short_name": "Dashboard",
+      "description": "View dashboard",
+      "url": "/dashboard",
+      "icons": [{ "src": "/icon-192x192.png", "sizes": "192x192" }]
     }
   ]
 }

@@ -26,12 +26,16 @@ import AssessmentIcon from '@mui/icons-material/Assessment';
 import HistoryIcon from '@mui/icons-material/History';
 import AccountCircleIcon from '@mui/icons-material/AccountCircle';
 import MonetizationOnIcon from '@mui/icons-material/MonetizationOn';
+import BottomNavigation from '@mui/material/BottomNavigation';
+import BottomNavigationAction from '@mui/material/BottomNavigationAction';
+import Paper from '@mui/material/Paper';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useSession, signOut } from 'next-auth/react';
 import Avatar from '@mui/material/Avatar';
 import Menu from '@mui/material/Menu';
 import MenuItem from '@mui/material/MenuItem';
+import useMediaQuery from '@mui/material/useMediaQuery';
 import PushNotificationManager from './PushNotificationManager';
 
 const drawerWidth = 240;
@@ -119,9 +123,12 @@ const menuItems = [
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
     const theme = useTheme();
     const [open, setOpen] = React.useState(false);
+    const [mobileOpen, setMobileOpen] = React.useState(false);
     const pathname = usePathname();
+    const router = useRouter();
     const { data: session } = useSession();
     const [anchorEl, setAnchorEl] = React.useState<null | HTMLElement>(null);
+    const isMobile = useMediaQuery(theme.breakpoints.down('md'));
 
     // Filter menu items based on user role - leaders don't see Users menu
     const leaderRoles = ['GLOBAL_LEADER', 'INTERNATIONAL_LEADER', 'NATIONAL_LEADER', 'REGIONAL_LEADER', 'CAMPUS_LEADER', 'STREAM_LEADER', 'COUNCIL_LEADER'];
@@ -143,12 +150,28 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         return true;
     });
 
+    // Mobile bottom nav items (top 4 most important)
+    const mobileNavItems = [
+        { text: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard' },
+        { text: 'Transactions', icon: <ReceiptIcon />, path: '/transactions' },
+        { text: 'Departments', icon: <AccountBalanceIcon />, path: '/departments' },
+        { text: 'Profile', icon: <AccountCircleIcon />, path: '/profile' },
+    ];
+
     const handleDrawerOpen = () => {
-        setOpen(true);
+        if (isMobile) {
+            setMobileOpen(true);
+        } else {
+            setOpen(true);
+        }
     };
 
     const handleDrawerClose = () => {
-        setOpen(false);
+        if (isMobile) {
+            setMobileOpen(false);
+        } else {
+            setOpen(false);
+        }
     };
 
     const handleMenu = (event: React.MouseEvent<HTMLElement>) => {
@@ -165,11 +188,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     };
 
     return (
-        <Box sx={{ display: 'flex' }}>
+        <Box sx={{ display: 'flex', minHeight: '100vh' }}>
             <CssBaseline />
             <AppBar 
                 position="fixed" 
-                open={open}
+                open={!isMobile && open}
                 elevation={0}
                 sx={{ 
                     bgcolor: 'background.paper',
@@ -185,18 +208,27 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                         onClick={handleDrawerOpen}
                         edge="start"
                         sx={{
-                            marginRight: 5,
-                            ...(open && { display: 'none' }),
+                            marginRight: { xs: 2, sm: 5 },
+                            ...(!isMobile && open && { display: 'none' }),
                         }}
                     >
                         <MenuIcon />
                     </IconButton>
-                    <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1, fontWeight: 700 }}>
+                    <Typography 
+                        variant="h6" 
+                        noWrap 
+                        component="div" 
+                        sx={{ 
+                            flexGrow: 1, 
+                            fontWeight: 700,
+                            fontSize: { xs: '1rem', sm: '1.25rem' }
+                        }}
+                    >
                         ⛪ Church Accounting
                     </Typography>
                     {session && (
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                            <Box sx={{ textAlign: 'right', display: { xs: 'none', sm: 'block' } }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 1, sm: 2 } }}>
+                            <Box sx={{ textAlign: 'right', display: { xs: 'none', md: 'block' } }}>
                                 <Typography variant="body2" fontWeight={600}>
                                     {session.user?.name || 'User'}
                                 </Typography>
@@ -205,7 +237,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                                 </Typography>
                             </Box>
                             <IconButton
-                                size="large"
+                                size={isMobile ? 'medium' : 'large'}
                                 aria-label="account of current user"
                                 aria-controls="menu-appbar"
                                 aria-haspopup="true"
@@ -218,8 +250,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                                 <Avatar 
                                     src={session.user?.image || undefined}
                                     sx={{ 
-                                        width: 36, 
-                                        height: 36, 
+                                        width: { xs: 32, sm: 36 }, 
+                                        height: { xs: 32, sm: 36 }, 
                                         bgcolor: 'primary.main',
                                         fontWeight: 700,
                                     }}
@@ -256,62 +288,196 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     )}
                 </Toolbar>
             </AppBar>
-            <Drawer variant="permanent" open={open}>
-                <DrawerHeader>
-                    <IconButton onClick={handleDrawerClose}>
-                        {theme.direction === 'rtl' ? <ChevronRightIcon /> : <ChevronLeftIcon />}
-                    </IconButton>
-                </DrawerHeader>
-                <Divider />
-                <PushNotificationManager />
-                <Divider />
-                <List sx={{ px: 1, py: 2 }}>
-                    {filteredMenuItems.map((item) => (
-                        <ListItem key={item.text} disablePadding sx={{ display: 'block', mb: 0.5 }}>
-                            <Link href={item.path} style={{ textDecoration: 'none', color: 'inherit' }}>
-                                <ListItemButton
-                                    sx={{
-                                        minHeight: 48,
-                                        justifyContent: open ? 'initial' : 'center',
-                                        px: 2.5,
-                                        borderRadius: 2,
-                                        bgcolor: pathname === item.path ? 'primary.main' : 'transparent',
-                                        color: pathname === item.path ? 'white' : 'inherit',
-                                        '&:hover': {
-                                            bgcolor: pathname === item.path ? 'primary.dark' : 'action.hover',
-                                        },
-                                        transition: 'all 0.2s',
-                                    }}
-                                >
-                                    <ListItemIcon
+            
+            {/* Desktop Drawer */}
+            {!isMobile && (
+                <Drawer variant="permanent" open={open}>
+                    <DrawerHeader>
+                        <IconButton onClick={handleDrawerClose}>
+                            {theme.direction === 'rtl' ? <ChevronRightIcon /> : <ChevronLeftIcon />}
+                        </IconButton>
+                    </DrawerHeader>
+                    <Divider />
+                    <PushNotificationManager />
+                    <Divider />
+                    <List sx={{ px: 1, py: 2 }}>
+                        {filteredMenuItems.map((item) => (
+                            <ListItem key={item.text} disablePadding sx={{ display: 'block', mb: 0.5 }}>
+                                <Link href={item.path} style={{ textDecoration: 'none', color: 'inherit' }}>
+                                    <ListItemButton
                                         sx={{
-                                            minWidth: 0,
-                                            mr: open ? 3 : 'auto',
-                                            justifyContent: 'center',
+                                            minHeight: 48,
+                                            justifyContent: open ? 'initial' : 'center',
+                                            px: 2.5,
+                                            borderRadius: 2,
+                                            bgcolor: pathname === item.path ? 'primary.main' : 'transparent',
                                             color: pathname === item.path ? 'white' : 'inherit',
+                                            '&:hover': {
+                                                bgcolor: pathname === item.path ? 'primary.dark' : 'action.hover',
+                                            },
+                                            transition: 'all 0.2s',
                                         }}
                                     >
-                                        {item.icon}
-                                    </ListItemIcon>
-                                    <ListItemText 
-                                        primary={item.text} 
-                                        sx={{ 
-                                            opacity: open ? 1 : 0,
-                                            '& .MuiTypography-root': {
-                                                fontWeight: pathname === item.path ? 700 : 500,
-                                            }
-                                        }} 
-                                    />
-                                </ListItemButton>
-                            </Link>
-                        </ListItem>
-                    ))}
-                </List>
-            </Drawer>
-            <Box component="main" sx={{ flexGrow: 1, p: 3, bgcolor: 'background.default', minHeight: '100vh' }}>
+                                        <ListItemIcon
+                                            sx={{
+                                                minWidth: 0,
+                                                mr: open ? 3 : 'auto',
+                                                justifyContent: 'center',
+                                                color: pathname === item.path ? 'white' : 'inherit',
+                                            }}
+                                        >
+                                            {item.icon}
+                                        </ListItemIcon>
+                                        <ListItemText 
+                                            primary={item.text} 
+                                            sx={{ 
+                                                opacity: open ? 1 : 0,
+                                                '& .MuiTypography-root': {
+                                                    fontWeight: pathname === item.path ? 700 : 500,
+                                                }
+                                            }} 
+                                        />
+                                    </ListItemButton>
+                                </Link>
+                            </ListItem>
+                        ))}
+                    </List>
+                </Drawer>
+            )}
+
+            {/* Mobile Drawer */}
+            {isMobile && (
+                <MuiDrawer
+                    variant="temporary"
+                    open={mobileOpen}
+                    onClose={handleDrawerClose}
+                    ModalProps={{
+                        keepMounted: true, // Better mobile performance
+                    }}
+                    sx={{
+                        '& .MuiDrawer-paper': { 
+                            boxSizing: 'border-box', 
+                            width: drawerWidth,
+                        },
+                    }}
+                >
+                    <DrawerHeader>
+                        <Typography variant="h6" sx={{ flexGrow: 1, pl: 2, fontWeight: 700 }}>
+                            Menu
+                        </Typography>
+                        <IconButton onClick={handleDrawerClose}>
+                            <ChevronLeftIcon />
+                        </IconButton>
+                    </DrawerHeader>
+                    <Divider />
+                    <PushNotificationManager />
+                    <Divider />
+                    <List sx={{ px: 1, py: 2 }}>
+                        {filteredMenuItems.map((item) => (
+                            <ListItem key={item.text} disablePadding sx={{ display: 'block', mb: 0.5 }}>
+                                <Link href={item.path} style={{ textDecoration: 'none', color: 'inherit' }}>
+                                    <ListItemButton
+                                        onClick={handleDrawerClose}
+                                        sx={{
+                                            minHeight: 48,
+                                            px: 2.5,
+                                            borderRadius: 2,
+                                            bgcolor: pathname === item.path ? 'primary.main' : 'transparent',
+                                            color: pathname === item.path ? 'white' : 'inherit',
+                                            '&:hover': {
+                                                bgcolor: pathname === item.path ? 'primary.dark' : 'action.hover',
+                                            },
+                                            transition: 'all 0.2s',
+                                        }}
+                                    >
+                                        <ListItemIcon
+                                            sx={{
+                                                minWidth: 0,
+                                                mr: 3,
+                                                color: pathname === item.path ? 'white' : 'inherit',
+                                            }}
+                                        >
+                                            {item.icon}
+                                        </ListItemIcon>
+                                        <ListItemText 
+                                            primary={item.text} 
+                                            sx={{ 
+                                                '& .MuiTypography-root': {
+                                                    fontWeight: pathname === item.path ? 700 : 500,
+                                                }
+                                            }} 
+                                        />
+                                    </ListItemButton>
+                                </Link>
+                            </ListItem>
+                        ))}
+                    </List>
+                </MuiDrawer>
+            )}
+
+            <Box 
+                component="main" 
+                sx={{ 
+                    flexGrow: 1, 
+                    p: { xs: 2, sm: 3 }, 
+                    bgcolor: 'background.default', 
+                    minHeight: '100vh',
+                    pb: { xs: 9, md: 3 }, // Extra padding bottom for mobile nav
+                    width: { xs: '100%', sm: 'auto' },
+                }}
+            >
                 <DrawerHeader />
                 {children}
             </Box>
+
+            {/* Mobile Bottom Navigation */}
+            {isMobile && (
+                <Paper 
+                    sx={{ 
+                        position: 'fixed', 
+                        bottom: 0, 
+                        left: 0, 
+                        right: 0,
+                        zIndex: theme.zIndex.appBar,
+                        borderTop: '1px solid',
+                        borderColor: 'divider',
+                    }} 
+                    elevation={3}
+                >
+                    <BottomNavigation
+                        value={pathname}
+                        onChange={(event, newValue) => {
+                            router.push(newValue);
+                        }}
+                        showLabels
+                        sx={{
+                            '& .MuiBottomNavigationAction-root': {
+                                minWidth: 'auto',
+                                px: 0,
+                            },
+                            '& .MuiBottomNavigationAction-label': {
+                                fontSize: '0.7rem',
+                                mt: 0.5,
+                            },
+                        }}
+                    >
+                        {mobileNavItems.map((item) => (
+                            <BottomNavigationAction
+                                key={item.path}
+                                label={item.text}
+                                value={item.path}
+                                icon={item.icon}
+                                sx={{
+                                    color: pathname === item.path ? 'primary.main' : 'text.secondary',
+                                    '&.Mui-selected': {
+                                        color: 'primary.main',
+                                    },
+                                }}
+                            />
+                        ))}
+                    </BottomNavigation>
+                </Paper>
+            )}
         </Box>
     );
 }
