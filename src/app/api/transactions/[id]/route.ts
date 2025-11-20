@@ -17,7 +17,7 @@ export async function PUT(
     try {
         const params = await context.params;
         const body = await request.json();
-        const { type, amount, description, departmentId } = body;
+        const { type, amount, description, departmentId, currencyId, exchangeRate, files } = body;
         const transactionId = params.id;
 
         // Get the existing transaction
@@ -52,6 +52,12 @@ export async function PUT(
             );
         }
 
+        // Calculate amount in base currency if using a different currency
+        let amountInBase = amount; // Default to the original amount
+        if (currencyId && exchangeRate) {
+            amountInBase = amount * exchangeRate;
+        }
+
         // Update the transaction
         const updatedTransaction = await prisma.transaction.update({
             where: { id: transactionId },
@@ -60,11 +66,25 @@ export async function PUT(
                 amount,
                 description,
                 departmentId,
+                currencyId: currencyId || null,
+                exchangeRate: exchangeRate || null,
+                amountInBase: amountInBase,
                 updatedAt: new Date(),
+                ...(files && files.length > 0 ? {
+                    files: {
+                        create: files.map((f: any) => ({
+                            fileName: f.name,
+                            fileUrl: f.url,
+                            fileMime: f.mime,
+                            uploadedBy: session.user.id,
+                        })),
+                    }
+                } : {}),
             },
             include: {
                 department: true,
                 user: true,
+                currency: true,
                 files: true,
             },
         });
