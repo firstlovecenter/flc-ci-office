@@ -18,17 +18,21 @@ async function main() {
     update: {
       password: hashedPassword,
       role: 'SUPERADMIN',
-      name: 'Super Admin',
+      name: 'root',
+      archived: false,
     },
     create: {
       email: 'skaduteye@gmail.com',
       password: hashedPassword,
       role: 'SUPERADMIN',
-      name: 'Super Admin',
+      name: 'root',
+      archived: false,
     },
   });
 
   console.log('✓ Superadmin user created/updated:', user.email);
+  console.log('  Name:', user.name);
+  console.log('  Role:', user.role);
 }
 
 main()
