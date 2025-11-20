@@ -198,7 +198,7 @@ export async function PUT(request: Request) {
 
     try {
         const body = await request.json();
-        const { id, type, amount, description, departmentId } = body;
+        const { id, type, amount, description, departmentId, currencyId, exchangeRate, files } = body;
 
         const transaction = await prisma.transaction.findUnique({
             where: { id },
@@ -227,6 +227,12 @@ export async function PUT(request: Request) {
             return new NextResponse('Week is locked', { status: 400 });
         }
 
+        // Calculate amount in base currency if using a different currency
+        let amountInBase = amount; // Default to the original amount
+        if (currencyId && exchangeRate) {
+            amountInBase = amount * exchangeRate;
+        }
+
         const updatedTransaction = await prisma.transaction.update({
             where: { id },
             data: {
@@ -234,6 +240,17 @@ export async function PUT(request: Request) {
                 amount,
                 description,
                 departmentId,
+                currencyId: currencyId || null,
+                exchangeRate: exchangeRate || null,
+                amountInBase: amountInBase,
+                files: files && files.length > 0 ? {
+                    create: files.map((f: any) => ({
+                        fileName: f.name,
+                        fileUrl: f.url,
+                        fileMime: f.mime,
+                        uploadedBy: session.user.id,
+                    })),
+                } : undefined,
             },
         });
 
