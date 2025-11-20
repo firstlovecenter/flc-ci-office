@@ -38,6 +38,14 @@ export async function GET(request: Request) {
             where: whereClause,
             include: {
                 department: true,
+                baseCurrency: {
+                    select: {
+                        id: true,
+                        code: true,
+                        name: true,
+                        symbol: true,
+                    },
+                },
             },
             orderBy: {
                 createdAt: 'desc',

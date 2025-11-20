@@ -30,6 +30,7 @@ export default function NewTransactionPage() {
     const [departments, setDepartments] = useState<any[]>([]);
     const [currencies, setCurrencies] = useState<any[]>([]);
     const [baseCurrency, setBaseCurrency] = useState<any>(null);
+    const [userProfile, setUserProfile] = useState<any>(null);
     const [exchangeRate, setExchangeRate] = useState<number | null>(null);
     const [files, setFiles] = useState<File[]>([]);
     const [error, setError] = useState('');
@@ -38,6 +39,7 @@ export default function NewTransactionPage() {
     useEffect(() => {
         fetchDepartments();
         fetchCurrencies();
+        fetchUserProfile();
     }, []);
 
     useEffect(() => {
@@ -68,11 +70,36 @@ export default function NewTransactionPage() {
         if (response.ok) {
             const data = await response.json();
             setCurrencies(data);
-            const base = data.find((c: any) => c.isBase);
-            setBaseCurrency(base);
-            if (base) {
-                setCurrencyId(base.id);
+            // Base currency will be set after fetching user profile
+        }
+    };
+
+    const fetchUserProfile = async () => {
+        try {
+            const response = await fetch('/api/profile');
+            if (response.ok) {
+                const profile = await response.json();
+                setUserProfile(profile);
+                
+                // Set base currency from user's preference or system default
+                if (profile.baseCurrency) {
+                    setBaseCurrency(profile.baseCurrency);
+                    setCurrencyId(profile.baseCurrency.id);
+                } else {
+                    // Fall back to system base currency
+                    const currenciesResponse = await fetch('/api/currencies?active=true');
+                    if (currenciesResponse.ok) {
+                        const currencies = await currenciesResponse.json();
+                        const defaultBase = currencies.find((c: any) => c.isBase);
+                        if (defaultBase) {
+                            setBaseCurrency(defaultBase);
+                            setCurrencyId(defaultBase.id);
+                        }
+                    }
+                }
             }
+        } catch (error) {
+            console.error('Error fetching user profile:', error);
         }
     };
 

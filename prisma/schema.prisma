@@ -78,6 +78,8 @@ model User {
   role             Role               @default(COUNCIL_LEADER)
   departmentId     String?
   department       Department?        @relation(fields: [departmentId], references: [id])
+  baseCurrencyId   String?
+  baseCurrency     Currency?          @relation(fields: [baseCurrencyId], references: [id])
   archived         Boolean            @default(false)
   transactions     Transaction[]
   auditLogs        AuditLog[]
@@ -86,6 +88,7 @@ model User {
   updatedAt        DateTime           @updatedAt
 
   @@index([archived])
+  @@index([baseCurrencyId])
 }
 
 model Transaction {
@@ -168,6 +171,7 @@ model Currency {
   transactions Transaction[]
   exchangeRates ExchangeRate[] @relation("FromCurrency")
   reverseRates  ExchangeRate[] @relation("ToCurrency")
+  users        User[]
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
 

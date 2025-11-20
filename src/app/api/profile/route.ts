@@ -28,6 +28,15 @@ export async function GET(req: NextRequest) {
                         level: true,
                     },
                 },
+                baseCurrencyId: true,
+                baseCurrency: {
+                    select: {
+                        id: true,
+                        code: true,
+                        name: true,
+                        symbol: true,
+                    },
+                },
                 createdAt: true,
                 updatedAt: true,
             },
@@ -54,9 +63,12 @@ export async function PATCH(req: NextRequest) {
         }
 
         const body = await req.json();
-        const { name, image, email } = body;
+        const { name, image, email, baseCurrencyId } = body;
 
         const isSuperAdmin = session.user.role === 'SUPERADMIN';
+        
+        // Check if user can set base currency (national admin and above)
+        const canSetBaseCurrency = ['SUPERADMIN', 'GLOBAL_ADMIN', 'INTERNATIONAL_ADMIN', 'NATIONAL_ADMIN'].includes(session.user.role);
 
         // Build update data based on user role
         const updateData: any = {
@@ -67,6 +79,11 @@ export async function PATCH(req: NextRequest) {
         // Superadmins can update email (but not role)
         if (isSuperAdmin) {
             if (email) updateData.email = email;
+        }
+
+        // National admins and above can set their base currency
+        if (canSetBaseCurrency && baseCurrencyId !== undefined) {
+            updateData.baseCurrencyId = baseCurrencyId || null;
         }
 
         const updatedUser = await prisma.user.update({
@@ -84,6 +101,15 @@ export async function PATCH(req: NextRequest) {
                         id: true,
                         name: true,
                         level: true,
+                    },
+                },
+                baseCurrencyId: true,
+                baseCurrency: {
+                    select: {
+                        id: true,
+                        code: true,
+                        name: true,
+                        symbol: true,
                     },
                 },
             },

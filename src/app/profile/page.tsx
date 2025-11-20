@@ -20,6 +20,10 @@ import {
     CardContent,
     Stack,
     alpha,
+    FormControl,
+    InputLabel,
+    Select,
+    MenuItem,
 } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
 import SaveIcon from '@mui/icons-material/Save';
@@ -30,6 +34,7 @@ import EmailIcon from '@mui/icons-material/Email';
 import BadgeIcon from '@mui/icons-material/Badge';
 import BusinessIcon from '@mui/icons-material/Business';
 import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
+import MonetizationOnIcon from '@mui/icons-material/MonetizationOn';
 
 interface UserProfile {
     id: string;
@@ -42,6 +47,13 @@ interface UserProfile {
         id: string;
         name: string;
         level: string;
+    } | null;
+    baseCurrencyId: string | null;
+    baseCurrency: {
+        id: string;
+        code: string;
+        name: string;
+        symbol: string;
     } | null;
     createdAt: string;
     updatedAt: string;
@@ -57,10 +69,12 @@ export default function ProfilePage() {
     const [uploading, setUploading] = useState(false);
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
+    const [currencies, setCurrencies] = useState<any[]>([]);
     const [formData, setFormData] = useState({
         name: '',
         image: '',
         email: '',
+        baseCurrencyId: '',
     });
 
     useEffect(() => {
@@ -69,7 +83,20 @@ export default function ProfilePage() {
             return;
         }
         fetchProfile();
+        fetchCurrencies();
     }, [session, router]);
+
+    const fetchCurrencies = async () => {
+        try {
+            const response = await fetch('/api/currencies');
+            if (response.ok) {
+                const data = await response.json();
+                setCurrencies(data.filter((c: any) => c.isActive));
+            }
+        } catch (error) {
+            console.error('Failed to fetch currencies:', error);
+        }
+    };
 
     const fetchProfile = async () => {
         try {
@@ -81,6 +108,7 @@ export default function ProfilePage() {
                 name: data.name || '',
                 image: data.image || '',
                 email: data.email || '',
+                baseCurrencyId: data.baseCurrencyId || '',
             });
         } catch (err) {
             setError('Failed to load profile');
@@ -192,6 +220,7 @@ export default function ProfilePage() {
             name: profile?.name || '',
             image: profile?.image || '',
             email: profile?.email || '',
+            baseCurrencyId: profile?.baseCurrencyId || '',
         });
         setEditing(false);
         setError('');
@@ -393,6 +422,46 @@ export default function ProfilePage() {
                                         <Typography variant="caption" color="text.secondary">
                                             {profile.department.level.replace(/_/g, ' ')}
                                         </Typography>
+                                    </Box>
+                                )}
+
+                                {/* Base Currency - Only for National Admin and above */}
+                                {['SUPERADMIN', 'GLOBAL_ADMIN', 'INTERNATIONAL_ADMIN', 'NATIONAL_ADMIN'].includes(profile.role) && (
+                                    <Box>
+                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                                            <MonetizationOnIcon color="action" fontSize="small" />
+                                            <Typography variant="body2" color="text.secondary">
+                                                Base Currency
+                                            </Typography>
+                                        </Box>
+                                        {editing ? (
+                                            <FormControl fullWidth size="small">
+                                                <InputLabel>Select Currency</InputLabel>
+                                                <Select
+                                                    value={formData.baseCurrencyId}
+                                                    label="Select Currency"
+                                                    onChange={(e) => setFormData({ ...formData, baseCurrencyId: e.target.value })}
+                                                >
+                                                    <MenuItem value="">
+                                                        <em>Use Default (Ghana Cedis)</em>
+                                                    </MenuItem>
+                                                    {currencies.map((currency) => (
+                                                        <MenuItem key={currency.id} value={currency.id}>
+                                                            {currency.code} - {currency.name} ({currency.symbol})
+                                                        </MenuItem>
+                                                    ))}
+                                                </Select>
+                                            </FormControl>
+                                        ) : (
+                                            <>
+                                                <Typography variant="body1" fontWeight={500}>
+                                                    {profile.baseCurrency ? `${profile.baseCurrency.code} - ${profile.baseCurrency.name} (${profile.baseCurrency.symbol})` : 'Default (Ghana Cedis)'}
+                                                </Typography>
+                                                <Typography variant="caption" color="text.secondary">
+                                                    All transactions will be converted to this currency
+                                                </Typography>
+                                            </>
+                                        )}
                                     </Box>
                                 )}
                             </Stack>
