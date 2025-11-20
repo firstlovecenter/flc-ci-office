@@ -1,0 +1,117 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum DepartmentLevel {
+  GLOBAL
+  INTERNATIONAL
+  NATIONAL
+  REGIONAL
+  CAMPUS
+  STREAM
+  COUNCIL
+}
+
+enum Role {
+  SUPERADMIN
+  GLOBAL_ADMIN
+  GLOBAL_LEADER
+  INTERNATIONAL_ADMIN
+  INTERNATIONAL_LEADER
+  NATIONAL_ADMIN
+  NATIONAL_LEADER
+  REGIONAL_ADMIN
+  REGIONAL_LEADER
+  CAMPUS_ADMIN
+  CAMPUS_LEADER
+  STREAM_LEADER
+  COUNCIL_LEADER
+}
+
+enum TransactionType {
+  INCOME
+  EXPENSE
+}
+
+enum ActionType {
+  CREATE
+  UPDATE
+  DELETE
+  LOGIN
+  ROLE_CHANGE
+  LOCK_OVERRIDE
+  FILE_UPLOAD
+}
+
+model Department {
+  id        String          @id @default(cuid())
+  name      String
+  level     DepartmentLevel
+  parentId  String?
+  parent    Department?     @relation("DepartmentHierarchy", fields: [parentId], references: [id])
+  children  Department[]    @relation("DepartmentHierarchy")
+  users     User[]
+  transactions Transaction[]
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+}
+
+model User {
+  id            String      @id @default(cuid())
+  name          String?
+  email         String      @unique
+  password      String?
+  image         String?
+  role          Role        @default(COUNCIL_LEADER)
+  departmentId  String?
+  department    Department? @relation(fields: [departmentId], references: [id])
+  transactions  Transaction[]
+  auditLogs     AuditLog[]
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+}
+
+model Transaction {
+  id            String          @id @default(cuid())
+  departmentId  String
+  department    Department      @relation(fields: [departmentId], references: [id])
+  userId        String
+  user          User            @relation(fields: [userId], references: [id])
+  type          TransactionType
+  amount        Decimal
+  description   String
+  weekNumber    Int
+  year          Int
+  locked        Boolean         @default(false)
+  files         File[]
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+}
+
+model File {
+  id            String      @id @default(cuid())
+  transactionId String
+  transaction   Transaction @relation(fields: [transactionId], references: [id])
+  fileName      String
+  fileUrl       String
+  fileMime      String
+  uploadedBy    String
+  uploadedAt    DateTime    @default(now())
+}
+
+model AuditLog {
+  id          String      @id @default(cuid())
+  userId      String
+  user        User        @relation(fields: [userId], references: [id])
+  actionType  ActionType
+  entityType  String
+  entityId    String
+  beforeData  Json?
+  afterData   Json?
+  timestamp   DateTime    @default(now())
+  ipAddress   String?
+}
