@@ -37,6 +37,12 @@ enum TransactionType {
   EXPENSE
 }
 
+enum TransactionStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
 enum ActionType {
   CREATE
   UPDATE
@@ -58,38 +64,53 @@ model Department {
   transactions Transaction[]
   createdAt DateTime        @default(now())
   updatedAt DateTime        @updatedAt
+
+  @@index([parentId])
+  @@index([level])
 }
 
 model User {
-  id            String      @id @default(cuid())
-  name          String?
-  email         String      @unique
-  password      String?
-  image         String?
-  role          Role        @default(COUNCIL_LEADER)
-  departmentId  String?
-  department    Department? @relation(fields: [departmentId], references: [id])
-  transactions  Transaction[]
-  auditLogs     AuditLog[]
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
+  id               String             @id @default(cuid())
+  name             String?
+  email            String             @unique
+  password         String?
+  image            String?
+  role             Role               @default(COUNCIL_LEADER)
+  departmentId     String?
+  department       Department?        @relation(fields: [departmentId], references: [id])
+  transactions     Transaction[]
+  auditLogs        AuditLog[]
+  pushSubscriptions PushSubscription[]
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
 }
 
 model Transaction {
-  id            String          @id @default(cuid())
+  id            String            @id @default(cuid())
   departmentId  String
-  department    Department      @relation(fields: [departmentId], references: [id])
+  department    Department        @relation(fields: [departmentId], references: [id])
   userId        String
-  user          User            @relation(fields: [userId], references: [id])
+  user          User              @relation(fields: [userId], references: [id])
   type          TransactionType
   amount        Decimal
   description   String
+  status        TransactionStatus @default(PENDING)
+  approvedBy    String?
+  approvedAt    DateTime?
+  rejectedReason String?
   weekNumber    Int
   year          Int
-  locked        Boolean         @default(false)
+  locked        Boolean           @default(false)
   files         File[]
-  createdAt     DateTime        @default(now())
-  updatedAt     DateTime        @updatedAt
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  @@index([departmentId])
+  @@index([userId])
+  @@index([status])
+  @@index([type])
+  @@index([createdAt])
+  @@index([departmentId, status, type])
 }
 
 model File {
@@ -114,4 +135,17 @@ model AuditLog {
   afterData   Json?
   timestamp   DateTime    @default(now())
   ipAddress   String?
+}
+
+model PushSubscription {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id])
+  endpoint     String
+  subscription Json
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([userId, endpoint])
+  @@index([userId])
 }

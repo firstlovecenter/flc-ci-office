@@ -61,13 +61,33 @@ export async function GET(request: Request) {
         const transactions = await prisma.transaction.findMany({
             where: whereClause,
             include: {
-                department: true,
-                user: true,
-                files: true,
+                department: {
+                    select: {
+                        id: true,
+                        name: true,
+                        level: true,
+                    },
+                },
+                user: {
+                    select: {
+                        id: true,
+                        name: true,
+                        email: true,
+                    },
+                },
+                files: {
+                    select: {
+                        id: true,
+                        fileName: true,
+                        fileUrl: true,
+                        fileMime: true,
+                    },
+                },
             },
             orderBy: {
-                createdAt: 'asc',
+                createdAt: 'desc',
             },
+            take: 500, // Limit results for performance
         });
 
         return NextResponse.json(transactions);
@@ -98,6 +118,15 @@ export async function POST(request: Request) {
             return new NextResponse('Unauthorized', { status: 403 });
         }
 
+        // Determine if this is a leader role (requires approval) or admin (auto-approved)
+        const leaderRoles = ['GLOBAL_LEADER', 'INTERNATIONAL_LEADER', 'NATIONAL_LEADER', 'REGIONAL_LEADER', 'CAMPUS_LEADER', 'STREAM_LEADER', 'COUNCIL_LEADER'];
+        const isLeader = leaderRoles.includes(session.user.role);
+        
+        // Leaders can only create expense requests, not income
+        if (isLeader && type === 'INCOME') {
+            return new NextResponse('Leaders cannot record income. Please contact an admin.', { status: 403 });
+        }
+
         const transaction = await prisma.transaction.create({
             data: {
                 type,
@@ -108,6 +137,9 @@ export async function POST(request: Request) {
                 weekNumber,
                 year,
                 locked: false,
+                status: isLeader ? 'PENDING' : 'APPROVED',
+                approvedBy: isLeader ? null : session.user.id,
+                approvedAt: isLeader ? null : new Date(),
                 files: {
                     create: files?.map((f: any) => ({
                         fileName: f.name,

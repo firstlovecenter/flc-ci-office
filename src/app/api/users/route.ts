@@ -57,9 +57,14 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
     const session = await getServerSession(authOptions);
 
-    if (!session || session.user.role !== 'SUPERADMIN') {
-        // TODO: Allow other admins to create users within their scope
+    if (!session) {
         return new NextResponse('Unauthorized', { status: 401 });
+    }
+
+    // Check if user has admin role
+    const adminRoles = ['SUPERADMIN', 'GLOBAL_ADMIN', 'INTERNATIONAL_ADMIN', 'NATIONAL_ADMIN', 'REGIONAL_ADMIN', 'CAMPUS_ADMIN'];
+    if (!adminRoles.includes(session.user.role)) {
+        return new NextResponse('Forbidden - Admin role required', { status: 403 });
     }
 
     try {
@@ -73,6 +78,46 @@ export async function POST(request: Request) {
 
         if (existingUser) {
             return new NextResponse('User already exists', { status: 400 });
+        }
+
+        // For non-superadmins, verify they can create users in the target department
+        if (session.user.role !== 'SUPERADMIN') {
+            if (!session.user.departmentId) {
+                return new NextResponse('Forbidden - No department assigned', { status: 403 });
+            }
+
+            // Get all departments this admin oversees
+            const allowedDepartmentIds = await getDescendantDepartmentIds(session.user.departmentId);
+            
+            // Verify the target department is within their scope
+            if (departmentId && !allowedDepartmentIds.includes(departmentId)) {
+                return new NextResponse('Forbidden - Cannot create user in this department', { status: 403 });
+            }
+
+            // Verify the role being assigned is appropriate for the admin's level
+            // Admins can only assign roles at their level or below
+            const userDept = departmentId ? await prisma.department.findUnique({ where: { id: departmentId } }) : null;
+            const adminDept = await prisma.department.findUnique({ where: { id: session.user.departmentId } });
+            
+            if (userDept && adminDept) {
+                const DEPARTMENT_HIERARCHY: Record<string, number> = {
+                    GLOBAL: 1,
+                    INTERNATIONAL: 2,
+                    NATIONAL: 3,
+                    REGIONAL: 4,
+                    CAMPUS: 5,
+                    STREAM: 6,
+                    COUNCIL: 7,
+                };
+
+                const userDeptLevel = DEPARTMENT_HIERARCHY[userDept.level];
+                const adminDeptLevel = DEPARTMENT_HIERARCHY[adminDept.level];
+
+                // User department must be at admin's level or below
+                if (userDeptLevel < adminDeptLevel) {
+                    return new NextResponse('Forbidden - Cannot create user at higher department level', { status: 403 });
+                }
+            }
         }
 
         const user = await prisma.user.create({
@@ -89,6 +134,7 @@ export async function POST(request: Request) {
 
         return NextResponse.json(safeUser);
     } catch (error) {
+        console.error('Error creating user:', error);
         return new NextResponse('Internal Error', { status: 500 });
     }
 }

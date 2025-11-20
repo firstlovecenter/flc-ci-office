@@ -23,12 +23,14 @@ import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
 import ReceiptIcon from '@mui/icons-material/Receipt';
 import PeopleIcon from '@mui/icons-material/People';
 import AssessmentIcon from '@mui/icons-material/Assessment';
+import HistoryIcon from '@mui/icons-material/History';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useSession, signOut } from 'next-auth/react';
 import Avatar from '@mui/material/Avatar';
 import Menu from '@mui/material/Menu';
 import MenuItem from '@mui/material/MenuItem';
+import PushNotificationManager from './PushNotificationManager';
 
 const drawerWidth = 240;
 
@@ -107,6 +109,7 @@ const menuItems = [
     { text: 'Transactions', icon: <ReceiptIcon />, path: '/transactions' },
     { text: 'Users', icon: <PeopleIcon />, path: '/users' },
     { text: 'Reports', icon: <AssessmentIcon />, path: '/reports' },
+    { text: 'Audit Trail', icon: <HistoryIcon />, path: '/audit', superAdminOnly: true },
 ];
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -115,6 +118,20 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     const pathname = usePathname();
     const { data: session } = useSession();
     const [anchorEl, setAnchorEl] = React.useState<null | HTMLElement>(null);
+
+    // Filter menu items based on user role - leaders don't see Users menu
+    const leaderRoles = ['GLOBAL_LEADER', 'INTERNATIONAL_LEADER', 'NATIONAL_LEADER', 'REGIONAL_LEADER', 'CAMPUS_LEADER', 'STREAM_LEADER', 'COUNCIL_LEADER'];
+    const isLeader = session?.user?.role && leaderRoles.includes(session.user.role);
+    const isSuperAdmin = session?.user?.role === 'SUPERADMIN';
+    const filteredMenuItems = menuItems.filter(item => {
+        if (item.path === '/users' && isLeader) {
+            return false;
+        }
+        if (item.superAdminOnly && !isSuperAdmin) {
+            return false;
+        }
+        return true;
+    });
 
     const handleDrawerOpen = () => {
         setOpen(true);
@@ -233,8 +250,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     </IconButton>
                 </DrawerHeader>
                 <Divider />
+                <PushNotificationManager />
+                <Divider />
                 <List sx={{ px: 1, py: 2 }}>
-                    {menuItems.map((item) => (
+                    {filteredMenuItems.map((item) => (
                         <ListItem key={item.text} disablePadding sx={{ display: 'block', mb: 0.5 }}>
                             <Link href={item.path} style={{ textDecoration: 'none', color: 'inherit' }}>
                                 <ListItemButton

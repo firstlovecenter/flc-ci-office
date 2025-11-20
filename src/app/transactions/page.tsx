@@ -32,6 +32,8 @@ import FilterListIcon from '@mui/icons-material/FilterList';
 import AttachFileIcon from '@mui/icons-material/AttachFile';
 import LockIcon from '@mui/icons-material/Lock';
 import LockOpenIcon from '@mui/icons-material/LockOpen';
+import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import CancelIcon from '@mui/icons-material/Cancel';
 import Link from 'next/link';
 import { formatCurrency } from '@/lib/utils';
 import { useSession } from 'next-auth/react';
@@ -46,6 +48,10 @@ type Transaction = {
     departmentId: string;
     createdBy: string;
     weekLocked: boolean;
+    status: 'PENDING' | 'APPROVED' | 'REJECTED';
+    approvedBy: string | null;
+    approvedAt: Date | null;
+    rejectedReason: string | null;
     createdAt: Date;
     updatedAt: Date;
 };
@@ -82,6 +88,7 @@ export default function TransactionsPage() {
     const [searchTerm, setSearchTerm] = useState('');
     const [typeFilter, setTypeFilter] = useState('ALL');
     const [statusFilter, setStatusFilter] = useState('ALL');
+    const [approvalFilter, setApprovalFilter] = useState('ALL'); // NEW: Filter by approval status
     const [editDialog, setEditDialog] = useState<{ open: boolean; transaction: any }>({
         open: false,
         transaction: null,
@@ -89,6 +96,7 @@ export default function TransactionsPage() {
     const { data: session } = useSession();
 
     const isSuperAdmin = session?.user?.role === 'SUPERADMIN';
+    const isAdmin = session?.user?.role && ['SUPERADMIN', 'GLOBAL_ADMIN', 'INTERNATIONAL_ADMIN', 'NATIONAL_ADMIN', 'REGIONAL_ADMIN', 'CAMPUS_ADMIN'].includes(session.user.role);
 
     useEffect(() => {
         fetchTransactions();
@@ -96,7 +104,7 @@ export default function TransactionsPage() {
 
     useEffect(() => {
         filterTransactions();
-    }, [transactions, searchTerm, typeFilter, statusFilter]);
+    }, [transactions, searchTerm, typeFilter, statusFilter, approvalFilter]);
 
     const fetchTransactions = async () => {
         try {
@@ -130,7 +138,12 @@ export default function TransactionsPage() {
             filtered = filtered.filter((tx) => tx.type === typeFilter);
         }
 
-        // Status filter
+        // Approval status filter
+        if (approvalFilter !== 'ALL') {
+            filtered = filtered.filter((tx) => tx.status === approvalFilter);
+        }
+
+        // Lock status filter
         if (statusFilter === 'LOCKED') {
             filtered = filtered.filter((tx) => tx.weekLocked);
         } else if (statusFilter === 'OPEN') {
@@ -152,12 +165,57 @@ export default function TransactionsPage() {
         fetchTransactions();
     };
 
+    const handleApprove = async (id: string) => {
+        if (!confirm('Approve this transaction?')) return;
+
+        try {
+            const response = await fetch(`/api/transactions/${id}/approve`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'approve' }),
+            });
+
+            if (response.ok) {
+                fetchTransactions();
+            } else {
+                const data = await response.json();
+                alert(data.error || 'Failed to approve transaction');
+            }
+        } catch (error) {
+            console.error('Error approving transaction:', error);
+            alert('Error approving transaction');
+        }
+    };
+
+    const handleReject = async (id: string) => {
+        const reason = prompt('Reason for rejection:');
+        if (!reason) return;
+
+        try {
+            const response = await fetch(`/api/transactions/${id}/approve`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'reject', reason }),
+            });
+
+            if (response.ok) {
+                fetchTransactions();
+            } else {
+                const data = await response.json();
+                alert(data.error || 'Failed to reject transaction');
+            }
+        } catch (error) {
+            console.error('Error rejecting transaction:', error);
+            alert('Error rejecting transaction');
+        }
+    };
+
     const totalIncome = filteredTransactions
-        .filter((tx) => tx.type === 'INCOME')
+        .filter((tx) => tx.type === 'INCOME' && tx.status === 'APPROVED')
         .reduce((sum, tx) => sum + Number(tx.amount), 0);
 
     const totalExpense = filteredTransactions
-        .filter((tx) => tx.type === 'EXPENSE')
+        .filter((tx) => tx.type === 'EXPENSE' && tx.status === 'APPROVED')
         .reduce((sum, tx) => sum + Number(tx.amount), 0);
 
     return (
@@ -263,6 +321,19 @@ export default function TransactionsPage() {
                             <MenuItem value="LOCKED">Locked</MenuItem>
                         </Select>
                     </FormControl>
+                    <FormControl sx={{ minWidth: 150 }}>
+                        <InputLabel>Approval</InputLabel>
+                        <Select
+                            value={approvalFilter}
+                            label="Approval"
+                            onChange={(e) => setApprovalFilter(e.target.value)}
+                        >
+                            <MenuItem value="ALL">All</MenuItem>
+                            <MenuItem value="PENDING">Pending</MenuItem>
+                            <MenuItem value="APPROVED">Approved</MenuItem>
+                            <MenuItem value="REJECTED">Rejected</MenuItem>
+                        </Select>
+                    </FormControl>
                 </Box>
             </Paper>
 
@@ -324,12 +395,24 @@ export default function TransactionsPage() {
                                 </TableCell>
                                 <TableCell>
                                     <Chip
-                                        icon={tx.weekLocked ? <LockIcon fontSize="small" /> : <LockOpenIcon fontSize="small" />}
-                                        label={tx.weekLocked ? 'Locked' : 'Open'}
-                                        color={tx.weekLocked ? 'default' : 'primary'}
+                                        label={tx.status}
+                                        color={
+                                            tx.status === 'APPROVED' ? 'success' : 
+                                            tx.status === 'REJECTED' ? 'error' : 
+                                            'warning'
+                                        }
                                         size="small"
-                                        variant="outlined"
+                                        variant={tx.status === 'PENDING' ? 'outlined' : 'filled'}
                                     />
+                                    {tx.weekLocked && (
+                                        <Chip
+                                            icon={<LockIcon fontSize="small" />}
+                                            label="Locked"
+                                            size="small"
+                                            variant="outlined"
+                                            sx={{ ml: 0.5 }}
+                                        />
+                                    )}
                                 </TableCell>
                                 <TableCell>
                                     {tx.files && tx.files.length > 0 && (
@@ -348,6 +431,37 @@ export default function TransactionsPage() {
                                 </TableCell>
                                 <TableCell align="center">
                                     <Box sx={{ display: 'flex', gap: 1, justifyContent: 'center' }}>
+                                        {/* Approval buttons for admins viewing pending transactions */}
+                                        {tx.status === 'PENDING' && isAdmin && (
+                                            <>
+                                                <Tooltip title="Approve">
+                                                    <IconButton
+                                                        size="small"
+                                                        color="success"
+                                                        onClick={() => handleApprove(tx.id)}
+                                                        sx={{
+                                                            '&:hover': { bgcolor: 'success.dark', color: 'white' }
+                                                        }}
+                                                    >
+                                                        <CheckCircleIcon fontSize="small" />
+                                                    </IconButton>
+                                                </Tooltip>
+                                                <Tooltip title="Reject">
+                                                    <IconButton
+                                                        size="small"
+                                                        color="error"
+                                                        onClick={() => handleReject(tx.id)}
+                                                        sx={{
+                                                            '&:hover': { bgcolor: 'error.dark', color: 'white' }
+                                                        }}
+                                                    >
+                                                        <CancelIcon fontSize="small" />
+                                                    </IconButton>
+                                                </Tooltip>
+                                            </>
+                                        )}
+                                        
+                                        {/* Edit button for all users (with permission checks) */}
                                         <Tooltip title={tx.weekLocked && !isSuperAdmin ? 'Locked - Superadmin only' : 'Edit'}>
                                             <span>
                                                 <IconButton

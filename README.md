@@ -8,11 +8,15 @@ A comprehensive accounting system designed for church organizations with hierarc
 - **Multi-Level Department Hierarchy**: Global → International → National → Regional → Campus → Stream → Council
 - **Role-Based Access Control (RBAC)**: 12 different role levels with granular permissions
 - **Transaction Management**: Income and expense tracking with file attachments
+- **Transaction Approval Workflow**: Leaders submit requests, admins approve/reject
 - **Weekly Locking**: Automatic locking of past weeks' transactions
 - **Recursive Permissions**: Admins can view/manage child departments
 - **Audit Trail**: Complete logging of all system actions
 - **Financial Reports**: Generate reports by department
 - **Dashboard Analytics**: Real-time financial statistics
+- **Push Notifications**: Real-time PWA notifications for transaction approvals
+- **Offline Support**: Progressive Web App with offline capabilities
+- **Background Sync**: Automatic sync when connection is restored
 
 ### Security
 - **NextAuth Authentication**: Secure credential-based authentication
@@ -47,6 +51,14 @@ A comprehensive accounting system designed for church organizations with hierarc
    ```bash
    npm install
    ```
+
+3. **Generate VAPID keys for push notifications**
+   ```bash
+   node scripts/generate-vapid-keys.js
+   ```
+   Copy the generated keys to your `.env.local` file.
+
+4. **Set up environment variables**
 
 3. **Set up environment variables**
    Create a `.env` file in the root directory:

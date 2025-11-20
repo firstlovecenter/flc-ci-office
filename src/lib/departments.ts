@@ -4,23 +4,21 @@ import { DepartmentLevel } from '@prisma/client';
 /**
  * Recursively fetches all descendant department IDs for a given department ID.
  * Includes the given department ID in the result.
+ * Optimized to use a single query with CTE instead of N+1 queries.
  */
 export async function getDescendantDepartmentIds(departmentId: string): Promise<string[]> {
-    // Start with the current department
-    const allIds = [departmentId];
+    // Use raw SQL with recursive CTE for much better performance
+    const result = await prisma.$queryRaw<Array<{ id: string }>>`
+        WITH RECURSIVE dept_tree AS (
+            SELECT id FROM "Department" WHERE id = ${departmentId}
+            UNION ALL
+            SELECT d.id FROM "Department" d
+            INNER JOIN dept_tree dt ON d."parentId" = dt.id
+        )
+        SELECT id FROM dept_tree
+    `;
 
-    // Get immediate children
-    const children = await prisma.department.findMany({
-        where: { parentId: departmentId },
-        select: { id: true }
-    });
-
-    for (const child of children) {
-        const descendantIds = await getDescendantDepartmentIds(child.id);
-        allIds.push(...descendantIds);
-    }
-
-    return allIds;
+    return result.map(row => row.id);
 }
 
 /**

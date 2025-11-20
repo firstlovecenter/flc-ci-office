@@ -27,6 +27,7 @@ export async function GET(request: Request) {
                 where: {
                     ...whereClause,
                     type: 'INCOME',
+                    status: 'APPROVED', // Only count approved transactions
                 },
                 _sum: {
                     amount: true,
@@ -36,6 +37,7 @@ export async function GET(request: Request) {
                 where: {
                     ...whereClause,
                     type: 'EXPENSE',
+                    status: 'APPROVED', // Only count approved transactions
                 },
                 _sum: {
                     amount: true,

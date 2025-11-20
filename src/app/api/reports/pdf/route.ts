@@ -92,7 +92,7 @@ export async function POST(request: NextRequest) {
 
         // Opening Balance
         doc.fontSize(11).font('Helvetica-Bold');
-        doc.text(`Opening Balance: ₵${openingBalance.toFixed(2)}`, { align: 'left' });
+        doc.text(`Opening Balance: GH₵${openingBalance.toFixed(2)}`, { align: 'left' });
         doc.moveDown(1);
 
         // Table Header
@@ -140,9 +140,9 @@ export async function POST(request: NextRequest) {
             doc.text(dateStr, 50, y, { width: colWidths.date });
             doc.text(description, 120, y, { width: colWidths.description });
             doc.text(deptName, 270, y, { width: colWidths.department });
-            doc.text(debit ? `₵${debit.toFixed(2)}` : '-', 370, y, { width: colWidths.debit, align: 'right' });
-            doc.text(credit ? `₵${credit.toFixed(2)}` : '-', 440, y, { width: colWidths.credit, align: 'right' });
-            doc.text(`₵${runningBalance.toFixed(2)}`, 510, y, { width: colWidths.balance, align: 'right' });
+            doc.text(debit ? `GH₵${debit.toFixed(2)}` : '-', 370, y, { width: colWidths.debit, align: 'right' });
+            doc.text(credit ? `GH₵${credit.toFixed(2)}` : '-', 440, y, { width: colWidths.credit, align: 'right' });
+            doc.text(`GH₵${runningBalance.toFixed(2)}`, 510, y, { width: colWidths.balance, align: 'right' });
 
             y += 20;
         }
@@ -150,7 +150,7 @@ export async function POST(request: NextRequest) {
         // Closing Balance
         doc.moveDown(2);
         doc.fontSize(11).font('Helvetica-Bold');
-        doc.text(`Closing Balance: ₵${runningBalance.toFixed(2)}`, { align: 'right' });
+        doc.text(`Closing Balance: GH₵${runningBalance.toFixed(2)}`, { align: 'right' });
         
         // Summary
         const income = transactions
@@ -162,9 +162,9 @@ export async function POST(request: NextRequest) {
 
         doc.moveDown(2);
         doc.fontSize(10);
-        doc.text(`Total Income: ₵${income.toFixed(2)}`, { align: 'left' });
-        doc.text(`Total Expense: ₵${expense.toFixed(2)}`, { align: 'left' });
-        doc.text(`Net Change: ₵${(income - expense).toFixed(2)}`, { align: 'left' });
+        doc.text(`Total Income: GH₵${income.toFixed(2)}`, { align: 'left' });
+        doc.text(`Total Expense: GH₵${expense.toFixed(2)}`, { align: 'left' });
+        doc.text(`Net Change: GH₵${(income - expense).toFixed(2)}`, { align: 'left' });
 
         // Footer
         doc.fontSize(8).font('Helvetica').text(

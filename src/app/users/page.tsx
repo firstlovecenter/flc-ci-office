@@ -29,10 +29,12 @@ import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import IconButton from '@mui/material/IconButton';
 import { useSession } from 'next-auth/react';
+import { useRouter } from 'next/navigation';
 import EditUserDialog from '@/components/EditUserDialog';
 
 export default function UsersPage() {
     const { data: session } = useSession();
+    const router = useRouter();
     const [users, setUsers] = useState<any[]>([]);
     const [departments, setDepartments] = useState<any[]>([]);
     const [open, setOpen] = useState(false);
@@ -47,6 +49,16 @@ export default function UsersPage() {
         role: 'COUNCIL_LEADER',
         departmentId: '',
     });
+
+    // Redirect leaders to dashboard - they shouldn't access user management
+    useEffect(() => {
+        if (session?.user?.role) {
+            const leaderRoles = ['GLOBAL_LEADER', 'INTERNATIONAL_LEADER', 'NATIONAL_LEADER', 'REGIONAL_LEADER', 'CAMPUS_LEADER', 'STREAM_LEADER', 'COUNCIL_LEADER'];
+            if (leaderRoles.includes(session.user.role)) {
+                router.push('/dashboard');
+            }
+        }
+    }, [session, router]);
 
     useEffect(() => {
         fetchUsers();
@@ -151,8 +163,9 @@ export default function UsersPage() {
         'COUNCIL_LEADER',
     ];
 
-    // Only SuperAdmins can create users
-    const canCreateUsers = session?.user?.role === 'SUPERADMIN';
+    // Admins can create users
+    const adminRoles = ['SUPERADMIN', 'GLOBAL_ADMIN', 'INTERNATIONAL_ADMIN', 'NATIONAL_ADMIN', 'REGIONAL_ADMIN', 'CAMPUS_ADMIN'];
+    const canCreateUsers = session?.user?.role && adminRoles.includes(session.user.role);
 
     return (
         <Box>

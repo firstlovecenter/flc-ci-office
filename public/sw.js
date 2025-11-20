@@ -1,0 +1,231 @@
+// Custom Service Worker for FLC CI Office
+// Handles push notifications, caching, and offline support
+
+const CACHE_NAME = 'flc-ci-office-v1';
+const STATIC_CACHE = 'flc-static-v1';
+const DYNAMIC_CACHE = 'flc-dynamic-v1';
+
+// Assets to cache immediately
+const STATIC_ASSETS = [
+  '/',
+  '/offline',
+  '/manifest.json',
+  '/icon-192x192.png',
+  '/icon-512x512.png',
+];
+
+// Install event - cache static assets
+self.addEventListener('install', (event) => {
+  console.log('[SW] Installing service worker...');
+  event.waitUntil(
+    caches.open(STATIC_CACHE).then((cache) => {
+      console.log('[SW] Caching static assets');
+      return cache.addAll(STATIC_ASSETS.map(url => new Request(url, { cache: 'reload' })));
+    }).catch(err => {
+      console.error('[SW] Failed to cache static assets:', err);
+    })
+  );
+  self.skipWaiting();
+});
+
+// Activate event - clean up old caches
+self.addEventListener('activate', (event) => {
+  console.log('[SW] Activating service worker...');
+  event.waitUntil(
+    caches.keys().then((cacheNames) => {
+      return Promise.all(
+        cacheNames.map((cacheName) => {
+          if (cacheName !== STATIC_CACHE && cacheName !== DYNAMIC_CACHE) {
+            console.log('[SW] Deleting old cache:', cacheName);
+            return caches.delete(cacheName);
+          }
+        })
+      );
+    })
+  );
+  self.clients.claim();
+});
+
+// Fetch event - serve from cache, fallback to network
+self.addEventListener('fetch', (event) => {
+  const { request } = event;
+  const url = new URL(request.url);
+
+  // Skip non-GET requests
+  if (request.method !== 'GET') {
+    return;
+  }
+
+  // Skip chrome extensions and non-http(s) requests
+  if (!url.protocol.startsWith('http')) {
+    return;
+  }
+
+  // API requests - network first, then cache
+  if (url.pathname.startsWith('/api/')) {
+    event.respondWith(
+      fetch(request)
+        .then((response) => {
+          // Clone the response
+          const responseClone = response.clone();
+          // Cache successful responses
+          if (response.status === 200) {
+            caches.open(DYNAMIC_CACHE).then((cache) => {
+              cache.put(request, responseClone);
+            });
+          }
+          return response;
+        })
+        .catch(() => {
+          // Return cached version if available
+          return caches.match(request);
+        })
+    );
+    return;
+  }
+
+  // Static assets and pages - cache first, then network
+  event.respondWith(
+    caches.match(request).then((cachedResponse) => {
+      if (cachedResponse) {
+        // Return cached version and update in background
+        fetch(request).then((response) => {
+          if (response.status === 200) {
+            caches.open(DYNAMIC_CACHE).then((cache) => {
+              cache.put(request, response);
+            });
+          }
+        }).catch(() => {});
+        return cachedResponse;
+      }
+
+      // Not in cache, fetch from network
+      return fetch(request).then((response) => {
+        // Clone the response
+        const responseClone = response.clone();
+        // Cache successful responses
+        if (response.status === 200) {
+          caches.open(DYNAMIC_CACHE).then((cache) => {
+            cache.put(request, responseClone);
+          });
+        }
+        return response;
+      }).catch(() => {
+        // If both cache and network fail, show offline page
+        if (request.headers.get('accept').includes('text/html')) {
+          return caches.match('/offline');
+        }
+      });
+    })
+  );
+});
+
+// Push notification event
+self.addEventListener('push', (event) => {
+  console.log('[SW] Push notification received');
+  
+  let data = {
+    title: 'FLC CI Office',
+    body: 'New notification',
+    icon: '/icon-192x192.png',
+    badge: '/icon-192x192.png',
+    tag: 'default',
+    requireInteraction: false,
+  };
+
+  if (event.data) {
+    try {
+      data = { ...data, ...event.data.json() };
+    } catch (e) {
+      data.body = event.data.text();
+    }
+  }
+
+  const options = {
+    body: data.body,
+    icon: data.icon,
+    badge: data.badge,
+    tag: data.tag,
+    requireInteraction: data.requireInteraction,
+    vibrate: [200, 100, 200],
+    data: {
+      url: data.url || '/',
+      timestamp: Date.now(),
+    },
+    actions: data.actions || [],
+  };
+
+  event.waitUntil(
+    self.registration.showNotification(data.title, options)
+  );
+});
+
+// Notification click event
+self.addEventListener('notificationclick', (event) => {
+  console.log('[SW] Notification clicked');
+  event.notification.close();
+
+  const urlToOpen = event.notification.data?.url || '/';
+
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+      // Check if there's already a window open
+      for (const client of clientList) {
+        if (client.url === urlToOpen && 'focus' in client) {
+          return client.focus();
+        }
+      }
+      // If not, open a new window
+      if (clients.openWindow) {
+        return clients.openWindow(urlToOpen);
+      }
+    })
+  );
+});
+
+// Background sync event (for offline transaction submissions)
+self.addEventListener('sync', (event) => {
+  console.log('[SW] Background sync:', event.tag);
+  
+  if (event.tag === 'sync-transactions') {
+    event.waitUntil(syncTransactions());
+  }
+});
+
+// Sync pending transactions when back online
+async function syncTransactions() {
+  try {
+    const cache = await caches.open(DYNAMIC_CACHE);
+    const requests = await cache.keys();
+    const pendingRequests = requests.filter(req => req.url.includes('/api/transactions') && req.method === 'POST');
+    
+    for (const request of pendingRequests) {
+      try {
+        await fetch(request.clone());
+        await cache.delete(request);
+      } catch (error) {
+        console.error('[SW] Failed to sync transaction:', error);
+      }
+    }
+  } catch (error) {
+    console.error('[SW] Sync failed:', error);
+  }
+}
+
+// Message event - handle messages from clients
+self.addEventListener('message', (event) => {
+  console.log('[SW] Message received:', event.data);
+  
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
+  
+  if (event.data && event.data.type === 'CACHE_URLS') {
+    const urls = event.data.urls || [];
+    event.waitUntil(
+      caches.open(DYNAMIC_CACHE).then((cache) => {
+        return cache.addAll(urls);
+      })
+    );
+  }
+});
