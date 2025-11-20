@@ -19,7 +19,9 @@ export async function GET(request: Request) {
     }
 
     try {
-        let whereClause: any = {};
+        let whereClause: any = {
+            archived: false, // Only show non-archived users by default
+        };
 
         // Filter users based on department hierarchy
         if (session.user.role !== 'SUPERADMIN') {

@@ -14,6 +14,8 @@ import {
     Select,
     Alert,
 } from '@mui/material';
+import { useSession } from 'next-auth/react';
+import { getAssignableRoles } from '@/lib/roles';
 
 type UserRole = 
     | 'SUPERADMIN'
@@ -22,6 +24,13 @@ type UserRole =
     | 'NATIONAL_ADMIN'
     | 'REGIONAL_ADMIN'
     | 'CAMPUS_ADMIN'
+    | 'STREAM_ADMIN'
+    | 'COUNCIL_ADMIN'
+    | 'GLOBAL_LEADER'
+    | 'INTERNATIONAL_LEADER'
+    | 'NATIONAL_LEADER'
+    | 'REGIONAL_LEADER'
+    | 'CAMPUS_LEADER'
     | 'STREAM_LEADER'
     | 'COUNCIL_LEADER';
 
@@ -51,6 +60,7 @@ export default function EditUserDialog({
     departments,
     onSave,
 }: EditUserDialogProps) {
+    const { data: session } = useSession();
     const [name, setName] = useState('');
     const [email, setEmail] = useState('');
     const [role, setRole] = useState<UserRole>('COUNCIL_LEADER');
@@ -58,6 +68,7 @@ export default function EditUserDialog({
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
     const [saving, setSaving] = useState(false);
+    const [assignableRoles, setAssignableRoles] = useState<string[]>([]);
 
     useEffect(() => {
         if (user) {
@@ -68,6 +79,14 @@ export default function EditUserDialog({
             setPassword('');
         }
     }, [user]);
+
+    useEffect(() => {
+        // Get roles that current admin can assign
+        if (session?.user?.role) {
+            const roles = getAssignableRoles(session.user.role);
+            setAssignableRoles(roles);
+        }
+    }, [session]);
 
     const handleSave = async () => {
         if (!name.trim()) {
@@ -162,9 +181,9 @@ export default function EditUserDialog({
                         label="Role"
                         onChange={(e) => setRole(e.target.value as UserRole)}
                     >
-                        {USER_ROLES.map((r) => (
+                        {assignableRoles.map((r) => (
                             <MenuItem key={r} value={r}>
-                                {r}
+                                {r.replace(/_/g, ' ')}
                             </MenuItem>
                         ))}
                     </Select>

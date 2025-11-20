@@ -1,18 +1,27 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Typography, Box, CircularProgress, Grid, Stack, useTheme } from '@mui/material';
+import { Typography, Box, CircularProgress, Grid, Stack, useTheme, Card, CardActionArea } from '@mui/material';
 import { formatCurrency } from '@/lib/utils';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import TrendingDownIcon from '@mui/icons-material/TrendingDown';
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
+import AddCircleIcon from '@mui/icons-material/AddCircle';
+import ReceiptIcon from '@mui/icons-material/Receipt';
+import BusinessIcon from '@mui/icons-material/Business';
+import AssessmentIcon from '@mui/icons-material/Assessment';
+import PeopleIcon from '@mui/icons-material/People';
+import MonetizationOnIcon from '@mui/icons-material/MonetizationOn';
 import { useSession } from 'next-auth/react';
+import { useRouter } from 'next/navigation';
+import { Role } from '@prisma/client';
 
 export default function DashboardPage() {
     const [stats, setStats] = useState({ income: 0, expense: 0, balance: 0 });
     const [loading, setLoading] = useState(true);
     const { data: session } = useSession();
     const theme = useTheme();
+    const router = useRouter();
 
     useEffect(() => {
         fetchStats();
@@ -30,6 +39,65 @@ export default function DashboardPage() {
         } finally {
             setLoading(false);
         }
+    };
+
+    const getQuickLinks = () => {
+        const userRole = session?.user?.role as Role;
+        
+        const allLinks = [
+            {
+                title: 'New Transaction',
+                icon: AddCircleIcon,
+                href: '/transactions/new',
+                color: theme.palette.success.main,
+                bgColor: theme.palette.success.main + '15',
+                roles: null as Role[] | null // Available to all
+            },
+            {
+                title: 'Transactions',
+                icon: ReceiptIcon,
+                href: '/transactions',
+                color: theme.palette.info.main,
+                bgColor: theme.palette.info.main + '15',
+                roles: null as Role[] | null // Available to all
+            },
+            {
+                title: 'Departments',
+                icon: BusinessIcon,
+                href: '/departments',
+                color: theme.palette.warning.main,
+                bgColor: theme.palette.warning.main + '15',
+                roles: null as Role[] | null // Available to all
+            },
+            {
+                title: 'Reports',
+                icon: AssessmentIcon,
+                href: '/reports',
+                color: theme.palette.secondary.main,
+                bgColor: theme.palette.secondary.main + '15',
+                roles: null as Role[] | null // Available to all
+            },
+            {
+                title: 'Manage Users',
+                icon: PeopleIcon,
+                href: '/users',
+                color: theme.palette.primary.main,
+                bgColor: theme.palette.primary.main + '15',
+                roles: [Role.SUPERADMIN, Role.GLOBAL_ADMIN, Role.INTERNATIONAL_ADMIN, Role.NATIONAL_ADMIN, Role.REGIONAL_ADMIN, Role.CAMPUS_ADMIN] as Role[]
+            },
+            {
+                title: 'Currencies',
+                icon: MonetizationOnIcon,
+                href: '/currencies',
+                color: theme.palette.error.main,
+                bgColor: theme.palette.error.main + '15',
+                roles: [Role.SUPERADMIN, Role.GLOBAL_ADMIN] as Role[]
+            }
+        ];
+
+        return allLinks.filter(link => 
+            !link.roles || link.roles.includes(userRole)
+        );
     };
 
     if (loading) {
@@ -146,6 +214,81 @@ export default function DashboardPage() {
                     );
                 })}
             </Grid>
+
+            {/* Quick Links */}
+            <Box
+                sx={{
+                    p: { xs: 2.5, sm: 3, md: 4 },
+                    borderRadius: 2,
+                    bgcolor: 'background.paper',
+                    border: '1px solid',
+                    borderColor: 'divider',
+                }}
+            >
+                <Typography variant="h6" fontWeight="600" sx={{ mb: 3, fontSize: { xs: '1rem', sm: '1.25rem' } }}>
+                    Quick Actions
+                </Typography>
+                <Grid container spacing={{ xs: 2, sm: 2.5 }}>
+                    {getQuickLinks().map((link) => {
+                        const Icon = link.icon;
+                        return (
+                            <Grid size={{ xs: 6, sm: 4, md: 3 }} key={link.title}>
+                                <Card
+                                    sx={{
+                                        height: '100%',
+                                        border: '1px solid',
+                                        borderColor: 'divider',
+                                        transition: 'all 0.2s ease-in-out',
+                                        '&:hover': {
+                                            borderColor: link.color,
+                                            transform: { xs: 'none', sm: 'translateY(-2px)' },
+                                            boxShadow: `0 4px 12px ${link.bgColor}`,
+                                        }
+                                    }}
+                                >
+                                    <CardActionArea
+                                        onClick={() => router.push(link.href)}
+                                        sx={{
+                                            height: '100%',
+                                            p: { xs: 2, sm: 2.5 },
+                                            display: 'flex',
+                                            flexDirection: 'column',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            gap: { xs: 1.5, sm: 2 }
+                                        }}
+                                    >
+                                        <Box
+                                            sx={{
+                                                width: { xs: 48, sm: 56 },
+                                                height: { xs: 48, sm: 56 },
+                                                borderRadius: 2,
+                                                bgcolor: link.bgColor,
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center'
+                                            }}
+                                        >
+                                            <Icon sx={{ fontSize: { xs: 24, sm: 28 }, color: link.color }} />
+                                        </Box>
+                                        <Typography
+                                            variant="body2"
+                                            fontWeight="600"
+                                            textAlign="center"
+                                            sx={{
+                                                fontSize: { xs: '0.75rem', sm: '0.875rem' },
+                                                color: 'text.primary'
+                                            }}
+                                        >
+                                            {link.title}
+                                        </Typography>
+                                    </CardActionArea>
+                                </Card>
+                            </Grid>
+                        );
+                    })}
+                </Grid>
+            </Box>
 
             {/* Financial Insights */}
             <Box

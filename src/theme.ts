@@ -60,6 +60,13 @@ const theme = createTheme({
                 root: {
                     textTransform: 'none',
                     borderRadius: 8,
+                    fontWeight: 600,
+                },
+                contained: {
+                    boxShadow: '0 4px 14px 0 rgba(96, 165, 250, 0.4)',
+                    '&:hover': {
+                        boxShadow: '0 6px 20px 0 rgba(96, 165, 250, 0.5)',
+                    },
                 },
             },
         },
@@ -67,6 +74,64 @@ const theme = createTheme({
             styleOverrides: {
                 root: {
                     borderRadius: 12,
+                    backgroundImage: 'none',
+                    backgroundColor: 'rgba(30, 41, 59, 0.9)',
+                    backdropFilter: 'blur(20px)',
+                    border: '1px solid rgba(148, 163, 184, 0.12)',
+                },
+            },
+        },
+        MuiCard: {
+            styleOverrides: {
+                root: {
+                    borderRadius: 12,
+                    backgroundImage: 'none',
+                    backgroundColor: 'rgba(30, 41, 59, 0.7)',
+                    backdropFilter: 'blur(10px)',
+                    border: '1px solid rgba(148, 163, 184, 0.12)',
+                },
+            },
+        },
+        MuiTextField: {
+            styleOverrides: {
+                root: {
+                    '& .MuiOutlinedInput-root': {
+                        borderRadius: 8,
+                        backgroundColor: 'rgba(15, 23, 42, 0.4)',
+                        '&:hover': {
+                            backgroundColor: 'rgba(15, 23, 42, 0.5)',
+                        },
+                        '&.Mui-focused': {
+                            backgroundColor: 'rgba(15, 23, 42, 0.6)',
+                        },
+                    },
+                },
+            },
+        },
+        MuiTableContainer: {
+            styleOverrides: {
+                root: {
+                    borderRadius: 12,
+                    backgroundColor: 'rgba(30, 41, 59, 0.7)',
+                    backdropFilter: 'blur(10px)',
+                },
+            },
+        },
+        MuiDrawer: {
+            styleOverrides: {
+                paper: {
+                    backgroundColor: 'rgba(15, 23, 42, 0.95)',
+                    backdropFilter: 'blur(20px)',
+                    borderRight: '1px solid rgba(148, 163, 184, 0.12)',
+                },
+            },
+        },
+        MuiAppBar: {
+            styleOverrides: {
+                root: {
+                    backgroundColor: 'rgba(30, 41, 59, 0.9)',
+                    backdropFilter: 'blur(20px)',
+                    borderBottom: '1px solid rgba(148, 163, 184, 0.12)',
                 },
             },
         },

@@ -75,6 +75,15 @@ export async function GET(request: Request) {
                         email: true,
                     },
                 },
+                currency: {
+                    select: {
+                        id: true,
+                        code: true,
+                        name: true,
+                        symbol: true,
+                        isBase: true,
+                    },
+                },
                 files: {
                     select: {
                         id: true,
@@ -109,13 +118,19 @@ export async function POST(request: Request) {
 
     try {
         const body = await request.json();
-        const { type, amount, description, departmentId, files } = body;
+        const { type, amount, description, departmentId, files, currencyId, exchangeRate } = body;
         const { weekNumber, year } = getCurrentWeek();
 
         // Validate that the user can create transaction for this department
         const canAccess = await hasDepartmentAccess(session.user, departmentId);
         if (!canAccess) {
             return new NextResponse('Unauthorized', { status: 403 });
+        }
+
+        // Calculate amount in base currency if using a different currency
+        let amountInBase = null;
+        if (currencyId && exchangeRate) {
+            amountInBase = amount * exchangeRate;
         }
 
         // Determine if this is a leader role (requires approval) or admin (auto-approved)
@@ -131,6 +146,9 @@ export async function POST(request: Request) {
             data: {
                 type,
                 amount,
+                currencyId: currencyId || null,
+                exchangeRate: exchangeRate || null,
+                amountInBase: amountInBase || null,
                 description,
                 departmentId,
                 userId: session.user.id,

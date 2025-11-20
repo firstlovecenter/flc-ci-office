@@ -26,13 +26,18 @@ export default function NewTransactionPage() {
     const [amount, setAmount] = useState('');
     const [description, setDescription] = useState('');
     const [departmentId, setDepartmentId] = useState('');
+    const [currencyId, setCurrencyId] = useState('');
     const [departments, setDepartments] = useState<any[]>([]);
+    const [currencies, setCurrencies] = useState<any[]>([]);
+    const [baseCurrency, setBaseCurrency] = useState<any>(null);
+    const [exchangeRate, setExchangeRate] = useState<number | null>(null);
     const [files, setFiles] = useState<File[]>([]);
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
 
     useEffect(() => {
         fetchDepartments();
+        fetchCurrencies();
     }, []);
 
     useEffect(() => {
@@ -41,11 +46,52 @@ export default function NewTransactionPage() {
         }
     }, [session]);
 
+    useEffect(() => {
+        // Fetch exchange rate when currency changes
+        if (currencyId && baseCurrency && currencyId !== baseCurrency.id) {
+            fetchExchangeRate(currencyId, baseCurrency.id);
+        } else {
+            setExchangeRate(null);
+        }
+    }, [currencyId, baseCurrency]);
+
     const fetchDepartments = async () => {
         const response = await fetch('/api/departments?all=true');
         if (response.ok) {
             const data = await response.json();
             setDepartments(data);
+        }
+    };
+
+    const fetchCurrencies = async () => {
+        const response = await fetch('/api/currencies?active=true');
+        if (response.ok) {
+            const data = await response.json();
+            setCurrencies(data);
+            const base = data.find((c: any) => c.isBase);
+            setBaseCurrency(base);
+            if (base) {
+                setCurrencyId(base.id);
+            }
+        }
+    };
+
+    const fetchExchangeRate = async (fromId: string, toId: string) => {
+        try {
+            const response = await fetch('/api/exchange-rates');
+            if (response.ok) {
+                const rates = await response.json();
+                const rate = rates.find((r: any) => 
+                    r.fromCurrencyId === fromId && r.toCurrencyId === toId
+                );
+                if (rate) {
+                    setExchangeRate(parseFloat(rate.rate));
+                } else {
+                    setExchangeRate(null);
+                }
+            }
+        } catch (error) {
+            console.error('Error fetching exchange rate:', error);
         }
     };
 
@@ -92,6 +138,8 @@ export default function NewTransactionPage() {
                     amount: parseFloat(amount),
                     description,
                     departmentId,
+                    currencyId: currencyId || null,
+                    exchangeRate: exchangeRate || null,
                     files: uploadedFiles,
                 }),
             });
@@ -134,6 +182,23 @@ export default function NewTransactionPage() {
                         </Select>
                     </FormControl>
 
+                    <FormControl fullWidth sx={{ mb: 3 }}>
+                        <InputLabel>Currency</InputLabel>
+                        <Select
+                            value={currencyId}
+                            label="Currency"
+                            onChange={(e) => setCurrencyId(e.target.value)}
+                            required
+                        >
+                            {currencies.map((currency) => (
+                                <MenuItem key={currency.id} value={currency.id}>
+                                    {currency.code} - {currency.name} ({currency.symbol})
+                                    {currency.isBase && ' [Base]'}
+                                </MenuItem>
+                            ))}
+                        </Select>
+                    </FormControl>
+
                     <TextField
                         fullWidth
                         label="Amount"
@@ -143,8 +208,17 @@ export default function NewTransactionPage() {
                         required
                         sx={{ mb: 3 }}
                         InputProps={{
-                            startAdornment: <InputAdornment position="start">$</InputAdornment>,
+                            startAdornment: (
+                                <InputAdornment position="start">
+                                    {currencies.find(c => c.id === currencyId)?.symbol || '₵'}
+                                </InputAdornment>
+                            ),
                         }}
+                        helperText={
+                            exchangeRate && amount
+                                ? `≈ ${baseCurrency?.symbol}${(parseFloat(amount) * exchangeRate).toFixed(2)} (${baseCurrency?.code})`
+                                : ''
+                        }
                     />
 
                     <TextField

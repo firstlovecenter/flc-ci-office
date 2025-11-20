@@ -24,6 +24,8 @@ import ReceiptIcon from '@mui/icons-material/Receipt';
 import PeopleIcon from '@mui/icons-material/People';
 import AssessmentIcon from '@mui/icons-material/Assessment';
 import HistoryIcon from '@mui/icons-material/History';
+import AccountCircleIcon from '@mui/icons-material/AccountCircle';
+import MonetizationOnIcon from '@mui/icons-material/MonetizationOn';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useSession, signOut } from 'next-auth/react';
@@ -109,6 +111,8 @@ const menuItems = [
     { text: 'Transactions', icon: <ReceiptIcon />, path: '/transactions' },
     { text: 'Users', icon: <PeopleIcon />, path: '/users' },
     { text: 'Reports', icon: <AssessmentIcon />, path: '/reports' },
+    { text: 'Currencies', icon: <MonetizationOnIcon />, path: '/currencies', adminOnly: true },
+    { text: 'Profile', icon: <AccountCircleIcon />, path: '/profile' },
     { text: 'Audit Trail', icon: <HistoryIcon />, path: '/audit', superAdminOnly: true },
 ];
 
@@ -123,11 +127,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     const leaderRoles = ['GLOBAL_LEADER', 'INTERNATIONAL_LEADER', 'NATIONAL_LEADER', 'REGIONAL_LEADER', 'CAMPUS_LEADER', 'STREAM_LEADER', 'COUNCIL_LEADER'];
     const isLeader = session?.user?.role && leaderRoles.includes(session.user.role);
     const isSuperAdmin = session?.user?.role === 'SUPERADMIN';
+    const isGlobalAdmin = session?.user?.role === 'GLOBAL_ADMIN';
+    const canManageCurrencies = isSuperAdmin || isGlobalAdmin;
+    
     const filteredMenuItems = menuItems.filter(item => {
         if (item.path === '/users' && isLeader) {
             return false;
         }
         if (item.superAdminOnly && !isSuperAdmin) {
+            return false;
+        }
+        if (item.adminOnly && !canManageCurrencies) {
             return false;
         }
         return true;
@@ -206,6 +216,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                                 }}
                             >
                                 <Avatar 
+                                    src={session.user?.image || undefined}
                                     sx={{ 
                                         width: 36, 
                                         height: 36, 
@@ -232,9 +243,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                                 onClose={handleClose}
                                 sx={{ mt: 1 }}
                             >
-                                <MenuItem onClick={handleClose} disabled>
-                                    <Typography variant="body2">Profile</Typography>
-                                </MenuItem>
+                                <Link href="/profile" style={{ textDecoration: 'none', color: 'inherit' }}>
+                                    <MenuItem onClick={handleClose}>
+                                        <Typography variant="body2">Profile</Typography>
+                                    </MenuItem>
+                                </Link>
                                 <MenuItem onClick={handleLogout}>
                                     <Typography variant="body2" color="error">Logout</Typography>
                                 </MenuItem>

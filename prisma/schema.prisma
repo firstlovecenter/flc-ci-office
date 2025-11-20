@@ -78,11 +78,14 @@ model User {
   role             Role               @default(COUNCIL_LEADER)
   departmentId     String?
   department       Department?        @relation(fields: [departmentId], references: [id])
+  archived         Boolean            @default(false)
   transactions     Transaction[]
   auditLogs        AuditLog[]
   pushSubscriptions PushSubscription[]
   createdAt        DateTime           @default(now())
   updatedAt        DateTime           @updatedAt
+
+  @@index([archived])
 }
 
 model Transaction {
@@ -93,6 +96,10 @@ model Transaction {
   user          User              @relation(fields: [userId], references: [id])
   type          TransactionType
   amount        Decimal
+  currencyId    String?
+  currency      Currency?         @relation(fields: [currencyId], references: [id])
+  exchangeRate  Decimal?
+  amountInBase  Decimal?
   description   String
   status        TransactionStatus @default(PENDING)
   approvedBy    String?
@@ -111,6 +118,7 @@ model Transaction {
   @@index([type])
   @@index([createdAt])
   @@index([departmentId, status, type])
+  @@index([currencyId])
 }
 
 model File {
@@ -148,4 +156,39 @@ model PushSubscription {
 
   @@unique([userId, endpoint])
   @@index([userId])
+}
+
+model Currency {
+  id           String        @id @default(cuid())
+  code         String        @unique
+  name         String
+  symbol       String
+  isBase       Boolean       @default(false)
+  isActive     Boolean       @default(true)
+  transactions Transaction[]
+  exchangeRates ExchangeRate[] @relation("FromCurrency")
+  reverseRates  ExchangeRate[] @relation("ToCurrency")
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  @@index([code])
+  @@index([isActive])
+}
+
+model ExchangeRate {
+  id           String   @id @default(cuid())
+  fromCurrencyId String
+  fromCurrency Currency @relation("FromCurrency", fields: [fromCurrencyId], references: [id])
+  toCurrencyId String
+  toCurrency   Currency @relation("ToCurrency", fields: [toCurrencyId], references: [id])
+  rate         Decimal
+  effectiveDate DateTime @default(now())
+  createdBy    String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([fromCurrencyId, toCurrencyId])
+  @@index([fromCurrencyId])
+  @@index([toCurrencyId])
+  @@index([effectiveDate])
 }

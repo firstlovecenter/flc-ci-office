@@ -27,10 +27,13 @@ import {
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
+import ArchiveIcon from '@mui/icons-material/Archive';
+import UnarchiveIcon from '@mui/icons-material/Unarchive';
 import IconButton from '@mui/material/IconButton';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import EditUserDialog from '@/components/EditUserDialog';
+import { getAssignableRoles } from '@/lib/roles';
 
 export default function UsersPage() {
     const { data: session } = useSession();
@@ -42,6 +45,7 @@ export default function UsersPage() {
     const [selectedUser, setSelectedUser] = useState<any>(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
+    const [assignableRoles, setAssignableRoles] = useState<string[]>([]);
     const [formData, setFormData] = useState({
         name: '',
         email: '',
@@ -63,7 +67,13 @@ export default function UsersPage() {
     useEffect(() => {
         fetchUsers();
         fetchDepartments();
-    }, []);
+        
+        // Get roles that current admin can assign
+        if (session?.user?.role) {
+            const roles = getAssignableRoles(session.user.role);
+            setAssignableRoles(roles);
+        }
+    }, [session]);
 
     const fetchUsers = async () => {
         const response = await fetch('/api/users');
@@ -87,7 +97,7 @@ export default function UsersPage() {
     };
 
     const handleDelete = async (id: string) => {
-        if (!confirm('Are you sure you want to delete this user?')) {
+        if (!confirm('Are you sure you want to permanently delete this user? This action cannot be undone.')) {
             return;
         }
 
@@ -105,6 +115,33 @@ export default function UsersPage() {
         } catch (error) {
             console.error('Error deleting user:', error);
             alert('Error deleting user');
+        }
+    };
+
+    const handleArchive = async (user: any) => {
+        const action = user.archived ? 'unarchive' : 'archive';
+        if (!confirm(`Are you sure you want to ${action} this user?`)) {
+            return;
+        }
+
+        try {
+            const response = await fetch(`/api/users/${user.id}`, {
+                method: 'PATCH',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ archived: !user.archived }),
+            });
+
+            if (response.ok) {
+                fetchUsers();
+            } else {
+                const data = await response.json();
+                alert(data.error || `Failed to ${action} user`);
+            }
+        } catch (error) {
+            console.error(`Error ${action}ing user:`, error);
+            alert(`Error ${action}ing user`);
         }
     };
 
@@ -147,22 +184,6 @@ export default function UsersPage() {
         }
     };
 
-    const roles = [
-        'SUPERADMIN',
-        'GLOBAL_ADMIN',
-        'GLOBAL_LEADER',
-        'INTERNATIONAL_ADMIN',
-        'INTERNATIONAL_LEADER',
-        'NATIONAL_ADMIN',
-        'NATIONAL_LEADER',
-        'REGIONAL_ADMIN',
-        'REGIONAL_LEADER',
-        'CAMPUS_ADMIN',
-        'CAMPUS_LEADER',
-        'STREAM_LEADER',
-        'COUNCIL_LEADER',
-    ];
-
     // Admins can create users
     const adminRoles = ['SUPERADMIN', 'GLOBAL_ADMIN', 'INTERNATIONAL_ADMIN', 'NATIONAL_ADMIN', 'REGIONAL_ADMIN', 'CAMPUS_ADMIN'];
     const canCreateUsers = session?.user?.role && adminRoles.includes(session.user.role);
@@ -190,6 +211,7 @@ export default function UsersPage() {
                             <TableCell>Email</TableCell>
                             <TableCell>Role</TableCell>
                             <TableCell>Department</TableCell>
+                            <TableCell>Status</TableCell>
                             <TableCell>Created</TableCell>
                             <TableCell align="right">Actions</TableCell>
                         </TableRow>
@@ -204,21 +226,41 @@ export default function UsersPage() {
                                 </TableCell>
                                 <TableCell>{user.department?.name || '-'}</TableCell>
                                 <TableCell>
+                                    <Chip 
+                                        label={user.archived ? 'Archived' : 'Active'} 
+                                        size="small" 
+                                        color={user.archived ? 'default' : 'success'}
+                                    />
+                                </TableCell>
+                                <TableCell>
                                     {new Date(user.createdAt).toLocaleDateString()}
                                 </TableCell>
                                 <TableCell align="right">
-                                    <IconButton 
-                                        size="small" 
-                                        color="primary"
-                                        onClick={() => handleEdit(user)}
-                                    >
-                                        <EditIcon />
-                                    </IconButton>
+                                    {!user.archived && (
+                                        <IconButton 
+                                            size="small" 
+                                            color="primary"
+                                            onClick={() => handleEdit(user)}
+                                        >
+                                            <EditIcon />
+                                        </IconButton>
+                                    )}
+                                    {user.id !== session?.user.id && (
+                                        <IconButton 
+                                            size="small" 
+                                            color={user.archived ? 'success' : 'warning'}
+                                            onClick={() => handleArchive(user)}
+                                            title={user.archived ? 'Unarchive user' : 'Archive user'}
+                                        >
+                                            {user.archived ? <UnarchiveIcon /> : <ArchiveIcon />}
+                                        </IconButton>
+                                    )}
                                     {session?.user.role === 'SUPERADMIN' && user.id !== session.user.id && (
                                         <IconButton 
                                             size="small" 
                                             color="error"
                                             onClick={() => handleDelete(user.id)}
+                                            title="Permanently delete user (SUPERADMIN only)"
                                         >
                                             <DeleteIcon />
                                         </IconButton>
@@ -228,7 +270,7 @@ export default function UsersPage() {
                         ))}
                         {users.length === 0 && (
                             <TableRow>
-                                <TableCell colSpan={6} align="center">
+                                <TableCell colSpan={7} align="center">
                                     No users found
                                 </TableCell>
                             </TableRow>
@@ -287,9 +329,9 @@ export default function UsersPage() {
                                     setFormData({ ...formData, role: e.target.value })
                                 }
                             >
-                                {roles.map((role) => (
+                                {assignableRoles.map((role) => (
                                     <MenuItem key={role} value={role}>
-                                        {role}
+                                        {role.replace(/_/g, ' ')}
                                     </MenuItem>
                                 ))}
                             </Select>
