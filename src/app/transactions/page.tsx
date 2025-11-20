@@ -34,9 +34,40 @@ import LockIcon from '@mui/icons-material/Lock';
 import LockOpenIcon from '@mui/icons-material/LockOpen';
 import Link from 'next/link';
 import { formatCurrency } from '@/lib/utils';
-import { Transaction, Department, User, File as TransactionFile } from '@prisma/client';
 import { useSession } from 'next-auth/react';
 import EditTransactionDialog from '@/components/EditTransactionDialog';
+
+type Transaction = {
+    id: string;
+    description: string;
+    amount: number;
+    type: 'INCOME' | 'EXPENSE';
+    date: Date;
+    departmentId: string;
+    createdBy: string;
+    weekLocked: boolean;
+    createdAt: Date;
+    updatedAt: Date;
+};
+
+type Department = {
+    id: string;
+    name: string;
+    level: string;
+};
+
+type User = {
+    id: string;
+    name: string;
+    email: string;
+};
+
+type TransactionFile = {
+    id: string;
+    filename: string;
+    path: string;
+    transactionId: string;
+};
 
 type TransactionWithDetails = Transaction & {
     department: Department;
@@ -101,9 +132,9 @@ export default function TransactionsPage() {
 
         // Status filter
         if (statusFilter === 'LOCKED') {
-            filtered = filtered.filter((tx) => tx.locked);
+            filtered = filtered.filter((tx) => tx.weekLocked);
         } else if (statusFilter === 'OPEN') {
-            filtered = filtered.filter((tx) => !tx.locked);
+            filtered = filtered.filter((tx) => !tx.weekLocked);
         }
 
         setFilteredTransactions(filtered);
@@ -237,7 +268,7 @@ export default function TransactionsPage() {
 
             <TableContainer component={Paper} elevation={0} sx={{ border: '1px solid', borderColor: 'divider' }}>
                 <Table>
-                    <TableHead sx={{ bgcolor: 'grey.50' }}>
+                    <TableHead sx={{ bgcolor: 'action.hover' }}>
                         <TableRow>
                             <TableCell sx={{ fontWeight: 700 }}>Date</TableCell>
                             <TableCell sx={{ fontWeight: 700 }}>Department</TableCell>
@@ -293,9 +324,9 @@ export default function TransactionsPage() {
                                 </TableCell>
                                 <TableCell>
                                     <Chip
-                                        icon={tx.locked ? <LockIcon fontSize="small" /> : <LockOpenIcon fontSize="small" />}
-                                        label={tx.locked ? 'Locked' : 'Open'}
-                                        color={tx.locked ? 'default' : 'primary'}
+                                        icon={tx.weekLocked ? <LockIcon fontSize="small" /> : <LockOpenIcon fontSize="small" />}
+                                        label={tx.weekLocked ? 'Locked' : 'Open'}
+                                        color={tx.weekLocked ? 'default' : 'primary'}
                                         size="small"
                                         variant="outlined"
                                     />
@@ -317,15 +348,15 @@ export default function TransactionsPage() {
                                 </TableCell>
                                 <TableCell align="center">
                                     <Box sx={{ display: 'flex', gap: 1, justifyContent: 'center' }}>
-                                        <Tooltip title={tx.locked && !isSuperAdmin ? 'Locked - Superadmin only' : 'Edit'}>
+                                        <Tooltip title={tx.weekLocked && !isSuperAdmin ? 'Locked - Superadmin only' : 'Edit'}>
                                             <span>
                                                 <IconButton
                                                     size="small"
                                                     color="primary"
                                                     onClick={() => handleEdit(tx)}
-                                                    disabled={tx.locked && !isSuperAdmin}
+                                                    disabled={tx.weekLocked && !isSuperAdmin}
                                                     sx={{
-                                                        '&:hover': { bgcolor: 'primary.50' }
+                                                        '&:hover': { bgcolor: 'action.hover' }
                                                     }}
                                                 >
                                                     <EditIcon fontSize="small" />

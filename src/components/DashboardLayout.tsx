@@ -276,7 +276,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     ))}
                 </List>
             </Drawer>
-            <Box component="main" sx={{ flexGrow: 1, p: 3, bgcolor: 'grey.50', minHeight: '100vh' }}>
+            <Box component="main" sx={{ flexGrow: 1, p: 3, bgcolor: 'background.default', minHeight: '100vh' }}>
                 <DrawerHeader />
                 {children}
             </Box>

@@ -14,8 +14,11 @@ import {
     Select,
     Alert,
 } from '@mui/material';
-import { DepartmentLevel } from '@prisma/client';
 import { useSession } from 'next-auth/react';
+
+type DepartmentLevel = 'GLOBAL' | 'INTERNATIONAL' | 'NATIONAL' | 'REGIONAL' | 'CAMPUS' | 'STREAM' | 'COUNCIL';
+
+const DEPARTMENT_LEVELS: DepartmentLevel[] = ['GLOBAL', 'INTERNATIONAL', 'NATIONAL', 'REGIONAL', 'CAMPUS', 'STREAM', 'COUNCIL'];
 
 const DEPARTMENT_HIERARCHY: Record<DepartmentLevel, number> = {
     GLOBAL: 1,
@@ -128,7 +131,7 @@ export default function NewDepartmentPage() {
     };
 
     const fetchDepartments = async () => {
-        const response = await fetch('/api/departments');
+        const response = await fetch('/api/departments?all=true');
         if (response.ok) {
             const data = await response.json();
             setDepartments(data);
@@ -215,7 +218,7 @@ export default function NewDepartmentPage() {
                             disabled={allowedLevels.length === 0}
                         >
                             {(session?.user.role === 'SUPERADMIN' 
-                                ? Object.values(DepartmentLevel) 
+                                ? DEPARTMENT_LEVELS 
                                 : allowedLevels
                             ).map((lvl) => (
                                 <MenuItem key={lvl} value={lvl}>

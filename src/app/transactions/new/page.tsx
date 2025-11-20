@@ -15,8 +15,9 @@ import {
     Alert,
     InputAdornment,
 } from '@mui/material';
-import { TransactionType } from '@prisma/client';
 import { useSession } from 'next-auth/react';
+
+type TransactionType = 'INCOME' | 'EXPENSE';
 
 export default function NewTransactionPage() {
     const router = useRouter();
@@ -41,7 +42,7 @@ export default function NewTransactionPage() {
     }, [session]);
 
     const fetchDepartments = async () => {
-        const response = await fetch('/api/departments');
+        const response = await fetch('/api/departments?all=true');
         if (response.ok) {
             const data = await response.json();
             setDepartments(data);
@@ -163,11 +164,11 @@ export default function NewTransactionPage() {
                             value={departmentId}
                             label="Department"
                             onChange={(e) => setDepartmentId(e.target.value)}
-                            disabled={session?.user?.role !== 'SUPERADMIN' && !!session?.user?.departmentId}
+                            required
                         >
                             {departments.map((dept) => (
                                 <MenuItem key={dept.id} value={dept.id}>
-                                    {dept.name}
+                                    {dept.name} ({dept.level})
                                 </MenuItem>
                             ))}
                         </Select>

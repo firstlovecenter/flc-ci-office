@@ -14,7 +14,16 @@ import {
     Select,
     Alert,
 } from '@mui/material';
-import { UserRole } from '@prisma/client';
+
+type UserRole = 
+    | 'SUPERADMIN'
+    | 'GLOBAL_ADMIN'
+    | 'INTERNATIONAL_ADMIN'
+    | 'NATIONAL_ADMIN'
+    | 'REGIONAL_ADMIN'
+    | 'CAMPUS_ADMIN'
+    | 'STREAM_LEADER'
+    | 'COUNCIL_LEADER';
 
 interface EditUserDialogProps {
     open: boolean;
@@ -31,9 +40,8 @@ const USER_ROLES: UserRole[] = [
     'NATIONAL_ADMIN',
     'REGIONAL_ADMIN',
     'CAMPUS_ADMIN',
-    'STREAM_ADMIN',
-    'COUNCIL_ADMIN',
-    'USER',
+    'STREAM_LEADER',
+    'COUNCIL_LEADER',
 ];
 
 export default function EditUserDialog({
@@ -45,7 +53,7 @@ export default function EditUserDialog({
 }: EditUserDialogProps) {
     const [name, setName] = useState('');
     const [email, setEmail] = useState('');
-    const [role, setRole] = useState<UserRole>('USER');
+    const [role, setRole] = useState<UserRole>('COUNCIL_LEADER');
     const [departmentId, setDepartmentId] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
