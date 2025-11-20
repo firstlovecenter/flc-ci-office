@@ -55,7 +55,11 @@ export default function EditTransactionDialog({
             setAmount(transaction.amount.toString());
             setDescription(transaction.description);
             setDepartmentId(transaction.departmentId);
-            setCurrencyId(transaction.currencyId || '');
+            setCurrencyId(transaction.currencyId || transaction.currency?.id || '');
+            // If transaction has an exchange rate, set it
+            if (transaction.exchangeRate) {
+                setExchangeRate(parseFloat(transaction.exchangeRate.toString()));
+            }
         }
     }, [transaction]);
 
@@ -69,9 +73,14 @@ export default function EditTransactionDialog({
 
     useEffect(() => {
         // Fetch exchange rate when currency changes
+        // But don't fetch if we already have an exchange rate from the transaction
         if (currencyId && baseCurrency && currencyId !== baseCurrency.id) {
-            fetchExchangeRate(currencyId, baseCurrency.id);
-        } else {
+            // Only fetch if we don't already have an exchange rate loaded from transaction
+            if (!transaction?.exchangeRate || transaction?.currencyId !== currencyId) {
+                fetchExchangeRate(currencyId, baseCurrency.id);
+            }
+        } else if (currencyId === baseCurrency?.id) {
+            // If currency matches base currency, no exchange rate needed
             setExchangeRate(null);
         }
     }, [currencyId, baseCurrency]);
