@@ -17,7 +17,8 @@ import {
     Box,
     Chip,
 } from '@mui/material';
-import { TransactionType } from '@prisma/client';
+
+type TransactionType = 'INCOME' | 'EXPENSE';
 
 interface EditTransactionDialogProps {
     open: boolean;

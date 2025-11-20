@@ -19,10 +19,18 @@ import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
-import { Department } from '@prisma/client';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import EditDepartmentDialog from '@/components/EditDepartmentDialog';
+
+type Department = {
+    id: string;
+    name: string;
+    level: string;
+    parentId: string | null;
+    createdAt: Date;
+    updatedAt: Date;
+};
 import { useSession } from 'next-auth/react';
 
 export default function DepartmentsPage() {

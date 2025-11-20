@@ -15,8 +15,9 @@ import {
     Alert,
     InputAdornment,
 } from '@mui/material';
-import { TransactionType } from '@prisma/client';
 import { useSession } from 'next-auth/react';
+
+type TransactionType = 'INCOME' | 'EXPENSE';
 
 export default function NewTransactionPage() {
     const router = useRouter();

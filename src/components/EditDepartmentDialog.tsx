@@ -14,7 +14,8 @@ import {
     Select,
     Alert,
 } from '@mui/material';
-import { DepartmentLevel } from '@prisma/client';
+
+type DepartmentLevel = 'GLOBAL' | 'INTERNATIONAL' | 'NATIONAL' | 'REGIONAL' | 'CAMPUS' | 'STREAM' | 'COUNCIL';
 
 interface EditDepartmentDialogProps {
     open: boolean;
