@@ -15,6 +15,8 @@ export async function GET(request: Request) {
 
     const { searchParams } = new URL(request.url);
     const departmentId = searchParams.get('departmentId');
+    const startDate = searchParams.get('startDate');
+    const endDate = searchParams.get('endDate');
 
     try {
         const whereClause: any = {};
@@ -39,6 +41,17 @@ export async function GET(request: Request) {
             }
         } else if (departmentId) {
             whereClause.departmentId = departmentId;
+        }
+
+        // Add date filtering
+        if (startDate || endDate) {
+            whereClause.date = {};
+            if (startDate) {
+                whereClause.date.gte = new Date(startDate);
+            }
+            if (endDate) {
+                whereClause.date.lte = new Date(endDate);
+            }
         }
 
         const transactions = await prisma.transaction.findMany({
