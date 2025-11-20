@@ -30,7 +30,7 @@ export async function GET(request: Request) {
                     status: 'APPROVED', // Only count approved transactions
                 },
                 _sum: {
-                    amount: true,
+                    amountInBase: true,
                 },
             }),
             prisma.transaction.aggregate({
@@ -40,13 +40,13 @@ export async function GET(request: Request) {
                     status: 'APPROVED', // Only count approved transactions
                 },
                 _sum: {
-                    amount: true,
+                    amountInBase: true,
                 },
             }),
         ]);
 
-        const totalIncome = Number(income._sum.amount || 0);
-        const totalExpense = Number(expense._sum.amount || 0);
+        const totalIncome = Number(income._sum.amountInBase || 0);
+        const totalExpense = Number(expense._sum.amountInBase || 0);
         const netBalance = totalIncome - totalExpense;
 
         return NextResponse.json({

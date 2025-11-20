@@ -169,6 +169,7 @@ export default function ProfilePage() {
         setSuccess('');
 
         const isSuperAdmin = session?.user?.role === 'SUPERADMIN';
+        const canSetBaseCurrency = ['SUPERADMIN', 'GLOBAL_ADMIN', 'INTERNATIONAL_ADMIN', 'NATIONAL_ADMIN'].includes(session?.user?.role || '');
 
         try {
             const updatePayload: any = {
@@ -179,6 +180,11 @@ export default function ProfilePage() {
             // Include email for superadmins
             if (isSuperAdmin) {
                 updatePayload.email = formData.email;
+            }
+
+            // Include base currency for national admins and above
+            if (canSetBaseCurrency) {
+                updatePayload.baseCurrencyId = formData.baseCurrencyId || null;
             }
 
             const response = await fetch('/api/profile', {
@@ -434,6 +440,12 @@ export default function ProfilePage() {
                                                 Base Currency
                                             </Typography>
                                         </Box>
+                                        {editing && (
+                                            <Alert severity="info" sx={{ mb: 2, fontSize: '0.875rem' }}>
+                                                As a {profile.role.replace(/_/g, ' ').toLowerCase()}, you can select your country's base currency. 
+                                                Exchange rates are managed by Global Admins and Superadmins only.
+                                            </Alert>
+                                        )}
                                         {editing ? (
                                             <FormControl fullWidth size="small">
                                                 <InputLabel>Select Currency</InputLabel>
@@ -451,6 +463,9 @@ export default function ProfilePage() {
                                                         </MenuItem>
                                                     ))}
                                                 </Select>
+                                                <Typography variant="caption" color="text.secondary" sx={{ mt: 1 }}>
+                                                    This will be the default currency for all your transactions
+                                                </Typography>
                                             </FormControl>
                                         ) : (
                                             <>

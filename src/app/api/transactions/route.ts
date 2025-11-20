@@ -128,7 +128,7 @@ export async function POST(request: Request) {
         }
 
         // Calculate amount in base currency if using a different currency
-        let amountInBase = null;
+        let amountInBase = amount; // Default to the original amount
         if (currencyId && exchangeRate) {
             amountInBase = amount * exchangeRate;
         }
@@ -148,7 +148,7 @@ export async function POST(request: Request) {
                 amount,
                 currencyId: currencyId || null,
                 exchangeRate: exchangeRate || null,
-                amountInBase: amountInBase || null,
+                amountInBase: amountInBase,
                 description,
                 departmentId,
                 userId: session.user.id,
