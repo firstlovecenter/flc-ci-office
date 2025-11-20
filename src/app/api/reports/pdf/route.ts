@@ -76,7 +76,7 @@ export async function POST(request: NextRequest) {
         doc.on('data', (chunk) => chunks.push(chunk));
 
         // Header
-        doc.fontSize(20).font('Helvetica-Bold').text('FLC Church Accounting', { align: 'center' });
+        doc.fontSize(20).font('Helvetica-Bold').text('FLC CI Office', { align: 'center' });
         doc.moveDown(0.5);
         doc.fontSize(16).text('Bank Statement Report', { align: 'center' });
         doc.moveDown(0.5);

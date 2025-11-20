@@ -1,6 +1,6 @@
 {
-  "name": "FLC Church Accounting",
-  "short_name": "FLC Accounts",
+  "name": "FLC CI Office",
+  "short_name": "FLC CI",
   "description": "Church accounting system for managing finances across departments",
   "start_url": "/",
   "display": "standalone",

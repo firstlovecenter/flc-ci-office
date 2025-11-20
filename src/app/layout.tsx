@@ -3,7 +3,7 @@ import { Providers } from "./providers";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Church Accounting System",
+  title: "FLC CI Office",
   description: "Multi-level church accounting and governance system",
   manifest: "/manifest.json",
   themeColor: "#60a5fa",
@@ -11,7 +11,7 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "FLC Accounts",
+    title: "FLC CI Office",
   },
 };
 
