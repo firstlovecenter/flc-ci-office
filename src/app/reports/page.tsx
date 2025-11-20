@@ -38,6 +38,8 @@ export default function ReportsPage() {
     const [reportType, setReportType] = useState<ReportType>('summary');
     const [startDate, setStartDate] = useState('');
     const [endDate, setEndDate] = useState('');
+    const [openingBalance, setOpeningBalance] = useState(0);
+    const [closingBalance, setClosingBalance] = useState(0);
 
     useEffect(() => {
         fetchDepartments();
@@ -54,6 +56,29 @@ export default function ReportsPage() {
     const generateReport = async () => {
         setLoading(true);
         try {
+            // Fetch opening balance (transactions before start date)
+            let opening = 0;
+            if (startDate) {
+                let openingUrl = '/api/transactions?';
+                if (selectedDepartment) {
+                    openingUrl += `departmentId=${selectedDepartment}&`;
+                }
+                openingUrl += `endDate=${new Date(new Date(startDate).getTime() - 86400000).toISOString().split('T')[0]}`;
+                
+                const openingResponse = await fetch(openingUrl);
+                if (openingResponse.ok) {
+                    const openingData = await openingResponse.json();
+                    opening = openingData
+                        .filter((t: any) => t.type === 'INCOME')
+                        .reduce((sum: number, t: any) => sum + Number(t.amount), 0) -
+                        openingData
+                        .filter((t: any) => t.type === 'EXPENSE')
+                        .reduce((sum: number, t: any) => sum + Number(t.amount), 0);
+                }
+            }
+            setOpeningBalance(opening);
+
+            // Fetch transactions for the period
             let url = '/api/transactions?';
             if (selectedDepartment) {
                 url += `departmentId=${selectedDepartment}&`;
@@ -84,6 +109,8 @@ export default function ReportsPage() {
                     .filter((t: any) => t.type === 'EXPENSE')
                     .reduce((sum: number, t: any) => sum + Number(t.amount), 0);
 
+                const closing = opening + income - expense;
+                setClosingBalance(closing);
                 setStats({ income, expense, balance: income - expense });
             }
         } catch (error) {
@@ -95,6 +122,35 @@ export default function ReportsPage() {
 
     const handlePrint = () => {
         window.print();
+    };
+
+    const handleDownloadPDF = async () => {
+        try {
+            const response = await fetch('/api/reports/pdf', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    departmentId: selectedDepartment,
+                    startDate,
+                    endDate,
+                    reportType,
+                }),
+            });
+
+            if (response.ok) {
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `statement-report-${new Date().toISOString().split('T')[0]}.pdf`;
+                a.click();
+                window.URL.revokeObjectURL(url);
+            }
+        } catch (error) {
+            console.error('Error downloading PDF:', error);
+        }
     };
 
     const handleDownload = () => {
@@ -129,7 +185,7 @@ export default function ReportsPage() {
     };
 
     const renderStatementView = () => {
-        let runningBalance = 0;
+        let runningBalance = openingBalance;
         
         return (
             <TableContainer component={Paper} sx={{ mt: 3 }}>
@@ -148,6 +204,20 @@ export default function ReportsPage() {
                         </Typography>
                     )}
                     <Divider sx={{ my: 2 }} />
+                    
+                    {/* Opening Balance */}
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2, px: 2 }}>
+                        <Typography variant="subtitle1" fontWeight="bold">
+                            Opening Balance:
+                        </Typography>
+                        <Typography 
+                            variant="subtitle1" 
+                            fontWeight="bold"
+                            color={openingBalance >= 0 ? 'success.main' : 'error.main'}
+                        >
+                            {formatCurrency(openingBalance)}
+                        </Typography>
+                    </Box>
                 </Box>
                 
                 <Table size="small">
@@ -212,6 +282,20 @@ export default function ReportsPage() {
                         </TableRow>
                     </TableBody>
                 </Table>
+                
+                {/* Closing Balance */}
+                <Box sx={{ p: 3, display: 'flex', justifyContent: 'space-between', borderTop: 2, borderColor: 'divider' }}>
+                    <Typography variant="h6" fontWeight="bold">
+                        Closing Balance:
+                    </Typography>
+                    <Typography 
+                        variant="h6" 
+                        fontWeight="bold"
+                        color={closingBalance >= 0 ? 'success.main' : 'error.main'}
+                    >
+                        {formatCurrency(closingBalance)}
+                    </Typography>
+                </Box>
             </TableContainer>
         );
     };
@@ -238,6 +322,15 @@ export default function ReportsPage() {
                         >
                             Download CSV
                         </Button>
+                        {reportType === 'statement' && (
+                            <Button
+                                variant="contained"
+                                startIcon={<DownloadIcon />}
+                                onClick={handleDownloadPDF}
+                            >
+                                Download PDF
+                            </Button>
+                        )}
                     </Box>
                 )}
             </Box>
