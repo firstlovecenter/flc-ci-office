@@ -55,9 +55,9 @@ export default function DashboardPage() {
                 <Card 
                     elevation={0} 
                     sx={{ 
-                        bgcolor: '#1a1a1a',
-                        color: 'white',
-                        border: '1px solid rgba(255,255,255,0.1)',
+                        bgcolor: 'background.paper',
+                        border: '1px solid',
+                        borderColor: 'divider',
                         transition: 'all 0.2s',
                         '&:hover': { 
                             transform: 'translateY(-4px)',
@@ -68,7 +68,7 @@ export default function DashboardPage() {
                     <CardContent sx={{ p: 3 }}>
                         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
                             <Box>
-                                <Typography variant="body2" sx={{ opacity: 0.7, mb: 1 }}>
+                                <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
                                     Total Income
                                 </Typography>
                                 <Typography variant="h4" fontWeight="700" color="success.main">
@@ -83,8 +83,7 @@ export default function DashboardPage() {
                             icon={<TrendingUpIcon />} 
                             label="Revenue" 
                             size="small" 
-                            sx={{ bgcolor: 'rgba(76, 175, 80, 0.2)', color: 'success.main', fontWeight: 600, borderColor: 'success.main' }}
-                            variant="outlined"
+                            sx={{ bgcolor: 'success.dark', color: 'success.contrastText', fontWeight: 600 }}
                         />
                     </CardContent>
                 </Card>
@@ -93,9 +92,9 @@ export default function DashboardPage() {
                 <Card 
                     elevation={0} 
                     sx={{ 
-                        bgcolor: '#1a1a1a',
-                        color: 'white',
-                        border: '1px solid rgba(255,255,255,0.1)',
+                        bgcolor: 'background.paper',
+                        border: '1px solid',
+                        borderColor: 'divider',
                         transition: 'all 0.2s',
                         '&:hover': { 
                             transform: 'translateY(-4px)',
@@ -106,7 +105,7 @@ export default function DashboardPage() {
                     <CardContent sx={{ p: 3 }}>
                         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
                             <Box>
-                                <Typography variant="body2" sx={{ opacity: 0.7, mb: 1 }}>
+                                <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
                                     Total Expenses
                                 </Typography>
                                 <Typography variant="h4" fontWeight="700" color="error.main">
@@ -121,8 +120,7 @@ export default function DashboardPage() {
                             icon={<TrendingDownIcon />} 
                             label="Spending" 
                             size="small" 
-                            sx={{ bgcolor: 'rgba(244, 67, 54, 0.2)', color: 'error.main', fontWeight: 600, borderColor: 'error.main' }}
-                            variant="outlined"
+                            sx={{ bgcolor: 'error.dark', color: 'error.contrastText', fontWeight: 600 }}
                         />
                     </CardContent>
                 </Card>
@@ -131,9 +129,9 @@ export default function DashboardPage() {
                 <Card 
                     elevation={0} 
                     sx={{ 
-                        bgcolor: '#1a1a1a',
-                        color: 'white',
-                        border: '1px solid rgba(255,255,255,0.1)',
+                        bgcolor: 'background.paper',
+                        border: '1px solid',
+                        borderColor: 'divider',
                         transition: 'all 0.2s',
                         '&:hover': { 
                             transform: 'translateY(-4px)',
@@ -144,7 +142,7 @@ export default function DashboardPage() {
                     <CardContent sx={{ p: 3 }}>
                         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
                             <Box>
-                                <Typography variant="body2" sx={{ opacity: 0.7, mb: 1 }}>
+                                <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
                                     Net Balance
                                 </Typography>
                                 <Typography variant="h4" fontWeight="700" color={stats.balance >= 0 ? 'info.main' : 'warning.main'}>
@@ -160,12 +158,10 @@ export default function DashboardPage() {
                             label={stats.balance >= 0 ? 'Positive' : 'Deficit'} 
                             size="small" 
                             sx={{ 
-                                bgcolor: stats.balance >= 0 ? 'rgba(33, 150, 243, 0.2)' : 'rgba(255, 152, 0, 0.2)', 
-                                color: stats.balance >= 0 ? 'info.main' : 'warning.main',
+                                bgcolor: stats.balance >= 0 ? 'info.dark' : 'warning.dark', 
+                                color: stats.balance >= 0 ? 'info.contrastText' : 'warning.contrastText',
                                 fontWeight: 600,
-                                borderColor: stats.balance >= 0 ? 'info.main' : 'warning.main',
                             }}
-                            variant="outlined"
                         />
                     </CardContent>
                 </Card>
@@ -177,19 +173,19 @@ export default function DashboardPage() {
                     Financial Summary
                 </Typography>
                 <Box sx={{ mt: 2, display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 2 }}>
-                    <Box sx={{ p: 2, bgcolor: 'success.50', borderRadius: 2, border: '1px solid', borderColor: 'success.200' }}>
-                        <Typography variant="body2" color="success.dark" fontWeight="600">
+                    <Box sx={{ p: 2, bgcolor: 'success.dark', color: 'success.contrastText', borderRadius: 2, border: '1px solid', borderColor: 'success.main' }}>
+                        <Typography variant="body2" fontWeight="600">
                             Income to Expense Ratio
                         </Typography>
-                        <Typography variant="h5" color="success.dark" fontWeight="700" sx={{ mt: 1 }}>
+                        <Typography variant="h5" fontWeight="700" sx={{ mt: 1 }}>
                             {stats.expense > 0 ? (stats.income / stats.expense).toFixed(2) : '∞'}
                         </Typography>
                     </Box>
-                    <Box sx={{ p: 2, bgcolor: 'info.50', borderRadius: 2, border: '1px solid', borderColor: 'info.200' }}>
-                        <Typography variant="body2" color="info.dark" fontWeight="600">
+                    <Box sx={{ p: 2, bgcolor: 'info.dark', color: 'info.contrastText', borderRadius: 2, border: '1px solid', borderColor: 'info.main' }}>
+                        <Typography variant="body2" fontWeight="600">
                             Savings Rate
                         </Typography>
-                        <Typography variant="h5" color="info.dark" fontWeight="700" sx={{ mt: 1 }}>
+                        <Typography variant="h5" fontWeight="700" sx={{ mt: 1 }}>
                             {stats.income > 0 ? ((stats.balance / stats.income) * 100).toFixed(1) : 0}%
                         </Typography>
                     </Box>
