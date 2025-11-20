@@ -268,7 +268,7 @@ export default function TransactionsPage() {
 
             <TableContainer component={Paper} elevation={0} sx={{ border: '1px solid', borderColor: 'divider' }}>
                 <Table>
-                    <TableHead sx={{ bgcolor: 'grey.50' }}>
+                    <TableHead sx={{ bgcolor: 'action.hover' }}>
                         <TableRow>
                             <TableCell sx={{ fontWeight: 700 }}>Date</TableCell>
                             <TableCell sx={{ fontWeight: 700 }}>Department</TableCell>
@@ -356,7 +356,7 @@ export default function TransactionsPage() {
                                                     onClick={() => handleEdit(tx)}
                                                     disabled={tx.weekLocked && !isSuperAdmin}
                                                     sx={{
-                                                        '&:hover': { bgcolor: 'primary.50' }
+                                                        '&:hover': { bgcolor: 'action.hover' }
                                                     }}
                                                 >
                                                     <EditIcon fontSize="small" />
