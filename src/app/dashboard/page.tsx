@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Typography, Paper, Box, CircularProgress, Card, CardContent, Avatar, Chip } from '@mui/material';
+import { Typography, Box, CircularProgress, Grid, Stack } from '@mui/material';
 import { formatCurrency } from '@/lib/utils';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import TrendingDownIcon from '@mui/icons-material/TrendingDown';
@@ -34,167 +34,192 @@ export default function DashboardPage() {
     if (loading) {
         return (
             <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '60vh' }}>
-                <CircularProgress size={60} />
+                <CircularProgress size={40} thickness={4} />
             </Box>
         );
     }
 
+    const statCards = [
+        {
+            title: 'Total Income',
+            amount: stats.income,
+            icon: TrendingUpIcon,
+            color: '#10b981',
+            bgColor: 'rgba(16, 185, 129, 0.1)',
+            trend: '+12.5%'
+        },
+        {
+            title: 'Total Expenses',
+            amount: stats.expense,
+            icon: TrendingDownIcon,
+            color: '#ef4444',
+            bgColor: 'rgba(239, 68, 68, 0.1)',
+            trend: '-8.2%'
+        },
+        {
+            title: 'Net Balance',
+            amount: stats.balance,
+            icon: AccountBalanceWalletIcon,
+            color: stats.balance >= 0 ? '#3b82f6' : '#f59e0b',
+            bgColor: stats.balance >= 0 ? 'rgba(59, 130, 246, 0.1)' : 'rgba(245, 158, 11, 0.1)',
+            trend: stats.balance >= 0 ? '+4.3%' : '-4.3%'
+        }
+    ];
+
     return (
-        <Box>
-            <Box sx={{ mb: 4 }}>
-                <Typography variant="h4" fontWeight="700" gutterBottom>
-                    Welcome back, {session?.user?.name || 'User'}!
+        <Box sx={{ px: { xs: 2, sm: 3, md: 6, lg: 8 }, py: { xs: 2, sm: 3 }, maxWidth: '1600px', mx: 'auto' }}>
+            {/* Header */}
+            <Box sx={{ mb: { xs: 3, md: 5 } }}>
+                <Typography 
+                    variant="h4" 
+                    fontWeight="600" 
+                    sx={{ 
+                        mb: 0.5, 
+                        color: 'text.primary',
+                        fontSize: { xs: '1.5rem', sm: '2rem', md: '2.125rem' }
+                    }}
+                >
+                    Good {new Date().getHours() < 12 ? 'morning' : new Date().getHours() < 18 ? 'afternoon' : 'evening'}, {session?.user?.name?.split(' ')[0] || 'User'}
                 </Typography>
-                <Typography variant="body1" color="text.secondary">
-                    Here's your financial overview
+                <Typography variant="body2" color="text.secondary" sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>
+                    Here's what's happening with your finances today
                 </Typography>
             </Box>
 
-            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr 1fr' }, gap: 3, mb: 4 }}>
-                {/* Income Card */}
-                <Card 
-                    elevation={0} 
-                    sx={{ 
-                        bgcolor: '#1a1a1a',
-                        color: 'white',
-                        border: '1px solid rgba(255,255,255,0.1)',
-                        transition: 'all 0.2s',
-                        '&:hover': { 
-                            transform: 'translateY(-4px)',
-                            borderColor: 'success.main',
-                        }
-                    }}
-                >
-                    <CardContent sx={{ p: 3 }}>
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
-                            <Box>
-                                <Typography variant="body2" sx={{ opacity: 0.7, mb: 1 }}>
-                                    Total Income
-                                </Typography>
-                                <Typography variant="h4" fontWeight="700" color="success.main">
-                                    {formatCurrency(stats.income)}
-                                </Typography>
+            {/* Stats Grid */}
+            <Grid container spacing={{ xs: 2, sm: 3 }} sx={{ mb: { xs: 3, md: 4 } }}>
+                {statCards.map((card, index) => {
+                    const Icon = card.icon;
+                    return (
+                        <Grid size={{ xs: 12, md: 6, lg: 4 }} key={index}>
+                            <Box
+                                sx={{
+                                    p: { xs: 2.5, sm: 3, md: 4 },
+                                    borderRadius: 2,
+                                    bgcolor: 'background.paper',
+                                    border: '1px solid',
+                                    borderColor: 'divider',
+                                    transition: 'all 0.2s ease-in-out',
+                                    '&:hover': {
+                                        borderColor: card.color,
+                                        transform: { xs: 'none', sm: 'translateY(-2px)' },
+                                        boxShadow: `0 4px 12px ${card.bgColor}`,
+                                    }
+                                }}
+                            >
+                                <Stack spacing={2}>
+                                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                        <Typography variant="body2" color="text.secondary" fontWeight="500" sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>
+                                            {card.title}
+                                        </Typography>
+                                        <Box
+                                            sx={{
+                                                width: { xs: 36, sm: 40 },
+                                                height: { xs: 36, sm: 40 },
+                                                borderRadius: 2,
+                                                bgcolor: card.bgColor,
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center'
+                                            }}
+                                        >
+                                            <Icon sx={{ fontSize: { xs: 18, sm: 20 }, color: card.color }} />
+                                        </Box>
+                                    </Box>
+                                    <Typography 
+                                        variant="h4" 
+                                        fontWeight="700" 
+                                        sx={{ 
+                                            color: 'text.primary',
+                                            fontSize: { xs: '1.5rem', sm: '1.75rem', md: '2.125rem' }
+                                        }}
+                                    >
+                                        {formatCurrency(card.amount)}
+                                    </Typography>
+                                    <Typography variant="caption" sx={{ color: card.color, fontWeight: 600, fontSize: { xs: '0.7rem', sm: '0.75rem' } }}>
+                                        {card.trend} from last month
+                                    </Typography>
+                                </Stack>
                             </Box>
-                            <Avatar sx={{ bgcolor: 'success.main', width: 56, height: 56 }}>
-                                <TrendingUpIcon fontSize="large" />
-                            </Avatar>
-                        </Box>
-                        <Chip 
-                            icon={<TrendingUpIcon />} 
-                            label="Revenue" 
-                            size="small" 
-                            sx={{ bgcolor: 'rgba(76, 175, 80, 0.2)', color: 'success.main', fontWeight: 600, borderColor: 'success.main' }}
-                            variant="outlined"
-                        />
-                    </CardContent>
-                </Card>
+                        </Grid>
+                    );
+                })}
+            </Grid>
 
-                {/* Expense Card */}
-                <Card 
-                    elevation={0} 
-                    sx={{ 
-                        bgcolor: '#1a1a1a',
-                        color: 'white',
-                        border: '1px solid rgba(255,255,255,0.1)',
-                        transition: 'all 0.2s',
-                        '&:hover': { 
-                            transform: 'translateY(-4px)',
-                            borderColor: 'error.main',
-                        }
-                    }}
-                >
-                    <CardContent sx={{ p: 3 }}>
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
-                            <Box>
-                                <Typography variant="body2" sx={{ opacity: 0.7, mb: 1 }}>
-                                    Total Expenses
-                                </Typography>
-                                <Typography variant="h4" fontWeight="700" color="error.main">
-                                    {formatCurrency(stats.expense)}
-                                </Typography>
-                            </Box>
-                            <Avatar sx={{ bgcolor: 'error.main', width: 56, height: 56 }}>
-                                <TrendingDownIcon fontSize="large" />
-                            </Avatar>
-                        </Box>
-                        <Chip 
-                            icon={<TrendingDownIcon />} 
-                            label="Spending" 
-                            size="small" 
-                            sx={{ bgcolor: 'rgba(244, 67, 54, 0.2)', color: 'error.main', fontWeight: 600, borderColor: 'error.main' }}
-                            variant="outlined"
-                        />
-                    </CardContent>
-                </Card>
-
-                {/* Balance Card */}
-                <Card 
-                    elevation={0} 
-                    sx={{ 
-                        bgcolor: '#1a1a1a',
-                        color: 'white',
-                        border: '1px solid rgba(255,255,255,0.1)',
-                        transition: 'all 0.2s',
-                        '&:hover': { 
-                            transform: 'translateY(-4px)',
-                            borderColor: stats.balance >= 0 ? 'info.main' : 'warning.main',
-                        }
-                    }}
-                >
-                    <CardContent sx={{ p: 3 }}>
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
-                            <Box>
-                                <Typography variant="body2" sx={{ opacity: 0.7, mb: 1 }}>
-                                    Net Balance
-                                </Typography>
-                                <Typography variant="h4" fontWeight="700" color={stats.balance >= 0 ? 'info.main' : 'warning.main'}>
-                                    {formatCurrency(stats.balance)}
-                                </Typography>
-                            </Box>
-                            <Avatar sx={{ bgcolor: stats.balance >= 0 ? 'info.main' : 'warning.main', width: 56, height: 56 }}>
-                                <AccountBalanceWalletIcon fontSize="large" />
-                            </Avatar>
-                        </Box>
-                        <Chip 
-                            icon={<AccountBalanceWalletIcon />} 
-                            label={stats.balance >= 0 ? 'Positive' : 'Deficit'} 
-                            size="small" 
-                            sx={{ 
-                                bgcolor: stats.balance >= 0 ? 'rgba(33, 150, 243, 0.2)' : 'rgba(255, 152, 0, 0.2)', 
-                                color: stats.balance >= 0 ? 'info.main' : 'warning.main',
-                                fontWeight: 600,
-                                borderColor: stats.balance >= 0 ? 'info.main' : 'warning.main',
-                            }}
-                            variant="outlined"
-                        />
-                    </CardContent>
-                </Card>
-            </Box>
-
-            {/* Quick Stats */}
-            <Paper elevation={0} sx={{ p: 3, border: '1px solid', borderColor: 'divider' }}>
-                <Typography variant="h6" fontWeight="600" gutterBottom>
-                    Financial Summary
+            {/* Financial Insights */}
+            <Box
+                sx={{
+                    p: { xs: 2.5, sm: 3, md: 4 },
+                    borderRadius: 2,
+                    bgcolor: 'background.paper',
+                    border: '1px solid',
+                    borderColor: 'divider',
+                }}
+            >
+                <Typography variant="h6" fontWeight="600" sx={{ mb: 3, fontSize: { xs: '1rem', sm: '1.25rem' } }}>
+                    Financial Insights
                 </Typography>
-                <Box sx={{ mt: 2, display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 2 }}>
-                    <Box sx={{ p: 2, bgcolor: 'success.50', borderRadius: 2, border: '1px solid', borderColor: 'success.200' }}>
-                        <Typography variant="body2" color="success.dark" fontWeight="600">
-                            Income to Expense Ratio
-                        </Typography>
-                        <Typography variant="h5" color="success.dark" fontWeight="700" sx={{ mt: 1 }}>
-                            {stats.expense > 0 ? (stats.income / stats.expense).toFixed(2) : '∞'}
-                        </Typography>
-                    </Box>
-                    <Box sx={{ p: 2, bgcolor: 'info.50', borderRadius: 2, border: '1px solid', borderColor: 'info.200' }}>
-                        <Typography variant="body2" color="info.dark" fontWeight="600">
-                            Savings Rate
-                        </Typography>
-                        <Typography variant="h5" color="info.dark" fontWeight="700" sx={{ mt: 1 }}>
-                            {stats.income > 0 ? ((stats.balance / stats.income) * 100).toFixed(1) : 0}%
-                        </Typography>
-                    </Box>
-                </Box>
-            </Paper>
+                <Grid container spacing={{ xs: 2, sm: 3 }}>
+                    <Grid size={{ xs: 12, md: 6 }}>
+                        <Stack spacing={1.5}>
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 1 }}>
+                                <Typography variant="body2" color="text.secondary" sx={{ fontSize: { xs: '0.8rem', sm: '0.875rem' } }}>
+                                    Income to Expense Ratio
+                                </Typography>
+                                <Typography variant="h6" fontWeight="700" color="success.main" sx={{ fontSize: { xs: '1rem', sm: '1.25rem' } }}>
+                                    {stats.expense > 0 ? (stats.income / stats.expense).toFixed(2) : '∞'}x
+                                </Typography>
+                            </Box>
+                            <Box 
+                                sx={{ 
+                                    height: { xs: 4, sm: 6 }, 
+                                    bgcolor: 'divider', 
+                                    borderRadius: 1,
+                                    overflow: 'hidden'
+                                }}
+                            >
+                                <Box 
+                                    sx={{ 
+                                        height: '100%', 
+                                        bgcolor: 'success.main',
+                                        width: `${Math.min((stats.income / (stats.income + stats.expense)) * 100, 100)}%`,
+                                        transition: 'width 0.3s ease'
+                                    }} 
+                                />
+                            </Box>
+                        </Stack>
+                    </Grid>
+                    <Grid size={{ xs: 12, md: 6 }}>
+                        <Stack spacing={1.5}>
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 1 }}>
+                                <Typography variant="body2" color="text.secondary" sx={{ fontSize: { xs: '0.8rem', sm: '0.875rem' } }}>
+                                    Savings Rate
+                                </Typography>
+                                <Typography variant="h6" fontWeight="700" color="info.main" sx={{ fontSize: { xs: '1rem', sm: '1.25rem' } }}>
+                                    {stats.income > 0 ? ((stats.balance / stats.income) * 100).toFixed(1) : 0}%
+                                </Typography>
+                            </Box>
+                            <Box 
+                                sx={{ 
+                                    height: { xs: 4, sm: 6 }, 
+                                    bgcolor: 'divider', 
+                                    borderRadius: 1,
+                                    overflow: 'hidden'
+                                }}
+                            >
+                                <Box 
+                                    sx={{ 
+                                        height: '100%', 
+                                        bgcolor: 'info.main',
+                                        width: `${Math.min(stats.income > 0 ? Math.abs((stats.balance / stats.income) * 100) : 0, 100)}%`,
+                                        transition: 'width 0.3s ease'
+                                    }} 
+                                />
+                            </Box>
+                        </Stack>
+                    </Grid>
+                </Grid>
+            </Box>
         </Box>
     );
 }

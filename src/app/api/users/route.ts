@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import bcrypt from 'bcryptjs';
+import { getDescendantDepartmentIds } from '@/lib/departments';
 
 export async function GET(request: Request) {
     const session = await getServerSession(authOptions);
@@ -18,7 +19,21 @@ export async function GET(request: Request) {
     }
 
     try {
+        let whereClause: any = {};
+
+        // Filter users based on department hierarchy
+        if (session.user.role !== 'SUPERADMIN') {
+            if (session.user.departmentId) {
+                const allowedDepartmentIds = await getDescendantDepartmentIds(session.user.departmentId);
+                whereClause.departmentId = { in: allowedDepartmentIds };
+            } else {
+                // User has no department, can't see any users
+                return NextResponse.json([]);
+            }
+        }
+
         const users = await prisma.user.findMany({
+            where: whereClause,
             include: {
                 department: true,
             },

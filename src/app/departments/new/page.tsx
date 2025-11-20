@@ -128,7 +128,7 @@ export default function NewDepartmentPage() {
     };
 
     const fetchDepartments = async () => {
-        const response = await fetch('/api/departments');
+        const response = await fetch('/api/departments?all=true');
         if (response.ok) {
             const data = await response.json();
             setDepartments(data);

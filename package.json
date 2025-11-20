@@ -30,8 +30,10 @@
     "recharts": "^3.4.1"
   },
   "devDependencies": {
+    "@ducanh2912/next-pwa": "^10.2.9",
     "@types/node": "^20",
     "@types/pdfkit": "^0.17.3",
+    "@types/pg": "^8.15.6",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "babel-plugin-react-compiler": "1.0.0",
@@ -40,6 +42,7 @@
     "prisma": "^7.0.0",
     "ts-node": "^10.9.2",
     "tsx": "^4.20.6",
-    "typescript": "^5"
+    "typescript": "^5",
+    "workbox-window": "^7.4.0"
   }
 }

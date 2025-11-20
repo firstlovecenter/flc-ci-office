@@ -18,13 +18,16 @@ import {
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
+import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import { Department } from '@prisma/client';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import EditDepartmentDialog from '@/components/EditDepartmentDialog';
 import { useSession } from 'next-auth/react';
 
 export default function DepartmentsPage() {
     const { data: session } = useSession();
+    const router = useRouter();
     const [departments, setDepartments] = useState<Department[]>([]);
     const [allDepartments, setAllDepartments] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
@@ -128,25 +131,44 @@ export default function DepartmentsPage() {
                     </TableHead>
                     <TableBody>
                         {departments.map((dept: any) => (
-                            <TableRow key={dept.id}>
+                            <TableRow 
+                                key={dept.id}
+                                sx={{
+                                    cursor: 'pointer',
+                                    '&:hover': {
+                                        bgcolor: 'action.hover',
+                                    }
+                                }}
+                                onClick={() => router.push(`/departments/${dept.id}/dashboard`)}
+                            >
                                 <TableCell>{dept.name}</TableCell>
                                 <TableCell>
                                     <Chip label={dept.level} size="small" color="primary" variant="outlined" />
                                 </TableCell>
                                 <TableCell>{dept.parent?.name || '-'}</TableCell>
-                                <TableCell align="right">
+                                <TableCell align="right" onClick={(e) => e.stopPropagation()}>
                                     <IconButton 
                                         size="small" 
                                         color="primary"
                                         onClick={() => handleEdit(dept)}
+                                        title="Edit department"
                                     >
                                         <EditIcon />
+                                    </IconButton>
+                                    <IconButton 
+                                        size="small" 
+                                        color="info"
+                                        onClick={() => router.push(`/departments/${dept.id}/dashboard`)}
+                                        title="View dashboard"
+                                    >
+                                        <OpenInNewIcon />
                                     </IconButton>
                                     {session?.user.role === 'SUPERADMIN' && (
                                         <IconButton 
                                             size="small" 
                                             color="error"
                                             onClick={() => handleDelete(dept.id)}
+                                            title="Delete department"
                                         >
                                             <DeleteIcon />
                                         </IconButton>
