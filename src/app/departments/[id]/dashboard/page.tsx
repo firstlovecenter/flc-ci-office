@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Typography, Box, CircularProgress, Grid, Stack, Paper, Chip, Card, CardContent, CardActionArea } from '@mui/material';
+import { Typography, Box, CircularProgress, Grid, Stack, Paper, Chip, Card, CardContent, CardActionArea, useTheme } from '@mui/material';
 import { formatCurrency } from '@/lib/utils';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import TrendingDownIcon from '@mui/icons-material/TrendingDown';
@@ -14,6 +14,7 @@ import { useParams, useRouter } from 'next/navigation';
 export default function DepartmentDashboardPage() {
     const params = useParams();
     const router = useRouter();
+    const theme = useTheme();
     const [department, setDepartment] = useState<any>(null);
     const [stats, setStats] = useState({ income: 0, expense: 0, balance: 0 });
     const [detailStats, setDetailStats] = useState({ 
@@ -83,24 +84,24 @@ export default function DepartmentDashboardPage() {
             title: 'Total Income',
             amount: stats.income,
             icon: TrendingUpIcon,
-            color: '#10b981',
-            bgColor: 'rgba(16, 185, 129, 0.1)',
+            color: theme.palette.success.dark,
+            bgColor: `${theme.palette.success.dark}1A`, // 10% opacity
             trend: '+12.5%'
         },
         {
             title: 'Total Expenses',
             amount: stats.expense,
             icon: TrendingDownIcon,
-            color: '#ef4444',
-            bgColor: 'rgba(239, 68, 68, 0.1)',
+            color: theme.palette.error.dark,
+            bgColor: `${theme.palette.error.dark}1A`, // 10% opacity
             trend: '-8.2%'
         },
         {
             title: 'Net Balance',
             amount: stats.balance,
             icon: AccountBalanceWalletIcon,
-            color: stats.balance >= 0 ? '#3b82f6' : '#f59e0b',
-            bgColor: stats.balance >= 0 ? 'rgba(59, 130, 246, 0.1)' : 'rgba(245, 158, 11, 0.1)',
+            color: stats.balance >= 0 ? theme.palette.primary.dark : theme.palette.warning.dark,
+            bgColor: stats.balance >= 0 ? `${theme.palette.primary.dark}1A` : `${theme.palette.warning.dark}1A`, // 10% opacity
             trend: stats.balance >= 0 ? '+4.3%' : '-4.3%'
         }
     ];
@@ -285,13 +286,13 @@ export default function DepartmentDashboardPage() {
                                             width: 48,
                                             height: 48,
                                             borderRadius: 2,
-                                            bgcolor: 'rgba(59, 130, 246, 0.1)',
+                                            bgcolor: `${theme.palette.primary.dark}1A`, // 10% opacity
                                             display: 'flex',
                                             alignItems: 'center',
                                             justifyContent: 'center'
                                         }}
                                     >
-                                        <PeopleIcon sx={{ fontSize: 24, color: '#3b82f6' }} />
+                                        <PeopleIcon sx={{ fontSize: 24, color: theme.palette.primary.dark }} />
                                     </Box>
                                 </Box>
                                 <Typography variant="h4" fontWeight="700" sx={{ mb: 0.5 }}>
@@ -324,13 +325,13 @@ export default function DepartmentDashboardPage() {
                                             width: 48,
                                             height: 48,
                                             borderRadius: 2,
-                                            bgcolor: 'rgba(16, 185, 129, 0.1)',
+                                            bgcolor: `${theme.palette.success.dark}1A`, // 10% opacity
                                             display: 'flex',
                                             alignItems: 'center',
                                             justifyContent: 'center'
                                         }}
                                     >
-                                        <AccountTreeIcon sx={{ fontSize: 24, color: '#10b981' }} />
+                                        <AccountTreeIcon sx={{ fontSize: 24, color: theme.palette.success.dark }} />
                                     </Box>
                                 </Box>
                                 <Typography variant="h4" fontWeight="700" sx={{ mb: 0.5 }}>
@@ -363,13 +364,13 @@ export default function DepartmentDashboardPage() {
                                             width: 48,
                                             height: 48,
                                             borderRadius: 2,
-                                            bgcolor: 'rgba(245, 158, 11, 0.1)',
+                                            bgcolor: `${theme.palette.warning.dark}1A`, // 10% opacity
                                             display: 'flex',
                                             alignItems: 'center',
                                             justifyContent: 'center'
                                         }}
                                     >
-                                        <ReceiptIcon sx={{ fontSize: 24, color: '#f59e0b' }} />
+                                        <ReceiptIcon sx={{ fontSize: 24, color: theme.palette.warning.dark }} />
                                     </Box>
                                 </Box>
                                 <Typography variant="h4" fontWeight="700" sx={{ mb: 0.5 }}>
@@ -401,13 +402,13 @@ export default function DepartmentDashboardPage() {
                                         width: 48,
                                         height: 48,
                                         borderRadius: 2,
-                                        bgcolor: 'rgba(139, 92, 246, 0.1)',
+                                        bgcolor: `${theme.palette.secondary.dark}1A`, // 10% opacity
                                         display: 'flex',
                                         alignItems: 'center',
                                         justifyContent: 'center'
                                     }}
                                 >
-                                    <AccountBalanceWalletIcon sx={{ fontSize: 24, color: '#8b5cf6' }} />
+                                    <AccountBalanceWalletIcon sx={{ fontSize: 24, color: theme.palette.secondary.dark }} />
                                 </Box>
                             </Box>
                             <Typography variant="h4" fontWeight="700" sx={{ mb: 0.5 }}>

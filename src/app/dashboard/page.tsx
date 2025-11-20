@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Typography, Box, CircularProgress, Grid, Stack } from '@mui/material';
+import { Typography, Box, CircularProgress, Grid, Stack, useTheme } from '@mui/material';
 import { formatCurrency } from '@/lib/utils';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import TrendingDownIcon from '@mui/icons-material/TrendingDown';
@@ -12,6 +12,7 @@ export default function DashboardPage() {
     const [stats, setStats] = useState({ income: 0, expense: 0, balance: 0 });
     const [loading, setLoading] = useState(true);
     const { data: session } = useSession();
+    const theme = useTheme();
 
     useEffect(() => {
         fetchStats();
@@ -44,24 +45,24 @@ export default function DashboardPage() {
             title: 'Total Income',
             amount: stats.income,
             icon: TrendingUpIcon,
-            color: '#10b981',
-            bgColor: 'rgba(16, 185, 129, 0.1)',
+            color: theme.palette.success.dark,
+            bgColor: `${theme.palette.success.dark}1A`, // 10% opacity
             trend: '+12.5%'
         },
         {
             title: 'Total Expenses',
             amount: stats.expense,
             icon: TrendingDownIcon,
-            color: '#ef4444',
-            bgColor: 'rgba(239, 68, 68, 0.1)',
+            color: theme.palette.error.dark,
+            bgColor: `${theme.palette.error.dark}1A`, // 10% opacity
             trend: '-8.2%'
         },
         {
             title: 'Net Balance',
             amount: stats.balance,
             icon: AccountBalanceWalletIcon,
-            color: stats.balance >= 0 ? '#3b82f6' : '#f59e0b',
-            bgColor: stats.balance >= 0 ? 'rgba(59, 130, 246, 0.1)' : 'rgba(245, 158, 11, 0.1)',
+            color: stats.balance >= 0 ? theme.palette.primary.dark : theme.palette.warning.dark,
+            bgColor: stats.balance >= 0 ? `${theme.palette.primary.dark}1A` : `${theme.palette.warning.dark}1A`, // 10% opacity
             trend: stats.balance >= 0 ? '+4.3%' : '-4.3%'
         }
     ];
