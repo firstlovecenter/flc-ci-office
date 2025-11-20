@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import PDFDocument from 'pdfkit';
-import prisma from '@/lib/prisma';
+import { prisma } from '@/lib/prisma';
 
 export async function POST(request: NextRequest) {
     try {
@@ -22,14 +22,14 @@ export async function POST(request: NextRequest) {
         }
         
         if (startDate && endDate) {
-            whereClause.date = {
+            whereClause.createdAt = {
                 gte: new Date(startDate),
                 lte: new Date(endDate),
             };
         } else if (startDate) {
-            whereClause.date = { gte: new Date(startDate) };
+            whereClause.createdAt = { gte: new Date(startDate) };
         } else if (endDate) {
-            whereClause.date = { lte: new Date(endDate) };
+            whereClause.createdAt = { lte: new Date(endDate) };
         }
 
         const transactions = await prisma.transaction.findMany({
@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
                 department: true,
                 user: true,
             },
-            orderBy: { date: 'asc' },
+            orderBy: { createdAt: 'asc' },
         });
 
         // Calculate opening balance (transactions before start date)
@@ -47,7 +47,7 @@ export async function POST(request: NextRequest) {
             const priorTransactions = await prisma.transaction.findMany({
                 where: {
                     ...whereClause,
-                    date: { lt: new Date(startDate) },
+                    createdAt: { lt: new Date(startDate) },
                 },
             });
             
@@ -133,7 +133,7 @@ export async function POST(request: NextRequest) {
             const credit = tx.type === 'INCOME' ? Number(tx.amount) : 0;
             runningBalance += credit - debit;
 
-            const dateStr = new Date(tx.date).toLocaleDateString();
+            const dateStr = new Date(tx.createdAt).toLocaleDateString();
             const description = tx.description.substring(0, 30);
             const deptName = tx.department.name.substring(0, 20);
 
@@ -183,7 +183,7 @@ export async function POST(request: NextRequest) {
             });
         });
 
-        return new NextResponse(pdfBuffer, {
+        return new NextResponse(pdfBuffer as any, {
             headers: {
                 'Content-Type': 'application/pdf',
                 'Content-Disposition': `attachment; filename="statement-report-${new Date().toISOString().split('T')[0]}.pdf"`,

@@ -45,12 +45,16 @@ export async function GET(request: Request) {
 
         // Add date filtering
         if (startDate || endDate) {
-            whereClause.date = {};
+            whereClause.createdAt = {};
             if (startDate) {
-                whereClause.date.gte = new Date(startDate);
+                const start = new Date(startDate);
+                start.setHours(0, 0, 0, 0);
+                whereClause.createdAt.gte = start;
             }
             if (endDate) {
-                whereClause.date.lte = new Date(endDate);
+                const end = new Date(endDate);
+                end.setHours(23, 59, 59, 999);
+                whereClause.createdAt.lte = end;
             }
         }
 
@@ -62,13 +66,17 @@ export async function GET(request: Request) {
                 files: true,
             },
             orderBy: {
-                createdAt: 'desc',
+                createdAt: 'asc',
             },
         });
 
         return NextResponse.json(transactions);
     } catch (error) {
-        return new NextResponse('Internal Error', { status: 500 });
+        console.error('Transaction API Error:', error);
+        return new NextResponse(JSON.stringify({ error: error instanceof Error ? error.message : 'Internal Error' }), { 
+            status: 500,
+            headers: { 'Content-Type': 'application/json' }
+        });
     }
 }
 

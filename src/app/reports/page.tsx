@@ -96,7 +96,7 @@ export default function ReportsPage() {
                 
                 // Sort by date for statement view
                 const sortedData = [...data].sort((a: any, b: any) => 
-                    new Date(a.date).getTime() - new Date(b.date).getTime()
+                    new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
                 );
                 
                 setTransactions(sortedData);
@@ -168,7 +168,7 @@ export default function ReportsPage() {
         if (reportType === 'summary') {
             const headers = 'Date,Department,Type,Description,Amount\n';
             const rows = transactions.map(tx => 
-                `${new Date(tx.date).toLocaleDateString()},${tx.department.name},${tx.type},${tx.description},${tx.amount}`
+                `${new Date(tx.createdAt).toLocaleDateString()},${tx.department.name},${tx.type},${tx.description},${tx.amount}`
             ).join('\n');
             return headers + rows;
         } else {
@@ -178,7 +178,7 @@ export default function ReportsPage() {
                 const debit = tx.type === 'EXPENSE' ? Number(tx.amount) : 0;
                 const credit = tx.type === 'INCOME' ? Number(tx.amount) : 0;
                 balance += credit - debit;
-                return `${new Date(tx.date).toLocaleDateString()},${tx.description},${tx.department.name},${debit || ''},${credit || ''},${balance.toFixed(2)}`;
+                return `${new Date(tx.createdAt).toLocaleDateString()},${tx.description},${tx.department.name},${debit || ''},${credit || ''},${balance.toFixed(2)}`;
             }).join('\n');
             return headers + rows;
         }
@@ -247,7 +247,7 @@ export default function ReportsPage() {
                                         }
                                     }}
                                 >
-                                    <TableCell>{new Date(tx.date).toLocaleDateString()}</TableCell>
+                                    <TableCell>{new Date(tx.createdAt).toLocaleDateString()}</TableCell>
                                     <TableCell>{tx.description}</TableCell>
                                     <TableCell>{tx.department.name}</TableCell>
                                     <TableCell align="right" sx={{ color: debit ? 'error.main' : 'inherit' }}>
