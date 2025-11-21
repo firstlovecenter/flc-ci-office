@@ -274,17 +274,6 @@ export default function CurrenciesPage() {
                 </Typography>
             </Box>
 
-            <Alert severity="info" sx={{ mb: 3 }}>
-                <Typography variant="body2" fontWeight={600} gutterBottom>
-                    Currency Management Hierarchy
-                </Typography>
-                <Typography variant="body2">
-                    • <strong>Superadmin & Global Admin:</strong> Can create currencies and manage all exchange rates<br />
-                    • <strong>National Admins:</strong> Can select their country's currency from available options (via Profile page)<br />
-                    • Exchange rates are centrally managed to ensure consistency across all transactions
-                </Typography>
-            </Alert>
-
             {error && (
                 <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError('')}>
                     {error}

@@ -61,10 +61,10 @@ export default function LoginPage() {
     };
 
     const features = [
-        { icon: <ChurchIcon />, text: 'Multi-level Church Management' },
-        { icon: <AccountBalanceWalletIcon />, text: 'Financial Tracking & Reports' },
-        { icon: <SecurityIcon />, text: 'Secure & Role-Based Access' },
-        { icon: <SpeedIcon />, text: 'Real-time Updates & Notifications' },
+        // { icon: <ChurchIcon />, text: 'Multi-level Church Management' },
+        // { icon: <AccountBalanceWalletIcon />, text: 'Financial Tracking & Reports' },
+        // { icon: <SecurityIcon />, text: 'Secure & Role-Based Access' },
+        // { icon: <SpeedIcon />, text: 'Real-time Updates & Notifications' },
     ];
 
     return (
@@ -105,9 +105,9 @@ export default function LoginPage() {
                                         FLC CI Office
                                     </Typography>
                                 </Box>
-                                <Typography variant="h5" color="text.secondary" sx={{ mb: 3 }}>
+                                {/* <Typography variant="h5" color="text.secondary" sx={{ mb: 3 }}>
                                     Central Accounts System
-                                </Typography>
+                                </Typography> */}
                                 {/* <Typography variant="body1" color="text.secondary" paragraph>
                                     Manage your church finances with confidence. Track transactions, generate reports, and maintain transparency across all departments.
                                 </Typography> */}

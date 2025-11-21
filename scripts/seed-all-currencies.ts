@@ -1,12 +1,15 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
-import { prisma } from '@/lib/prisma';
+import { PrismaClient } from '@prisma/client';
+import { PrismaPg } from '@prisma/adapter-pg';
+import { Pool } from 'pg';
+
+const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+const adapter = new PrismaPg(pool);
+const prisma = new PrismaClient({ adapter });
 
 // Comprehensive list of world currencies
-const allCurrencies = [
+const currencies = [
     // Major currencies
-    { code: 'USD', name: 'US Dollar', symbol: '$' },
+    { code: 'USD', name: 'US Dollar', symbol: '$', isBase: true },
     { code: 'EUR', name: 'Euro', symbol: '€' },
     { code: 'GBP', name: 'British Pound Sterling', symbol: '£' },
     { code: 'JPY', name: 'Japanese Yen', symbol: '¥' },
@@ -121,85 +124,74 @@ const allCurrencies = [
     { code: 'BHD', name: 'Bahraini Dinar', symbol: 'ب.د' },
 ];
 
-export async function POST(req: NextRequest) {
-    try {
-        const session = await getServerSession(authOptions);
+async function main() {
+    console.log('🌍 Starting comprehensive currency seeding...\n');
 
-        if (!session?.user?.id) {
-            return new NextResponse('Unauthorized', { status: 401 });
-        }
+    let created = 0;
+    let updated = 0;
+    let errors = 0;
 
-        // Only SUPERADMIN can seed
-        if (session.user.role !== 'SUPERADMIN') {
-            return new NextResponse('Forbidden - Only SUPERADMIN can seed currencies', { status: 403 });
-        }
-
-        let created = 0;
-        let updated = 0;
-        const createdCurrencies: string[] = [];
-        const updatedCurrencies: string[] = [];
-
-        // Seed all currencies
-        for (const currency of allCurrencies) {
-            const existing = await prisma.currency.findUnique({
+    for (const currency of currencies) {
+        try {
+            const result = await prisma.currency.upsert({
                 where: { code: currency.code },
+                update: {
+                    name: currency.name,
+                    symbol: currency.symbol,
+                    isActive: true,
+                },
+                create: {
+                    code: currency.code,
+                    name: currency.name,
+                    symbol: currency.symbol,
+                    isBase: currency.isBase || false,
+                    isActive: true,
+                },
             });
 
-            if (existing) {
-                await prisma.currency.update({
-                    where: { code: currency.code },
-                    data: {
-                        name: currency.name,
-                        symbol: currency.symbol,
-                        isActive: true,
-                    },
-                });
-                updated++;
-                updatedCurrencies.push(currency.code);
-            } else {
-                await prisma.currency.create({
-                    data: {
-                        code: currency.code,
-                        name: currency.name,
-                        symbol: currency.symbol,
-                        isBase: currency.code === 'USD', // USD as default base
-                        isActive: true,
-                    },
-                });
+            // Check if this was a creation or update
+            const isNew = result.createdAt.getTime() === result.updatedAt.getTime();
+            if (isNew) {
                 created++;
-                createdCurrencies.push(currency.code);
+                console.log(`✅ Created: ${currency.code} - ${currency.name}`);
+            } else {
+                updated++;
+                console.log(`🔄 Updated: ${currency.code} - ${currency.name}`);
             }
+        } catch (error) {
+            errors++;
+            console.error(`❌ Error with ${currency.code}:`, error);
         }
-
-        // Ensure USD is the base currency
-        await prisma.currency.updateMany({
-            where: { code: { not: 'USD' } },
-            data: { isBase: false },
-        });
-
-        await prisma.currency.update({
-            where: { code: 'USD' },
-            data: { isBase: true },
-        });
-
-        const baseCurrency = await prisma.currency.findFirst({
-            where: { isBase: true },
-        });
-
-        return NextResponse.json({
-            success: true,
-            message: 'All world currencies seeded successfully',
-            summary: {
-                total: allCurrencies.length,
-                created,
-                updated,
-            },
-            baseCurrency: baseCurrency ? `${baseCurrency.code} - ${baseCurrency.name}` : null,
-            createdCurrencies: createdCurrencies.length > 0 ? createdCurrencies : undefined,
-            updatedCurrencies: updatedCurrencies.length > 0 ? updatedCurrencies : undefined,
-        });
-    } catch (error) {
-        console.error('Seed currencies error:', error);
-        return new NextResponse('Internal Server Error', { status: 500 });
     }
+
+    console.log('\n' + '='.repeat(50));
+    console.log('📊 Summary:');
+    console.log(`   Total currencies: ${currencies.length}`);
+    console.log(`   ✅ Created: ${created}`);
+    console.log(`   🔄 Updated: ${updated}`);
+    console.log(`   ❌ Errors: ${errors}`);
+    console.log('='.repeat(50) + '\n');
+
+    // Verify base currency exists
+    const baseCurrency = await prisma.currency.findFirst({
+        where: { isBase: true },
+    });
+
+    if (baseCurrency) {
+        console.log(`✅ Base currency set to: ${baseCurrency.code} - ${baseCurrency.name}`);
+    } else {
+        console.warn('⚠️  Warning: No base currency set!');
+    }
+
+    console.log('\n✨ Currency seeding completed!\n');
 }
+
+main()
+    .then(async () => {
+        await prisma.$disconnect();
+    })
+    .catch(async (e) => {
+        console.error('Fatal error:', e);
+        await prisma.$disconnect();
+        process.exit(1);
+    });

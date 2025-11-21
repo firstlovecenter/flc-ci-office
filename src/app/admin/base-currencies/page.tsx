@@ -92,11 +92,6 @@ export default function BaseCurrenciesAdminPage() {
         National Base Currencies
       </Typography>
 
-      <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-        Overview of base currency configuration for all national departments. National admins can
-        change their base currency from the transactions page.
-      </Typography>
-
       {/* Summary Cards */}
       <Box sx={{ display: 'flex', gap: 2, mb: 3 }}>
         <Paper sx={{ p: 2, flex: 1 }}>
@@ -211,16 +206,6 @@ export default function BaseCurrenciesAdminPage() {
           </TableBody>
         </Table>
       </TableContainer>
-
-      {/* Info Alert */}
-      <Alert severity="info" sx={{ mt: 3 }}>
-        <Typography variant="body2">
-          <strong>How it works:</strong> National admins can select their preferred base currency
-          from the transactions page. All users below the national level (regional, campus, etc.)
-          will inherit their national department&apos;s base currency. International-level users and
-          above always use the system base currency ({systemBase?.code || 'USD'}).
-        </Typography>
-      </Alert>
     </Box>
   );
 }

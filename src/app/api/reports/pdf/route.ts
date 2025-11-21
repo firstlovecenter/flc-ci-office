@@ -3,6 +3,9 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import PDFDocument from 'pdfkit';
 import { prisma } from '@/lib/prisma';
+import { getUserBaseCurrency } from '@/lib/currency-conversion';
+import { convertToUserBaseCurrency } from '@/lib/currency-conversion';
+import { getDescendantDepartmentIds } from '@/lib/departments';
 
 export async function POST(request: NextRequest) {
     try {
@@ -12,13 +15,35 @@ export async function POST(request: NextRequest) {
         }
 
         const body = await request.json();
-        const { departmentId, startDate, endDate, reportType } = body;
+        const { departmentId, startDate, endDate, reportType, includeSubDepartments = true } = body;
+
+        // Get user's base currency
+        const userBaseCurrency = await getUserBaseCurrency(session.user.id);
+        if (!userBaseCurrency) {
+            return NextResponse.json({ error: 'Base currency not found' }, { status: 500 });
+        }
+
+        // Get all exchange rates for conversion
+        const exchangeRates = await prisma.exchangeRate.findMany({
+            include: {
+                fromCurrency: true,
+                toCurrency: true,
+            },
+        });
 
         // Fetch transactions
         const whereClause: any = {};
         
         if (departmentId) {
-            whereClause.departmentId = departmentId;
+            // Handle exact vs hierarchical department filtering
+            if (includeSubDepartments) {
+                // Get all descendant departments
+                const descendantIds = await getDescendantDepartmentIds(departmentId);
+                whereClause.departmentId = { in: descendantIds };
+            } else {
+                // Only exact department match
+                whereClause.departmentId = departmentId;
+            }
         }
         
         if (startDate && endDate) {
@@ -37,11 +62,12 @@ export async function POST(request: NextRequest) {
             include: {
                 department: true,
                 user: true,
+                currency: true,
             },
             orderBy: { createdAt: 'asc' },
         });
 
-        // Calculate opening balance (transactions before start date)
+        // Calculate opening balance (transactions before start date) with conversion
         let openingBalance = 0;
         if (startDate) {
             const priorTransactions = await prisma.transaction.findMany({
@@ -49,13 +75,22 @@ export async function POST(request: NextRequest) {
                     ...whereClause,
                     createdAt: { lt: new Date(startDate) },
                 },
+                include: {
+                    currency: true,
+                },
             });
             
             priorTransactions.forEach(tx => {
+                const amount = convertToUserBaseCurrency(
+                    Number(tx.amount),
+                    tx.currencyId || userBaseCurrency.id,
+                    userBaseCurrency.id,
+                    exchangeRates
+                );
                 if (tx.type === 'INCOME') {
-                    openingBalance += Number(tx.amount);
+                    openingBalance += amount;
                 } else {
-                    openingBalance -= Number(tx.amount);
+                    openingBalance -= amount;
                 }
             });
         }
@@ -69,18 +104,23 @@ export async function POST(request: NextRequest) {
             if (dept) departmentName = dept.name;
         }
 
-        // Create PDF
-        const doc = new PDFDocument({ margin: 50, size: 'A4' });
+        // Create PDF - use bufferPages to avoid font loading issues
+        const doc = new PDFDocument({ 
+            margin: 50, 
+            size: 'A4',
+            bufferPages: true 
+        });
         const chunks: Buffer[] = [];
 
         doc.on('data', (chunk) => chunks.push(chunk));
 
-        // Header
-        doc.fontSize(20).font('Helvetica-Bold').text('FLC CI Office', { align: 'center' });
+        // Header - using default fonts that don't require external files
+        doc.fontSize(20).text('FLC CI Office', { align: 'center' });
         doc.moveDown(0.5);
         doc.fontSize(16).text('Bank Statement Report', { align: 'center' });
         doc.moveDown(0.5);
-        doc.fontSize(10).font('Helvetica').text(departmentName, { align: 'center' });
+        doc.fontSize(10).text(departmentName, { align: 'center' });
+        doc.fontSize(9).text(`Currency: ${userBaseCurrency.code} (${userBaseCurrency.symbol})`, { align: 'center' });
         
         if (startDate || endDate) {
             const startStr = startDate ? new Date(startDate).toLocaleDateString() : 'Start';
@@ -91,8 +131,8 @@ export async function POST(request: NextRequest) {
         doc.moveDown(1);
 
         // Opening Balance
-        doc.fontSize(11).font('Helvetica-Bold');
-        doc.text(`Opening Balance: GH₵${openingBalance.toFixed(2)}`, { align: 'left' });
+        doc.fontSize(11);
+        doc.text(`Opening Balance: ${userBaseCurrency.symbol}${openingBalance.toFixed(2)}`, { align: 'left' });
         doc.moveDown(1);
 
         // Table Header
@@ -106,7 +146,7 @@ export async function POST(request: NextRequest) {
             balance: 70,
         };
 
-        doc.fontSize(9).font('Helvetica-Bold');
+        doc.fontSize(9);
         doc.text('Date', 50, tableTop, { width: colWidths.date });
         doc.text('Description', 120, tableTop, { width: colWidths.description });
         doc.text('Department', 270, tableTop, { width: colWidths.department });
@@ -119,7 +159,7 @@ export async function POST(request: NextRequest) {
         let y = tableTop + 25;
         let runningBalance = openingBalance;
 
-        doc.font('Helvetica').fontSize(8);
+        doc.fontSize(8);
 
         // Table Rows
         for (const tx of transactions) {
@@ -129,45 +169,75 @@ export async function POST(request: NextRequest) {
                 y = 50;
             }
 
-            const debit = tx.type === 'EXPENSE' ? Number(tx.amount) : 0;
-            const credit = tx.type === 'INCOME' ? Number(tx.amount) : 0;
+            // Convert amount to user's base currency
+            const convertedAmount = convertToUserBaseCurrency(
+                Number(tx.amount),
+                tx.currencyId || userBaseCurrency.id,
+                userBaseCurrency.id,
+                exchangeRates
+            );
+
+            const debit = tx.type === 'EXPENSE' ? convertedAmount : 0;
+            const credit = tx.type === 'INCOME' ? convertedAmount : 0;
             runningBalance += credit - debit;
 
             const dateStr = new Date(tx.createdAt).toLocaleDateString();
-            const description = tx.description.substring(0, 30);
+            let description = tx.description.substring(0, 30);
+            
+            // Add original currency info if different from base
+            if (tx.currency && tx.currency.code !== userBaseCurrency.code) {
+                description += ` (${tx.currency.symbol}${Number(tx.amount).toFixed(2)} ${tx.currency.code})`;
+            }
+            
             const deptName = tx.department.name.substring(0, 20);
 
             doc.text(dateStr, 50, y, { width: colWidths.date });
             doc.text(description, 120, y, { width: colWidths.description });
             doc.text(deptName, 270, y, { width: colWidths.department });
-            doc.text(debit ? `GH₵${debit.toFixed(2)}` : '-', 370, y, { width: colWidths.debit, align: 'right' });
-            doc.text(credit ? `GH₵${credit.toFixed(2)}` : '-', 440, y, { width: colWidths.credit, align: 'right' });
-            doc.text(`GH₵${runningBalance.toFixed(2)}`, 510, y, { width: colWidths.balance, align: 'right' });
+            doc.text(debit ? `${userBaseCurrency.symbol}${debit.toFixed(2)}` : '-', 370, y, { width: colWidths.debit, align: 'right' });
+            doc.text(credit ? `${userBaseCurrency.symbol}${credit.toFixed(2)}` : '-', 440, y, { width: colWidths.credit, align: 'right' });
+            doc.text(`${userBaseCurrency.symbol}${runningBalance.toFixed(2)}`, 510, y, { width: colWidths.balance, align: 'right' });
 
             y += 20;
         }
 
         // Closing Balance
         doc.moveDown(2);
-        doc.fontSize(11).font('Helvetica-Bold');
-        doc.text(`Closing Balance: GH₵${runningBalance.toFixed(2)}`, { align: 'right' });
+        doc.fontSize(11);
+        doc.text(`Closing Balance: ${userBaseCurrency.symbol}${runningBalance.toFixed(2)}`, { align: 'right' });
         
         // Summary
         const income = transactions
             .filter(t => t.type === 'INCOME')
-            .reduce((sum, t) => sum + Number(t.amount), 0);
+            .reduce((sum, t) => {
+                const converted = convertToUserBaseCurrency(
+                    Number(t.amount),
+                    t.currencyId || userBaseCurrency.id,
+                    userBaseCurrency.id,
+                    exchangeRates
+                );
+                return sum + converted;
+            }, 0);
         const expense = transactions
             .filter(t => t.type === 'EXPENSE')
-            .reduce((sum, t) => sum + Number(t.amount), 0);
+            .reduce((sum, t) => {
+                const converted = convertToUserBaseCurrency(
+                    Number(t.amount),
+                    t.currencyId || userBaseCurrency.id,
+                    userBaseCurrency.id,
+                    exchangeRates
+                );
+                return sum + converted;
+            }, 0);
 
         doc.moveDown(2);
         doc.fontSize(10);
-        doc.text(`Total Income: GH₵${income.toFixed(2)}`, { align: 'left' });
-        doc.text(`Total Expense: GH₵${expense.toFixed(2)}`, { align: 'left' });
-        doc.text(`Net Change: GH₵${(income - expense).toFixed(2)}`, { align: 'left' });
+        doc.text(`Total Income: ${userBaseCurrency.symbol}${income.toFixed(2)}`, { align: 'left' });
+        doc.text(`Total Expense: ${userBaseCurrency.symbol}${expense.toFixed(2)}`, { align: 'left' });
+        doc.text(`Net Change: ${userBaseCurrency.symbol}${(income - expense).toFixed(2)}`, { align: 'left' });
 
         // Footer
-        doc.fontSize(8).font('Helvetica').text(
+        doc.fontSize(8).text(
             `Generated on ${new Date().toLocaleString()} by ${session.user.name || session.user.email}`,
             50,
             750,

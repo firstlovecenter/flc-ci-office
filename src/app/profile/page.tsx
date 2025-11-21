@@ -24,6 +24,7 @@ import {
     InputLabel,
     Select,
     MenuItem,
+    CircularProgress,
 } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
 import SaveIcon from '@mui/icons-material/Save';
@@ -35,6 +36,7 @@ import BadgeIcon from '@mui/icons-material/Badge';
 import BusinessIcon from '@mui/icons-material/Business';
 import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
 import MonetizationOnIcon from '@mui/icons-material/MonetizationOn';
+import NotificationSettings from '@/components/NotificationSettings';
 
 interface UserProfile {
     id: string;
@@ -47,13 +49,6 @@ interface UserProfile {
         id: string;
         name: string;
         level: string;
-    } | null;
-    baseCurrencyId: string | null;
-    baseCurrency: {
-        id: string;
-        code: string;
-        name: string;
-        symbol: string;
     } | null;
     createdAt: string;
     updatedAt: string;
@@ -69,12 +64,10 @@ export default function ProfilePage() {
     const [uploading, setUploading] = useState(false);
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
-    const [currencies, setCurrencies] = useState<any[]>([]);
     const [formData, setFormData] = useState({
         name: '',
         image: '',
         email: '',
-        baseCurrencyId: '',
     });
 
     useEffect(() => {
@@ -83,20 +76,7 @@ export default function ProfilePage() {
             return;
         }
         fetchProfile();
-        fetchCurrencies();
     }, [session, router]);
-
-    const fetchCurrencies = async () => {
-        try {
-            const response = await fetch('/api/currencies');
-            if (response.ok) {
-                const data = await response.json();
-                setCurrencies(data.filter((c: any) => c.isActive));
-            }
-        } catch (error) {
-            console.error('Failed to fetch currencies:', error);
-        }
-    };
 
     const fetchProfile = async () => {
         try {
@@ -108,7 +88,6 @@ export default function ProfilePage() {
                 name: data.name || '',
                 image: data.image || '',
                 email: data.email || '',
-                baseCurrencyId: data.baseCurrencyId || '',
             });
         } catch (err) {
             setError('Failed to load profile');
@@ -135,6 +114,7 @@ export default function ProfilePage() {
 
         setUploading(true);
         setError('');
+        setSuccess('');
 
         try {
             const formDataToSend = new FormData();
@@ -146,17 +126,23 @@ export default function ProfilePage() {
             });
 
             if (!response.ok) {
-                const errorText = await response.text();
-                throw new Error(errorText || 'Upload failed');
+                const errorData = await response.text();
+                throw new Error(errorData || 'Upload failed');
             }
 
-            const { url } = await response.json();
-            setFormData(prev => ({ ...prev, image: url }));
+            const data = await response.json();
+            
+            if (!data.success || !data.url) {
+                throw new Error('Invalid response from server');
+            }
+
+            const imageUrl = data.url;
+            setFormData(prev => ({ ...prev, image: imageUrl }));
             
             // Auto-save the image
-            await handleSave(url);
-            setSuccess('Profile picture updated successfully!');
+            await handleSave(imageUrl);
         } catch (err: any) {
+            console.error('Upload error:', err);
             setError(err.message || 'Failed to upload image');
         } finally {
             setUploading(false);
@@ -169,7 +155,6 @@ export default function ProfilePage() {
         setSuccess('');
 
         const isSuperAdmin = session?.user?.role === 'SUPERADMIN';
-        const canSetBaseCurrency = ['SUPERADMIN', 'GLOBAL_ADMIN', 'INTERNATIONAL_ADMIN', 'NATIONAL_ADMIN'].includes(session?.user?.role || '');
 
         try {
             const updatePayload: any = {
@@ -182,11 +167,6 @@ export default function ProfilePage() {
                 updatePayload.email = formData.email;
             }
 
-            // Include base currency for national admins and above
-            if (canSetBaseCurrency) {
-                updatePayload.baseCurrencyId = formData.baseCurrencyId || null;
-            }
-
             const response = await fetch('/api/profile', {
                 method: 'PATCH',
                 headers: {
@@ -195,13 +175,19 @@ export default function ProfilePage() {
                 body: JSON.stringify(updatePayload),
             });
 
-            if (!response.ok) throw new Error('Failed to update profile');
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(errorText || 'Failed to update profile');
+            }
 
             const updatedProfile = await response.json();
             setProfile(updatedProfile);
             setEditing(false);
             
-            if (!imageUrl) {
+            // Show success message
+            if (imageUrl) {
+                setSuccess('Profile picture updated successfully!');
+            } else {
                 setSuccess('Profile updated successfully!');
             }
             
@@ -214,8 +200,9 @@ export default function ProfilePage() {
                     image: updatedProfile.image,
                 },
             });
-        } catch (err) {
-            setError('Failed to update profile');
+        } catch (err: any) {
+            console.error('Save error:', err);
+            setError(err.message || 'Failed to update profile');
         } finally {
             setSaving(false);
         }
@@ -226,7 +213,6 @@ export default function ProfilePage() {
             name: profile?.name || '',
             image: profile?.image || '',
             email: profile?.email || '',
-            baseCurrencyId: profile?.baseCurrencyId || '',
         });
         setEditing(false);
         setError('');
@@ -302,14 +288,23 @@ export default function ProfilePage() {
                                 '&:hover': {
                                     bgcolor: 'primary.dark',
                                 },
+                                '&.Mui-disabled': {
+                                    bgcolor: 'primary.light',
+                                    color: 'white',
+                                },
                             }}
                         >
-                            <PhotoCameraIcon />
+                            {uploading ? (
+                                <CircularProgress size={24} color="inherit" />
+                            ) : (
+                                <PhotoCameraIcon />
+                            )}
                             <input
                                 type="file"
                                 hidden
                                 accept="image/*"
                                 onChange={handleImageUpload}
+                                disabled={uploading}
                             />
                         </IconButton>
                     </Box>
@@ -430,55 +425,6 @@ export default function ProfilePage() {
                                         </Typography>
                                     </Box>
                                 )}
-
-                                {/* Base Currency - Only for National Admin and above */}
-                                {['SUPERADMIN', 'GLOBAL_ADMIN', 'INTERNATIONAL_ADMIN', 'NATIONAL_ADMIN'].includes(profile.role) && (
-                                    <Box>
-                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                                            <MonetizationOnIcon color="action" fontSize="small" />
-                                            <Typography variant="body2" color="text.secondary">
-                                                Base Currency
-                                            </Typography>
-                                        </Box>
-                                        {editing && (
-                                            <Alert severity="info" sx={{ mb: 2, fontSize: '0.875rem' }}>
-                                                As a {profile.role.replace(/_/g, ' ').toLowerCase()}, you can select your country's base currency. 
-                                                Exchange rates are managed by Global Admins and Superadmins only.
-                                            </Alert>
-                                        )}
-                                        {editing ? (
-                                            <FormControl fullWidth size="small">
-                                                <InputLabel>Select Currency</InputLabel>
-                                                <Select
-                                                    value={formData.baseCurrencyId}
-                                                    label="Select Currency"
-                                                    onChange={(e) => setFormData({ ...formData, baseCurrencyId: e.target.value })}
-                                                >
-                                                    <MenuItem value="">
-                                                        <em>Use Default (Ghana Cedis)</em>
-                                                    </MenuItem>
-                                                    {currencies.map((currency) => (
-                                                        <MenuItem key={currency.id} value={currency.id}>
-                                                            {currency.code} - {currency.name} ({currency.symbol})
-                                                        </MenuItem>
-                                                    ))}
-                                                </Select>
-                                                <Typography variant="caption" color="text.secondary" sx={{ mt: 1 }}>
-                                                    This will be the default currency for all your transactions
-                                                </Typography>
-                                            </FormControl>
-                                        ) : (
-                                            <>
-                                                <Typography variant="body1" fontWeight={500}>
-                                                    {profile.baseCurrency ? `${profile.baseCurrency.code} - ${profile.baseCurrency.name} (${profile.baseCurrency.symbol})` : 'Default (Ghana Cedis)'}
-                                                </Typography>
-                                                <Typography variant="caption" color="text.secondary">
-                                                    All transactions will be converted to this currency
-                                                </Typography>
-                                            </>
-                                        )}
-                                    </Box>
-                                )}
                             </Stack>
 
                             {editing && (
@@ -503,6 +449,11 @@ export default function ProfilePage() {
                             )}
                         </CardContent>
                     </Card>
+                </Grid>
+
+                {/* Push Notifications */}
+                <Grid size={{ xs: 12 }}>
+                    <NotificationSettings />
                 </Grid>
 
                 {/* Account Information */}

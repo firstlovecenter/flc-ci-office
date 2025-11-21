@@ -40,10 +40,25 @@ export default function ReportsPage() {
     const [endDate, setEndDate] = useState('');
     const [openingBalance, setOpeningBalance] = useState(0);
     const [closingBalance, setClosingBalance] = useState(0);
+    const [baseCurrency, setBaseCurrency] = useState<{ id: string; code: string; symbol: string } | null>(null);
+    const [includeSubDepartments, setIncludeSubDepartments] = useState(true);
 
     useEffect(() => {
         fetchDepartments();
+        fetchBaseCurrency();
     }, []);
+
+    const fetchBaseCurrency = async () => {
+        try {
+            const response = await fetch('/api/users/me');
+            if (response.ok) {
+                const data = await response.json();
+                setBaseCurrency(data.baseCurrency);
+            }
+        } catch (error) {
+            console.error('Error fetching base currency:', error);
+        }
+    };
 
     const fetchDepartments = async () => {
         const response = await fetch('/api/departments');
@@ -62,6 +77,9 @@ export default function ReportsPage() {
                 let openingUrl = '/api/transactions?';
                 if (selectedDepartment) {
                     openingUrl += `departmentId=${selectedDepartment}&`;
+                    if (!includeSubDepartments) {
+                        openingUrl += `exactDepartment=true&`;
+                    }
                 }
                 openingUrl += `endDate=${new Date(new Date(startDate).getTime() - 86400000).toISOString().split('T')[0]}`;
                 
@@ -70,10 +88,10 @@ export default function ReportsPage() {
                     const openingData = await openingResponse.json();
                     opening = openingData
                         .filter((t: any) => t.type === 'INCOME')
-                        .reduce((sum: number, t: any) => sum + Number(t.amount), 0) -
+                        .reduce((sum: number, t: any) => sum + Number(t.amountInBase || t.amount), 0) -
                         openingData
                         .filter((t: any) => t.type === 'EXPENSE')
-                        .reduce((sum: number, t: any) => sum + Number(t.amount), 0);
+                        .reduce((sum: number, t: any) => sum + Number(t.amountInBase || t.amount), 0);
                 }
             }
             setOpeningBalance(opening);
@@ -82,6 +100,9 @@ export default function ReportsPage() {
             let url = '/api/transactions?';
             if (selectedDepartment) {
                 url += `departmentId=${selectedDepartment}&`;
+                if (!includeSubDepartments) {
+                    url += `exactDepartment=true&`;
+                }
             }
             if (startDate) {
                 url += `startDate=${startDate}&`;
@@ -101,13 +122,13 @@ export default function ReportsPage() {
                 
                 setTransactions(sortedData);
 
-                // Calculate stats
+                // Calculate stats using converted amounts
                 const income = data
                     .filter((t: any) => t.type === 'INCOME')
-                    .reduce((sum: number, t: any) => sum + Number(t.amount), 0);
+                    .reduce((sum: number, t: any) => sum + Number(t.amountInBase || t.amount), 0);
                 const expense = data
                     .filter((t: any) => t.type === 'EXPENSE')
-                    .reduce((sum: number, t: any) => sum + Number(t.amount), 0);
+                    .reduce((sum: number, t: any) => sum + Number(t.amountInBase || t.amount), 0);
 
                 const closing = opening + income - expense;
                 setClosingBalance(closing);
@@ -136,6 +157,7 @@ export default function ReportsPage() {
                     startDate,
                     endDate,
                     reportType,
+                    includeSubDepartments,
                 }),
             });
 
@@ -165,18 +187,19 @@ export default function ReportsPage() {
     };
 
     const generateCSV = () => {
+        const currencyCode = baseCurrency?.code || 'GHS';
         if (reportType === 'summary') {
-            const headers = 'Date,Department,Type,Description,Amount\n';
+            const headers = `Date,Department,Type,Description,Amount (${currencyCode})\n`;
             const rows = transactions.map(tx => 
-                `${new Date(tx.createdAt).toLocaleDateString()},${tx.department.name},${tx.type},${tx.description},${tx.amount}`
+                `${new Date(tx.createdAt).toLocaleDateString()},${tx.department.name},${tx.type},${tx.description},${Number(tx.amountInBase || tx.amount).toFixed(2)}`
             ).join('\n');
             return headers + rows;
         } else {
-            const headers = 'Date,Description,Department,Debit,Credit,Balance\n';
-            let balance = 0;
+            const headers = `Date,Description,Department,Debit (${currencyCode}),Credit (${currencyCode}),Balance (${currencyCode})\n`;
+            let balance = openingBalance;
             const rows = transactions.map(tx => {
-                const debit = tx.type === 'EXPENSE' ? Number(tx.amount) : 0;
-                const credit = tx.type === 'INCOME' ? Number(tx.amount) : 0;
+                const debit = tx.type === 'EXPENSE' ? Number(tx.amountInBase || tx.amount) : 0;
+                const credit = tx.type === 'INCOME' ? Number(tx.amountInBase || tx.amount) : 0;
                 balance += credit - debit;
                 return `${new Date(tx.createdAt).toLocaleDateString()},${tx.description},${tx.department.name},${debit || ''},${credit || ''},${balance.toFixed(2)}`;
             }).join('\n');
@@ -198,6 +221,11 @@ export default function ReportsPage() {
                             ? departments.find(d => d.id === selectedDepartment)?.name || 'All Departments'
                             : 'All Departments'}
                     </Typography>
+                    {baseCurrency && (
+                        <Typography variant="body2" color="text.secondary" align="center" gutterBottom>
+                            Currency: {baseCurrency.code} ({baseCurrency.symbol})
+                        </Typography>
+                    )}
                     {(startDate || endDate) && (
                         <Typography variant="body2" color="text.secondary" align="center" gutterBottom>
                             Period: {startDate ? new Date(startDate).toLocaleDateString() : 'Start'} - {endDate ? new Date(endDate).toLocaleDateString() : 'End'}
@@ -215,7 +243,7 @@ export default function ReportsPage() {
                             fontWeight="bold"
                             color={openingBalance >= 0 ? 'success.main' : 'error.main'}
                         >
-                            {formatCurrency(openingBalance)}
+                            {baseCurrency ? formatCurrency(openingBalance, baseCurrency.code, baseCurrency.symbol) : formatCurrency(openingBalance)}
                         </Typography>
                     </Box>
                 </Box>
@@ -233,8 +261,9 @@ export default function ReportsPage() {
                     </TableHead>
                     <TableBody>
                         {transactions.map((tx, index) => {
-                            const debit = tx.type === 'EXPENSE' ? Number(tx.amount) : 0;
-                            const credit = tx.type === 'INCOME' ? Number(tx.amount) : 0;
+                            const amount = Number(tx.amountInBase || tx.amount);
+                            const debit = tx.type === 'EXPENSE' ? amount : 0;
+                            const credit = tx.type === 'INCOME' ? amount : 0;
                             runningBalance += credit - debit;
                             
                             return (
@@ -248,13 +277,20 @@ export default function ReportsPage() {
                                     }}
                                 >
                                     <TableCell>{new Date(tx.createdAt).toLocaleDateString()}</TableCell>
-                                    <TableCell>{tx.description}</TableCell>
+                                    <TableCell>
+                                        {tx.description}
+                                        {tx.currency && baseCurrency && tx.currency.code !== baseCurrency.code && (
+                                            <Typography variant="caption" color="text.secondary" display="block">
+                                                (Original: {tx.currency.symbol}{Number(tx.amount).toLocaleString()} {tx.currency.code})
+                                            </Typography>
+                                        )}
+                                    </TableCell>
                                     <TableCell>{tx.department.name}</TableCell>
                                     <TableCell align="right" sx={{ color: debit ? 'error.main' : 'inherit' }}>
-                                        {debit ? formatCurrency(debit) : '-'}
+                                        {debit ? (baseCurrency ? formatCurrency(debit, baseCurrency.code, baseCurrency.symbol) : formatCurrency(debit)) : '-'}
                                     </TableCell>
                                     <TableCell align="right" sx={{ color: credit ? 'success.main' : 'inherit' }}>
-                                        {credit ? formatCurrency(credit) : '-'}
+                                        {credit ? (baseCurrency ? formatCurrency(credit, baseCurrency.code, baseCurrency.symbol) : formatCurrency(credit)) : '-'}
                                     </TableCell>
                                     <TableCell 
                                         align="right" 
@@ -263,7 +299,7 @@ export default function ReportsPage() {
                                             color: runningBalance >= 0 ? 'success.main' : 'error.main'
                                         }}
                                     >
-                                        {formatCurrency(runningBalance)}
+                                        {baseCurrency ? formatCurrency(runningBalance, baseCurrency.code, baseCurrency.symbol) : formatCurrency(runningBalance)}
                                     </TableCell>
                                 </TableRow>
                             );
@@ -271,13 +307,13 @@ export default function ReportsPage() {
                         <TableRow sx={{ bgcolor: 'action.selected' }}>
                             <TableCell colSpan={3} sx={{ fontWeight: 'bold' }}>Totals</TableCell>
                             <TableCell align="right" sx={{ fontWeight: 'bold', color: 'error.main' }}>
-                                {formatCurrency(stats.expense)}
+                                {baseCurrency ? formatCurrency(stats.expense, baseCurrency.code, baseCurrency.symbol) : formatCurrency(stats.expense)}
                             </TableCell>
                             <TableCell align="right" sx={{ fontWeight: 'bold', color: 'success.main' }}>
-                                {formatCurrency(stats.income)}
+                                {baseCurrency ? formatCurrency(stats.income, baseCurrency.code, baseCurrency.symbol) : formatCurrency(stats.income)}
                             </TableCell>
                             <TableCell align="right" sx={{ fontWeight: 'bold' }}>
-                                {formatCurrency(stats.balance)}
+                                {baseCurrency ? formatCurrency(stats.balance, baseCurrency.code, baseCurrency.symbol) : formatCurrency(stats.balance)}
                             </TableCell>
                         </TableRow>
                     </TableBody>
@@ -293,7 +329,7 @@ export default function ReportsPage() {
                         fontWeight="bold"
                         color={closingBalance >= 0 ? 'success.main' : 'error.main'}
                     >
-                        {formatCurrency(closingBalance)}
+                        {baseCurrency ? formatCurrency(closingBalance, baseCurrency.code, baseCurrency.symbol) : formatCurrency(closingBalance)}
                     </Typography>
                 </Box>
             </TableContainer>
@@ -369,7 +405,7 @@ export default function ReportsPage() {
                         />
                     </Box>
 
-                    <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+                    <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start', flexWrap: 'wrap' }}>
                         <FormControl sx={{ minWidth: 300 }}>
                             <InputLabel>Department (Optional)</InputLabel>
                             <Select
@@ -385,6 +421,19 @@ export default function ReportsPage() {
                                 ))}
                             </Select>
                         </FormControl>
+                        {selectedDepartment && (
+                            <FormControl sx={{ minWidth: 250 }}>
+                                <InputLabel>Scope</InputLabel>
+                                <Select
+                                    value={includeSubDepartments ? 'include' : 'exact'}
+                                    label="Scope"
+                                    onChange={(e) => setIncludeSubDepartments(e.target.value === 'include')}
+                                >
+                                    <MenuItem value="include">Include Lower Departments</MenuItem>
+                                    <MenuItem value="exact">Selected Department Only</MenuItem>
+                                </Select>
+                            </FormControl>
+                        )}
                         <Button
                             variant="contained"
                             onClick={generateReport}
@@ -439,31 +488,52 @@ export default function ReportsPage() {
                                     </TableRow>
                                 </TableHead>
                                 <TableBody>
-                                    {transactions.map((tx) => (
-                                        <TableRow key={tx.id}>
-                                            <TableCell>
-                                                {new Date(tx.createdAt).toLocaleDateString()}
-                                            </TableCell>
-                                            <TableCell>{tx.department.name}</TableCell>
-                                            <TableCell>{tx.type}</TableCell>
-                                            <TableCell>{tx.description}</TableCell>
-                                            <TableCell
-                                                align="right"
-                                                sx={{
-                                                    color: tx.type === 'INCOME' ? 'success.main' : 'error.main',
-                                                    fontWeight: 'bold',
-                                                }}
-                                            >
-                                                {tx.type === 'EXPENSE' ? '-' : '+'}
-                                                {formatCurrency(Number(tx.amount))}
-                                            </TableCell>
-                                        </TableRow>
-                                    ))}
+                                    {transactions.map((tx) => {
+                                        const amount = Number(tx.amountInBase || tx.amount);
+                                        return (
+                                            <TableRow key={tx.id}>
+                                                <TableCell>
+                                                    {new Date(tx.createdAt).toLocaleDateString()}
+                                                </TableCell>
+                                                <TableCell>{tx.department.name}</TableCell>
+                                                <TableCell>{tx.type}</TableCell>
+                                                <TableCell>
+                                                    {tx.description}
+                                                    {tx.currency && baseCurrency && tx.currency.code !== baseCurrency.code && (
+                                                        <Typography variant="caption" color="text.secondary" display="block">
+                                                            (Original: {tx.currency.symbol}{Number(tx.amount).toLocaleString()} {tx.currency.code})
+                                                        </Typography>
+                                                    )}
+                                                </TableCell>
+                                                <TableCell
+                                                    align="right"
+                                                    sx={{
+                                                        color: tx.type === 'INCOME' ? 'success.main' : 'error.main',
+                                                        fontWeight: 'bold',
+                                                    }}
+                                                >
+                                                    {tx.type === 'EXPENSE' ? '-' : '+'}
+                                                    {baseCurrency ? formatCurrency(amount, baseCurrency.code, baseCurrency.symbol) : formatCurrency(amount)}
+                                                </TableCell>
+                                            </TableRow>
+                                        );
+                                    })}
                                 </TableBody>
                             </Table>
                         </TableContainer>
                     )}
                 </>
+            )}
+
+            {!loading && transactions.length === 0 && (selectedDepartment || startDate || endDate) && (
+                <Paper sx={{ p: 4, textAlign: 'center' }}>
+                    <Typography variant="h6" color="text.secondary" gutterBottom>
+                        No Transactions Found
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                        There are no transactions for the selected criteria. Try adjusting your filters or date range.
+                    </Typography>
+                </Paper>
             )}
 
             {loading && (

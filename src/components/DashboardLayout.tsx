@@ -116,6 +116,7 @@ const menuItems = [
     { text: 'Users', icon: <PeopleIcon />, path: '/users' },
     { text: 'Reports', icon: <AssessmentIcon />, path: '/reports' },
     { text: 'Currencies', icon: <MonetizationOnIcon />, path: '/currencies', adminOnly: true },
+    { text: 'Base Currencies', icon: <MonetizationOnIcon />, path: '/admin/base-currencies', adminOnly: true },
     { text: 'Profile', icon: <AccountCircleIcon />, path: '/profile' },
     { text: 'Audit Trail', icon: <HistoryIcon />, path: '/audit', superAdminOnly: true },
 ];

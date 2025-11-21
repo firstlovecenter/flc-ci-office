@@ -18,6 +18,7 @@ export async function GET(request: Request) {
     const departmentId = searchParams.get('departmentId');
     const startDate = searchParams.get('startDate');
     const endDate = searchParams.get('endDate');
+    const exactDepartment = searchParams.get('exactDepartment') === 'true';
 
     try {
         const whereClause: any = {};
@@ -35,13 +36,26 @@ export async function GET(request: Request) {
                 if (!allowedIds.includes(departmentId)) {
                     return new NextResponse('Forbidden', { status: 403 });
                 }
-                whereClause.departmentId = departmentId;
+                // If exactDepartment is true, only get transactions from that specific department
+                if (exactDepartment) {
+                    whereClause.departmentId = departmentId;
+                } else {
+                    // Otherwise, get transactions from the department and all its descendants
+                    const descendantIds = await getDescendantDepartmentIds(departmentId);
+                    whereClause.departmentId = { in: descendantIds };
+                }
             } else {
                 // Otherwise, return transactions from all allowed departments
                 whereClause.departmentId = { in: allowedIds };
             }
         } else if (departmentId) {
-            whereClause.departmentId = departmentId;
+            // Superadmin can specify exact or hierarchical filtering
+            if (exactDepartment) {
+                whereClause.departmentId = departmentId;
+            } else {
+                const descendantIds = await getDescendantDepartmentIds(departmentId);
+                whereClause.departmentId = { in: descendantIds };
+            }
         }
 
         // Add date filtering
