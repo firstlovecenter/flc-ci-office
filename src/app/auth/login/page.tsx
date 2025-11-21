@@ -60,7 +60,7 @@ export default function LoginPage() {
         }
     };
 
-    const features = [
+    const features: Array<{ icon: JSX.Element; text: string }> = [
         // { icon: <ChurchIcon />, text: 'Multi-level Church Management' },
         // { icon: <AccountBalanceWalletIcon />, text: 'Financial Tracking & Reports' },
         // { icon: <SecurityIcon />, text: 'Secure & Role-Based Access' },
