@@ -111,6 +111,130 @@ export async function PUT(
     }
 }
 
+export async function PATCH(
+    request: Request,
+    context: { params: Promise<{ id: string }> }
+) {
+    const session = await getServerSession(authOptions);
+
+    if (!session) {
+        return new NextResponse('Unauthorized', { status: 401 });
+    }
+
+    try {
+        const params = await context.params;
+        const body = await request.json();
+        const { status, rejectionReason } = body;
+        const transactionId = params.id;
+
+        // Validate status
+        if (!['APPROVED', 'REJECTED'].includes(status)) {
+            return new NextResponse('Invalid status', { status: 400 });
+        }
+
+        // Get the transaction
+        const transaction = await prisma.transaction.findUnique({
+            where: { id: transactionId },
+            include: {
+                department: true,
+                user: true,
+            },
+        });
+
+        if (!transaction) {
+            return new NextResponse('Transaction not found', { status: 404 });
+        }
+
+        // Check if transaction is already approved or rejected
+        if (transaction.status !== 'PENDING') {
+            return new NextResponse(`Transaction already ${transaction.status.toLowerCase()}`, { status: 400 });
+        }
+
+        // Check if user has permission (must be admin role)
+        const adminRoles = ['CAMPUS_ADMIN', 'REGIONAL_ADMIN', 'NATIONAL_ADMIN', 'INTERNATIONAL_ADMIN', 'GLOBAL_ADMIN', 'SUPERADMIN'];
+        if (!adminRoles.includes(session.user.role)) {
+            return new NextResponse('Only admins can approve/reject transactions', { status: 403 });
+        }
+
+        // Check if the admin has access to this department
+        if (session.user.role !== 'SUPERADMIN') {
+            const hasAccess = await hasDepartmentAccess(
+                session.user.departmentId!,
+                transaction.departmentId
+            );
+
+            if (!hasAccess) {
+                return new NextResponse('You do not have access to this department', { status: 403 });
+            }
+        }
+
+        // Update transaction status
+        const updatedTransaction = await prisma.transaction.update({
+            where: { id: transactionId },
+            data: {
+                status,
+                approvedBy: status === 'APPROVED' ? session.user.id : undefined,
+                approvedAt: status === 'APPROVED' ? new Date() : undefined,
+                rejectedBy: status === 'REJECTED' ? session.user.id : undefined,
+                rejectedAt: status === 'REJECTED' ? new Date() : undefined,
+                rejectionReason: status === 'REJECTED' ? rejectionReason : undefined,
+            },
+            include: {
+                department: {
+                    select: {
+                        id: true,
+                        name: true,
+                        level: true,
+                    },
+                },
+                user: {
+                    select: {
+                        id: true,
+                        name: true,
+                        email: true,
+                    },
+                },
+                currency: {
+                    select: {
+                        id: true,
+                        code: true,
+                        name: true,
+                        symbol: true,
+                    },
+                },
+            },
+        });
+
+        // Create audit log for the approval/rejection
+        await prisma.auditLog.create({
+            data: {
+                userId: session.user.id,
+                actionType: 'UPDATE',
+                entityType: 'Transaction',
+                entityId: transactionId,
+                afterData: { 
+                    status, 
+                    approvedBy: status === 'APPROVED' ? session.user.id : undefined,
+                    rejectedBy: status === 'REJECTED' ? session.user.id : undefined,
+                    rejectionReason: status === 'REJECTED' ? rejectionReason : undefined,
+                },
+            },
+        });
+
+        // TODO: Send push notification to the user who created the transaction
+        // await sendPushNotification([transaction.userId], {
+        //     title: status === 'APPROVED' ? 'Transaction Approved' : 'Transaction Rejected',
+        //     body: `Your transaction "${transaction.description}" has been ${status.toLowerCase()}`,
+        //     url: `/transactions`,
+        // });
+
+        return NextResponse.json(updatedTransaction);
+    } catch (error) {
+        console.error('Error updating transaction status:', error);
+        return new NextResponse('Internal Error', { status: 500 });
+    }
+}
+
 export async function DELETE(
     request: Request,
     context: { params: Promise<{ id: string }> }

@@ -109,7 +109,9 @@ model Transaction {
   status        TransactionStatus @default(PENDING)
   approvedBy    String?
   approvedAt    DateTime?
-  rejectedReason String?
+  rejectedBy    String?
+  rejectedAt    DateTime?
+  rejectionReason String?
   weekNumber    Int
   year          Int
   locked        Boolean           @default(false)

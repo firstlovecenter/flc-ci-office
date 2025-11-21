@@ -19,6 +19,7 @@ export async function GET(request: Request) {
     const startDate = searchParams.get('startDate');
     const endDate = searchParams.get('endDate');
     const exactDepartment = searchParams.get('exactDepartment') === 'true';
+    const status = searchParams.get('status');
 
     try {
         const whereClause: any = {};
@@ -71,6 +72,11 @@ export async function GET(request: Request) {
                 end.setHours(23, 59, 59, 999);
                 whereClause.createdAt.lte = end;
             }
+        }
+
+        // Add status filtering
+        if (status) {
+            whereClause.status = status;
         }
 
         const transactions = await prisma.transaction.findMany({

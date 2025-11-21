@@ -26,6 +26,7 @@ import AssessmentIcon from '@mui/icons-material/Assessment';
 import HistoryIcon from '@mui/icons-material/History';
 import AccountCircleIcon from '@mui/icons-material/AccountCircle';
 import MonetizationOnIcon from '@mui/icons-material/MonetizationOn';
+import PendingActionsIcon from '@mui/icons-material/PendingActions';
 import BottomNavigation from '@mui/material/BottomNavigation';
 import BottomNavigationAction from '@mui/material/BottomNavigationAction';
 import Paper from '@mui/material/Paper';
@@ -113,6 +114,7 @@ const menuItems = [
     { text: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard' },
     { text: 'Departments', icon: <AccountBalanceIcon />, path: '/departments' },
     { text: 'Transactions', icon: <ReceiptIcon />, path: '/transactions' },
+    { text: 'Approvals', icon: <PendingActionsIcon />, path: '/approvals', adminOnly: true },
     { text: 'Users', icon: <PeopleIcon />, path: '/users' },
     { text: 'Reports', icon: <AssessmentIcon />, path: '/reports' },
     { text: 'Currencies', icon: <MonetizationOnIcon />, path: '/currencies', adminOnly: true },
