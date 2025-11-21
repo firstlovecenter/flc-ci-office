@@ -17,14 +17,14 @@ async function main() {
     where: { email: 'skaduteye@gmail.com' },
     update: {
       password: hashedPassword,
-      role: 'SUPERADMIN',
+      roles: ['SUPERADMIN'],
       name: 'root',
       archived: false,
     },
     create: {
       email: 'skaduteye@gmail.com',
       password: hashedPassword,
-      role: 'SUPERADMIN',
+      roles: ['SUPERADMIN'],
       name: 'root',
       archived: false,
     },
@@ -32,7 +32,7 @@ async function main() {
 
   console.log('✓ Superadmin user created/updated:', user.email);
   console.log('  Name:', user.name);
-  console.log('  Role:', user.role);
+  console.log('  Roles:', user.roles);
 }
 
 main()
