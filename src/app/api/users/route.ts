@@ -4,6 +4,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import bcrypt from 'bcryptjs';
 import { getDescendantDepartmentIds } from '@/lib/departments';
+import { validateRoleAssignment } from '@/lib/roleValidation';
 
 export async function GET(request: Request) {
     const session = await getServerSession(authOptions);
@@ -79,7 +80,16 @@ export async function POST(request: Request) {
 
     try {
         const body = await request.json();
-        const { name, email, password, role, departmentId } = body;
+        const { name, email, password, roles, departmentId } = body;
+
+        // Ensure roles is an array
+        const userRoles = Array.isArray(roles) ? roles : [roles];
+
+        // Validate role assignments (check SUPERADMIN and GLOBAL_ADMIN uniqueness)
+        const validation = await validateRoleAssignment('new-user', userRoles, departmentId, email);
+        if (!validation.valid) {
+            return NextResponse.json({ error: validation.error }, { status: 400 });
+        }
 
         // Check if user exists
         const existingUser = await prisma.user.findUnique({
@@ -135,7 +145,8 @@ export async function POST(request: Request) {
                 name,
                 email,
                 password: await bcrypt.hash(password, 10),
-                role,
+                roles: userRoles,
+                activeRole: userRoles[0], // Set first role as active
                 departmentId: departmentId || null,
             },
         });

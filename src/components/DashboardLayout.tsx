@@ -38,6 +38,7 @@ import Menu from '@mui/material/Menu';
 import MenuItem from '@mui/material/MenuItem';
 import useMediaQuery from '@mui/material/useMediaQuery';
 import PushNotificationManager from './PushNotificationManager';
+import RoleSwitcher from './RoleSwitcher';
 
 const drawerWidth = 240;
 
@@ -231,6 +232,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     </Typography>
                     {session && (
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 1, sm: 2 } }}>
+                            <RoleSwitcher />
                             <Box sx={{ textAlign: 'right', display: { xs: 'none', md: 'block' } }}>
                                 <Typography variant="body2" fontWeight={600}>
                                     {session.user?.name || 'User'}
