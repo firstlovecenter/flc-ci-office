@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { getDescendantDepartmentIds } from '@/lib/departments';
+import { getUserBaseCurrency, convertToUserBaseCurrency } from '@/lib/currency-conversion';
 
 export async function GET(request: Request) {
     const session = await getServerSession(authOptions);
@@ -22,31 +23,72 @@ export async function GET(request: Request) {
             whereClause.departmentId = { in: allowedIds };
         }
 
-        const [income, expense] = await Promise.all([
-            prisma.transaction.aggregate({
+        // Get user's base currency
+        const userBaseCurrency = await getUserBaseCurrency(session.user.id);
+        
+        if (!userBaseCurrency) {
+            return new NextResponse('Base currency not configured', { status: 500 });
+        }
+
+        // Get all exchange rates for conversion
+        const exchangeRates = await prisma.exchangeRate.findMany({
+            include: {
+                fromCurrency: true,
+                toCurrency: true,
+            },
+        });
+
+        // Get all transactions (we need to convert each one)
+        const [incomeTransactions, expenseTransactions] = await Promise.all([
+            prisma.transaction.findMany({
                 where: {
                     ...whereClause,
                     type: 'INCOME',
-                    status: 'APPROVED', // Only count approved transactions
+                    status: 'APPROVED',
                 },
-                _sum: {
-                    amountInBase: true,
+                select: {
+                    amount: true,
+                    currencyId: true,
                 },
             }),
-            prisma.transaction.aggregate({
+            prisma.transaction.findMany({
                 where: {
                     ...whereClause,
                     type: 'EXPENSE',
-                    status: 'APPROVED', // Only count approved transactions
+                    status: 'APPROVED',
                 },
-                _sum: {
-                    amountInBase: true,
+                select: {
+                    amount: true,
+                    currencyId: true,
                 },
             }),
         ]);
 
-        const totalIncome = Number(income._sum.amountInBase || 0);
-        const totalExpense = Number(expense._sum.amountInBase || 0);
+        // Convert each transaction to user's base currency
+        let totalIncome = 0;
+        for (const tx of incomeTransactions) {
+            const currencyId = tx.currencyId || userBaseCurrency.id;
+            const converted = await convertToUserBaseCurrency(
+                Number(tx.amount),
+                currencyId,
+                userBaseCurrency.id,
+                exchangeRates
+            );
+            totalIncome += converted;
+        }
+
+        let totalExpense = 0;
+        for (const tx of expenseTransactions) {
+            const currencyId = tx.currencyId || userBaseCurrency.id;
+            const converted = await convertToUserBaseCurrency(
+                Number(tx.amount),
+                currencyId,
+                userBaseCurrency.id,
+                exchangeRates
+            );
+            totalExpense += converted;
+        }
+
         const netBalance = totalIncome - totalExpense;
 
         return NextResponse.json({

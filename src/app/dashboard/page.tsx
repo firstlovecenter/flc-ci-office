@@ -18,14 +18,42 @@ import { Role } from '@prisma/client';
 
 export default function DashboardPage() {
     const [stats, setStats] = useState({ income: 0, expense: 0, balance: 0 });
+    const [baseCurrency, setBaseCurrency] = useState<{ code: string; symbol: string } | null>(null);
     const [loading, setLoading] = useState(true);
     const { data: session } = useSession();
     const theme = useTheme();
     const router = useRouter();
 
     useEffect(() => {
+        fetchBaseCurrency();
         fetchStats();
+
+        // Refresh data when page becomes visible
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === 'visible') {
+                fetchBaseCurrency();
+                fetchStats();
+            }
+        };
+
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+        return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
     }, []);
+
+    const fetchBaseCurrency = async () => {
+        try {
+            // Use the /api/users/me endpoint which handles base currency logic
+            const response = await fetch('/api/users/me');
+            if (response.ok) {
+                const userData = await response.json();
+                if (userData.baseCurrency) {
+                    setBaseCurrency({ code: userData.baseCurrency.code, symbol: userData.baseCurrency.symbol });
+                }
+            }
+        } catch (error) {
+            console.error('Failed to fetch base currency', error);
+        }
+    };
 
     const fetchStats = async () => {
         try {
@@ -203,7 +231,7 @@ export default function DashboardPage() {
                                             fontSize: { xs: '1.5rem', sm: '1.75rem', md: '2.125rem' }
                                         }}
                                     >
-                                        {formatCurrency(card.amount)}
+                                        {baseCurrency ? formatCurrency(card.amount, baseCurrency.code, baseCurrency.symbol) : formatCurrency(card.amount)}
                                     </Typography>
                                     <Typography variant="caption" sx={{ color: card.color, fontWeight: 600, fontSize: { xs: '0.7rem', sm: '0.75rem' } }}>
                                         {card.trend} from last month

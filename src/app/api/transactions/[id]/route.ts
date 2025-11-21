@@ -17,7 +17,7 @@ export async function PUT(
     try {
         const params = await context.params;
         const body = await request.json();
-        const { type, amount, description, departmentId, currencyId, exchangeRate, files } = body;
+        const { type, amount, description, departmentId, currencyId, exchangeRate, date, files } = body;
         const transactionId = params.id;
 
         // Get the existing transaction
@@ -69,6 +69,7 @@ export async function PUT(
                 currencyId: currencyId || null,
                 exchangeRate: exchangeRate || null,
                 amountInBase: amountInBase,
+                ...(date ? { createdAt: new Date(date) } : {}),
                 updatedAt: new Date(),
                 ...(files && files.length > 0 ? {
                     files: {
@@ -124,6 +125,14 @@ export async function DELETE(
         const params = await context.params;
         const transactionId = params.id;
 
+        // Only SUPERADMIN can delete transactions
+        if (session.user.role !== 'SUPERADMIN') {
+            return NextResponse.json(
+                { error: 'Forbidden - Only superadmin can delete transactions' },
+                { status: 403 }
+            );
+        }
+
         // Get the existing transaction
         const existingTransaction = await prisma.transaction.findUnique({
             where: { id: transactionId },
@@ -133,26 +142,6 @@ export async function DELETE(
             return NextResponse.json(
                 { error: 'Transaction not found' },
                 { status: 404 }
-            );
-        }
-
-        // Check if transaction is locked
-        if (existingTransaction.locked) {
-            // Only superadmin can delete locked transactions
-            if (session.user.role !== 'SUPERADMIN') {
-                return NextResponse.json(
-                    { error: 'Transaction is locked. Only superadmins can delete locked transactions.' },
-                    { status: 403 }
-                );
-            }
-        }
-
-        // Validate that the user can delete transaction for this department
-        const canAccess = await hasDepartmentAccess(session.user, existingTransaction.departmentId);
-        if (!canAccess && session.user.role !== 'SUPERADMIN') {
-            return NextResponse.json(
-                { error: 'You do not have access to this department' },
-                { status: 403 }
             );
         }
 

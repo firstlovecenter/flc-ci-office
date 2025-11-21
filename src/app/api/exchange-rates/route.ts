@@ -22,7 +22,9 @@ export async function GET(req: NextRequest) {
             },
         });
 
-        return NextResponse.json(exchangeRates);
+        const response = NextResponse.json(exchangeRates);
+        response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate');
+        return response;
     } catch (error) {
         console.error('Get exchange rates error:', error);
         return new NextResponse('Internal Server Error', { status: 500 });

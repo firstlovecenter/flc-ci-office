@@ -41,6 +41,7 @@ export default function EditTransactionDialog({
     const [description, setDescription] = useState('');
     const [departmentId, setDepartmentId] = useState('');
     const [currencyId, setCurrencyId] = useState('');
+    const [date, setDate] = useState('');
     const [departments, setDepartments] = useState<any[]>([]);
     const [currencies, setCurrencies] = useState<any[]>([]);
     const [baseCurrency, setBaseCurrency] = useState<any>(null);
@@ -56,9 +57,18 @@ export default function EditTransactionDialog({
             setDescription(transaction.description);
             setDepartmentId(transaction.departmentId);
             setCurrencyId(transaction.currencyId || transaction.currency?.id || '');
+            // Set date from transaction createdAt or use current date
+            if (transaction.createdAt) {
+                const dateObj = new Date(transaction.createdAt);
+                setDate(dateObj.toISOString().split('T')[0]);
+            } else {
+                setDate(new Date().toISOString().split('T')[0]);
+            }
             // If transaction has an exchange rate, set it
             if (transaction.exchangeRate) {
                 setExchangeRate(parseFloat(transaction.exchangeRate.toString()));
+            } else {
+                setExchangeRate(null);
             }
         }
     }, [transaction]);
@@ -71,19 +81,25 @@ export default function EditTransactionDialog({
         }
     }, [open]);
 
+    // Separate effect to fetch exchange rate when currency or base currency changes
     useEffect(() => {
-        // Fetch exchange rate when currency changes
-        // But don't fetch if we already have an exchange rate from the transaction
-        if (currencyId && baseCurrency && currencyId !== baseCurrency.id) {
-            // Only fetch if we don't already have an exchange rate loaded from transaction
-            if (!transaction?.exchangeRate || transaction?.currencyId !== currencyId) {
-                fetchExchangeRate(currencyId, baseCurrency.id);
-            }
-        } else if (currencyId === baseCurrency?.id) {
-            // If currency matches base currency, no exchange rate needed
+        if (!currencyId || !baseCurrency) return;
+        
+        // If currency is same as base, no conversion needed
+        if (currencyId === baseCurrency.id) {
             setExchangeRate(null);
+            return;
         }
-    }, [currencyId, baseCurrency]);
+        
+        // If transaction already has the same currency and exchange rate, use it
+        if (transaction?.currencyId === currencyId && transaction?.exchangeRate) {
+            setExchangeRate(parseFloat(transaction.exchangeRate.toString()));
+            return;
+        }
+        
+        // Otherwise fetch the exchange rate
+        fetchExchangeRate(currencyId, baseCurrency.id);
+    }, [currencyId, baseCurrency, transaction]);
 
     const fetchDepartments = async () => {
         const response = await fetch('/api/departments?all=true');
@@ -103,28 +119,16 @@ export default function EditTransactionDialog({
 
     const fetchUserProfile = async () => {
         try {
-            const response = await fetch('/api/profile');
+            // Use the /api/users/me endpoint which handles base currency logic
+            const response = await fetch('/api/users/me');
             if (response.ok) {
                 const profile = await response.json();
                 
-                // Set base currency from user's preference or system default
+                // Set the base currency from the profile (already computed by the API)
                 if (profile.baseCurrency) {
                     setBaseCurrency(profile.baseCurrency);
                     if (!transaction?.currencyId) {
                         setCurrencyId(profile.baseCurrency.id);
-                    }
-                } else {
-                    // Fall back to system base currency
-                    const currenciesResponse = await fetch('/api/currencies?active=true');
-                    if (currenciesResponse.ok) {
-                        const currencies = await currenciesResponse.json();
-                        const defaultBase = currencies.find((c: any) => c.isBase);
-                        if (defaultBase) {
-                            setBaseCurrency(defaultBase);
-                            if (!transaction?.currencyId) {
-                                setCurrencyId(defaultBase.id);
-                            }
-                        }
                     }
                 }
             }
@@ -135,17 +139,35 @@ export default function EditTransactionDialog({
 
     const fetchExchangeRate = async (fromId: string, toId: string) => {
         try {
-            const response = await fetch('/api/exchange-rates');
+            // Add timestamp to prevent caching
+            const response = await fetch(`/api/exchange-rates?t=${Date.now()}`, {
+                cache: 'no-store'
+            });
             if (response.ok) {
                 const rates = await response.json();
-                const rate = rates.find((r: any) => 
-                    r.fromCurrencyId === fromId && r.toCurrencyId === toId
+                
+                // Search for exact match: fromId → toId
+                let rate = rates.find((r: any) => 
+                    r.fromCurrency.id === fromId && r.toCurrency.id === toId
                 );
+                
                 if (rate) {
                     setExchangeRate(parseFloat(rate.rate));
-                } else {
-                    setExchangeRate(null);
+                    return;
                 }
+                
+                // If not found, try reverse direction and invert the rate
+                rate = rates.find((r: any) => 
+                    r.fromCurrency.id === toId && r.toCurrency.id === fromId
+                );
+                
+                if (rate) {
+                    const invertedRate = 1 / parseFloat(rate.rate);
+                    setExchangeRate(invertedRate);
+                    return;
+                }
+                
+                setExchangeRate(null);
             }
         } catch (error) {
             console.error('Error fetching exchange rate:', error);
@@ -196,6 +218,7 @@ export default function EditTransactionDialog({
                     departmentId,
                     currencyId: currencyId || null,
                     exchangeRate: exchangeRate || null,
+                    date: date ? new Date(date).toISOString() : undefined,
                     files: uploadedFiles,
                 }),
             });
@@ -306,6 +329,18 @@ export default function EditTransactionDialog({
                     required
                     sx={{ mb: 3 }}
                     disabled={transaction?.locked && !isSuperAdmin}
+                />
+
+                <TextField
+                    fullWidth
+                    label="Transaction Date"
+                    type="date"
+                    value={date}
+                    onChange={(e) => setDate(e.target.value)}
+                    required
+                    sx={{ mb: 3 }}
+                    disabled={transaction?.locked && !isSuperAdmin}
+                    InputLabelProps={{ shrink: true }}
                 />
 
                 <FormControl fullWidth sx={{ mb: 3 }}>

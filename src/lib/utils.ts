@@ -8,11 +8,28 @@ export function getCurrentWeek() {
     };
 }
 
-export function formatCurrency(amount: number | string) {
-    return new Intl.NumberFormat('en-GH', {
-        style: 'currency',
-        currency: 'GHS',
-    }).format(Number(amount));
+export function formatCurrency(amount: number | string, currencyCode: string = 'GHS', currencySymbol?: string) {
+    if (currencySymbol) {
+        // Use custom symbol if provided
+        return `${currencySymbol}${Number(amount).toLocaleString('en-US', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+        })}`;
+    }
+    
+    // Use built-in currency formatting
+    try {
+        return new Intl.NumberFormat('en-US', {
+            style: 'currency',
+            currency: currencyCode,
+        }).format(Number(amount));
+    } catch {
+        // Fallback if currency code is invalid
+        return `${Number(amount).toLocaleString('en-US', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+        })}`;
+    }
 }
 
 export function isWeekLocked(weekNumber: number, year: number): boolean {

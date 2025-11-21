@@ -47,6 +47,7 @@ interface ExchangeRate {
     toCurrency: Currency;
     rate: string;
     effectiveDate: string;
+    createdBy: string;
 }
 
 export default function CurrenciesPage() {
@@ -57,11 +58,14 @@ export default function CurrenciesPage() {
     const [exchangeRates, setExchangeRates] = useState<ExchangeRate[]>([]);
     const [currencyDialogOpen, setCurrencyDialogOpen] = useState(false);
     const [rateDialogOpen, setRateDialogOpen] = useState(false);
+    const [editingRate, setEditingRate] = useState<ExchangeRate | null>(null);
+    const [editingCurrency, setEditingCurrency] = useState<Currency | null>(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
 
     const [currencyForm, setCurrencyForm] = useState({
+        id: '',
         code: '',
         name: '',
         symbol: '',
@@ -69,9 +73,11 @@ export default function CurrenciesPage() {
     });
 
     const [rateForm, setRateForm] = useState({
+        id: '',
         fromCurrencyId: '',
         toCurrencyId: '',
         rate: '',
+        effectiveDate: new Date().toISOString().split('T')[0],
     });
 
     // Only SUPERADMIN and GLOBAL_ADMIN can access this page
@@ -117,8 +123,11 @@ export default function CurrenciesPage() {
         setError('');
 
         try {
-            const response = await fetch('/api/currencies', {
-                method: 'POST',
+            const method = editingCurrency ? 'PUT' : 'POST';
+            const url = editingCurrency ? `/api/currencies/${editingCurrency.id}` : '/api/currencies';
+            
+            const response = await fetch(url, {
+                method,
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(currencyForm),
             });
@@ -128,9 +137,10 @@ export default function CurrenciesPage() {
                 throw new Error(text);
             }
 
-            setSuccess('Currency created successfully');
+            setSuccess(editingCurrency ? 'Currency updated successfully' : 'Currency created successfully');
             setCurrencyDialogOpen(false);
-            setCurrencyForm({ code: '', name: '', symbol: '', isBase: false });
+            setEditingCurrency(null);
+            setCurrencyForm({ id: '', code: '', name: '', symbol: '', isBase: false });
             fetchCurrencies();
         } catch (err: any) {
             setError(err.message);
@@ -144,8 +154,11 @@ export default function CurrenciesPage() {
         setError('');
 
         try {
-            const response = await fetch('/api/exchange-rates', {
-                method: 'POST',
+            const method = editingRate ? 'PUT' : 'POST';
+            const url = editingRate ? `/api/exchange-rates/${editingRate.id}` : '/api/exchange-rates';
+            
+            const response = await fetch(url, {
+                method,
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(rateForm),
             });
@@ -155,15 +168,64 @@ export default function CurrenciesPage() {
                 throw new Error(text);
             }
 
-            setSuccess('Exchange rate saved successfully');
+            setSuccess(editingRate ? 'Exchange rate updated successfully' : 'Exchange rate created successfully');
             setRateDialogOpen(false);
-            setRateForm({ fromCurrencyId: '', toCurrencyId: '', rate: '' });
+            setEditingRate(null);
+            setRateForm({ 
+                id: '',
+                fromCurrencyId: '', 
+                toCurrencyId: '', 
+                rate: '',
+                effectiveDate: new Date().toISOString().split('T')[0],
+            });
             fetchExchangeRates();
         } catch (err: any) {
             setError(err.message);
         } finally {
             setLoading(false);
         }
+    };
+
+    const handleEditRate = (rate: ExchangeRate) => {
+        setEditingRate(rate);
+        setRateForm({
+            id: rate.id,
+            fromCurrencyId: rate.fromCurrency.id,
+            toCurrencyId: rate.toCurrency.id,
+            rate: rate.rate,
+            effectiveDate: new Date(rate.effectiveDate).toISOString().split('T')[0],
+        });
+        setRateDialogOpen(true);
+    };
+
+    const handleCloseRateDialog = () => {
+        setRateDialogOpen(false);
+        setEditingRate(null);
+        setRateForm({
+            id: '',
+            fromCurrencyId: '',
+            toCurrencyId: '',
+            rate: '',
+            effectiveDate: new Date().toISOString().split('T')[0],
+        });
+    };
+
+    const handleEditCurrency = (currency: Currency) => {
+        setEditingCurrency(currency);
+        setCurrencyForm({
+            id: currency.id,
+            code: currency.code,
+            name: currency.name,
+            symbol: currency.symbol,
+            isBase: currency.isBase,
+        });
+        setCurrencyDialogOpen(true);
+    };
+
+    const handleCloseCurrencyDialog = () => {
+        setCurrencyDialogOpen(false);
+        setEditingCurrency(null);
+        setCurrencyForm({ id: '', code: '', name: '', symbol: '', isBase: false });
     };
 
     const handleToggleActive = async (id: string, isActive: boolean) => {
@@ -288,11 +350,20 @@ export default function CurrenciesPage() {
                                             )}
                                         </TableCell>
                                         <TableCell align="right">
-                                            <Switch
-                                                checked={currency.isActive}
-                                                onChange={() => handleToggleActive(currency.id, currency.isActive)}
-                                                size="small"
-                                            />
+                                            <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end', alignItems: 'center' }}>
+                                                <IconButton
+                                                    size="small"
+                                                    onClick={() => handleEditCurrency(currency)}
+                                                    color="primary"
+                                                >
+                                                    <EditIcon />
+                                                </IconButton>
+                                                <Switch
+                                                    checked={currency.isActive}
+                                                    onChange={() => handleToggleActive(currency.id, currency.isActive)}
+                                                    size="small"
+                                                />
+                                            </Box>
                                         </TableCell>
                                     </TableRow>
                                 ))}
@@ -351,14 +422,25 @@ export default function CurrenciesPage() {
                                             {new Date(rate.effectiveDate).toLocaleDateString()}
                                         </TableCell>
                                         <TableCell align="right">
-                                            {session?.user?.role === 'SUPERADMIN' && (
-                                                <IconButton
-                                                    size="small"
-                                                    onClick={() => handleDeleteRate(rate.id)}
-                                                    color="error"
-                                                >
-                                                    <DeleteIcon />
-                                                </IconButton>
+                                            {(session?.user?.id === rate.createdBy || session?.user?.role === 'SUPERADMIN') && (
+                                                <>
+                                                    <IconButton
+                                                        size="small"
+                                                        onClick={() => handleEditRate(rate)}
+                                                        color="primary"
+                                                    >
+                                                        <EditIcon />
+                                                    </IconButton>
+                                                    {session?.user?.role === 'SUPERADMIN' && (
+                                                        <IconButton
+                                                            size="small"
+                                                            onClick={() => handleDeleteRate(rate.id)}
+                                                            color="error"
+                                                        >
+                                                            <DeleteIcon />
+                                                        </IconButton>
+                                                    )}
+                                                </>
                                             )}
                                         </TableCell>
                                     </TableRow>
@@ -376,9 +458,9 @@ export default function CurrenciesPage() {
                 </Box>
             )}
 
-            {/* Add Currency Dialog */}
-            <Dialog open={currencyDialogOpen} onClose={() => setCurrencyDialogOpen(false)} maxWidth="sm" fullWidth>
-                <DialogTitle>Add Currency</DialogTitle>
+            {/* Add/Edit Currency Dialog */}
+            <Dialog open={currencyDialogOpen} onClose={handleCloseCurrencyDialog} maxWidth="sm" fullWidth>
+                <DialogTitle>{editingCurrency ? 'Edit Currency' : 'Add Currency'}</DialogTitle>
                 <DialogContent>
                     <TextField
                         fullWidth
@@ -388,6 +470,7 @@ export default function CurrenciesPage() {
                         placeholder="e.g., USD, EUR, GBP"
                         sx={{ mt: 2, mb: 2 }}
                         inputProps={{ maxLength: 3 }}
+                        disabled={editingCurrency !== null}
                     />
                     <TextField
                         fullWidth
@@ -416,16 +499,16 @@ export default function CurrenciesPage() {
                     />
                 </DialogContent>
                 <DialogActions>
-                    <Button onClick={() => setCurrencyDialogOpen(false)}>Cancel</Button>
+                    <Button onClick={handleCloseCurrencyDialog}>Cancel</Button>
                     <Button onClick={handleCreateCurrency} variant="contained" disabled={loading}>
-                        {loading ? 'Creating...' : 'Create'}
+                        {loading ? 'Saving...' : (editingCurrency ? 'Update' : 'Create')}
                     </Button>
                 </DialogActions>
             </Dialog>
 
-            {/* Add Exchange Rate Dialog */}
-            <Dialog open={rateDialogOpen} onClose={() => setRateDialogOpen(false)} maxWidth="sm" fullWidth>
-                <DialogTitle>Set Exchange Rate</DialogTitle>
+            {/* Add/Edit Exchange Rate Dialog */}
+            <Dialog open={rateDialogOpen} onClose={handleCloseRateDialog} maxWidth="sm" fullWidth>
+                <DialogTitle>{editingRate ? 'Edit Exchange Rate' : 'Set Exchange Rate'}</DialogTitle>
                 <DialogContent>
                     <TextField
                         fullWidth
@@ -435,6 +518,7 @@ export default function CurrenciesPage() {
                         onChange={(e) => setRateForm({ ...rateForm, fromCurrencyId: e.target.value })}
                         sx={{ mt: 2, mb: 2 }}
                         SelectProps={{ native: true }}
+                        disabled={editingRate !== null}
                     >
                         <option value="">Select currency</option>
                         {currencies.filter(c => c.isActive).map((currency) => (
@@ -451,6 +535,7 @@ export default function CurrenciesPage() {
                         onChange={(e) => setRateForm({ ...rateForm, toCurrencyId: e.target.value })}
                         sx={{ mb: 2 }}
                         SelectProps={{ native: true }}
+                        disabled={editingRate !== null}
                     >
                         <option value="">Select currency</option>
                         {currencies.filter(c => c.isActive).map((currency) => (
@@ -468,12 +553,22 @@ export default function CurrenciesPage() {
                         placeholder="e.g., 1.25"
                         inputProps={{ step: '0.0001', min: '0' }}
                         helperText="How many units of 'To Currency' equals 1 unit of 'From Currency'"
+                        sx={{ mb: 2 }}
+                    />
+                    <TextField
+                        fullWidth
+                        label="Effective Date"
+                        type="date"
+                        value={rateForm.effectiveDate}
+                        onChange={(e) => setRateForm({ ...rateForm, effectiveDate: e.target.value })}
+                        InputLabelProps={{ shrink: true }}
+                        helperText="The date when this exchange rate becomes active"
                     />
                 </DialogContent>
                 <DialogActions>
-                    <Button onClick={() => setRateDialogOpen(false)}>Cancel</Button>
+                    <Button onClick={handleCloseRateDialog}>Cancel</Button>
                     <Button onClick={handleCreateExchangeRate} variant="contained" disabled={loading}>
-                        {loading ? 'Saving...' : 'Save'}
+                        {loading ? 'Saving...' : (editingRate ? 'Update' : 'Create')}
                     </Button>
                 </DialogActions>
             </Dialog>

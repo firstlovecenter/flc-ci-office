@@ -5,6 +5,7 @@ import { authOptions } from '@/lib/auth';
 import { getCurrentWeek } from '@/lib/utils';
 
 import { getDescendantDepartmentIds, hasDepartmentAccess } from '@/lib/departments';
+import { getUserBaseCurrency, convertToUserBaseCurrency } from '@/lib/currency-conversion';
 
 export async function GET(request: Request) {
     const session = await getServerSession(authOptions);
@@ -99,7 +100,42 @@ export async function GET(request: Request) {
             take: 500, // Limit results for performance
         });
 
-        return NextResponse.json(transactions);
+        // Get user's base currency and exchange rates
+        const userBaseCurrency = await getUserBaseCurrency(session.user.id);
+        
+        if (!userBaseCurrency) {
+            console.error('No base currency found for user:', session.user.id);
+            return NextResponse.json(transactions);
+        }
+
+        console.log(`User ${session.user.email} base currency:`, userBaseCurrency.code);
+
+        const exchangeRates = await prisma.exchangeRate.findMany({
+            include: {
+                fromCurrency: true,
+                toCurrency: true,
+            },
+        });
+
+        // Add converted amount to each transaction
+        const transactionsWithConversion = transactions.map(tx => {
+            const currencyId = tx.currencyId || userBaseCurrency.id;
+            const convertedAmount = convertToUserBaseCurrency(
+                Number(tx.amount),
+                currencyId,
+                userBaseCurrency.id,
+                exchangeRates
+            );
+            
+            console.log(`Transaction ${tx.id}: ${tx.amount} ${tx.currency?.code || 'BASE'} → ${convertedAmount} ${userBaseCurrency.code}`);
+            
+            return {
+                ...tx,
+                amountInBase: convertedAmount,
+            };
+        });
+
+        return NextResponse.json(transactionsWithConversion);
     } catch (error) {
         console.error('Transaction API Error:', error);
         return new NextResponse(JSON.stringify({ error: error instanceof Error ? error.message : 'Internal Error' }), { 
@@ -131,6 +167,9 @@ export async function POST(request: Request) {
         let amountInBase = amount; // Default to the original amount
         if (currencyId && exchangeRate) {
             amountInBase = amount * exchangeRate;
+            console.log(`Converting: ${amount} × ${exchangeRate} = ${amountInBase}`);
+        } else {
+            console.log(`No conversion: currencyId=${currencyId}, exchangeRate=${exchangeRate}, amountInBase=${amountInBase}`);
         }
 
         // Determine if this is a leader role (requires approval) or admin (auto-approved)

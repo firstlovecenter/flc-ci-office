@@ -76,26 +76,16 @@ export default function NewTransactionPage() {
 
     const fetchUserProfile = async () => {
         try {
-            const response = await fetch('/api/profile');
+            // Use the /api/users/me endpoint which handles base currency logic
+            const response = await fetch('/api/users/me');
             if (response.ok) {
                 const profile = await response.json();
                 setUserProfile(profile);
                 
-                // Set base currency from user's preference or system default
+                // Set the base currency from the profile (already computed by the API)
                 if (profile.baseCurrency) {
                     setBaseCurrency(profile.baseCurrency);
                     setCurrencyId(profile.baseCurrency.id);
-                } else {
-                    // Fall back to system base currency
-                    const currenciesResponse = await fetch('/api/currencies?active=true');
-                    if (currenciesResponse.ok) {
-                        const currencies = await currenciesResponse.json();
-                        const defaultBase = currencies.find((c: any) => c.isBase);
-                        if (defaultBase) {
-                            setBaseCurrency(defaultBase);
-                            setCurrencyId(defaultBase.id);
-                        }
-                    }
                 }
             }
         } catch (error) {
@@ -105,17 +95,40 @@ export default function NewTransactionPage() {
 
     const fetchExchangeRate = async (fromId: string, toId: string) => {
         try {
-            const response = await fetch('/api/exchange-rates');
+            console.log(`Fetching exchange rate from ${fromId} to ${toId}`);
+            // Add timestamp to prevent caching
+            const response = await fetch(`/api/exchange-rates?t=${Date.now()}`, {
+                cache: 'no-store'
+            });
             if (response.ok) {
                 const rates = await response.json();
-                const rate = rates.find((r: any) => 
-                    r.fromCurrencyId === fromId && r.toCurrencyId === toId
+                console.log('All exchange rates:', rates);
+                
+                // Search for exact match: fromId → toId
+                let rate = rates.find((r: any) => 
+                    r.fromCurrency.id === fromId && r.toCurrency.id === toId
                 );
+                
                 if (rate) {
+                    console.log(`Found exact match: ${rate.fromCurrency.code} → ${rate.toCurrency.code} = ${rate.rate}`);
                     setExchangeRate(parseFloat(rate.rate));
-                } else {
-                    setExchangeRate(null);
+                    return;
                 }
+                
+                // If not found, try reverse direction and invert the rate
+                rate = rates.find((r: any) => 
+                    r.fromCurrency.id === toId && r.toCurrency.id === fromId
+                );
+                
+                if (rate) {
+                    const invertedRate = 1 / parseFloat(rate.rate);
+                    console.log(`Found reverse: ${rate.fromCurrency.code} → ${rate.toCurrency.code} = ${rate.rate}, inverted to ${invertedRate}`);
+                    setExchangeRate(invertedRate);
+                    return;
+                }
+                
+                console.log('No matching exchange rate found');
+                setExchangeRate(null);
             }
         } catch (error) {
             console.error('Error fetching exchange rate:', error);
@@ -155,20 +168,24 @@ export default function NewTransactionPage() {
         try {
             const uploadedFiles = await uploadFiles();
 
+            const payload = {
+                type,
+                amount: parseFloat(amount),
+                description,
+                departmentId,
+                currencyId: currencyId || null,
+                exchangeRate: exchangeRate || null,
+                files: uploadedFiles,
+            };
+
+            console.log('Creating transaction with payload:', payload);
+
             const response = await fetch('/api/transactions', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({
-                    type,
-                    amount: parseFloat(amount),
-                    description,
-                    departmentId,
-                    currencyId: currencyId || null,
-                    exchangeRate: exchangeRate || null,
-                    files: uploadedFiles,
-                }),
+                body: JSON.stringify(payload),
             });
 
             if (!response.ok) {

@@ -43,6 +43,7 @@ type Transaction = {
     id: string;
     description: string;
     amount: number;
+    currencyId?: string | null;
     type: 'INCOME' | 'EXPENSE';
     date: Date;
     departmentId: string;
@@ -79,11 +80,15 @@ type TransactionWithDetails = Transaction & {
     department: Department;
     user: User;
     files: TransactionFile[];
+    currency?: { id: string; code: string; symbol: string; name: string } | null;
+    amountInBase?: number;
 };
 
 export default function TransactionsPage() {
     const [transactions, setTransactions] = useState<TransactionWithDetails[]>([]);
     const [filteredTransactions, setFilteredTransactions] = useState<TransactionWithDetails[]>([]);
+    const [baseCurrency, setBaseCurrency] = useState<{ id: string; code: string; symbol: string } | null>(null);
+    const [currencies, setCurrencies] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
     const [typeFilter, setTypeFilter] = useState('ALL');
@@ -97,14 +102,102 @@ export default function TransactionsPage() {
 
     const isSuperAdmin = session?.user?.role === 'SUPERADMIN';
     const isAdmin = session?.user?.role && ['SUPERADMIN', 'GLOBAL_ADMIN', 'INTERNATIONAL_ADMIN', 'NATIONAL_ADMIN', 'REGIONAL_ADMIN', 'CAMPUS_ADMIN'].includes(session.user.role);
+    const canSelectBaseCurrency = session?.user?.role === 'NATIONAL_ADMIN';
 
     useEffect(() => {
+        fetchCurrencies();
+        fetchBaseCurrency();
         fetchTransactions();
+
+        // Refresh data when page becomes visible (e.g., after switching tabs)
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === 'visible') {
+                fetchBaseCurrency();
+                fetchTransactions();
+            }
+        };
+
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+        return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
     }, []);
 
     useEffect(() => {
         filterTransactions();
     }, [transactions, searchTerm, typeFilter, statusFilter, approvalFilter]);
+
+    const fetchCurrencies = async () => {
+        try {
+            const response = await fetch('/api/currencies?active=true');
+            if (response.ok) {
+                const data = await response.json();
+                setCurrencies(data);
+            }
+        } catch (error) {
+            console.error('Failed to fetch currencies', error);
+        }
+    };
+
+    const fetchBaseCurrency = async () => {
+        try {
+            // For international level and above, use system base currency (USD)
+            if (session?.user?.role && ['SUPERADMIN', 'GLOBAL_ADMIN', 'GLOBAL_LEADER', 'INTERNATIONAL_ADMIN', 'INTERNATIONAL_LEADER'].includes(session.user.role)) {
+                const response = await fetch('/api/currencies?active=true');
+                if (response.ok) {
+                    const currencies = await response.json();
+                    const base = currencies.find((c: any) => c.isBase);
+                    if (base) {
+                        setBaseCurrency({ id: base.id, code: base.code, symbol: base.symbol });
+                    }
+                }
+            } else {
+                // For national level and below, fetch user's base currency preference
+                const userResponse = await fetch('/api/users/me');
+                if (userResponse.ok) {
+                    const userData = await userResponse.json();
+                    if (userData.baseCurrency) {
+                        setBaseCurrency({ 
+                            id: userData.baseCurrency.id, 
+                            code: userData.baseCurrency.code, 
+                            symbol: userData.baseCurrency.symbol 
+                        });
+                    } else {
+                        // Fallback to system base currency if user doesn't have one set
+                        const response = await fetch('/api/currencies?active=true');
+                        if (response.ok) {
+                            const currencies = await response.json();
+                            const base = currencies.find((c: any) => c.isBase);
+                            if (base) {
+                                setBaseCurrency({ id: base.id, code: base.code, symbol: base.symbol });
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (error) {
+            console.error('Failed to fetch base currency', error);
+        }
+    };
+
+    const handleBaseCurrencyChange = async (currencyId: string) => {
+        try {
+            // Update user's base currency preference
+            const response = await fetch('/api/users/me', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    baseCurrencyId: currencyId,
+                }),
+            });
+
+            if (response.ok) {
+                // Refresh data after base currency change
+                await fetchBaseCurrency();
+                await fetchTransactions();
+            }
+        } catch (error) {
+            console.error('Failed to update base currency', error);
+        }
+    };
 
     const fetchTransactions = async () => {
         try {
@@ -210,13 +303,35 @@ export default function TransactionsPage() {
         }
     };
 
+    const handleDelete = async (id: string, description: string) => {
+        if (!confirm(`Are you sure you want to delete this transaction?\n\n"${description}"\n\nThis action cannot be undone.`)) {
+            return;
+        }
+
+        try {
+            const response = await fetch(`/api/transactions/${id}`, {
+                method: 'DELETE',
+            });
+
+            if (response.ok) {
+                fetchTransactions();
+            } else {
+                const data = await response.json();
+                alert(data.error || 'Failed to delete transaction');
+            }
+        } catch (error) {
+            console.error('Error deleting transaction:', error);
+            alert('Error deleting transaction');
+        }
+    };
+
     const totalIncome = filteredTransactions
         .filter((tx) => tx.type === 'INCOME' && tx.status === 'APPROVED')
-        .reduce((sum, tx) => sum + Number(tx.amount), 0);
+        .reduce((sum, tx) => sum + Number(tx.amountInBase || tx.amount), 0);
 
     const totalExpense = filteredTransactions
         .filter((tx) => tx.type === 'EXPENSE' && tx.status === 'APPROVED')
-        .reduce((sum, tx) => sum + Number(tx.amount), 0);
+        .reduce((sum, tx) => sum + Number(tx.amountInBase || tx.amount), 0);
 
     return (
         <Box>
@@ -255,17 +370,17 @@ export default function TransactionsPage() {
                             Total Income
                         </Typography>
                         <Typography variant="h5" fontWeight="700" color="success.main">
-                            {formatCurrency(totalIncome)}
+                            {baseCurrency ? formatCurrency(totalIncome, baseCurrency.code, baseCurrency.symbol) : formatCurrency(totalIncome)}
                         </Typography>
                     </CardContent>
                 </Card>
                 <Card elevation={0} sx={{ border: '1px solid', borderColor: 'divider' }}>
                     <CardContent>
                         <Typography variant="body2" color="text.secondary" gutterBottom>
-                            Total Expenses
+                            Total Expense
                         </Typography>
                         <Typography variant="h5" fontWeight="700" color="error.main">
-                            {formatCurrency(totalExpense)}
+                            {baseCurrency ? formatCurrency(totalExpense, baseCurrency.code, baseCurrency.symbol) : formatCurrency(totalExpense)}
                         </Typography>
                     </CardContent>
                 </Card>
@@ -274,8 +389,8 @@ export default function TransactionsPage() {
                         <Typography variant="body2" color="text.secondary" gutterBottom>
                             Net Balance
                         </Typography>
-                        <Typography variant="h5" fontWeight="700" color="primary.main">
-                            {formatCurrency(totalIncome - totalExpense)}
+                        <Typography variant="h5" fontWeight="700" color={totalIncome - totalExpense >= 0 ? 'success.main' : 'error.main'}>
+                            {baseCurrency ? formatCurrency(totalIncome - totalExpense, baseCurrency.code, baseCurrency.symbol) : formatCurrency(totalIncome - totalExpense)}
                         </Typography>
                     </CardContent>
                 </Card>
@@ -297,6 +412,22 @@ export default function TransactionsPage() {
                             ),
                         }}
                     />
+                    {canSelectBaseCurrency && (
+                        <FormControl sx={{ minWidth: 150 }}>
+                            <InputLabel>Base Currency</InputLabel>
+                            <Select
+                                value={baseCurrency?.id || ''}
+                                label="Base Currency"
+                                onChange={(e) => handleBaseCurrencyChange(e.target.value)}
+                            >
+                                {currencies.map((currency) => (
+                                    <MenuItem key={currency.id} value={currency.id}>
+                                        {currency.symbol} {currency.code}
+                                    </MenuItem>
+                                ))}
+                            </Select>
+                        </FormControl>
+                    )}
                     <FormControl sx={{ minWidth: 150 }}>
                         <InputLabel>Type</InputLabel>
                         <Select
@@ -390,8 +521,13 @@ export default function TransactionsPage() {
                                         color={tx.type === 'INCOME' ? 'success.main' : 'error.main'}
                                     >
                                         {tx.type === 'EXPENSE' ? '-' : '+'}
-                                        {formatCurrency(Number(tx.amount))}
+                                        {baseCurrency ? formatCurrency(Number(tx.amountInBase || tx.amount), baseCurrency.code, baseCurrency.symbol) : formatCurrency(Number(tx.amountInBase || tx.amount))}
                                     </Typography>
+                                    {tx.currency && tx.currencyId && baseCurrency && tx.currency.code !== baseCurrency.code && (
+                                        <Typography variant="caption" color="text.secondary" display="block">
+                                            {tx.currency.symbol}{Number(tx.amount).toLocaleString()} {tx.currency.code}
+                                        </Typography>
+                                    )}
                                 </TableCell>
                                 <TableCell>
                                     <Chip
@@ -477,6 +613,22 @@ export default function TransactionsPage() {
                                                 </IconButton>
                                             </span>
                                         </Tooltip>
+
+                                        {/* Delete button for superadmin only */}
+                                        {isSuperAdmin && (
+                                            <Tooltip title="Delete">
+                                                <IconButton
+                                                    size="small"
+                                                    color="error"
+                                                    onClick={() => handleDelete(tx.id, tx.description)}
+                                                    sx={{
+                                                        '&:hover': { bgcolor: 'error.dark', color: 'white' }
+                                                    }}
+                                                >
+                                                    <DeleteIcon fontSize="small" />
+                                                </IconButton>
+                                            </Tooltip>
+                                        )}
                                     </Box>
                                 </TableCell>
                             </TableRow>

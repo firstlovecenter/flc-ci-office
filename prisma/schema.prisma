@@ -62,6 +62,7 @@ model Department {
   children  Department[]    @relation("DepartmentHierarchy")
   users     User[]
   transactions Transaction[]
+  departmentBaseCurrency DepartmentBaseCurrency?
   createdAt DateTime        @default(now())
   updatedAt DateTime        @updatedAt
 
@@ -84,6 +85,7 @@ model User {
   transactions     Transaction[]
   auditLogs        AuditLog[]
   pushSubscriptions PushSubscription[]
+  departmentBaseCurrenciesSet DepartmentBaseCurrency[]
   createdAt        DateTime           @default(now())
   updatedAt        DateTime           @updatedAt
 
@@ -172,6 +174,7 @@ model Currency {
   exchangeRates ExchangeRate[] @relation("FromCurrency")
   reverseRates  ExchangeRate[] @relation("ToCurrency")
   users        User[]
+  departmentBaseCurrencies DepartmentBaseCurrency[]
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
 
@@ -195,4 +198,19 @@ model ExchangeRate {
   @@index([fromCurrencyId])
   @@index([toCurrencyId])
   @@index([effectiveDate])
+}
+
+model DepartmentBaseCurrency {
+  id           String     @id @default(cuid())
+  departmentId String     @unique
+  department   Department @relation(fields: [departmentId], references: [id])
+  currencyId   String
+  currency     Currency   @relation(fields: [currencyId], references: [id])
+  setBy        String
+  setByUser    User       @relation(fields: [setBy], references: [id])
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  @@index([departmentId])
+  @@index([currencyId])
 }
