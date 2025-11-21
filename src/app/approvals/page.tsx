@@ -26,12 +26,12 @@ import {
     Stack,
     Card,
     CardContent,
+    Grid,
 } from '@mui/material';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import CancelIcon from '@mui/icons-material/Cancel';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import PendingActionsIcon from '@mui/icons-material/PendingActions';
-import Grid from '@mui/material/Grid2';
 
 interface Transaction {
     id: string;

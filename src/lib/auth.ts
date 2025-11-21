@@ -47,7 +47,8 @@ export const authOptions: NextAuthOptions = {
                     id: user.id,
                     email: user.email,
                     name: user.name,
-                    role: user.role,
+                    role: user.activeRole || user.roles[0] || 'COUNCIL_LEADER',
+                    roles: user.roles,
                     departmentId: user.departmentId ?? undefined,
                     departmentLevel: user.department?.level,
                 };
@@ -59,18 +60,35 @@ export const authOptions: NextAuthOptions = {
             if (token) {
                 session.user.id = token.id as string;
                 session.user.role = token.role as string;
+                session.user.roles = token.roles as string[];
                 session.user.departmentId = token.departmentId as string;
                 session.user.departmentLevel = token.departmentLevel as string;
             }
             return session;
         },
-        async jwt({ token, user }) {
+        async jwt({ token, user, trigger, session }) {
             if (user) {
                 token.id = user.id;
                 token.role = user.role;
+                token.roles = user.roles;
                 token.departmentId = user.departmentId;
                 token.departmentLevel = user.departmentLevel;
             }
+            
+            // Handle session update (e.g., when switching roles)
+            if (trigger === 'update' && session?.user) {
+                // Fetch fresh user data to get updated activeRole
+                const updatedUser = await prisma.user.findUnique({
+                    where: { email: token.email as string },
+                    include: { department: true },
+                });
+                
+                if (updatedUser) {
+                    token.role = updatedUser.activeRole || updatedUser.roles[0] || 'COUNCIL_LEADER';
+                    token.roles = updatedUser.roles;
+                }
+            }
+            
             return token;
         },
     },

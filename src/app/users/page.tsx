@@ -160,7 +160,10 @@ export default function UsersPage() {
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify(formData),
+                body: JSON.stringify({
+                    ...formData,
+                    roles: [formData.role], // Convert single role to array
+                }),
             });
 
             if (!response.ok) {
@@ -222,7 +225,16 @@ export default function UsersPage() {
                                 <TableCell>{user.name || '-'}</TableCell>
                                 <TableCell>{user.email}</TableCell>
                                 <TableCell>
-                                    <Chip label={user.role} size="small" />
+                                    <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
+                                        {(user.roles || [user.role]).map((role: string) => (
+                                            <Chip 
+                                                key={role} 
+                                                label={role.replace(/_/g, ' ')} 
+                                                size="small" 
+                                                color={role === 'SUPERADMIN' ? 'error' : 'default'}
+                                            />
+                                        ))}
+                                    </Box>
                                 </TableCell>
                                 <TableCell>{user.department?.name || '-'}</TableCell>
                                 <TableCell>

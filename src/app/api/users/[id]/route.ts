@@ -5,6 +5,7 @@ import { authOptions } from '@/lib/auth';
 import bcrypt from 'bcryptjs';
 import { canManageUser, canAssignRole } from '@/lib/roles';
 import { getDescendantDepartmentIds } from '@/lib/departments';
+import { validateRoleAssignment } from '@/lib/roleValidation';
 
 export async function PUT(
     request: Request,
@@ -19,8 +20,11 @@ export async function PUT(
     try {
         const params = await context.params;
         const body = await request.json();
-        const { name, email, role, departmentId, password } = body;
+        const { name, email, roles, departmentId, password } = body;
         const userId = params.id;
+
+        // Ensure roles is an array
+        const userRoles = Array.isArray(roles) ? roles : (roles ? [roles] : undefined);
 
         // Check if user has admin role
         const adminRoles = ['SUPERADMIN', 'GLOBAL_ADMIN', 'INTERNATIONAL_ADMIN', 'NATIONAL_ADMIN', 'REGIONAL_ADMIN', 'CAMPUS_ADMIN', 'STREAM_ADMIN', 'COUNCIL_ADMIN'];
@@ -52,8 +56,18 @@ export async function PUT(
             );
         }
 
+        // Validate role assignments if roles are being updated
+        if (userRoles) {
+            const validation = await validateRoleAssignment(userId, userRoles, departmentId, email);
+            if (!validation.valid) {
+                return NextResponse.json({ error: validation.error }, { status: 400 });
+            }
+        }
+
         // Check if admin can manage this user based on role hierarchy
-        if (!canManageUser(session.user.role, targetUser.role)) {
+        // For users with multiple roles, check against their highest role
+        const targetUserHighestRole = targetUser.roles?.[0] || 'COUNCIL_LEADER';
+        if (!canManageUser(session.user.role, targetUserHighestRole)) {
             return NextResponse.json(
                 { error: 'You cannot manage users with equal or higher roles' },
                 { status: 403 }
@@ -89,13 +103,15 @@ export async function PUT(
             }
         }
 
-        // Check if admin can assign the new role
-        if (role && role !== targetUser.role) {
-            if (!canAssignRole(session.user.role, role)) {
-                return NextResponse.json(
-                    { error: 'You cannot assign roles equal to or higher than your own' },
-                    { status: 403 }
-                );
+        // Check if admin can assign the new roles
+        if (userRoles) {
+            for (const role of userRoles) {
+                if (!canAssignRole(session.user.role, role)) {
+                    return NextResponse.json(
+                        { error: `You cannot assign the role: ${role}` },
+                        { status: 403 }
+                    );
+                }
             }
         }
 
@@ -103,9 +119,17 @@ export async function PUT(
         const updateData: any = {
             name,
             email,
-            role,
             departmentId: departmentId || null,
         };
+
+        // Update roles if provided
+        if (userRoles) {
+            updateData.roles = userRoles;
+            // If current activeRole is not in new roles, set to first role
+            if (targetUser.activeRole && !userRoles.includes(targetUser.activeRole)) {
+                updateData.activeRole = userRoles[0];
+            }
+        }
 
         // Only update password if provided
         if (password && password.trim()) {

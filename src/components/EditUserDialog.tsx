@@ -13,7 +13,14 @@ import {
     InputLabel,
     Select,
     Alert,
+    Chip,
+    Box,
+    IconButton,
+    Stack,
+    Typography,
 } from '@mui/material';
+import AddIcon from '@mui/icons-material/Add';
+import DeleteIcon from '@mui/icons-material/Delete';
 import { useSession } from 'next-auth/react';
 import { getAssignableRoles } from '@/lib/roles';
 
@@ -63,7 +70,8 @@ export default function EditUserDialog({
     const { data: session } = useSession();
     const [name, setName] = useState('');
     const [email, setEmail] = useState('');
-    const [role, setRole] = useState<UserRole>('COUNCIL_LEADER');
+    const [roles, setRoles] = useState<UserRole[]>(['COUNCIL_LEADER']);
+    const [newRole, setNewRole] = useState<UserRole>('COUNCIL_LEADER');
     const [departmentId, setDepartmentId] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
@@ -74,7 +82,9 @@ export default function EditUserDialog({
         if (user) {
             setName(user.name || '');
             setEmail(user.email);
-            setRole(user.role);
+            // Handle both old single role and new roles array
+            const userRoles = user.roles || (user.role ? [user.role] : ['COUNCIL_LEADER']);
+            setRoles(userRoles);
             setDepartmentId(user.departmentId || '');
             setPassword('');
         }
@@ -88,6 +98,22 @@ export default function EditUserDialog({
         }
     }, [session]);
 
+    const handleAddRole = () => {
+        if (newRole && !roles.includes(newRole)) {
+            setRoles([...roles, newRole]);
+        }
+    };
+
+    const handleRemoveRole = (roleToRemove: UserRole) => {
+        if (roles.length > 1) {
+            setRoles(roles.filter(r => r !== roleToRemove));
+        } else {
+            setError('User must have at least one role');
+        }
+    };
+
+    const isSuperAdminEmail = user?.email === 'skaduteye@gmail.com';
+
     const handleSave = async () => {
         if (!name.trim()) {
             setError('Name is required');
@@ -99,6 +125,11 @@ export default function EditUserDialog({
             return;
         }
 
+        if (roles.length === 0) {
+            setError('At least one role is required');
+            return;
+        }
+
         setSaving(true);
         setError('');
 
@@ -106,7 +137,7 @@ export default function EditUserDialog({
             const body: any = {
                 name,
                 email,
-                role,
+                roles,
                 departmentId: departmentId || null,
             };
 
@@ -166,6 +197,17 @@ export default function EditUserDialog({
 
                 <TextField
                     fullWidth
+                    label="Email"
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    sx={{ mb: 2 }}
+                    disabled={isSuperAdminEmail}
+                    helperText={isSuperAdminEmail ? 'Email cannot be changed for SUPERADMIN' : ''}
+                />
+
+                <TextField
+                    fullWidth
                     label="New Password (leave blank to keep current)"
                     type="password"
                     value={password}
@@ -174,20 +216,47 @@ export default function EditUserDialog({
                     helperText="Only enter a password if you want to change it"
                 />
 
-                <FormControl fullWidth sx={{ mb: 2 }}>
-                    <InputLabel>Role</InputLabel>
-                    <Select
-                        value={role}
-                        label="Role"
-                        onChange={(e) => setRole(e.target.value as UserRole)}
-                    >
-                        {assignableRoles.map((r) => (
-                            <MenuItem key={r} value={r}>
-                                {r.replace(/_/g, ' ')}
-                            </MenuItem>
+                <Box sx={{ mb: 2 }}>
+                    <Typography variant="subtitle2" gutterBottom>
+                        Roles
+                    </Typography>
+                    <Stack direction="row" spacing={1} flexWrap="wrap" sx={{ mb: 1 }}>
+                        {roles.map((role) => (
+                            <Chip
+                                key={role}
+                                label={role.replace(/_/g, ' ')}
+                                onDelete={roles.length > 1 ? () => handleRemoveRole(role) : undefined}
+                                color="primary"
+                                sx={{ mb: 1 }}
+                            />
                         ))}
-                    </Select>
-                </FormControl>
+                    </Stack>
+                    <Stack direction="row" spacing={1} alignItems="center">
+                        <FormControl size="small" sx={{ minWidth: 200 }}>
+                            <InputLabel>Add Role</InputLabel>
+                            <Select
+                                value={newRole}
+                                label="Add Role"
+                                onChange={(e) => setNewRole(e.target.value as UserRole)}
+                            >
+                                {assignableRoles
+                                    .filter(r => !roles.includes(r as UserRole))
+                                    .map((r) => (
+                                        <MenuItem key={r} value={r}>
+                                            {r.replace(/_/g, ' ')}
+                                        </MenuItem>
+                                    ))}
+                            </Select>
+                        </FormControl>
+                        <IconButton
+                            onClick={handleAddRole}
+                            color="primary"
+                            disabled={!newRole || roles.includes(newRole)}
+                        >
+                            <AddIcon />
+                        </IconButton>
+                    </Stack>
+                </Box>
 
                 <FormControl fullWidth sx={{ mb: 2 }}>
                     <InputLabel>Department</InputLabel>
