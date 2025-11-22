@@ -183,6 +183,40 @@ export async function POST(request: Request) {
             return new NextResponse('Unauthorized', { status: 403 });
         }
 
+        // Validate base currency is set for national and below departments
+        const department = await prisma.department.findUnique({
+            where: { id: departmentId },
+            select: { level: true, id: true, name: true, parent: { select: { id: true, level: true, parent: { select: { id: true, level: true, parent: { select: { id: true, level: true } } } } } } }
+        });
+
+        if (department) {
+            const nationalRoles = ['NATIONAL_ADMIN', 'NATIONAL_LEADER'];
+            const regionalRoles = ['REGIONAL_ADMIN', 'REGIONAL_LEADER', 'CAMPUS_ADMIN', 'CAMPUS_LEADER', 'STREAM_LEADER', 'COUNCIL_LEADER', 'STREAM_ADMIN', 'COUNCIL_ADMIN'];
+            const requiresBaseCurrency = nationalRoles.includes(session.user.role) || regionalRoles.includes(session.user.role);
+
+            if (requiresBaseCurrency) {
+                // Find the national department
+                let nationalDept = department;
+                while (nationalDept && nationalDept.level !== 'NATIONAL') {
+                    nationalDept = nationalDept.parent as typeof nationalDept;
+                }
+
+                if (nationalDept && nationalDept.level === 'NATIONAL') {
+                    // Check if base currency is set for this national department
+                    const deptBaseCurrency = await prisma.departmentBaseCurrency.findUnique({
+                        where: { departmentId: nationalDept.id },
+                    });
+
+                    if (!deptBaseCurrency) {
+                        return NextResponse.json(
+                            { error: `Base currency must be set for ${nationalDept.name || 'your national department'} before transactions can be recorded. Please contact your administrator.` },
+                            { status: 400 }
+                        );
+                    }
+                }
+            }
+        }
+
         // Calculate amount in base currency if using a different currency
         let amountInBase = amount; // Default to the original amount
         if (currencyId && exchangeRate) {

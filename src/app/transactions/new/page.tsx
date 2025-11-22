@@ -86,6 +86,12 @@ export default function NewTransactionPage() {
                 if (profile.baseCurrency) {
                     setBaseCurrency(profile.baseCurrency);
                     setCurrencyId(profile.baseCurrency.id);
+                } else {
+                    // Check if user is national level or below
+                    const nationalAndBelowRoles = ['NATIONAL_ADMIN', 'NATIONAL_LEADER', 'REGIONAL_ADMIN', 'REGIONAL_LEADER', 'CAMPUS_ADMIN', 'CAMPUS_LEADER', 'STREAM_LEADER', 'COUNCIL_LEADER', 'STREAM_ADMIN', 'COUNCIL_ADMIN'];
+                    if (session?.user?.role && nationalAndBelowRoles.includes(session.user.role)) {
+                        setError('Base currency must be set for your national department before you can record transactions. Please contact your administrator.');
+                    }
                 }
             }
         } catch (error) {
@@ -189,13 +195,20 @@ export default function NewTransactionPage() {
             });
 
             if (!response.ok) {
-                throw new Error('Failed to create transaction');
+                let errorMessage = 'Failed to create transaction';
+                try {
+                    const errorData = await response.json();
+                    errorMessage = errorData.error || errorMessage;
+                } catch {
+                    // If response is not JSON, use default message
+                }
+                throw new Error(errorMessage);
             }
 
             router.push('/transactions');
             router.refresh();
         } catch (err) {
-            setError('Error creating transaction');
+            setError(err instanceof Error ? err.message : 'Error creating transaction');
         } finally {
             setLoading(false);
         }
@@ -324,7 +337,11 @@ export default function NewTransactionPage() {
                         <Button onClick={() => router.back()} disabled={loading}>
                             Cancel
                         </Button>
-                        <Button type="submit" variant="contained" disabled={loading}>
+                        <Button 
+                            type="submit" 
+                            variant="contained" 
+                            disabled={loading || !baseCurrency}
+                        >
                             {loading ? 'Saving...' : 'Save Transaction'}
                         </Button>
                     </Box>
