@@ -122,6 +122,38 @@ export async function PUT(
             }
         }
 
+        // Check if email or phone is already in use by another user
+        if (email !== targetUser.email || (phone && phone.trim() && phone !== targetUser.phone)) {
+            const existingUser = await prisma.user.findFirst({
+                where: {
+                    AND: [
+                        { id: { not: userId } },
+                        {
+                            OR: [
+                                ...(email !== targetUser.email ? [{ email }] : []),
+                                ...(phone && phone.trim() && phone !== targetUser.phone ? [{ phone: phone.trim() }] : []),
+                            ],
+                        },
+                    ],
+                },
+            });
+
+            if (existingUser) {
+                if (existingUser.email === email) {
+                    return NextResponse.json(
+                        { error: 'Email is already in use by another user' },
+                        { status: 400 }
+                    );
+                }
+                if (phone && existingUser.phone === phone.trim()) {
+                    return NextResponse.json(
+                        { error: 'Phone number is already in use by another user' },
+                        { status: 400 }
+                    );
+                }
+            }
+        }
+
         // Prepare update data
         const updateData: any = {
             title: title?.trim() || null,
