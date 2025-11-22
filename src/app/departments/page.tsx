@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import {
     Box,
@@ -34,7 +34,7 @@ type Department = {
 };
 import { useSession } from 'next-auth/react';
 
-export default function DepartmentsPage() {
+function DepartmentsPageContent() {
     const { data: session } = useSession();
     const router = useRouter();
     const searchParams = useSearchParams();
@@ -212,5 +212,13 @@ export default function DepartmentsPage() {
                 onSave={handleSaveEdit}
             />
         </Box>
+    );
+}
+
+export default function DepartmentsPage() {
+    return (
+        <Suspense fallback={<div>Loading...</div>}>
+            <DepartmentsPageContent />
+        </Suspense>
     );
 }

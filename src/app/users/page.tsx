@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import {
     Box,
@@ -36,7 +36,7 @@ import { useRouter } from 'next/navigation';
 import EditUserDialog from '@/components/EditUserDialog';
 import { getAssignableRoles, getDepartmentLevelForRole } from '@/lib/roles';
 
-export default function UsersPage() {
+function UsersPageContent() {
     const { data: session } = useSession();
     const router = useRouter();
     const searchParams = useSearchParams();
@@ -476,5 +476,13 @@ export default function UsersPage() {
                 onSave={handleSaveEdit}
             />
         </Box>
+    );
+}
+
+export default function UsersPage() {
+    return (
+        <Suspense fallback={<div>Loading...</div>}>
+            <UsersPageContent />
+        </Suspense>
     );
 }

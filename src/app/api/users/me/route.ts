@@ -82,9 +82,14 @@ export async function GET(request: NextRequest) {
         const regionalRoles = ['REGIONAL_ADMIN', 'REGIONAL_LEADER', 'CAMPUS_ADMIN', 'CAMPUS_LEADER', 'STREAM_LEADER', 'COUNCIL_LEADER'];
         const isRegional = regionalRoles.includes(activeRole);
         
-        if (isRegional) {
-            while (nationalDept && nationalDept.level !== 'NATIONAL') {
-                nationalDept = nationalDept.parent as typeof nationalDept;
+        if (isRegional && nationalDept) {
+            // Traverse up to find national department
+            while (nationalDept && nationalDept.level !== 'NATIONAL' && nationalDept.parentId) {
+                const parentDept = await prisma.department.findUnique({
+                    where: { id: nationalDept.parentId },
+                });
+                if (!parentDept) break;
+                nationalDept = parentDept;
             }
         }
 

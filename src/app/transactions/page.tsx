@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import {
     Box,
@@ -85,7 +85,7 @@ type TransactionWithDetails = Transaction & {
     amountInBase?: number;
 };
 
-export default function TransactionsPage() {
+function TransactionsPageContent() {
     const [transactions, setTransactions] = useState<TransactionWithDetails[]>([]);
     const [filteredTransactions, setFilteredTransactions] = useState<TransactionWithDetails[]>([]);
     const [baseCurrency, setBaseCurrency] = useState<{ id: string; code: string; symbol: string } | null>(null);
@@ -670,5 +670,13 @@ export default function TransactionsPage() {
                 isSuperAdmin={isSuperAdmin}
             />
         </Box>
+    );
+}
+
+export default function TransactionsPage() {
+    return (
+        <Suspense fallback={<div>Loading...</div>}>
+            <TransactionsPageContent />
+        </Suspense>
     );
 }
