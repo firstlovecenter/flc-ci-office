@@ -114,12 +114,14 @@ export async function POST(request: Request) {
         }
 
         // Check if user exists
+        const orConditions: any[] = [{ email }];
+        if (phone && phone.trim()) {
+            orConditions.push({ phone: phone.trim() });
+        }
+        
         const existingUser = await prisma.user.findFirst({
             where: {
-                OR: [
-                    { email },
-                    ...(phone ? [{ phone }] : []),
-                ],
+                OR: orConditions,
             },
         });
 
@@ -127,7 +129,7 @@ export async function POST(request: Request) {
             if (existingUser.email === email) {
                 return new NextResponse('User with this email already exists', { status: 400 });
             }
-            if (phone && existingUser.phone === phone) {
+            if (phone && existingUser.phone === phone.trim()) {
                 return new NextResponse('User with this phone number already exists', { status: 400 });
             }
         }

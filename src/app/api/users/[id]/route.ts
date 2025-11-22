@@ -123,17 +123,23 @@ export async function PUT(
         }
 
         // Check if email or phone is already in use by another user
-        if (email !== targetUser.email || (phone && phone.trim() && phone !== targetUser.phone)) {
+        const emailChanged = email !== targetUser.email;
+        const phoneChanged = phone && phone.trim() && phone.trim() !== targetUser.phone;
+        
+        if (emailChanged || phoneChanged) {
+            const orConditions: any[] = [];
+            if (emailChanged) {
+                orConditions.push({ email });
+            }
+            if (phoneChanged) {
+                orConditions.push({ phone: phone.trim() });
+            }
+            
             const existingUser = await prisma.user.findFirst({
                 where: {
                     AND: [
                         { id: { not: userId } },
-                        {
-                            OR: [
-                                ...(email !== targetUser.email ? [{ email }] : []),
-                                ...(phone && phone.trim() && phone !== targetUser.phone ? [{ phone: phone.trim() }] : []),
-                            ],
-                        },
+                        { OR: orConditions },
                     ],
                 },
             });
