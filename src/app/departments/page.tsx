@@ -153,7 +153,7 @@ function DepartmentsPageContent() {
         setParentFilter('');
     };
 
-    const levels = ['INTERNATIONAL', 'NATIONAL', 'REGIONAL', 'DISTRICT', 'LOCAL'];
+    const levels = ['GLOBAL', 'INTERNATIONAL', 'NATIONAL', 'REGIONAL', 'CAMPUS', 'STREAM', 'COUNCIL'];
 
     return (
         <Box>
