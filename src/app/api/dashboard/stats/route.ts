@@ -9,15 +9,24 @@ export async function GET(request: Request) {
     const session = await getServerSession(authOptions);
 
     if (!session) {
+        console.error('Dashboard stats: No session found');
         return new NextResponse('Unauthorized', { status: 401 });
     }
+
+    console.log('Dashboard stats - Session user:', {
+        id: session.user.id,
+        role: session.user.role,
+        departmentId: session.user.departmentId,
+        departmentLevel: session.user.departmentLevel
+    });
 
     try {
         let whereClause: any = {};
 
-        if (session.user.role !== 'SUPERADMIN') {
+        if (session.user.role !== 'SUPERADMIN' && session.user.role !== 'GLOBAL_ADMIN') {
             if (!session.user.departmentId) {
-                return new NextResponse('Forbidden', { status: 403 });
+                console.error('Dashboard stats: No departmentId for non-admin user', session.user);
+                return new NextResponse('Forbidden - No department assigned', { status: 403 });
             }
             const allowedIds = await getDescendantDepartmentIds(session.user.departmentId);
             whereClause.departmentId = { in: allowedIds };
@@ -27,6 +36,7 @@ export async function GET(request: Request) {
         const userBaseCurrency = await getUserBaseCurrency(session.user.id);
         
         if (!userBaseCurrency) {
+            console.error('Dashboard stats: No base currency for user', session.user.id);
             return new NextResponse('Base currency not configured', { status: 500 });
         }
 
@@ -97,7 +107,7 @@ export async function GET(request: Request) {
             balance: netBalance,
         });
     } catch (error) {
-        console.error(error);
-        return new NextResponse('Internal Error', { status: 500 });
+        console.error('Dashboard stats error:', error);
+        return new NextResponse('Internal Server Error', { status: 500 });
     }
 }

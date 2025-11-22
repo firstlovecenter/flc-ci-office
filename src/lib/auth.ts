@@ -22,6 +22,7 @@ export const authOptions: NextAuthOptions = {
             },
             async authorize(credentials) {
                 if (!credentials?.email || !credentials?.password) {
+                    console.error('Missing credentials');
                     return null;
                 }
 
@@ -45,29 +46,56 @@ export const authOptions: NextAuthOptions = {
                 });
 
                 if (!user) {
+                    console.error('User not found:', credentials.email);
                     return null;
                 }
 
-                // TODO: Implement password hashing verification
-                // For now, we'll just check if the password matches (INSECURE - FIX LATER)
-                const isValid = await bcrypt.compare(credentials.password, user.password || '');
+                if (!user.password) {
+                    console.error('User has no password set:', credentials.email);
+                    return null;
+                }
+
+                // Verify password
+                const isValid = await bcrypt.compare(credentials.password, user.password);
 
                 if (!isValid) {
+                    console.error('Invalid password for user:', credentials.email);
                     return null;
+                }
+
+                // SUPERADMIN and GLOBAL_ADMIN can work without UserRole entries
+                const isSuperUser = user.roles.includes('SUPERADMIN') || user.roles.includes('GLOBAL_ADMIN');
+                
+                if (isSuperUser && user.userRoles.length === 0) {
+                    // Super users don't need UserRole entries
+                    return {
+                        id: user.id,
+                        email: user.email,
+                        name: user.name,
+                        role: user.roles.includes('SUPERADMIN') ? 'SUPERADMIN' : 'GLOBAL_ADMIN',
+                        roles: user.roles,
+                        departmentId: user.departmentId || undefined,
+                        departmentLevel: undefined,
+                    };
                 }
 
                 // Use activeUserRole if set, otherwise use first userRole
                 const activeRole = user.activeUserRole || user.userRoles[0];
                 const allRoles = user.userRoles.map(ur => ur.role);
 
+                if (!activeRole) {
+                    console.error('No active role found for user:', user.email);
+                    return null;
+                }
+
                 return {
                     id: user.id,
                     email: user.email,
                     name: user.name,
-                    role: activeRole?.role || 'COUNCIL_LEADER',
+                    role: activeRole.role,
                     roles: allRoles,
-                    departmentId: activeRole?.departmentId ?? undefined,
-                    departmentLevel: activeRole?.department?.level,
+                    departmentId: activeRole.departmentId,
+                    departmentLevel: activeRole.department?.level,
                 };
             },
         }),
@@ -113,14 +141,24 @@ export const authOptions: NextAuthOptions = {
                 });
                 
                 if (updatedUser) {
-                    const activeRole = updatedUser.activeUserRole || updatedUser.userRoles[0];
-                    const allRoles = updatedUser.userRoles.map(ur => ur.role);
+                    const isSuperUserOnUpdate = updatedUser.roles.includes('SUPERADMIN') || updatedUser.roles.includes('GLOBAL_ADMIN');
                     
-                    token.id = updatedUser.id;
-                    token.role = activeRole?.role || 'COUNCIL_LEADER';
-                    token.roles = allRoles;
-                    token.departmentId = activeRole?.departmentId;
-                    token.departmentLevel = activeRole?.department?.level;
+                    if (isSuperUserOnUpdate && updatedUser.userRoles.length === 0) {
+                        token.id = updatedUser.id;
+                        token.role = updatedUser.roles.includes('SUPERADMIN') ? 'SUPERADMIN' : 'GLOBAL_ADMIN';
+                        token.roles = updatedUser.roles;
+                        token.departmentId = updatedUser.departmentId;
+                        token.departmentLevel = undefined;
+                    } else {
+                        const activeRole = updatedUser.activeUserRole || updatedUser.userRoles[0];
+                        const allRoles = updatedUser.userRoles.map(ur => ur.role);
+                        
+                        token.id = updatedUser.id;
+                        token.role = activeRole?.role || 'COUNCIL_LEADER';
+                        token.roles = allRoles;
+                        token.departmentId = activeRole?.departmentId;
+                        token.departmentLevel = activeRole?.department?.level;
+                    }
                 }
             }
             
