@@ -26,6 +26,28 @@ export async function GET(request: NextRequest) {
                         },
                     },
                 },
+                activeUserRole: {
+                    include: {
+                        department: {
+                            include: {
+                                parent: {
+                                    include: {
+                                        parent: {
+                                            include: {
+                                                parent: true,
+                                            },
+                                        },
+                                    },
+                                },
+                            },
+                        },
+                    },
+                },
+                userRoles: {
+                    include: {
+                        department: true,
+                    },
+                },
             },
         });
 
@@ -33,8 +55,9 @@ export async function GET(request: NextRequest) {
             return NextResponse.json({ error: 'User not found' }, { status: 404 });
         }
 
-        // Use the active role, or fall back to first role if no active role set
-        const activeRole = user.activeRole || user.roles?.[0] || 'COUNCIL_LEADER';
+        // Use the activeUserRole, or fall back to first userRole if no active role set
+        const activeUserRole = user.activeUserRole || user.userRoles[0];
+        const activeRole = activeUserRole?.role || 'COUNCIL_LEADER';
 
         // For international level and above, use system base currency
         const highLevelRoles = ['SUPERADMIN', 'GLOBAL_ADMIN', 'GLOBAL_LEADER', 'INTERNATIONAL_ADMIN', 'INTERNATIONAL_LEADER'];
@@ -47,11 +70,12 @@ export async function GET(request: NextRequest) {
             return NextResponse.json({
                 ...user,
                 baseCurrency: systemBaseCurrency,
+                activeUserRoleId: user.activeUserRoleId,
             });
         }
 
         // For national level and below, find the national department's base currency
-        let nationalDept = user.department;
+        let nationalDept = activeUserRole?.department;
         
         // For national admin/leader, use their current department
         // For below national level, traverse up to find national department
@@ -75,6 +99,7 @@ export async function GET(request: NextRequest) {
                 return NextResponse.json({
                     ...user,
                     baseCurrency: deptBaseCurrency.currency,
+                    activeUserRoleId: user.activeUserRoleId,
                 });
             }
         }
@@ -87,6 +112,7 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({
             ...user,
             baseCurrency: systemBaseCurrency,
+            activeUserRoleId: user.activeUserRoleId,
         });
     } catch (error) {
         console.error('Error fetching user profile:', error);

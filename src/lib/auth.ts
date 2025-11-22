@@ -29,6 +29,16 @@ export const authOptions: NextAuthOptions = {
                     },
                     include: {
                         department: true,
+                        activeUserRole: {
+                            include: {
+                                department: true,
+                            },
+                        },
+                        userRoles: {
+                            include: {
+                                department: true,
+                            },
+                        },
                     },
                 });
 
@@ -44,14 +54,18 @@ export const authOptions: NextAuthOptions = {
                     return null;
                 }
 
+                // Use activeUserRole if set, otherwise use first userRole
+                const activeRole = user.activeUserRole || user.userRoles[0];
+                const allRoles = user.userRoles.map(ur => ur.role);
+
                 return {
                     id: user.id,
                     email: user.email,
                     name: user.name,
-                    role: user.activeRole || user.roles[0] || 'COUNCIL_LEADER',
-                    roles: user.roles,
-                    departmentId: user.departmentId ?? undefined,
-                    departmentLevel: user.department?.level,
+                    role: activeRole?.role || 'COUNCIL_LEADER',
+                    roles: allRoles,
+                    departmentId: activeRole?.departmentId ?? undefined,
+                    departmentLevel: activeRole?.department?.level,
                 };
             },
         }),
@@ -79,18 +93,32 @@ export const authOptions: NextAuthOptions = {
             // Handle session update (e.g., when switching roles)
             // This runs when update() is called from the client
             if (trigger === 'update') {
-                // Fetch fresh user data to get updated activeRole
+                // Fetch fresh user data to get updated activeUserRole
                 const updatedUser = await prisma.user.findUnique({
                     where: { email: token.email as string },
-                    include: { department: true },
+                    include: {
+                        activeUserRole: {
+                            include: {
+                                department: true,
+                            },
+                        },
+                        userRoles: {
+                            include: {
+                                department: true,
+                            },
+                        },
+                    },
                 });
                 
                 if (updatedUser) {
+                    const activeRole = updatedUser.activeUserRole || updatedUser.userRoles[0];
+                    const allRoles = updatedUser.userRoles.map(ur => ur.role);
+                    
                     token.id = updatedUser.id;
-                    token.role = updatedUser.activeRole || updatedUser.roles[0] || 'COUNCIL_LEADER';
-                    token.roles = updatedUser.roles;
-                    token.departmentId = updatedUser.departmentId;
-                    token.departmentLevel = updatedUser.department?.level;
+                    token.role = activeRole?.role || 'COUNCIL_LEADER';
+                    token.roles = allRoles;
+                    token.departmentId = activeRole?.departmentId;
+                    token.departmentLevel = activeRole?.department?.level;
                 }
             }
             

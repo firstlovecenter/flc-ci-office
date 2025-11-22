@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import {
@@ -16,11 +16,47 @@ import {
 import SwapHorizIcon from '@mui/icons-material/SwapHoriz';
 import CheckIcon from '@mui/icons-material/Check';
 
+interface UserRoleOption {
+    id: string;
+    role: string;
+    departmentId: string;
+    departmentName: string;
+}
+
 export default function RoleSwitcher() {
     const { data: session, update } = useSession();
     const router = useRouter();
     const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
     const [switching, setSwitching] = useState(false);
+    const [userRoles, setUserRoles] = useState<UserRoleOption[]>([]);
+    const [activeUserRoleId, setActiveUserRoleId] = useState<string | null>(null);
+
+    useEffect(() => {
+        if (session?.user?.id) {
+            fetchUserRoles();
+        }
+    }, [session?.user?.id]);
+
+    const fetchUserRoles = async () => {
+        try {
+            const response = await fetch('/api/users/me');
+            if (response.ok) {
+                const data = await response.json();
+                if (data.userRoles) {
+                    const roles = data.userRoles.map((ur: any) => ({
+                        id: ur.id,
+                        role: ur.role,
+                        departmentId: ur.departmentId,
+                        departmentName: ur.department?.name || 'Unknown',
+                    }));
+                    setUserRoles(roles);
+                    setActiveUserRoleId(data.activeUserRoleId);
+                }
+            }
+        } catch (error) {
+            console.error('Error fetching user roles:', error);
+        }
+    };
 
     const handleClick = (event: React.MouseEvent<HTMLElement>) => {
         setAnchorEl(event.currentTarget);
@@ -30,8 +66,8 @@ export default function RoleSwitcher() {
         setAnchorEl(null);
     };
 
-    const handleSwitchRole = async (role: string) => {
-        if (role === session?.user?.role || switching) return;
+    const handleSwitchRole = async (userRoleId: string) => {
+        if (userRoleId === activeUserRoleId || switching) return;
 
         setSwitching(true);
         handleClose();
@@ -41,7 +77,7 @@ export default function RoleSwitcher() {
             const response = await fetch('/api/users/select-role', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ role }),
+                body: JSON.stringify({ userRoleId }),
             });
 
             if (!response.ok) {
@@ -62,9 +98,6 @@ export default function RoleSwitcher() {
             setSwitching(false);
         }
     };
-
-    const userRoles = session?.user?.roles || [];
-    const currentRole = session?.user?.role;
 
     // Don't show switcher if user only has one role
     if (userRoles.length <= 1) {
@@ -89,29 +122,32 @@ export default function RoleSwitcher() {
                 transformOrigin={{ horizontal: 'right', vertical: 'top' }}
                 anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
                 PaperProps={{
-                    sx: { minWidth: 250 },
+                    sx: { minWidth: 300 },
                 }}
             >
                 <Typography variant="caption" sx={{ px: 2, py: 1, display: 'block' }}>
                     Switch Role
                 </Typography>
                 <Divider />
-                {userRoles.map((role) => (
+                {userRoles.map((userRole) => (
                     <MenuItem
-                        key={role}
-                        onClick={() => handleSwitchRole(role)}
-                        selected={role === currentRole}
+                        key={userRole.id}
+                        onClick={() => handleSwitchRole(userRole.id)}
+                        selected={userRole.id === activeUserRoleId}
                     >
                         <ListItemIcon>
-                            {role === currentRole && <CheckIcon fontSize="small" />}
+                            {userRole.id === activeUserRoleId && <CheckIcon fontSize="small" />}
                         </ListItemIcon>
-                        <ListItemText>
-                            <Chip
-                                label={role.replace(/_/g, ' ')}
-                                size="small"
-                                color={role === currentRole ? 'primary' : 'default'}
-                            />
-                        </ListItemText>
+                        <ListItemText
+                            primary={
+                                <Chip
+                                    label={userRole.role.replace(/_/g, ' ')}
+                                    size="small"
+                                    color={userRole.id === activeUserRoleId ? 'primary' : 'default'}
+                                />
+                            }
+                            secondary={userRole.departmentName}
+                        />
                     </MenuItem>
                 ))}
             </Menu>
