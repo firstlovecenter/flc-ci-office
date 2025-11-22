@@ -254,13 +254,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                                 sx={{
                                     border: '2px solid',
                                     borderColor: 'primary.main',
+                                    p: 0.5,
                                 }}
                             >
                                 <Avatar 
                                     src={session.user?.image || undefined}
                                     sx={{ 
-                                        width: { xs: 32, sm: 36 }, 
-                                        height: { xs: 32, sm: 36 }, 
+                                        width: { xs: 36, sm: 40 }, 
+                                        height: { xs: 36, sm: 40 }, 
                                         bgcolor: 'primary.main',
                                         fontWeight: 700,
                                     }}
