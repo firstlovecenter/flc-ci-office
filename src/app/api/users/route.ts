@@ -94,7 +94,7 @@ export async function POST(request: Request) {
 
     try {
         const body = await request.json();
-        const { title, name, email, password, roleDepartmentPairs } = body;
+        const { title, name, email, phone, password, roleDepartmentPairs } = body;
 
         if (!roleDepartmentPairs || roleDepartmentPairs.length === 0) {
             return NextResponse.json({ error: 'At least one role-department pair is required' }, { status: 400 });
@@ -114,12 +114,22 @@ export async function POST(request: Request) {
         }
 
         // Check if user exists
-        const existingUser = await prisma.user.findUnique({
-            where: { email },
+        const existingUser = await prisma.user.findFirst({
+            where: {
+                OR: [
+                    { email },
+                    ...(phone ? [{ phone }] : []),
+                ],
+            },
         });
 
         if (existingUser) {
-            return new NextResponse('User already exists', { status: 400 });
+            if (existingUser.email === email) {
+                return new NextResponse('User with this email already exists', { status: 400 });
+            }
+            if (phone && existingUser.phone === phone) {
+                return new NextResponse('User with this phone number already exists', { status: 400 });
+            }
         }
 
         // For non-superadmins, verify they can create users in the target department
@@ -170,6 +180,7 @@ export async function POST(request: Request) {
                 title: title?.trim() || null,
                 name,
                 email,
+                phone: phone?.trim() || null,
                 password: await bcrypt.hash(tempPassword, 10),
                 roles: userRoles as any, // Keep for backward compatibility during migration
                 activeRole: userRoles[0] as any, // Keep for backward compatibility during migration

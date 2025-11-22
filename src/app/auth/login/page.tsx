@@ -34,7 +34,7 @@ function LoginForm() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const { data: session, status } = useSession();
-    const [email, setEmail] = useState('');
+    const [emailOrPhone, setEmailOrPhone] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
@@ -65,13 +65,13 @@ function LoginForm() {
 
         try {
             const result = await signIn('credentials', {
-                email,
+                emailOrPhone,
                 password,
                 redirect: false,
             });
 
             if (result?.error) {
-                setError('Invalid email or password');
+                setError('Invalid email/phone or password');
             } else {
                 // Fetch user session to check roles
                 const response = await fetch('/api/auth/session');
@@ -230,13 +230,13 @@ function LoginForm() {
                                         margin="normal"
                                         required
                                         fullWidth
-                                        id="email"
-                                        label="Email Address"
-                                        name="email"
-                                        autoComplete="email"
+                                        id="emailOrPhone"
+                                        label="Email or Phone Number"
+                                        name="emailOrPhone"
+                                        autoComplete="username"
                                         autoFocus
-                                        value={email}
-                                        onChange={(e) => setEmail(e.target.value)}
+                                        value={emailOrPhone}
+                                        onChange={(e) => setEmailOrPhone(e.target.value)}
                                         InputProps={{
                                             startAdornment: (
                                                 <InputAdornment position="start">

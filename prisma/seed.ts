@@ -82,6 +82,7 @@ async function main() {
         update: {},
         create: {
             email: 'admin@flc.org',
+            phone: '+233123456789',
             name: 'Super Admin',
             password: hashedPassword,
             roles: ['SUPERADMIN'],
@@ -93,6 +94,7 @@ async function main() {
         update: {},
         create: {
             email: 'campus.admin@flc.org',
+            phone: '+233987654321',
             name: 'Campus Admin',
             password: hashedPassword,
             roles: ['CAMPUS_ADMIN'],
@@ -105,6 +107,7 @@ async function main() {
         update: {},
         create: {
             email: 'council.leader@flc.org',
+            phone: '+233555555555',
             name: 'Council Leader',
             password: hashedPassword,
             roles: ['COUNCIL_LEADER'],
@@ -116,9 +119,9 @@ async function main() {
 
     console.log('Seed completed successfully!');
     console.log('\nLogin credentials:');
-    console.log('SuperAdmin: admin@flc.org / password123');
-    console.log('Campus Admin: campus.admin@flc.org / password123');
-    console.log('Council Leader: council.leader@flc.org / password123');
+    console.log('SuperAdmin: admin@flc.org or +233123456789 / password123');
+    console.log('Campus Admin: campus.admin@flc.org or +233987654321 / password123');
+    console.log('Council Leader: council.leader@flc.org or +233555555555 / password123');
 }
 
 main()

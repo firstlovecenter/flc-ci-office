@@ -22,7 +22,7 @@ export async function PUT(
     try {
         const params = await context.params;
         const body = await request.json();
-        const { title, name, email, roleDepartmentPairs, password } = body;
+        const { title, name, email, phone, roleDepartmentPairs, password } = body;
         const userId = params.id;
 
         // Check if user has admin role
@@ -127,6 +127,7 @@ export async function PUT(
             title: title?.trim() || null,
             name,
             email,
+            phone: phone?.trim() || null,
         };
 
         // Update backward compatibility fields if role-department pairs are provided

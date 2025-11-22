@@ -17,18 +17,22 @@ export const authOptions: NextAuthOptions = {
         CredentialsProvider({
             name: 'Credentials',
             credentials: {
-                email: { label: 'Email', type: 'email' },
+                emailOrPhone: { label: 'Email or Phone', type: 'text' },
                 password: { label: 'Password', type: 'password' },
             },
             async authorize(credentials) {
-                if (!credentials?.email || !credentials?.password) {
+                if (!credentials?.emailOrPhone || !credentials?.password) {
                     console.error('Missing credentials');
                     return null;
                 }
 
-                const user = await prisma.user.findUnique({
+                // Try to find user by email or phone
+                const user = await prisma.user.findFirst({
                     where: {
-                        email: credentials.email,
+                        OR: [
+                            { email: credentials.emailOrPhone },
+                            { phone: credentials.emailOrPhone },
+                        ],
                     },
                     include: {
                         department: true,
@@ -46,12 +50,12 @@ export const authOptions: NextAuthOptions = {
                 });
 
                 if (!user) {
-                    console.error('User not found:', credentials.email);
+                    console.error('User not found:', credentials.emailOrPhone);
                     return null;
                 }
 
                 if (!user.password) {
-                    console.error('User has no password set:', credentials.email);
+                    console.error('User has no password set:', credentials.emailOrPhone);
                     return null;
                 }
 
@@ -59,7 +63,7 @@ export const authOptions: NextAuthOptions = {
                 const isValid = await bcrypt.compare(credentials.password, user.password);
 
                 if (!isValid) {
-                    console.error('Invalid password for user:', credentials.email);
+                    console.error('Invalid password for user:', credentials.emailOrPhone);
                     return null;
                 }
 

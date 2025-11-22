@@ -53,6 +53,7 @@ function UsersPageContent() {
         title: '',
         name: '',
         email: '',
+        phone: '',
         password: '',
     });
     const [roleDepartmentPairs, setRoleDepartmentPairs] = useState<Array<{ role: string; departmentId: string }>>([]);
@@ -223,6 +224,7 @@ function UsersPageContent() {
                 title: '',
                 name: '',
                 email: '',
+                phone: '',
                 password: '',
             });
             setRoleDepartmentPairs([]);
@@ -377,6 +379,17 @@ function UsersPageContent() {
                                 setFormData({ ...formData, email: e.target.value })
                             }
                             required
+                        />
+                        <TextField
+                            margin="normal"
+                            fullWidth
+                            label="Phone Number (Optional)"
+                            type="tel"
+                            placeholder="e.g., +233123456789"
+                            value={formData.phone}
+                            onChange={(e) =>
+                                setFormData({ ...formData, phone: e.target.value })
+                            }
                         />
                         <TextField
                             margin="normal"

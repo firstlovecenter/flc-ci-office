@@ -71,6 +71,7 @@ export default function EditUserDialog({
     const [title, setTitle] = useState('');
     const [name, setName] = useState('');
     const [email, setEmail] = useState('');
+    const [phone, setPhone] = useState('');
     const [roleDepartmentPairs, setRoleDepartmentPairs] = useState<Array<{ role: string; departmentId: string }>>([]);
     const [newRole, setNewRole] = useState('');
     const [newDepartment, setNewDepartment] = useState('');
@@ -84,6 +85,7 @@ export default function EditUserDialog({
             setTitle(user.title || '');
             setName(user.name || '');
             setEmail(user.email);
+            setPhone(user.phone || '');
             setPassword('');
             
             // Load existing role-department pairs from userRoles relation
@@ -176,6 +178,7 @@ export default function EditUserDialog({
                 title: title.trim() || null,
                 name,
                 email,
+                phone: phone.trim() || null,
                 roleDepartmentPairs,
             };
 
@@ -249,6 +252,16 @@ export default function EditUserDialog({
                     sx={{ mb: 2 }}
                     disabled={isSuperAdminEmail}
                     helperText={isSuperAdminEmail ? 'Email cannot be changed for SUPERADMIN' : ''}
+                />
+
+                <TextField
+                    fullWidth
+                    label="Phone Number (Optional)"
+                    type="tel"
+                    placeholder="e.g., +233123456789"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    sx={{ mb: 2 }}
                 />
 
                 <TextField
