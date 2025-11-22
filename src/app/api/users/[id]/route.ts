@@ -1,8 +1,10 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { getServerSession } from 'next-auth';
+import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/lib/auth';
-import bcrypt from 'bcryptjs';
+import bcrypt from 'bcrypt';
+import { sendEmail, isEmailConfigured } from '@/lib/email';
+import { generateRoleAssignmentEmail } from '@/lib/email-templates/role-assignment';
 import { canManageUser, canAssignRole, ROLE_HIERARCHY } from '@/lib/roles';
 import { getDescendantDepartmentIds } from '@/lib/departments';
 import { validateRoleAssignment } from '@/lib/roleValidation';
@@ -176,6 +178,36 @@ export async function PUT(
                     where: { id: userId },
                     data: { activeUserRoleId: firstUserRole.id },
                 });
+            }
+
+            // Send role assignment email notification
+            if (isEmailConfigured() && email) {
+                try {
+                    // Get the first role-department pair details
+                    const primaryRolePair = roleDepartmentPairs[0];
+                    const department = await prisma.department.findUnique({
+                        where: { id: primaryRolePair.departmentId },
+                        select: { name: true },
+                    });
+
+                    const emailContent = generateRoleAssignmentEmail({
+                        userName: name || email,
+                        role: primaryRolePair.role,
+                        department: department?.name || 'Unknown Department',
+                        assignedBy: session.user.name || session.user.email,
+                        dashboardUrl: `${process.env.APP_URL || 'http://localhost:3000'}/dashboard`,
+                    });
+
+                    await sendEmail({
+                        to: email,
+                        subject: emailContent.subject,
+                        html: emailContent.html,
+                        text: emailContent.text,
+                    });
+                } catch (emailError) {
+                    // Log email error but don't fail the request
+                    console.error('Failed to send role assignment email:', emailError);
+                }
             }
         }
 

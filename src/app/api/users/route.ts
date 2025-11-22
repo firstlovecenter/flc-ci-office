@@ -5,6 +5,9 @@ import { authOptions } from '@/lib/auth';
 import bcrypt from 'bcryptjs';
 import { getDescendantDepartmentIds } from '@/lib/departments';
 import { validateRoleAssignment } from '@/lib/roleValidation';
+import { sendEmail, isEmailConfigured } from '@/lib/email';
+import { generateWelcomeEmail } from '@/lib/email-templates/welcome';
+import crypto from 'crypto';
 
 export async function GET(request: Request) {
     const session = await getServerSession(authOptions);
@@ -97,6 +100,9 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'At least one role-department pair is required' }, { status: 400 });
         }
 
+        // Generate a temporary password if not provided
+        const tempPassword = password || crypto.randomBytes(8).toString('hex');
+        
         // Extract unique roles for backward compatibility validation
         const userRoles: string[] = Array.from(new Set(roleDepartmentPairs.map((pair: any) => pair.role as string)));
         const firstDept = roleDepartmentPairs[0].departmentId;
@@ -164,7 +170,7 @@ export async function POST(request: Request) {
                 title: title?.trim() || null,
                 name,
                 email,
-                password: await bcrypt.hash(password, 10),
+                password: await bcrypt.hash(tempPassword, 10),
                 roles: userRoles as any, // Keep for backward compatibility during migration
                 activeRole: userRoles[0] as any, // Keep for backward compatibility during migration
                 departmentId: firstDept, // Set to first department for backward compatibility
@@ -196,6 +202,42 @@ export async function POST(request: Request) {
                     where: { id: user.id },
                     data: { activeUserRoleId: firstUserRole.id },
                 });
+            }
+        }
+
+        // Send welcome email with credentials
+        if (isEmailConfigured()) {
+            try {
+                const appUrl = process.env.APP_URL || 'http://localhost:3000';
+                const loginUrl = `${appUrl}/auth/login`;
+                
+                // Get department name for the first role
+                const department = firstDept ? await prisma.department.findUnique({
+                    where: { id: firstDept },
+                    select: { name: true },
+                }) : null;
+
+                const emailContent = generateWelcomeEmail({
+                    userName: name || email,
+                    userEmail: email,
+                    tempPassword,
+                    loginUrl,
+                    role: userRoles[0],
+                    department: department?.name,
+                });
+
+                await sendEmail({
+                    to: email,
+                    toName: name || undefined,
+                    subject: emailContent.subject,
+                    html: emailContent.html,
+                    text: emailContent.text,
+                }).catch(err => {
+                    console.error(`Failed to send welcome email to ${email}:`, err);
+                });
+            } catch (emailError) {
+                console.error('Failed to send welcome email:', emailError);
+                // Don't fail user creation if email fails
             }
         }
 

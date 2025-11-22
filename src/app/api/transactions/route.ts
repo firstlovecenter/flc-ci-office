@@ -6,6 +6,8 @@ import { getCurrentWeek } from '@/lib/utils';
 
 import { getDescendantDepartmentIds, hasDepartmentAccess } from '@/lib/departments';
 import { getUserBaseCurrency, convertToUserBaseCurrency } from '@/lib/currency-conversion';
+import { sendEmail, isEmailConfigured } from '@/lib/email';
+import { generateTransactionPendingEmail, generateTransactionStatusEmail } from '@/lib/email-templates/transaction-notification';
 
 export async function GET(request: Request) {
     const session = await getServerSession(authOptions);
@@ -260,9 +262,64 @@ export async function POST(request: Request) {
                     })) || [],
                 },
             },
+            include: {
+                department: true,
+                currency: true,
+            },
         });
 
+        // Send email notification if transaction is pending approval
+        if (isLeader && isEmailConfigured()) {
+            try {
+                // Find admin users for the department who should approve
+                const adminRoles = ['SUPERADMIN', 'GLOBAL_ADMIN', 'INTERNATIONAL_ADMIN', 'NATIONAL_ADMIN', 'REGIONAL_ADMIN', 'CAMPUS_ADMIN'];
+                
+                const adminUsers = await prisma.user.findMany({
+                    where: {
+                        OR: [
+                            { roles: { hasSome: adminRoles } },
+                            { userRoles: { some: { departmentId, role: { in: adminRoles } } } },
+                        ],
+                        email: { not: null },
+                    },
+                    select: { email: true, name: true },
+                });
 
+                const appUrl = process.env.APP_URL || 'http://localhost:3000';
+                const transactionUrl = `${appUrl}/transactions`;
+                
+                const currencySymbol = transaction.currency?.symbol || transaction.currency?.code || '';
+                const emailContent = generateTransactionPendingEmail({
+                    userName: session.user.name || 'Admin',
+                    transactionId: transaction.id,
+                    transactionType: transaction.type,
+                    amount: transaction.amount.toString(),
+                    currency: currencySymbol,
+                    description: transaction.description,
+                    department: transaction.department.name,
+                    submittedBy: session.user.name || session.user.email,
+                    transactionUrl,
+                });
+
+                // Send to all admins (could be optimized to only send to relevant admins)
+                for (const admin of adminUsers) {
+                    if (admin.email) {
+                        await sendEmail({
+                            to: admin.email,
+                            toName: admin.name || undefined,
+                            subject: emailContent.subject,
+                            html: emailContent.html,
+                            text: emailContent.text,
+                        }).catch(err => {
+                            console.error(`Failed to send notification to ${admin.email}:`, err);
+                        });
+                    }
+                }
+            } catch (emailError) {
+                console.error('Failed to send transaction notification emails:', emailError);
+                // Don't fail the transaction creation if email fails
+            }
+        }
 
         // Create Audit Log
         await prisma.auditLog.create({
@@ -421,6 +478,117 @@ export async function DELETE(request: Request) {
 
         return NextResponse.json({ success: true });
     } catch (error) {
+        return new NextResponse('Internal Error', { status: 500 });
+    }
+}
+
+export async function PATCH(request: Request) {
+    const session = await getServerSession(authOptions);
+
+    if (!session) {
+        return new NextResponse('Unauthorized', { status: 401 });
+    }
+
+    try {
+        const body = await request.json();
+        const { id, action, rejectionReason } = body;
+
+        if (!['approve', 'reject'].includes(action)) {
+            return new NextResponse('Invalid action', { status: 400 });
+        }
+
+        const transaction = await prisma.transaction.findUnique({
+            where: { id },
+            include: {
+                user: { select: { name: true, email: true } },
+                department: { select: { name: true } },
+                currency: { select: { code: true, symbol: true } },
+            },
+        });
+
+        if (!transaction) {
+            return new NextResponse('Not Found', { status: 404 });
+        }
+
+        // Only admins can approve/reject
+        const adminRoles = ['SUPERADMIN', 'GLOBAL_ADMIN', 'INTERNATIONAL_ADMIN', 'NATIONAL_ADMIN', 'REGIONAL_ADMIN', 'CAMPUS_ADMIN'];
+        if (!adminRoles.includes(session.user.role)) {
+            return new NextResponse('Only admins can approve/reject transactions', { status: 403 });
+        }
+
+        // Check permissions
+        const canAccess = await hasDepartmentAccess(session.user, transaction.departmentId);
+        if (!canAccess) {
+            return new NextResponse('Forbidden', { status: 403 });
+        }
+
+        // Check if already processed
+        if (transaction.status !== 'PENDING') {
+            return new NextResponse('Transaction already processed', { status: 400 });
+        }
+
+        const updatedTransaction = await prisma.transaction.update({
+            where: { id },
+            data: {
+                status: action === 'approve' ? 'APPROVED' : 'REJECTED',
+                approvedBy: action === 'approve' ? session.user.id : null,
+                approvedAt: action === 'approve' ? new Date() : null,
+                rejectedBy: action === 'reject' ? session.user.id : null,
+                rejectedAt: action === 'reject' ? new Date() : null,
+                rejectionReason: action === 'reject' ? rejectionReason : null,
+            },
+        });
+
+        // Send email notification to the transaction creator
+        if (transaction.user.email && isEmailConfigured()) {
+            try {
+                const appUrl = process.env.APP_URL || 'http://localhost:3000';
+                const transactionUrl = `${appUrl}/transactions`;
+                const currencySymbol = transaction.currency?.symbol || transaction.currency?.code || '';
+                
+                const emailContent = generateTransactionStatusEmail({
+                    userName: transaction.user.name || transaction.user.email,
+                    transactionId: transaction.id,
+                    transactionType: transaction.type,
+                    amount: transaction.amount.toString(),
+                    currency: currencySymbol,
+                    description: transaction.description,
+                    status: action === 'approve' ? 'APPROVED' : 'REJECTED',
+                    reviewedBy: session.user.name || session.user.email,
+                    rejectionReason: action === 'reject' ? rejectionReason : undefined,
+                    transactionUrl,
+                });
+
+                await sendEmail({
+                    to: transaction.user.email,
+                    toName: transaction.user.name || undefined,
+                    subject: emailContent.subject,
+                    html: emailContent.html,
+                    text: emailContent.text,
+                }).catch(err => {
+                    console.error(`Failed to send status notification to ${transaction.user.email}:`, err);
+                });
+            } catch (emailError) {
+                console.error('Failed to send transaction status email:', emailError);
+                // Don't fail the update if email fails
+            }
+        }
+
+        // Audit Log
+        await prisma.auditLog.create({
+            data: {
+                userId: session.user.id,
+                actionType: action === 'approve' ? 'APPROVE' : 'REJECT',
+                entityType: 'Transaction',
+                entityId: transaction.id,
+                beforeData: transaction as any,
+                afterData: updatedTransaction as any,
+            },
+        });
+
+        return NextResponse.json(updatedTransaction);
+    } catch (error) {
+        console.error('Transaction approval error:', error);
         return new NextResponse('Internal Error', { status: 500 });
     }
 }
