@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import bcrypt from 'bcryptjs';
-import { canManageUser, canAssignRole } from '@/lib/roles';
+import { canManageUser, canAssignRole, ROLE_HIERARCHY } from '@/lib/roles';
 import { getDescendantDepartmentIds } from '@/lib/departments';
 import { validateRoleAssignment } from '@/lib/roleValidation';
 
@@ -156,7 +156,7 @@ export async function PUT(
                 actionType: 'UPDATE',
                 entityType: 'User',
                 entityId: updatedUser.id,
-                afterData: { name, email, role, departmentId },
+                afterData: { name, email, roles: userRoles, departmentId },
             },
         });
 
@@ -279,7 +279,16 @@ export async function PATCH(
         }
 
         // Check if admin can manage this user based on role hierarchy
-        if (!canManageUser(session.user.role, targetUser.role)) {
+        // User can be managed if admin can manage their highest role
+        const targetHighestRole = targetUser.roles && targetUser.roles.length > 0 
+            ? targetUser.roles.reduce((highest, role) => {
+                const highestLevel = ROLE_HIERARCHY[highest] || 999;
+                const roleLevel = ROLE_HIERARCHY[role] || 999;
+                return roleLevel < highestLevel ? role : highest;
+              }, targetUser.roles[0])
+            : 'COUNCIL_LEADER';
+            
+        if (!canManageUser(session.user.role, targetHighestRole)) {
             return NextResponse.json(
                 { error: 'You cannot archive users with equal or higher roles' },
                 { status: 403 }

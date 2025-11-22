@@ -84,7 +84,7 @@ export async function POST(request: Request) {
                 email: 'admin@flc.org',
                 name: 'Super Admin',
                 password: hashedPassword,
-                role: 'SUPERADMIN',
+                roles: ['SUPERADMIN'],
             },
         });
 
@@ -95,7 +95,7 @@ export async function POST(request: Request) {
                 email: 'campus.admin@flc.org',
                 name: 'Campus Admin',
                 password: hashedPassword,
-                role: 'CAMPUS_ADMIN',
+                roles: ['CAMPUS_ADMIN'],
                 departmentId: campusDept.id,
             },
         });
@@ -107,7 +107,7 @@ export async function POST(request: Request) {
                 email: 'council.leader@flc.org',
                 name: 'Council Leader',
                 password: hashedPassword,
-                role: 'COUNCIL_LEADER',
+                roles: ['COUNCIL_LEADER'],
                 departmentId: councilDept.id,
             },
         });

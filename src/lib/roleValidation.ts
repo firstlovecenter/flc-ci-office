@@ -158,7 +158,7 @@ export async function getRoleStats() {
         roles.map(async (role) => {
             const count = await prisma.user.count({
                 where: {
-                    roles: { has: role },
+                    roles: { has: role as any },
                     archived: false,
                 },
             });

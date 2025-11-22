@@ -34,7 +34,10 @@ export async function GET(request: NextRequest) {
         }
 
         // For international level and above, use system base currency
-        if (user.role && ['SUPERADMIN', 'GLOBAL_ADMIN', 'GLOBAL_LEADER', 'INTERNATIONAL_ADMIN', 'INTERNATIONAL_LEADER'].includes(user.role)) {
+        const highLevelRoles = ['SUPERADMIN', 'GLOBAL_ADMIN', 'GLOBAL_LEADER', 'INTERNATIONAL_ADMIN', 'INTERNATIONAL_LEADER'];
+        const hasHighLevelRole = user.roles && user.roles.some(role => highLevelRoles.includes(role));
+        
+        if (hasHighLevelRole) {
             const systemBaseCurrency = await prisma.currency.findFirst({
                 where: { isBase: true },
             });
@@ -49,7 +52,10 @@ export async function GET(request: NextRequest) {
         
         // For national admin/leader, use their current department
         // For below national level, traverse up to find national department
-        if (user.role && ['REGIONAL_ADMIN', 'REGIONAL_LEADER', 'CAMPUS_ADMIN', 'CAMPUS_LEADER', 'STREAM_LEADER', 'COUNCIL_LEADER'].includes(user.role)) {
+        const regionalRoles = ['REGIONAL_ADMIN', 'REGIONAL_LEADER', 'CAMPUS_ADMIN', 'CAMPUS_LEADER', 'STREAM_LEADER', 'COUNCIL_LEADER'];
+        const hasRegionalRole = user.roles && user.roles.some(role => regionalRoles.includes(role));
+        
+        if (hasRegionalRole) {
             while (nationalDept && nationalDept.level !== 'NATIONAL') {
                 nationalDept = nationalDept.parent as typeof nationalDept;
             }
@@ -102,7 +108,7 @@ export async function PATCH(request: NextRequest) {
         }
 
         // Only national admins can set base currency for their department
-        if (user.role !== 'NATIONAL_ADMIN') {
+        if (!user.roles || !user.roles.includes('NATIONAL_ADMIN')) {
             return NextResponse.json(
                 { error: 'Only national admins can set base currency' },
                 { status: 403 }

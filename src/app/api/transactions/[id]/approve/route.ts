@@ -57,7 +57,7 @@ export async function POST(
                 status: action === 'approve' ? 'APPROVED' : 'REJECTED',
                 approvedBy: session.user.id,
                 approvedAt: new Date(),
-                rejectedReason: action === 'reject' ? reason : null,
+                rejectionReason: action === 'reject' ? reason : null,
             },
         });
 
