@@ -153,7 +153,7 @@ function determineSeverity(
  */
 export async function createAuditLog(data: AuditLogData): Promise<void> {
   try {
-    const headersList = headers();
+    const headersList = await headers();
     const ipAddress = getIpAddress(headersList);
     const userAgent = getUserAgent(headersList);
 
@@ -194,7 +194,7 @@ export async function createAuditLog(data: AuditLogData): Promise<void> {
         description,
         beforeData: data.beforeData || null,
         afterData: data.afterData || null,
-        changes: changes || null,
+        changes: changes as any,
         metadata: enhancedMetadata,
         ipAddress,
         userAgent,
@@ -228,7 +228,7 @@ export async function createBulkAuditLogs(
   items: AuditLogData[]
 ): Promise<void> {
   try {
-    const headersList = headers();
+    const headersList = await headers();
     const ipAddress = getIpAddress(headersList);
     const userAgent = getUserAgent(headersList);
 
@@ -264,7 +264,7 @@ export async function createBulkAuditLogs(
     });
 
     await prisma.auditLog.createMany({
-      data: auditLogs,
+      data: auditLogs as any,
     });
   } catch (error) {
     console.error('Failed to create bulk audit logs:', error);

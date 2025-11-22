@@ -69,8 +69,8 @@ export async function POST(
             entityType: 'Transaction',
             entityId: id,
             description: action === 'approve' 
-                ? `Approved transaction of ${formatCurrency(transaction.amount)} for ${transaction.department.name}`
-                : `Rejected transaction of ${formatCurrency(transaction.amount)} for ${transaction.department.name}`,
+                ? `Approved transaction of ${formatCurrency(transaction.amount.toNumber())} for ${transaction.department.name}`
+                : `Rejected transaction of ${formatCurrency(transaction.amount.toNumber())} for ${transaction.department.name}`,
             beforeData: transaction as any,
             afterData: updatedTransaction as any,
             metadata: {

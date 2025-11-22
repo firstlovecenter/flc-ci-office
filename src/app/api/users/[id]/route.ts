@@ -54,7 +54,7 @@ export async function PUT(
         }
 
         // Extract unique roles and departments for validation
-        const userRoles = roleDepartmentPairs ? [...new Set(roleDepartmentPairs.map((pair: any) => pair.role))] : undefined;
+        const userRoles: string[] | undefined = roleDepartmentPairs ? Array.from(new Set(roleDepartmentPairs.map((pair: any) => pair.role as string))) : undefined;
         const firstDept = roleDepartmentPairs?.[0]?.departmentId;
 
         // Validate role assignments if roles are being updated
@@ -95,12 +95,16 @@ export async function PUT(
                 );
             }
 
-            // Check target department (if being changed)
-            if (departmentId && !allowedDepartmentIds.includes(departmentId)) {
-                return NextResponse.json(
-                    { error: 'Cannot assign user to a department outside your hierarchy' },
-                    { status: 403 }
-                );
+            // Check target departments (if being changed)
+            if (roleDepartmentPairs) {
+                for (const pair of roleDepartmentPairs) {
+                    if (!allowedDepartmentIds.includes(pair.departmentId)) {
+                        return NextResponse.json(
+                            { error: 'Cannot assign user to a department outside your hierarchy' },
+                            { status: 403 }
+                        );
+                    }
+                }
             }
         }
 
@@ -114,20 +118,6 @@ export async function PUT(
                     );
                 }
             }
-
-            // Verify department access for each pair
-            if (session.user.role !== 'SUPERADMIN' && session.user.departmentId) {
-                const allowedDepartmentIds = await getDescendantDepartmentIds(session.user.departmentId);
-                
-                for (const pair of roleDepartmentPairs) {
-                    if (!allowedDepartmentIds.includes(pair.departmentId)) {
-                        return NextResponse.json(
-                            { error: 'Cannot assign user to a department outside your hierarchy' },
-                            { status: 403 }
-                        );
-                    }
-                }
-            }
         }
 
         // Prepare update data
@@ -138,7 +128,7 @@ export async function PUT(
         };
 
         // Update backward compatibility fields if role-department pairs are provided
-        if (roleDepartmentPairs && roleDepartmentPairs.length > 0) {
+        if (roleDepartmentPairs && roleDepartmentPairs.length > 0 && userRoles && userRoles.length > 0) {
             updateData.roles = userRoles;
             updateData.activeRole = userRoles[0];
             updateData.departmentId = firstDept;

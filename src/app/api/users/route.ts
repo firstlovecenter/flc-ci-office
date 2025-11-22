@@ -98,7 +98,7 @@ export async function POST(request: Request) {
         }
 
         // Extract unique roles for backward compatibility validation
-        const userRoles = [...new Set(roleDepartmentPairs.map((pair: any) => pair.role))];
+        const userRoles: string[] = Array.from(new Set(roleDepartmentPairs.map((pair: any) => pair.role as string)));
         const firstDept = roleDepartmentPairs[0].departmentId;
 
         // Validate role assignments (check SUPERADMIN and GLOBAL_ADMIN uniqueness)
@@ -125,14 +125,16 @@ export async function POST(request: Request) {
             // Get all departments this admin oversees
             const allowedDepartmentIds = await getDescendantDepartmentIds(session.user.departmentId);
             
-            // Verify the target department is within their scope
-            if (departmentId && !allowedDepartmentIds.includes(departmentId)) {
-                return new NextResponse('Forbidden - Cannot create user in this department', { status: 403 });
+            // Verify all target departments are within their scope
+            for (const pair of roleDepartmentPairs) {
+                if (!allowedDepartmentIds.includes(pair.departmentId)) {
+                    return new NextResponse('Forbidden - Cannot create user in this department', { status: 403 });
+                }
             }
 
             // Verify the role being assigned is appropriate for the admin's level
             // Admins can only assign roles at their level or below
-            const userDept = departmentId ? await prisma.department.findUnique({ where: { id: departmentId } }) : null;
+            const userDept = firstDept ? await prisma.department.findUnique({ where: { id: firstDept } }) : null;
             const adminDept = await prisma.department.findUnique({ where: { id: session.user.departmentId } });
             
             if (userDept && adminDept) {
@@ -163,8 +165,8 @@ export async function POST(request: Request) {
                 name,
                 email,
                 password: await bcrypt.hash(password, 10),
-                roles: userRoles, // Keep for backward compatibility during migration
-                activeRole: userRoles[0], // Keep for backward compatibility during migration
+                roles: userRoles as any, // Keep for backward compatibility during migration
+                activeRole: userRoles[0] as any, // Keep for backward compatibility during migration
                 departmentId: firstDept, // Set to first department for backward compatibility
             },
         });

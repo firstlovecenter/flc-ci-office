@@ -40,10 +40,12 @@ import NotificationSettings from '@/components/NotificationSettings';
 
 interface UserProfile {
     id: string;
+    title: string | null;
     name: string | null;
     email: string;
     image: string | null;
     role: string;
+    roles?: string[];
     departmentId: string | null;
     department: {
         id: string;
