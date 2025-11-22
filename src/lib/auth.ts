@@ -72,6 +72,7 @@ export const authOptions: NextAuthOptions = {
                         id: user.id,
                         email: user.email,
                         name: user.name,
+                        image: user.image,
                         role: user.roles.includes('SUPERADMIN') ? 'SUPERADMIN' : 'GLOBAL_ADMIN',
                         roles: user.roles,
                         departmentId: user.departmentId || undefined,
@@ -92,6 +93,7 @@ export const authOptions: NextAuthOptions = {
                     id: user.id,
                     email: user.email,
                     name: user.name,
+                    image: user.image,
                     role: activeRole.role,
                     roles: allRoles,
                     departmentId: activeRole.departmentId,
@@ -104,6 +106,9 @@ export const authOptions: NextAuthOptions = {
         async session({ session, token }) {
             if (token) {
                 session.user.id = token.id as string;
+                session.user.name = token.name as string;
+                session.user.email = token.email as string;
+                session.user.image = token.picture as string;
                 session.user.role = token.role as string;
                 session.user.roles = token.roles as string[];
                 session.user.departmentId = token.departmentId as string;
@@ -114,6 +119,9 @@ export const authOptions: NextAuthOptions = {
         async jwt({ token, user, trigger, session }) {
             if (user) {
                 token.id = user.id;
+                token.name = user.name;
+                token.email = user.email;
+                token.picture = user.image;
                 token.role = user.role;
                 token.roles = user.roles;
                 token.departmentId = user.departmentId;
