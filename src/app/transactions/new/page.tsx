@@ -90,7 +90,7 @@ export default function NewTransactionPage() {
                     // Check if user is national level or below
                     const nationalAndBelowRoles = ['NATIONAL_ADMIN', 'NATIONAL_LEADER', 'REGIONAL_ADMIN', 'REGIONAL_LEADER', 'CAMPUS_ADMIN', 'CAMPUS_LEADER', 'STREAM_LEADER', 'COUNCIL_LEADER', 'STREAM_ADMIN', 'COUNCIL_ADMIN'];
                     if (session?.user?.role && nationalAndBelowRoles.includes(session.user.role)) {
-                        setError('Base currency must be set for your national department before you can record transactions. Please contact your administrator.');
+                        setError('Base currency must be set for your national department before you can record transactions. Please contact your National Admin to set the base currency.');
                     }
                 }
             }

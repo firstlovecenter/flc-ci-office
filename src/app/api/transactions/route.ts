@@ -209,7 +209,7 @@ export async function POST(request: Request) {
 
                     if (!deptBaseCurrency) {
                         return NextResponse.json(
-                            { error: `Base currency must be set for ${nationalDept.name || 'your national department'} before transactions can be recorded. Please contact your administrator.` },
+                            { error: `Base currency must be set for ${nationalDept.name || 'your national department'} before transactions can be recorded. Please contact your National Admin to set the base currency.` },
                             { status: 400 }
                         );
                     }
