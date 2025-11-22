@@ -1,4 +1,4 @@
-# FLC Accounts - Church Accounting & Multi-Level Governance System
+# FLC Accounts - CI OFFICE & Multi-Level Governance System
 
 A comprehensive accounting system designed for church organizations with hierarchical department structures and role-based access control.
 

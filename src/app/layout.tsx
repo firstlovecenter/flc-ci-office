@@ -4,7 +4,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "FLC CI Office",
-  description: "Multi-level church accounting and governance system",
+  description: "Multi-level CI OFFICE and governance system",
   manifest: "/manifest.json",
   themeColor: "#60a5fa",
   viewport: "width=device-width, initial-scale=1, maximum-scale=5, user-scalable=yes, viewport-fit=cover",

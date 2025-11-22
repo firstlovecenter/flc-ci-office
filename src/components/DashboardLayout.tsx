@@ -232,7 +232,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                             fontSize: { xs: '1rem', sm: '1.25rem' }
                         }}
                     >
-                        ⛪ Church Accounting
+                        ⛪ CI OFFICE
                     </Typography>
                     {session && (
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 1, sm: 2 } }}>
