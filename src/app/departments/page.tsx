@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 import {
     Box,
     Typography,
@@ -36,6 +37,8 @@ import { useSession } from 'next-auth/react';
 export default function DepartmentsPage() {
     const { data: session } = useSession();
     const router = useRouter();
+    const searchParams = useSearchParams();
+    const parentParam = searchParams?.get('parent');
     const [departments, setDepartments] = useState<Department[]>([]);
     const [allDepartments, setAllDepartments] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
@@ -45,7 +48,7 @@ export default function DepartmentsPage() {
     useEffect(() => {
         fetchDepartments();
         fetchAllDepartments();
-    }, []);
+    }, [parentParam]);
 
     const fetchDepartments = async () => {
         try {
@@ -58,7 +61,13 @@ export default function DepartmentsPage() {
             if (response.ok) {
                 const data = await response.json();
                 console.log('Fetched departments:', data);
-                setDepartments(data);
+                // Filter by parent if parentParam is present
+                if (parentParam) {
+                    const filtered = data.filter((dept: any) => dept.parentId === parentParam);
+                    setDepartments(filtered);
+                } else {
+                    setDepartments(data);
+                }
             }
         } catch (error) {
             console.error('Error fetching departments:', error);

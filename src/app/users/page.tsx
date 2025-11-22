@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 import {
     Box,
     Typography,
@@ -38,6 +39,8 @@ import { getAssignableRoles, getDepartmentLevelForRole } from '@/lib/roles';
 export default function UsersPage() {
     const { data: session } = useSession();
     const router = useRouter();
+    const searchParams = useSearchParams();
+    const deptParam = searchParams?.get('dept');
     const [users, setUsers] = useState<any[]>([]);
     const [departments, setDepartments] = useState<any[]>([]);
     const [open, setOpen] = useState(false);
@@ -75,13 +78,19 @@ export default function UsersPage() {
             const roles = getAssignableRoles(session.user.role);
             setAssignableRoles(roles);
         }
-    }, [session]);
+    }, [session, deptParam]);
 
     const fetchUsers = async () => {
         const response = await fetch('/api/users');
         if (response.ok) {
             const data = await response.json();
-            setUsers(data);
+            // Filter by department if deptParam is present
+            if (deptParam) {
+                const filtered = data.filter((user: any) => user.departmentId === deptParam);
+                setUsers(filtered);
+            } else {
+                setUsers(data);
+            }
         }
     };
 

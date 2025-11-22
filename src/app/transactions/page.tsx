@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 import {
     Box,
     Typography,
@@ -99,6 +100,9 @@ export default function TransactionsPage() {
         transaction: null,
     });
     const { data: session } = useSession();
+    const searchParams = useSearchParams();
+    const deptParam = searchParams?.get('dept');
+    const exactDepartment = searchParams?.get('exact') === 'true';
 
     const isSuperAdmin = session?.user?.role === 'SUPERADMIN';
     const isAdmin = session?.user?.role && ['SUPERADMIN', 'GLOBAL_ADMIN', 'INTERNATIONAL_ADMIN', 'NATIONAL_ADMIN', 'REGIONAL_ADMIN', 'CAMPUS_ADMIN'].includes(session.user.role);
@@ -119,7 +123,7 @@ export default function TransactionsPage() {
 
         document.addEventListener('visibilitychange', handleVisibilityChange);
         return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-    }, []);
+    }, [deptParam, exactDepartment]);
 
     useEffect(() => {
         filterTransactions();
@@ -201,7 +205,19 @@ export default function TransactionsPage() {
 
     const fetchTransactions = async () => {
         try {
-            const response = await fetch('/api/transactions');
+            let url = '/api/transactions';
+            const params = new URLSearchParams();
+            
+            if (deptParam) {
+                params.append('departmentId', deptParam);
+                params.append('exactDepartment', exactDepartment ? 'true' : 'false');
+            }
+            
+            if (params.toString()) {
+                url += `?${params.toString()}`;
+            }
+            
+            const response = await fetch(url);
             if (response.ok) {
                 const data = await response.json();
                 setTransactions(data);
