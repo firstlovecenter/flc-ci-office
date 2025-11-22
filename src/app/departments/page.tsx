@@ -15,11 +15,15 @@ import {
     Button,
     IconButton,
     Chip,
+    TextField,
+    MenuItem,
+    Stack,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
+import FilterListIcon from '@mui/icons-material/FilterList';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import EditDepartmentDialog from '@/components/EditDepartmentDialog';
@@ -44,6 +48,11 @@ function DepartmentsPageContent() {
     const [loading, setLoading] = useState(true);
     const [editDialogOpen, setEditDialogOpen] = useState(false);
     const [selectedDepartment, setSelectedDepartment] = useState<any>(null);
+    
+    // Filter states
+    const [searchQuery, setSearchQuery] = useState('');
+    const [levelFilter, setLevelFilter] = useState('');
+    const [parentFilter, setParentFilter] = useState('');
 
     useEffect(() => {
         fetchDepartments();
@@ -125,6 +134,27 @@ function DepartmentsPageContent() {
         fetchAllDepartments();
     };
 
+    // Filter departments based on search and filters
+    const filteredDepartments = departments.filter((dept: any) => {
+        const matchesSearch = searchQuery === '' || 
+            dept.name.toLowerCase().includes(searchQuery.toLowerCase());
+        
+        const matchesLevel = levelFilter === '' || dept.level === levelFilter;
+        
+        const matchesParent = parentFilter === '' || 
+            (parentFilter === 'none' ? dept.parentId === null : dept.parentId === parentFilter);
+        
+        return matchesSearch && matchesLevel && matchesParent;
+    });
+
+    const handleClearFilters = () => {
+        setSearchQuery('');
+        setLevelFilter('');
+        setParentFilter('');
+    };
+
+    const levels = ['INTERNATIONAL', 'NATIONAL', 'REGIONAL', 'DISTRICT', 'LOCAL'];
+
     return (
         <Box>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 3 }}>
@@ -135,6 +165,72 @@ function DepartmentsPageContent() {
                     </Button>
                 </Link>
             </Box>
+
+            {/* Filter Section */}
+            <Paper sx={{ p: 2, mb: 3 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                    <FilterListIcon sx={{ mr: 1 }} />
+                    <Typography variant="h6">Filters</Typography>
+                </Box>
+                <Stack spacing={2}>
+                    <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+                        <TextField
+                            label="Search by name"
+                            variant="outlined"
+                            size="small"
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            placeholder="Enter department name..."
+                            sx={{ minWidth: 200, flex: 1 }}
+                        />
+                        <TextField
+                            select
+                            label="Level"
+                            variant="outlined"
+                            size="small"
+                            value={levelFilter}
+                            onChange={(e) => setLevelFilter(e.target.value)}
+                            sx={{ minWidth: 150, flex: 1 }}
+                        >
+                            <MenuItem value="">All Levels</MenuItem>
+                            {levels.map((level) => (
+                                <MenuItem key={level} value={level}>
+                                    {level}
+                                </MenuItem>
+                            ))}
+                        </TextField>
+                        <TextField
+                            select
+                            label="Parent Department"
+                            variant="outlined"
+                            size="small"
+                            value={parentFilter}
+                            onChange={(e) => setParentFilter(e.target.value)}
+                            sx={{ minWidth: 200, flex: 1 }}
+                        >
+                            <MenuItem value="">All Parents</MenuItem>
+                            <MenuItem value="none">No Parent (Top Level)</MenuItem>
+                            {allDepartments.map((dept) => (
+                                <MenuItem key={dept.id} value={dept.id}>
+                                    {dept.name}
+                                </MenuItem>
+                            ))}
+                        </TextField>
+                        <Button
+                            variant="outlined"
+                            onClick={handleClearFilters}
+                            sx={{ height: '40px' }}
+                        >
+                            Clear Filters
+                        </Button>
+                    </Box>
+                </Stack>
+                <Box sx={{ mt: 2 }}>
+                    <Typography variant="body2" color="text.secondary">
+                        Showing {filteredDepartments.length} of {departments.length} departments
+                    </Typography>
+                </Box>
+            </Paper>
 
             <TableContainer component={Paper}>
                 <Table>
@@ -147,7 +243,7 @@ function DepartmentsPageContent() {
                         </TableRow>
                     </TableHead>
                     <TableBody>
-                        {departments.map((dept: any) => (
+                        {filteredDepartments.map((dept: any) => (
                             <TableRow 
                                 key={dept.id}
                                 sx={{
@@ -193,10 +289,10 @@ function DepartmentsPageContent() {
                                 </TableCell>
                             </TableRow>
                         ))}
-                        {departments.length === 0 && !loading && (
+                        {filteredDepartments.length === 0 && !loading && (
                             <TableRow>
                                 <TableCell colSpan={4} align="center">
-                                    No departments found
+                                    {departments.length === 0 ? 'No departments found' : 'No departments match the current filters'}
                                 </TableCell>
                             </TableRow>
                         )}
