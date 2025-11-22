@@ -193,8 +193,15 @@ export default function EditUserDialog({
             });
 
             if (!response.ok) {
-                const data = await response.json();
-                throw new Error(data.error || 'Failed to update user');
+                let errorMessage = 'Failed to update user';
+                try {
+                    const data = await response.json();
+                    errorMessage = data.error || errorMessage;
+                } catch {
+                    // If response is not JSON, use status text
+                    errorMessage = await response.text() || errorMessage;
+                }
+                throw new Error(errorMessage);
             }
 
             onSave();

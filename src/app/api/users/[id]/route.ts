@@ -14,7 +14,7 @@ export async function PUT(
     const session = await getServerSession(authOptions);
 
     if (!session) {
-        return new NextResponse('Unauthorized', { status: 401 });
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     try {
@@ -198,7 +198,10 @@ export async function PUT(
         return NextResponse.json(userWithoutPassword);
     } catch (error) {
         console.error('Error updating user:', error);
-        return new NextResponse('Internal Error', { status: 500 });
+        return NextResponse.json(
+            { error: 'Failed to update user. Please try again.' },
+            { status: 500 }
+        );
     }
 }
 
@@ -209,7 +212,7 @@ export async function DELETE(
     const session = await getServerSession(authOptions);
 
     if (!session) {
-        return new NextResponse('Unauthorized', { status: 401 });
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     try {
@@ -255,7 +258,10 @@ export async function DELETE(
         return NextResponse.json({ success: true });
     } catch (error) {
         console.error('Error deleting user:', error);
-        return new NextResponse('Internal Error', { status: 500 });
+        return NextResponse.json(
+            { error: 'Failed to delete user. Please try again.' },
+            { status: 500 }
+        );
     }
 }
 
@@ -266,7 +272,7 @@ export async function PATCH(
     const session = await getServerSession(authOptions);
 
     if (!session) {
-        return new NextResponse('Unauthorized', { status: 401 });
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     try {
@@ -369,6 +375,9 @@ export async function PATCH(
         return NextResponse.json(userWithoutPassword);
     } catch (error) {
         console.error('Error archiving user:', error);
-        return new NextResponse('Internal Error', { status: 500 });
+        return NextResponse.json(
+            { error: 'Failed to archive user. Please try again.' },
+            { status: 500 }
+        );
     }
 }
