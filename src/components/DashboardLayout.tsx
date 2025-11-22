@@ -119,7 +119,6 @@ const menuItems = [
     { text: 'Users', icon: <PeopleIcon />, path: '/users' },
     { text: 'Reports', icon: <AssessmentIcon />, path: '/reports' },
     { text: 'Currencies', icon: <MonetizationOnIcon />, path: '/currencies', adminOnly: true },
-    { text: 'Base Currencies', icon: <MonetizationOnIcon />, path: '/admin/base-currencies', adminOnly: true },
     { text: 'Profile', icon: <AccountCircleIcon />, path: '/profile' },
     { text: 'Audit Trail', icon: <HistoryIcon />, path: '/audit', superAdminOnly: true },
 ];
@@ -136,10 +135,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
     // Filter menu items based on user role - leaders don't see Users menu
     const leaderRoles = ['GLOBAL_LEADER', 'INTERNATIONAL_LEADER', 'NATIONAL_LEADER', 'REGIONAL_LEADER', 'CAMPUS_LEADER', 'STREAM_LEADER', 'COUNCIL_LEADER'];
-    const userRoles = session?.user?.roles || [];
-    const isLeader = userRoles.some(role => leaderRoles.includes(role));
-    const isSuperAdmin = userRoles.includes('SUPERADMIN');
-    const isGlobalAdmin = userRoles.includes('GLOBAL_ADMIN');
+    const currentRole = session?.user?.role || '';
+    const isLeader = leaderRoles.includes(currentRole);
+    const isSuperAdmin = currentRole === 'SUPERADMIN';
+    const isGlobalAdmin = currentRole === 'GLOBAL_ADMIN';
     const canManageCurrencies = isSuperAdmin || isGlobalAdmin;
     
     const filteredMenuItems = menuItems.filter(item => {

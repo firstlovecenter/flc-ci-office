@@ -80,6 +80,9 @@ export default function CurrenciesPage() {
         effectiveDate: new Date().toISOString().split('T')[0],
     });
 
+    const [baseCurrencies, setBaseCurrencies] = useState<any[]>([]);
+    const [systemBase, setSystemBase] = useState<any>(null);
+
     // Only SUPERADMIN and GLOBAL_ADMIN can access this page
     useEffect(() => {
         if (session?.user?.role) {
@@ -92,6 +95,7 @@ export default function CurrenciesPage() {
     useEffect(() => {
         fetchCurrencies();
         fetchExchangeRates();
+        fetchBaseCurrencies();
     }, []);
 
     const fetchCurrencies = async () => {
@@ -115,6 +119,19 @@ export default function CurrenciesPage() {
             }
         } catch (error) {
             console.error('Error fetching exchange rates:', error);
+        }
+    };
+
+    const fetchBaseCurrencies = async () => {
+        try {
+            const response = await fetch('/api/admin/base-currencies');
+            if (response.ok) {
+                const data = await response.json();
+                setBaseCurrencies(data.nationalDepartments || []);
+                setSystemBase(data.systemBase);
+            }
+        } catch (error) {
+            console.error('Error fetching base currencies:', error);
         }
     };
 
@@ -290,6 +307,7 @@ export default function CurrenciesPage() {
                 <Tabs value={tab} onChange={(_, v) => setTab(v)}>
                     <Tab label="Currencies" />
                     <Tab label="Exchange Rates" />
+                    <Tab label="Base Currencies" />
                 </Tabs>
             </Paper>
 
@@ -438,6 +456,72 @@ export default function CurrenciesPage() {
                                     <TableRow>
                                         <TableCell colSpan={5} align="center">
                                             No exchange rates found
+                                        </TableCell>
+                                    </TableRow>
+                                )}
+                            </TableBody>
+                        </Table>
+                    </TableContainer>
+                </Box>
+            )}
+
+            {tab === 2 && (
+                <Box>
+                    <Typography variant="h6" sx={{ mb: 2 }}>National Base Currencies</Typography>
+                    
+                    {systemBase && (
+                        <Alert severity="info" sx={{ mb: 2 }}>
+                            System Default: <strong>{systemBase.code} ({systemBase.name})</strong>
+                        </Alert>
+                    )}
+
+                    <TableContainer component={Paper}>
+                        <Table>
+                            <TableHead>
+                                <TableRow>
+                                    <TableCell>National Department</TableCell>
+                                    <TableCell>Base Currency</TableCell>
+                                    <TableCell>Status</TableCell>
+                                    <TableCell>Set By</TableCell>
+                                    <TableCell>Date Set</TableCell>
+                                </TableRow>
+                            </TableHead>
+                            <TableBody>
+                                {baseCurrencies.map((dept: any) => (
+                                    <TableRow key={dept.departmentId}>
+                                        <TableCell>
+                                            <strong>{dept.departmentName}</strong>
+                                        </TableCell>
+                                        <TableCell>
+                                            {dept.baseCurrency ? (
+                                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                                    <Typography>
+                                                        {dept.baseCurrency.code} - {dept.baseCurrency.name}
+                                                    </Typography>
+                                                </Box>
+                                            ) : (
+                                                <Typography color="text.secondary">Using system default</Typography>
+                                            )}
+                                        </TableCell>
+                                        <TableCell>
+                                            <Chip
+                                                label={dept.isCustom ? 'Custom' : 'Default'}
+                                                color={dept.isCustom ? 'primary' : 'default'}
+                                                size="small"
+                                            />
+                                        </TableCell>
+                                        <TableCell>
+                                            {dept.setBy ? dept.setBy.name : '-'}
+                                        </TableCell>
+                                        <TableCell>
+                                            {dept.setAt ? new Date(dept.setAt).toLocaleDateString() : '-'}
+                                        </TableCell>
+                                    </TableRow>
+                                ))}
+                                {baseCurrencies.length === 0 && (
+                                    <TableRow>
+                                        <TableCell colSpan={5} align="center">
+                                            No national departments found
                                         </TableCell>
                                     </TableRow>
                                 )}
