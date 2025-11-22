@@ -17,8 +17,10 @@ import {
     Stack,
     Card,
     CardContent,
-    alpha
+    alpha,
+    Link as MuiLink
 } from '@mui/material';
+import Link from 'next/link';
 import EmailIcon from '@mui/icons-material/Email';
 import LockIcon from '@mui/icons-material/Lock';
 import Visibility from '@mui/icons-material/Visibility';
@@ -306,6 +308,20 @@ function LoginForm() {
                                     >
                                         {loading ? 'Signing in...' : 'Sign In'}
                                     </Button>
+
+                                    <Box sx={{ display: 'flex', justifyContent: 'center', mb: 3 }}>
+                                        <Link href="/auth/forgot-password" passHref legacyBehavior>
+                                            <MuiLink
+                                                variant="body2"
+                                                sx={{
+                                                    textDecoration: 'none',
+                                                    '&:hover': { textDecoration: 'underline' },
+                                                }}
+                                            >
+                                                Forgot your password?
+                                            </MuiLink>
+                                        </Link>
+                                    </Box>
 
                                     <Divider sx={{ my: 3 }}>
                                         <Typography variant="body2" color="text.secondary">

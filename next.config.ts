@@ -16,6 +16,18 @@ const nextConfig: NextConfig = {
   /* config options here */
   reactCompiler: true,
   // turbopack: {}, // Disabled due to NextAuth v4 compatibility issues with Next.js 16
+  images: {
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'lh3.googleusercontent.com',
+      },
+      {
+        protocol: 'https',
+        hostname: '*.googleusercontent.com',
+      },
+    ],
+  },
 };
 
 export default nextConfig;
