@@ -20,11 +20,8 @@ export async function PUT(
     try {
         const params = await context.params;
         const body = await request.json();
-        const { name, email, roles, departmentId, password } = body;
+        const { title, name, email, roleDepartmentPairs, password } = body;
         const userId = params.id;
-
-        // Ensure roles is an array
-        const userRoles = Array.isArray(roles) ? roles : (roles ? [roles] : undefined);
 
         // Check if user has admin role
         const adminRoles = ['SUPERADMIN', 'GLOBAL_ADMIN', 'INTERNATIONAL_ADMIN', 'NATIONAL_ADMIN', 'REGIONAL_ADMIN', 'CAMPUS_ADMIN', 'STREAM_ADMIN', 'COUNCIL_ADMIN'];
@@ -56,9 +53,13 @@ export async function PUT(
             );
         }
 
+        // Extract unique roles and departments for validation
+        const userRoles = roleDepartmentPairs ? [...new Set(roleDepartmentPairs.map((pair: any) => pair.role))] : undefined;
+        const firstDept = roleDepartmentPairs?.[0]?.departmentId;
+
         // Validate role assignments if roles are being updated
         if (userRoles) {
-            const validation = await validateRoleAssignment(userId, userRoles, departmentId, email);
+            const validation = await validateRoleAssignment(userId, userRoles, firstDept, email);
             if (!validation.valid) {
                 return NextResponse.json({ error: validation.error }, { status: 400 });
             }
@@ -113,22 +114,34 @@ export async function PUT(
                     );
                 }
             }
+
+            // Verify department access for each pair
+            if (session.user.role !== 'SUPERADMIN' && session.user.departmentId) {
+                const allowedDepartmentIds = await getDescendantDepartmentIds(session.user.departmentId);
+                
+                for (const pair of roleDepartmentPairs) {
+                    if (!allowedDepartmentIds.includes(pair.departmentId)) {
+                        return NextResponse.json(
+                            { error: 'Cannot assign user to a department outside your hierarchy' },
+                            { status: 403 }
+                        );
+                    }
+                }
+            }
         }
 
         // Prepare update data
         const updateData: any = {
+            title: title?.trim() || null,
             name,
             email,
-            departmentId: departmentId || null,
         };
 
-        // Update roles if provided
-        if (userRoles) {
+        // Update backward compatibility fields if role-department pairs are provided
+        if (roleDepartmentPairs && roleDepartmentPairs.length > 0) {
             updateData.roles = userRoles;
-            // If current activeRole is not in new roles, set to first role
-            if (targetUser.activeRole && !userRoles.includes(targetUser.activeRole)) {
-                updateData.activeRole = userRoles[0];
-            }
+            updateData.activeRole = userRoles[0];
+            updateData.departmentId = firstDept;
         }
 
         // Only update password if provided
@@ -146,19 +159,51 @@ export async function PUT(
             },
         });
 
+        // Handle UserRole updates if role-department pairs are provided
+        if (roleDepartmentPairs && roleDepartmentPairs.length > 0) {
+            // Delete existing UserRole entries
+            await prisma.userRole.deleteMany({
+                where: { userId: userId },
+            });
+
+            // Create new UserRole entries
+            await prisma.userRole.createMany({
+                data: roleDepartmentPairs.map((pair: any) => ({
+                    userId: userId,
+                    role: pair.role,
+                    departmentId: pair.departmentId,
+                })),
+            });
+
+            // Set the first UserRole as active
+            const firstUserRole = await prisma.userRole.findFirst({
+                where: { userId: userId },
+                orderBy: { createdAt: 'asc' },
+            });
+
+            if (firstUserRole) {
+                await prisma.user.update({
+                    where: { id: userId },
+                    data: { activeUserRoleId: firstUserRole.id },
+                });
+            }
+        }
+
         // Remove password from response
         const { password: _, ...userWithoutPassword } = updatedUser;
 
-        // Create audit log
-        await prisma.auditLog.create({
-            data: {
-                userId: session.user.id,
-                actionType: 'UPDATE',
-                entityType: 'User',
-                entityId: updatedUser.id,
-                afterData: { name, email, roles: userRoles, departmentId },
-            },
-        });
+        // Create audit log (skip for SUPERADMIN)
+        if (session.user.role !== 'SUPERADMIN') {
+            await prisma.auditLog.create({
+                data: {
+                    userId: session.user.id,
+                    actionType: 'UPDATE',
+                    entityType: 'User',
+                    entityId: updatedUser.id,
+                    afterData: { title, name, email, roleDepartmentPairs },
+                },
+            });
+        }
 
         return NextResponse.json(userWithoutPassword);
     } catch (error) {
@@ -215,15 +260,7 @@ export async function DELETE(
             where: { id: userId },
         });
 
-        // Create audit log
-        await prisma.auditLog.create({
-            data: {
-                userId: session.user.id,
-                actionType: 'DELETE',
-                entityType: 'User',
-                entityId: userId,
-            },
-        });
+        // SUPERADMIN deletions are not logged to audit log
 
         return NextResponse.json({ success: true });
     } catch (error) {
@@ -326,16 +363,18 @@ export async function PATCH(
         // Remove password from response
         const { password: _, ...userWithoutPassword } = updatedUser;
 
-        // Create audit log
-        await prisma.auditLog.create({
-            data: {
-                userId: session.user.id,
-                actionType: 'UPDATE',
-                entityType: 'User',
-                entityId: userId,
-                afterData: { archived },
-            },
-        });
+        // Create audit log (skip for SUPERADMIN)
+        if (session.user.role !== 'SUPERADMIN') {
+            await prisma.auditLog.create({
+                data: {
+                    userId: session.user.id,
+                    actionType: 'UPDATE',
+                    entityType: 'User',
+                    entityId: userId,
+                    afterData: { archived },
+                },
+            });
+        }
 
         return NextResponse.json(userWithoutPassword);
     } catch (error) {

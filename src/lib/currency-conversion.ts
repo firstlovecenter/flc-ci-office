@@ -24,13 +24,15 @@ export async function getUserBaseCurrency(userId: string) {
         throw new Error('User not found');
     }
 
-    console.log(`getUserBaseCurrency for user ${user.email}, role: ${user.roles?.[0] || 'undefined'}`);
+    // Use the active role, or fall back to first role if no active role set
+    const activeRole = user.activeRole || user.roles?.[0] || 'COUNCIL_LEADER';
+    console.log(`getUserBaseCurrency for user ${user.email}, role: ${activeRole}`);
 
     // For international level and above, use system base currency
     const highLevelRoles = ['SUPERADMIN', 'GLOBAL_ADMIN', 'GLOBAL_LEADER', 'INTERNATIONAL_ADMIN', 'INTERNATIONAL_LEADER'];
-    const hasHighLevelRole = user.roles && user.roles.some(role => highLevelRoles.includes(role));
+    const isHighLevel = highLevelRoles.includes(activeRole);
     
-    if (hasHighLevelRole) {
+    if (isHighLevel) {
         const systemBase = await prisma.currency.findFirst({
             where: { isBase: true },
         });
@@ -44,9 +46,9 @@ export async function getUserBaseCurrency(userId: string) {
     // For national admin/leader, use their current department
     // For below national level, traverse up to find national department
     const regionalRoles = ['REGIONAL_ADMIN', 'REGIONAL_LEADER', 'CAMPUS_ADMIN', 'CAMPUS_LEADER', 'STREAM_LEADER', 'COUNCIL_LEADER'];
-    const hasRegionalRole = user.roles && user.roles.some(role => regionalRoles.includes(role));
+    const isRegional = regionalRoles.includes(activeRole);
     
-    if (hasRegionalRole) {
+    if (isRegional) {
         console.log(`User is below national, traversing up from department:`, nationalDept?.name);
         while (nationalDept && nationalDept.level !== 'NATIONAL') {
             nationalDept = nationalDept.parent as typeof nationalDept;

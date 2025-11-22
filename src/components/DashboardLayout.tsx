@@ -136,9 +136,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
     // Filter menu items based on user role - leaders don't see Users menu
     const leaderRoles = ['GLOBAL_LEADER', 'INTERNATIONAL_LEADER', 'NATIONAL_LEADER', 'REGIONAL_LEADER', 'CAMPUS_LEADER', 'STREAM_LEADER', 'COUNCIL_LEADER'];
-    const isLeader = session?.user?.role && leaderRoles.includes(session.user.role);
-    const isSuperAdmin = session?.user?.role === 'SUPERADMIN';
-    const isGlobalAdmin = session?.user?.role === 'GLOBAL_ADMIN';
+    const userRoles = session?.user?.roles || [];
+    const isLeader = userRoles.some(role => leaderRoles.includes(role));
+    const isSuperAdmin = userRoles.includes('SUPERADMIN');
+    const isGlobalAdmin = userRoles.includes('GLOBAL_ADMIN');
     const canManageCurrencies = isSuperAdmin || isGlobalAdmin;
     
     const filteredMenuItems = menuItems.filter(item => {
@@ -186,9 +187,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         setAnchorEl(null);
     };
 
-    const handleLogout = () => {
+    const handleLogout = async () => {
         handleClose();
-        signOut();
+        // Sign out and redirect to login page
+        await signOut({
+            callbackUrl: '/auth/login?logout=true',
+            redirect: true,
+        });
     };
 
     return (

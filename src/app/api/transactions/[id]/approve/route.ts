@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { sendPushNotification } from '@/lib/notifications';
 import { formatCurrency } from '@/lib/utils';
+import { createAuditLog } from '@/lib/audit';
 
 export async function POST(
     request: NextRequest,
@@ -61,16 +62,28 @@ export async function POST(
             },
         });
 
-        // Create audit log
-        await prisma.auditLog.create({
-            data: {
-                userId: session.user.id,
-                actionType: 'UPDATE',
-                entityType: 'Transaction',
-                entityId: id,
-                beforeData: transaction as any,
-                afterData: updatedTransaction as any,
+        // Create comprehensive audit log
+        await createAuditLog({
+            userId: session.user.id,
+            actionType: action === 'approve' ? 'APPROVE' : 'REJECT',
+            entityType: 'Transaction',
+            entityId: id,
+            description: action === 'approve' 
+                ? `Approved transaction of ${formatCurrency(transaction.amount)} for ${transaction.department.name}`
+                : `Rejected transaction of ${formatCurrency(transaction.amount)} for ${transaction.department.name}`,
+            beforeData: transaction as any,
+            afterData: updatedTransaction as any,
+            metadata: {
+                action,
+                amount: transaction.amount,
+                departmentId: transaction.departmentId,
+                departmentName: transaction.department.name,
+                transactionType: transaction.type,
+                reason: action === 'reject' ? reason : undefined,
+                approverRole: session.user.role,
+                fields: ['status', 'approvedBy', 'approvedAt', action === 'reject' ? 'rejectionReason' : undefined].filter(Boolean),
             },
+            severity: action === 'reject' ? 'HIGH' : 'MEDIUM',
         });
 
         // Send push notification to the transaction creator

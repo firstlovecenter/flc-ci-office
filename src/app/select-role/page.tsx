@@ -89,17 +89,16 @@ export default function SelectRolePage() {
                 throw new Error('Failed to update role');
             }
 
-            // Update session
-            await update({
-                ...session,
-                user: {
-                    ...session?.user,
-                    role,
-                },
-            });
+            // Trigger session update - this will call the JWT callback
+            // which fetches fresh user data from database
+            await update();
+
+            // Small delay to ensure session is updated before redirect
+            await new Promise(resolve => setTimeout(resolve, 100));
 
             // Redirect to dashboard
             router.push('/dashboard');
+            router.refresh();
         } catch (error) {
             console.error('Error selecting role:', error);
             setSelecting(null);

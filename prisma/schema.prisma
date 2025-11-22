@@ -48,9 +48,23 @@ enum ActionType {
   UPDATE
   DELETE
   LOGIN
+  LOGOUT
   ROLE_CHANGE
   LOCK_OVERRIDE
   FILE_UPLOAD
+  APPROVE
+  REJECT
+  ARCHIVE
+  RESTORE
+  TRANSFER
+  RECALCULATE
+}
+
+enum AuditSeverity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
 }
 
 model Department {
@@ -61,6 +75,7 @@ model Department {
   parent    Department?     @relation("DepartmentHierarchy", fields: [parentId], references: [id])
   children  Department[]    @relation("DepartmentHierarchy")
   users     User[]
+  userRoles UserRole[]
   transactions Transaction[]
   departmentBaseCurrency DepartmentBaseCurrency?
   createdAt DateTime        @default(now())
@@ -70,15 +85,33 @@ model Department {
   @@index([level])
 }
 
+model UserRole {
+  id           String      @id @default(cuid())
+  userId       String
+  user         User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role         Role
+  departmentId String
+  department   Department  @relation(fields: [departmentId], references: [id])
+  activeUsers  User[]      @relation("ActiveUserRole")
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  @@unique([userId, role, departmentId])
+  @@index([userId])
+  @@index([departmentId])
+  @@index([role])
+}
+
 model User {
   id               String             @id @default(cuid())
+  title            String?            // e.g., Rev., Dr., Pastor, etc.
   name             String?
   email            String             @unique
   password         String?
   image            String?
-  roles            Role[]             @default([COUNCIL_LEADER])
-  activeRole       Role?
-  departmentId     String?
+  roles            Role[]             // Deprecated: keeping for backward compatibility, no default
+  activeRole       Role?              // Deprecated: keeping for backward compatibility
+  departmentId     String?            // Deprecated: keeping for backward compatibility
   department       Department?        @relation(fields: [departmentId], references: [id])
   baseCurrencyId   String?
   baseCurrency     Currency?          @relation(fields: [baseCurrencyId], references: [id])
@@ -87,11 +120,15 @@ model User {
   auditLogs        AuditLog[]
   pushSubscriptions PushSubscription[]
   departmentBaseCurrenciesSet DepartmentBaseCurrency[]
+  userRoles        UserRole[]         // New: role-department assignments
+  activeUserRoleId String?            // New: tracks which role-department combo is active
+  activeUserRole   UserRole?          @relation("ActiveUserRole", fields: [activeUserRoleId], references: [id])
   createdAt        DateTime           @default(now())
   updatedAt        DateTime           @updatedAt
 
   @@index([archived])
   @@index([baseCurrencyId])
+  @@index([activeUserRoleId])
 }
 
 model Transaction {
@@ -141,16 +178,29 @@ model File {
 }
 
 model AuditLog {
-  id          String      @id @default(cuid())
-  userId      String
-  user        User        @relation(fields: [userId], references: [id])
-  actionType  ActionType
-  entityType  String
-  entityId    String
-  beforeData  Json?
-  afterData   Json?
-  timestamp   DateTime    @default(now())
-  ipAddress   String?
+  id            String         @id @default(cuid())
+  userId        String
+  user          User           @relation(fields: [userId], references: [id])
+  actionType    ActionType
+  entityType    String
+  entityId      String
+  description   String         @default("") // Human-readable description of the action
+  beforeData    Json?
+  afterData     Json?
+  changes       Json?          // Detailed field-by-field changes
+  metadata      Json?          // Additional context (e.g., department, role, permissions)
+  timestamp     DateTime       @default(now())
+  ipAddress     String?
+  userAgent     String?        // Browser/client information
+  severity      AuditSeverity  @default(LOW)
+  success       Boolean        @default(true)
+  errorMessage  String?        // If action failed
+
+  @@index([userId])
+  @@index([entityType, entityId])
+  @@index([actionType])
+  @@index([timestamp])
+  @@index([severity])
 }
 
 model PushSubscription {

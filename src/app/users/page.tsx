@@ -33,7 +33,7 @@ import IconButton from '@mui/material/IconButton';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import EditUserDialog from '@/components/EditUserDialog';
-import { getAssignableRoles } from '@/lib/roles';
+import { getAssignableRoles, getDepartmentLevelForRole } from '@/lib/roles';
 
 export default function UsersPage() {
     const { data: session } = useSession();
@@ -47,12 +47,14 @@ export default function UsersPage() {
     const [error, setError] = useState('');
     const [assignableRoles, setAssignableRoles] = useState<string[]>([]);
     const [formData, setFormData] = useState({
+        title: '',
         name: '',
         email: '',
         password: '',
-        role: 'COUNCIL_LEADER',
-        departmentId: '',
     });
+    const [roleDepartmentPairs, setRoleDepartmentPairs] = useState<Array<{ role: string; departmentId: string }>>([]);
+    const [newRole, setNewRole] = useState('');
+    const [newDepartment, setNewDepartment] = useState('');
 
     // Redirect leaders to dashboard - they shouldn't access user management
     useEffect(() => {
@@ -149,10 +151,46 @@ export default function UsersPage() {
         fetchUsers();
     };
 
+    const handleAddRoleDepartment = () => {
+        if (!newRole) {
+            setError('Please select a role');
+            return;
+        }
+        if (!newDepartment) {
+            setError('Please select a department');
+            return;
+        }
+        
+        // Check if this combination already exists
+        const exists = roleDepartmentPairs.some(
+            pair => pair.role === newRole && pair.departmentId === newDepartment
+        );
+        
+        if (exists) {
+            setError('This role-department combination already exists');
+            return;
+        }
+        
+        setRoleDepartmentPairs([...roleDepartmentPairs, { role: newRole, departmentId: newDepartment }]);
+        setNewRole('');
+        setNewDepartment('');
+        setError('');
+    };
+
+    const handleRemoveRoleDepartment = (index: number) => {
+        setRoleDepartmentPairs(roleDepartmentPairs.filter((_, i) => i !== index));
+    };
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setLoading(true);
         setError('');
+
+        if (roleDepartmentPairs.length === 0) {
+            setError('Please add at least one role-department pair');
+            setLoading(false);
+            return;
+        }
 
         try {
             const response = await fetch('/api/users', {
@@ -162,7 +200,7 @@ export default function UsersPage() {
                 },
                 body: JSON.stringify({
                     ...formData,
-                    roles: [formData.role], // Convert single role to array
+                    roleDepartmentPairs,
                 }),
             });
 
@@ -173,12 +211,12 @@ export default function UsersPage() {
 
             setOpen(false);
             setFormData({
+                title: '',
                 name: '',
                 email: '',
                 password: '',
-                role: 'COUNCIL_LEADER',
-                departmentId: '',
             });
+            setRoleDepartmentPairs([]);
             fetchUsers();
         } catch (err: any) {
             setError(err.message);
@@ -303,6 +341,16 @@ export default function UsersPage() {
                         <TextField
                             margin="normal"
                             fullWidth
+                            label="Title (Optional)"
+                            placeholder="e.g., Rev., Dr., Pastor"
+                            value={formData.title}
+                            onChange={(e) =>
+                                setFormData({ ...formData, title: e.target.value })
+                            }
+                        />
+                        <TextField
+                            margin="normal"
+                            fullWidth
                             label="Name"
                             value={formData.name}
                             onChange={(e) =>
@@ -332,39 +380,75 @@ export default function UsersPage() {
                             }
                             required
                         />
-                        <FormControl fullWidth margin="normal">
-                            <InputLabel>Role</InputLabel>
-                            <Select
-                                value={formData.role}
-                                label="Role"
-                                onChange={(e) =>
-                                    setFormData({ ...formData, role: e.target.value })
-                                }
+
+                        <Typography variant="subtitle2" sx={{ mt: 2, mb: 1 }}>
+                            Role-Department Assignments
+                        </Typography>
+                        
+                        {roleDepartmentPairs.length > 0 && (
+                            <Box sx={{ mb: 2 }}>
+                                {roleDepartmentPairs.map((pair, index) => {
+                                    const dept = departments.find(d => d.id === pair.departmentId);
+                                    return (
+                                        <Chip
+                                            key={index}
+                                            label={`${pair.role.replace(/_/g, ' ')} - ${dept?.name || 'Unknown'}`}
+                                            onDelete={() => handleRemoveRoleDepartment(index)}
+                                            color="primary"
+                                            sx={{ mr: 1, mb: 1 }}
+                                        />
+                                    );
+                                })}
+                            </Box>
+                        )}
+
+                        <Box sx={{ display: 'flex', gap: 1, mb: 2 }}>
+                            <FormControl sx={{ flex: 1 }}>
+                                <InputLabel>Role</InputLabel>
+                                <Select
+                                    value={newRole}
+                                    label="Role"
+                                    onChange={(e) => {
+                                        setNewRole(e.target.value);
+                                        setNewDepartment(''); // Reset department when role changes
+                                    }}
+                                >
+                                    {assignableRoles.map((role) => (
+                                        <MenuItem key={role} value={role}>
+                                            {role.replace(/_/g, ' ')}
+                                        </MenuItem>
+                                    ))}
+                                </Select>
+                            </FormControl>
+                            <FormControl sx={{ flex: 1 }}>
+                                <InputLabel>Department</InputLabel>
+                                <Select
+                                    value={newDepartment}
+                                    label="Department"
+                                    onChange={(e) => setNewDepartment(e.target.value)}
+                                    disabled={!newRole}
+                                >
+                                    {departments
+                                        .filter((dept) => {
+                                            if (!newRole) return false;
+                                            const requiredLevel = getDepartmentLevelForRole(newRole);
+                                            return requiredLevel ? dept.level === requiredLevel : true;
+                                        })
+                                        .map((dept) => (
+                                            <MenuItem key={dept.id} value={dept.id}>
+                                                {dept.name}
+                                            </MenuItem>
+                                        ))}
+                                </Select>
+                            </FormControl>
+                            <Button
+                                onClick={handleAddRoleDepartment}
+                                variant="outlined"
+                                sx={{ minWidth: 'auto', px: 2 }}
                             >
-                                {assignableRoles.map((role) => (
-                                    <MenuItem key={role} value={role}>
-                                        {role.replace(/_/g, ' ')}
-                                    </MenuItem>
-                                ))}
-                            </Select>
-                        </FormControl>
-                        <FormControl fullWidth margin="normal">
-                            <InputLabel>Department (Optional)</InputLabel>
-                            <Select
-                                value={formData.departmentId}
-                                label="Department (Optional)"
-                                onChange={(e) =>
-                                    setFormData({ ...formData, departmentId: e.target.value })
-                                }
-                            >
-                                <MenuItem value="">None</MenuItem>
-                                {departments.map((dept) => (
-                                    <MenuItem key={dept.id} value={dept.id}>
-                                        {dept.name}
-                                    </MenuItem>
-                                ))}
-                            </Select>
-                        </FormControl>
+                                <AddIcon />
+                            </Button>
+                        </Box>
                     </DialogContent>
                     <DialogActions>
                         <Button onClick={() => setOpen(false)}>Cancel</Button>

@@ -22,7 +22,7 @@ import {
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
 import { useSession } from 'next-auth/react';
-import { getAssignableRoles } from '@/lib/roles';
+import { getAssignableRoles, getDepartmentLevelForRole } from '@/lib/roles';
 
 type UserRole = 
     | 'SUPERADMIN'
@@ -68,11 +68,12 @@ export default function EditUserDialog({
     onSave,
 }: EditUserDialogProps) {
     const { data: session } = useSession();
+    const [title, setTitle] = useState('');
     const [name, setName] = useState('');
     const [email, setEmail] = useState('');
-    const [roles, setRoles] = useState<UserRole[]>(['COUNCIL_LEADER']);
-    const [newRole, setNewRole] = useState<UserRole>('COUNCIL_LEADER');
-    const [departmentId, setDepartmentId] = useState('');
+    const [roleDepartmentPairs, setRoleDepartmentPairs] = useState<Array<{ role: string; departmentId: string }>>([]);
+    const [newRole, setNewRole] = useState('');
+    const [newDepartment, setNewDepartment] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
     const [saving, setSaving] = useState(false);
@@ -80,13 +81,30 @@ export default function EditUserDialog({
 
     useEffect(() => {
         if (user) {
+            setTitle(user.title || '');
             setName(user.name || '');
             setEmail(user.email);
-            // Handle both old single role and new roles array
-            const userRoles = user.roles || (user.role ? [user.role] : ['COUNCIL_LEADER']);
-            setRoles(userRoles);
-            setDepartmentId(user.departmentId || '');
             setPassword('');
+            
+            // Load existing role-department pairs from userRoles relation
+            if (user.userRoles && user.userRoles.length > 0) {
+                setRoleDepartmentPairs(
+                    user.userRoles.map((ur: any) => ({
+                        role: ur.role,
+                        departmentId: ur.departmentId
+                    }))
+                );
+            } else if (user.departmentId && user.roles && user.roles.length > 0) {
+                // Fallback: convert old format to role-department pairs
+                setRoleDepartmentPairs(
+                    user.roles.map((role: string) => ({
+                        role,
+                        departmentId: user.departmentId
+                    }))
+                );
+            } else {
+                setRoleDepartmentPairs([]);
+            }
         }
     }, [user]);
 
@@ -98,17 +116,37 @@ export default function EditUserDialog({
         }
     }, [session]);
 
-    const handleAddRole = () => {
-        if (newRole && !roles.includes(newRole)) {
-            setRoles([...roles, newRole]);
+    const handleAddRoleDepartment = () => {
+        if (!newRole) {
+            setError('Please select a role');
+            return;
         }
+        if (!newDepartment) {
+            setError('Please select a department');
+            return;
+        }
+        
+        // Check if this combination already exists
+        const exists = roleDepartmentPairs.some(
+            pair => pair.role === newRole && pair.departmentId === newDepartment
+        );
+        
+        if (exists) {
+            setError('This role-department combination already exists');
+            return;
+        }
+        
+        setRoleDepartmentPairs([...roleDepartmentPairs, { role: newRole, departmentId: newDepartment }]);
+        setNewRole('');
+        setNewDepartment('');
+        setError('');
     };
 
-    const handleRemoveRole = (roleToRemove: UserRole) => {
-        if (roles.length > 1) {
-            setRoles(roles.filter(r => r !== roleToRemove));
+    const handleRemoveRoleDepartment = (index: number) => {
+        if (roleDepartmentPairs.length > 1) {
+            setRoleDepartmentPairs(roleDepartmentPairs.filter((_, i) => i !== index));
         } else {
-            setError('User must have at least one role');
+            setError('User must have at least one role-department assignment');
         }
     };
 
@@ -125,8 +163,8 @@ export default function EditUserDialog({
             return;
         }
 
-        if (roles.length === 0) {
-            setError('At least one role is required');
+        if (roleDepartmentPairs.length === 0) {
+            setError('At least one role-department assignment is required');
             return;
         }
 
@@ -135,10 +173,10 @@ export default function EditUserDialog({
 
         try {
             const body: any = {
+                title: title.trim() || null,
                 name,
                 email,
-                roles,
-                departmentId: departmentId || null,
+                roleDepartmentPairs,
             };
 
             // Only include password if it's been changed
@@ -180,18 +218,18 @@ export default function EditUserDialog({
 
                 <TextField
                     fullWidth
-                    label="Name"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
+                    label="Title (Optional)"
+                    placeholder="e.g., Rev., Dr., Pastor"
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
                     sx={{ mt: 2, mb: 2 }}
                 />
 
                 <TextField
                     fullWidth
-                    label="Email"
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
+                    label="Name"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
                     sx={{ mb: 2 }}
                 />
 
@@ -218,63 +256,74 @@ export default function EditUserDialog({
 
                 <Box sx={{ mb: 2 }}>
                     <Typography variant="subtitle2" gutterBottom>
-                        Roles
+                        Role-Department Assignments
                     </Typography>
-                    <Stack direction="row" spacing={1} flexWrap="wrap" sx={{ mb: 1 }}>
-                        {roles.map((role) => (
-                            <Chip
-                                key={role}
-                                label={role.replace(/_/g, ' ')}
-                                onDelete={roles.length > 1 ? () => handleRemoveRole(role) : undefined}
-                                color="primary"
-                                sx={{ mb: 1 }}
-                            />
-                        ))}
-                    </Stack>
+                    
+                    {roleDepartmentPairs.length > 0 && (
+                        <Stack direction="row" spacing={1} flexWrap="wrap" sx={{ mb: 2 }}>
+                            {roleDepartmentPairs.map((pair, index) => {
+                                const dept = departments.find(d => d.id === pair.departmentId);
+                                return (
+                                    <Chip
+                                        key={index}
+                                        label={`${pair.role.replace(/_/g, ' ')} - ${dept?.name || 'Unknown'}`}
+                                        onDelete={() => handleRemoveRoleDepartment(index)}
+                                        color="primary"
+                                        sx={{ mb: 1 }}
+                                    />
+                                );
+                            })}
+                        </Stack>
+                    )}
+                    
                     <Stack direction="row" spacing={1} alignItems="center">
-                        <FormControl size="small" sx={{ minWidth: 200 }}>
-                            <InputLabel>Add Role</InputLabel>
+                        <FormControl size="small" sx={{ flex: 1 }}>
+                            <InputLabel>Role</InputLabel>
                             <Select
                                 value={newRole}
-                                label="Add Role"
-                                onChange={(e) => setNewRole(e.target.value as UserRole)}
+                                label="Role"
+                                onChange={(e) => {
+                                    setNewRole(e.target.value);
+                                    setNewDepartment(''); // Reset department when role changes
+                                }}
                             >
-                                {assignableRoles
-                                    .filter(r => !roles.includes(r as UserRole))
-                                    .map((r) => (
-                                        <MenuItem key={r} value={r}>
-                                            {r.replace(/_/g, ' ')}
+                                {assignableRoles.map((r) => (
+                                    <MenuItem key={r} value={r}>
+                                        {r.replace(/_/g, ' ')}
+                                    </MenuItem>
+                                ))}
+                            </Select>
+                        </FormControl>
+                        <FormControl size="small" sx={{ flex: 1 }}>
+                            <InputLabel>Department</InputLabel>
+                            <Select
+                                value={newDepartment}
+                                label="Department"
+                                onChange={(e) => setNewDepartment(e.target.value)}
+                                disabled={!newRole}
+                            >
+                                {departments
+                                    .filter((dept) => {
+                                        if (!newRole) return false;
+                                        const requiredLevel = getDepartmentLevelForRole(newRole);
+                                        return requiredLevel ? dept.level === requiredLevel : true;
+                                    })
+                                    .map((dept) => (
+                                        <MenuItem key={dept.id} value={dept.id}>
+                                            {dept.name} ({dept.level})
                                         </MenuItem>
                                     ))}
                             </Select>
                         </FormControl>
                         <IconButton
-                            onClick={handleAddRole}
+                            onClick={handleAddRoleDepartment}
                             color="primary"
-                            disabled={!newRole || roles.includes(newRole)}
+                            disabled={!newRole || !newDepartment}
                         >
                             <AddIcon />
                         </IconButton>
                     </Stack>
                 </Box>
-
-                <FormControl fullWidth sx={{ mb: 2 }}>
-                    <InputLabel>Department</InputLabel>
-                    <Select
-                        value={departmentId}
-                        label="Department"
-                        onChange={(e) => setDepartmentId(e.target.value)}
-                    >
-                        <MenuItem value="">
-                            <em>None</em>
-                        </MenuItem>
-                        {departments.map((dept) => (
-                            <MenuItem key={dept.id} value={dept.id}>
-                                {dept.name} ({dept.level})
-                            </MenuItem>
-                        ))}
-                    </Select>
-                </FormControl>
             </DialogContent>
             <DialogActions>
                 <Button onClick={onClose} disabled={saving}>

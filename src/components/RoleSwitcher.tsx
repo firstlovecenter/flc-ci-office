@@ -48,20 +48,17 @@ export default function RoleSwitcher() {
                 throw new Error('Failed to switch role');
             }
 
-            // Update session
-            await update({
-                ...session,
-                user: {
-                    ...session?.user,
-                    role,
-                },
-            });
+            // Trigger session update - this will call the JWT callback
+            // which fetches fresh user data from database
+            await update();
 
-            // Refresh the page to apply new permissions
-            router.refresh();
+            // Wait a bit to ensure session is fully updated
+            await new Promise(resolve => setTimeout(resolve, 200));
+
+            // Force a full page reload to ensure all data refreshes with new role
+            window.location.reload();
         } catch (error) {
             console.error('Error switching role:', error);
-        } finally {
             setSwitching(false);
         }
     };

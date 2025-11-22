@@ -1,8 +1,8 @@
 'use client';
 
-import { signIn } from 'next-auth/react';
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { signIn, useSession } from 'next-auth/react';
+import { useState, useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { 
     Container, 
     Paper, 
@@ -30,11 +30,31 @@ import SpeedIcon from '@mui/icons-material/Speed';
 
 export default function LoginPage() {
     const router = useRouter();
+    const searchParams = useSearchParams();
+    const { data: session, status } = useSession();
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
+    const [logoutMessage, setLogoutMessage] = useState('');
+
+    // Check if user is already logged in and redirect
+    useEffect(() => {
+        if (status === 'authenticated' && session) {
+            router.push('/dashboard');
+        }
+    }, [status, session, router]);
+
+    // Check for logout message
+    useEffect(() => {
+        const logout = searchParams.get('logout');
+        if (logout === 'true') {
+            setLogoutMessage('You have been successfully logged out.');
+            // Clear the URL parameter after showing message
+            setTimeout(() => setLogoutMessage(''), 5000);
+        }
+    }, [searchParams]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -178,6 +198,18 @@ export default function LoginPage() {
                                         Sign in to access your account
                                     </Typography>
                                 </Box>
+
+                                {logoutMessage && (
+                                    <Alert 
+                                        severity="success" 
+                                        sx={{ 
+                                            mb: 3,
+                                            borderRadius: 2,
+                                        }}
+                                    >
+                                        {logoutMessage}
+                                    </Alert>
+                                )}
 
                                 {error && (
                                     <Alert 

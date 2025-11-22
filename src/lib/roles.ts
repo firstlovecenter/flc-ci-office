@@ -99,3 +99,30 @@ export function canManageDepartmentLevel(adminDepartmentLevel: string, targetDep
     // Target must be at admin's level or below (higher or equal number)
     return adminLevel <= targetLevel;
 }
+
+/**
+ * Get the department level that corresponds to a role
+ * @param role - The role name
+ * @returns The department level string (e.g., 'CAMPUS', 'NATIONAL') or null if role doesn't map to a department
+ */
+export function getDepartmentLevelForRole(role: string): string | null {
+    // Map roles to their corresponding department levels
+    const roleMapping: Record<string, string> = {
+        GLOBAL_ADMIN: 'GLOBAL',
+        GLOBAL_LEADER: 'GLOBAL',
+        INTERNATIONAL_ADMIN: 'INTERNATIONAL',
+        INTERNATIONAL_LEADER: 'INTERNATIONAL',
+        NATIONAL_ADMIN: 'NATIONAL',
+        NATIONAL_LEADER: 'NATIONAL',
+        REGIONAL_ADMIN: 'REGIONAL',
+        REGIONAL_LEADER: 'REGIONAL',
+        CAMPUS_ADMIN: 'CAMPUS',
+        CAMPUS_LEADER: 'CAMPUS',
+        STREAM_ADMIN: 'STREAM',
+        STREAM_LEADER: 'STREAM',
+        COUNCIL_ADMIN: 'COUNCIL',
+        COUNCIL_LEADER: 'COUNCIL',
+    };
+
+    return roleMapping[role] || null;
+}

@@ -33,11 +33,14 @@ export async function GET(request: NextRequest) {
             return NextResponse.json({ error: 'User not found' }, { status: 404 });
         }
 
+        // Use the active role, or fall back to first role if no active role set
+        const activeRole = user.activeRole || user.roles?.[0] || 'COUNCIL_LEADER';
+
         // For international level and above, use system base currency
         const highLevelRoles = ['SUPERADMIN', 'GLOBAL_ADMIN', 'GLOBAL_LEADER', 'INTERNATIONAL_ADMIN', 'INTERNATIONAL_LEADER'];
-        const hasHighLevelRole = user.roles && user.roles.some(role => highLevelRoles.includes(role));
+        const isHighLevel = highLevelRoles.includes(activeRole);
         
-        if (hasHighLevelRole) {
+        if (isHighLevel) {
             const systemBaseCurrency = await prisma.currency.findFirst({
                 where: { isBase: true },
             });
@@ -53,9 +56,9 @@ export async function GET(request: NextRequest) {
         // For national admin/leader, use their current department
         // For below national level, traverse up to find national department
         const regionalRoles = ['REGIONAL_ADMIN', 'REGIONAL_LEADER', 'CAMPUS_ADMIN', 'CAMPUS_LEADER', 'STREAM_LEADER', 'COUNCIL_LEADER'];
-        const hasRegionalRole = user.roles && user.roles.some(role => regionalRoles.includes(role));
+        const isRegional = regionalRoles.includes(activeRole);
         
-        if (hasRegionalRole) {
+        if (isRegional) {
             while (nationalDept && nationalDept.level !== 'NATIONAL') {
                 nationalDept = nationalDept.parent as typeof nationalDept;
             }

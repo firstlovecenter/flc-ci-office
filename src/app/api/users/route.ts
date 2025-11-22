@@ -47,6 +47,17 @@ export async function GET(request: Request) {
                         symbol: true,
                     },
                 },
+                userRoles: {
+                    include: {
+                        department: {
+                            select: {
+                                id: true,
+                                name: true,
+                                level: true,
+                            },
+                        },
+                    },
+                },
             },
             orderBy: {
                 createdAt: 'desc',
@@ -80,13 +91,18 @@ export async function POST(request: Request) {
 
     try {
         const body = await request.json();
-        const { name, email, password, roles, departmentId } = body;
+        const { title, name, email, password, roleDepartmentPairs } = body;
 
-        // Ensure roles is an array
-        const userRoles = Array.isArray(roles) ? roles : [roles];
+        if (!roleDepartmentPairs || roleDepartmentPairs.length === 0) {
+            return NextResponse.json({ error: 'At least one role-department pair is required' }, { status: 400 });
+        }
+
+        // Extract unique roles for backward compatibility validation
+        const userRoles = [...new Set(roleDepartmentPairs.map((pair: any) => pair.role))];
+        const firstDept = roleDepartmentPairs[0].departmentId;
 
         // Validate role assignments (check SUPERADMIN and GLOBAL_ADMIN uniqueness)
-        const validation = await validateRoleAssignment('new-user', userRoles, departmentId, email);
+        const validation = await validateRoleAssignment('new-user', userRoles, firstDept, email);
         if (!validation.valid) {
             return NextResponse.json({ error: validation.error }, { status: 400 });
         }
@@ -140,16 +156,46 @@ export async function POST(request: Request) {
             }
         }
 
+        // Create the user first with backward compatibility fields
         const user = await prisma.user.create({
             data: {
+                title: title?.trim() || null,
                 name,
                 email,
                 password: await bcrypt.hash(password, 10),
-                roles: userRoles,
-                activeRole: userRoles[0], // Set first role as active
-                departmentId: departmentId || null,
+                roles: userRoles, // Keep for backward compatibility during migration
+                activeRole: userRoles[0], // Keep for backward compatibility during migration
+                departmentId: firstDept, // Set to first department for backward compatibility
             },
         });
+
+        // Create UserRole entries for each role-department pair
+        if (roleDepartmentPairs.length > 0) {
+            await prisma.userRole.createMany({
+                data: roleDepartmentPairs.map((pair: any) => ({
+                    userId: user.id,
+                    role: pair.role,
+                    departmentId: pair.departmentId,
+                })),
+            });
+
+            // Set the first UserRole as active
+            const firstUserRole = await prisma.userRole.findFirst({
+                where: {
+                    userId: user.id,
+                },
+                orderBy: {
+                    createdAt: 'asc',
+                },
+            });
+
+            if (firstUserRole) {
+                await prisma.user.update({
+                    where: { id: user.id },
+                    data: { activeUserRoleId: firstUserRole.id },
+                });
+            }
+        }
 
         const { password: _, ...safeUser } = user;
 

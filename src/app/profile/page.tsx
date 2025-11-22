@@ -316,12 +316,16 @@ export default function ProfilePage() {
                         <Typography variant="body1" color="text.secondary" gutterBottom>
                             {profile.email}
                         </Typography>
-                        <Chip 
-                            label={profile.role.replace(/_/g, ' ')} 
-                            color="primary" 
-                            size="small"
-                            sx={{ mt: 1 }}
-                        />
+                        <Box sx={{ display: 'flex', gap: 0.5, mt: 1, flexWrap: 'wrap', justifyContent: { xs: 'center', sm: 'flex-start' } }}>
+                            {(profile.roles || []).map((role: string) => (
+                                <Chip 
+                                    key={role}
+                                    label={role.replace(/_/g, ' ')} 
+                                    color={role === 'SUPERADMIN' ? 'error' : 'primary'}
+                                    size="small"
+                                />
+                            ))}
+                        </Box>
                     </Box>
 
                     {!editing && (
@@ -401,12 +405,19 @@ export default function ProfilePage() {
                                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
                                         <BadgeIcon color="action" fontSize="small" />
                                         <Typography variant="body2" color="text.secondary">
-                                            Role
+                                            Roles
                                         </Typography>
                                     </Box>
-                                    <Typography variant="body1" fontWeight={500}>
-                                        {profile.role.replace(/_/g, ' ')}
-                                    </Typography>
+                                    <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
+                                        {(profile.roles || []).map((role: string) => (
+                                            <Chip 
+                                                key={role}
+                                                label={role.replace(/_/g, ' ')} 
+                                                size="small"
+                                                color={role === 'SUPERADMIN' ? 'error' : 'default'}
+                                            />
+                                        ))}
+                                    </Box>
                                 </Box>
 
                                 {profile.department && (

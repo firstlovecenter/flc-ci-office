@@ -9,6 +9,7 @@ export const authOptions: NextAuthOptions = {
     },
     pages: {
         signIn: '/auth/login',
+        signOut: '/auth/login',
     },
     providers: [
         CredentialsProvider({
@@ -76,7 +77,8 @@ export const authOptions: NextAuthOptions = {
             }
             
             // Handle session update (e.g., when switching roles)
-            if (trigger === 'update' && session?.user) {
+            // This runs when update() is called from the client
+            if (trigger === 'update') {
                 // Fetch fresh user data to get updated activeRole
                 const updatedUser = await prisma.user.findUnique({
                     where: { email: token.email as string },
@@ -84,8 +86,11 @@ export const authOptions: NextAuthOptions = {
                 });
                 
                 if (updatedUser) {
+                    token.id = updatedUser.id;
                     token.role = updatedUser.activeRole || updatedUser.roles[0] || 'COUNCIL_LEADER';
                     token.roles = updatedUser.roles;
+                    token.departmentId = updatedUser.departmentId;
+                    token.departmentLevel = updatedUser.department?.level;
                 }
             }
             

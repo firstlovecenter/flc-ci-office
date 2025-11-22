@@ -19,6 +19,7 @@ import { Role } from '@prisma/client';
 export default function DashboardPage() {
     const [stats, setStats] = useState({ income: 0, expense: 0, balance: 0 });
     const [baseCurrency, setBaseCurrency] = useState<{ code: string; symbol: string } | null>(null);
+    const [departmentName, setDepartmentName] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
     const { data: session } = useSession();
     const theme = useTheme();
@@ -48,6 +49,10 @@ export default function DashboardPage() {
                 const userData = await response.json();
                 if (userData.baseCurrency) {
                     setBaseCurrency({ code: userData.baseCurrency.code, symbol: userData.baseCurrency.symbol });
+                }
+                // Set department name if available
+                if (userData.department) {
+                    setDepartmentName(userData.department.name);
                 }
             }
         } catch (error) {
@@ -179,7 +184,7 @@ export default function DashboardPage() {
                     Good {new Date().getHours() < 12 ? 'morning' : new Date().getHours() < 18 ? 'afternoon' : 'evening'}, {session?.user?.name?.split(' ')[0] || 'User'}
                 </Typography>
                 <Typography variant="body2" color="text.secondary" sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>
-                    Here's what's happening with your finances today
+                    {departmentName ? `${departmentName} • ` : ''}Here's what's happening with your finances today
                 </Typography>
             </Box>
 
