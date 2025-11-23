@@ -17,7 +17,7 @@ export const authOptions: NextAuthOptions = {
         CredentialsProvider({
             name: 'Credentials',
             credentials: {
-                email: { label: 'Email', type: 'email' },
+                email: { label: 'Email or Phone', type: 'text' },
                 password: { label: 'Password', type: 'password' },
             },
             async authorize(credentials) {
@@ -26,10 +26,16 @@ export const authOptions: NextAuthOptions = {
                     return null;
                 }
 
-                const user = await prisma.user.findUnique({
-                    where: {
-                        email: credentials.email,
-                    },
+                const loginIdentifier = credentials.email.toLowerCase().trim();
+                
+                // Determine if input is email or phone
+                const isEmail = loginIdentifier.includes('@');
+                
+                // Build the query based on input type
+                const user = await prisma.user.findFirst({
+                    where: isEmail 
+                        ? { email: loginIdentifier }
+                        : { phone: loginIdentifier },
                     include: {
                         department: true,
                         activeUserRole: {
@@ -46,12 +52,12 @@ export const authOptions: NextAuthOptions = {
                 });
 
                 if (!user) {
-                    console.error('User not found:', credentials.email);
+                    console.error('User not found:', loginIdentifier);
                     return null;
                 }
 
                 if (!user.password) {
-                    console.error('User has no password set:', credentials.email);
+                    console.error('User has no password set:', loginIdentifier);
                     return null;
                 }
 
@@ -59,7 +65,7 @@ export const authOptions: NextAuthOptions = {
                 const isValid = await bcrypt.compare(credentials.password, user.password);
 
                 if (!isValid) {
-                    console.error('Invalid password for user:', credentials.email);
+                    console.error('Invalid password for user:', loginIdentifier);
                     return null;
                 }
 

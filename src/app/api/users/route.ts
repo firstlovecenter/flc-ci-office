@@ -5,8 +5,6 @@ import { authOptions } from '@/lib/auth';
 import bcrypt from 'bcryptjs';
 import { getDescendantDepartmentIds } from '@/lib/departments';
 import { validateRoleAssignment } from '@/lib/roleValidation';
-import { sendEmail, isEmailConfigured } from '@/lib/email';
-import { generateWelcomeEmail } from '@/lib/email-templates/welcome';
 import crypto from 'crypto';
 
 export async function GET(request: Request) {
@@ -94,28 +92,36 @@ export async function POST(request: Request) {
 
     try {
         const body = await request.json();
-        const { title, name, email, password, roleDepartmentPairs } = body;
+        const { title, name, email, phone, roleDepartmentPairs } = body;
 
-        if (!roleDepartmentPairs || roleDepartmentPairs.length === 0) {
-            return NextResponse.json({ error: 'At least one role-department pair is required' }, { status: 400 });
+        // Validate required fields
+        if (!phone?.trim()) {
+            return NextResponse.json({ error: 'Phone number is required' }, { status: 400 });
         }
 
-        // Generate a temporary password if not provided
-        const tempPassword = password || crypto.randomBytes(8).toString('hex');
-        
-        // Extract unique roles for backward compatibility validation
-        const userRoles: string[] = Array.from(new Set(roleDepartmentPairs.map((pair: any) => pair.role as string)));
-        const firstDept = roleDepartmentPairs[0].departmentId;
+        // Validate required fields
+        if (!phone?.trim()) {
+            return NextResponse.json({ error: 'Phone number is required' }, { status: 400 });
+        }
 
-        // Validate role assignments (check SUPERADMIN and GLOBAL_ADMIN uniqueness)
-        const validation = await validateRoleAssignment('new-user', userRoles, firstDept, email);
-        if (!validation.valid) {
-            return NextResponse.json({ error: validation.error }, { status: 400 });
+        // Users can now be created without roles initially
+        const hasRoles = roleDepartmentPairs && roleDepartmentPairs.length > 0;
+        
+        // Extract unique roles for backward compatibility validation (only if roles provided)
+        const userRoles: string[] = hasRoles ? Array.from(new Set(roleDepartmentPairs.map((pair: any) => pair.role as string))) : [];
+        const firstDept = hasRoles ? roleDepartmentPairs[0].departmentId : null;
+
+        // Validate role assignments only if roles are provided
+        if (hasRoles) {
+            const validation = await validateRoleAssignment('new-user', userRoles, firstDept, email);
+            if (!validation.valid) {
+                return NextResponse.json({ error: validation.error }, { status: 400 });
+            }
         }
 
         // Check if user exists
         const existingUser = await prisma.user.findUnique({
-            where: { email },
+            where: { email: email.toLowerCase() },
         });
 
         if (existingUser) {
@@ -164,21 +170,23 @@ export async function POST(request: Request) {
             }
         }
 
-        // Create the user first with backward compatibility fields
+        // Create the user with a random password (user will set via password reset email)
+        const randomPassword = crypto.randomBytes(32).toString('hex');
         const user = await prisma.user.create({
             data: {
                 title: title?.trim() || null,
                 name,
-                email,
-                password: await bcrypt.hash(tempPassword, 10),
-                roles: userRoles as any, // Keep for backward compatibility during migration
-                activeRole: userRoles[0] as any, // Keep for backward compatibility during migration
+                email: email.toLowerCase(),
+                phone: phone.trim(),
+                password: await bcrypt.hash(randomPassword, 10),
+                roles: hasRoles ? (userRoles as any) : [], // Keep for backward compatibility
+                activeRole: hasRoles ? (userRoles[0] as any) : null, // Keep for backward compatibility
                 departmentId: firstDept, // Set to first department for backward compatibility
             },
         });
 
-        // Create UserRole entries for each role-department pair
-        if (roleDepartmentPairs.length > 0) {
+        // Create UserRole entries for each role-department pair (only if roles provided)
+        if (hasRoles && roleDepartmentPairs.length > 0) {
             await prisma.userRole.createMany({
                 data: roleDepartmentPairs.map((pair: any) => ({
                     userId: user.id,
@@ -205,41 +213,7 @@ export async function POST(request: Request) {
             }
         }
 
-        // Send welcome email with credentials
-        if (isEmailConfigured()) {
-            try {
-                const appUrl = process.env.APP_URL || 'http://localhost:3000';
-                const loginUrl = `${appUrl}/auth/login`;
-                
-                // Get department name for the first role
-                const department = firstDept ? await prisma.department.findUnique({
-                    where: { id: firstDept },
-                    select: { name: true },
-                }) : null;
-
-                const emailContent = generateWelcomeEmail({
-                    userName: name || email,
-                    userEmail: email,
-                    tempPassword,
-                    loginUrl,
-                    role: userRoles[0],
-                    department: department?.name,
-                });
-
-                await sendEmail({
-                    to: email,
-                    toName: name || undefined,
-                    subject: emailContent.subject,
-                    html: emailContent.html,
-                    text: emailContent.text,
-                }).catch(err => {
-                    console.error(`Failed to send welcome email to ${email}:`, err);
-                });
-            } catch (emailError) {
-                console.error('Failed to send welcome email:', emailError);
-                // Don't fail user creation if email fails
-            }
-        }
+        // Note: Password reset email will be sent when first role is assigned (in PUT /api/users/[id])
 
         const { password: _, ...safeUser } = user;
 

@@ -83,6 +83,7 @@ export async function POST(request: Request) {
             create: {
                 email: 'admin@flc.org',
                 name: 'Super Admin',
+                phone: '0501234567',
                 password: hashedPassword,
                 roles: ['SUPERADMIN'],
             },
@@ -94,6 +95,7 @@ export async function POST(request: Request) {
             create: {
                 email: 'campus.admin@flc.org',
                 name: 'Campus Admin',
+                phone: '0501234568',
                 password: hashedPassword,
                 roles: ['CAMPUS_ADMIN'],
                 departmentId: campusDept.id,
@@ -106,6 +108,7 @@ export async function POST(request: Request) {
             create: {
                 email: 'council.leader@flc.org',
                 name: 'Council Leader',
+                phone: '0501234569',
                 password: hashedPassword,
                 roles: ['COUNCIL_LEADER'],
                 departmentId: councilDept.id,

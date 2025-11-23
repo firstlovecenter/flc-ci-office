@@ -231,12 +231,13 @@ function LoginForm() {
                                         required
                                         fullWidth
                                         id="email"
-                                        label="Email Address"
+                                        label="Email or Phone Number"
                                         name="email"
                                         autoComplete="email"
                                         autoFocus
                                         value={email}
                                         onChange={(e) => setEmail(e.target.value)}
+                                        placeholder="email@example.com or 0241234567"
                                         InputProps={{
                                             startAdornment: (
                                                 <InputAdornment position="start">
@@ -310,17 +311,17 @@ function LoginForm() {
                                     </Button>
 
                                     <Box sx={{ display: 'flex', justifyContent: 'center', mb: 3 }}>
-                                        <Link href="/auth/forgot-password" passHref legacyBehavior>
-                                            <MuiLink
-                                                variant="body2"
-                                                sx={{
-                                                    textDecoration: 'none',
-                                                    '&:hover': { textDecoration: 'underline' },
-                                                }}
-                                            >
-                                                Forgot your password?
-                                            </MuiLink>
-                                        </Link>
+                                        <MuiLink
+                                            component={Link}
+                                            href="/auth/forgot-password"
+                                            variant="body2"
+                                            sx={{
+                                                textDecoration: 'none',
+                                                '&:hover': { textDecoration: 'underline' },
+                                            }}
+                                        >
+                                            Forgot your password?
+                                        </MuiLink>
                                     </Box>
 
                                     <Divider sx={{ my: 3 }}>

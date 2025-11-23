@@ -1,11 +1,9 @@
-'use client';
-
-import { ReactNode } from 'react';
+import DashboardLayout from '@/components/DashboardLayout';
 
 export default function ApprovalsLayout({
     children,
 }: {
-    children: ReactNode;
+    children: React.ReactNode;
 }) {
-    return children;
+    return <DashboardLayout>{children}</DashboardLayout>;
 }

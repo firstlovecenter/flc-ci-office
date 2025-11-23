@@ -53,7 +53,7 @@ function UsersPageContent() {
         title: '',
         name: '',
         email: '',
-        password: '',
+        phone: '',
     });
     const [roleDepartmentPairs, setRoleDepartmentPairs] = useState<Array<{ role: string; departmentId: string }>>([]);
     const [newRole, setNewRole] = useState('');
@@ -195,12 +195,6 @@ function UsersPageContent() {
         setLoading(true);
         setError('');
 
-        if (roleDepartmentPairs.length === 0) {
-            setError('Please add at least one role-department pair');
-            setLoading(false);
-            return;
-        }
-
         try {
             const response = await fetch('/api/users', {
                 method: 'POST',
@@ -223,7 +217,7 @@ function UsersPageContent() {
                 title: '',
                 name: '',
                 email: '',
-                password: '',
+                phone: '',
             });
             setRoleDepartmentPairs([]);
             fetchUsers();
@@ -381,13 +375,14 @@ function UsersPageContent() {
                         <TextField
                             margin="normal"
                             fullWidth
-                            label="Password"
-                            type="password"
-                            value={formData.password}
+                            label="Phone Number"
+                            placeholder="e.g., 0241234567 or 233241234567"
+                            value={formData.phone}
                             onChange={(e) =>
-                                setFormData({ ...formData, password: e.target.value })
+                                setFormData({ ...formData, phone: e.target.value })
                             }
                             required
+                            helperText="Required for SMS notifications (password reset, role assignments)"
                         />
 
                         <Typography variant="subtitle2" sx={{ mt: 2, mb: 1 }}>

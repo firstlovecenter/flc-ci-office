@@ -1,30 +1,40 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
-import { sendEmail } from '@/lib/email';
-import { generatePasswordResetEmail } from '@/lib/email-templates/password-reset';
 import crypto from 'crypto';
+import { prisma } from '@/lib/prisma';
+import { sendSms, formatGhanaPhone } from '@/lib/sms';
+import { generatePasswordResetSms } from '@/lib/sms-templates';
 
 export async function POST(request: NextRequest) {
   try {
-    const { email } = await request.json();
+    const { identifier } = await request.json();
 
-    if (!email) {
+    if (!identifier) {
       return NextResponse.json(
-        { error: 'Email is required' },
+        { error: 'Phone number or email is required' },
         { status: 400 }
       );
     }
 
-    // Find user by email
-    const user = await prisma.user.findUnique({
-      where: { email: email.toLowerCase() },
+    // Check if it's an email or phone number
+    const isEmail = identifier.includes('@');
+    
+    // Find user by email or phone
+    const user = await prisma.user.findFirst({
+      where: isEmail 
+        ? { email: identifier.toLowerCase() }
+        : { phone: identifier },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        phone: true,
+      },
     });
 
-    // Always return success to prevent email enumeration
-    // This means even if the email doesn't exist, we say "success"
-    if (!user) {
+    // Always return success to prevent user enumeration
+    if (!user || !user.phone) {
       return NextResponse.json({
-        message: 'If an account exists with this email, a password reset link has been sent.',
+        message: 'If an account exists with this information, a password reset SMS has been sent.',
       });
     }
 
@@ -54,33 +64,34 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // Generate reset URL
-    const appUrl = process.env.APP_URL || 'http://localhost:3000';
-    const resetUrl = `${appUrl}/auth/reset-password?token=${token}`;
+    // Generate 6-digit code for SMS (easier to type than full token)
+    const resetCode = token.substring(0, 6).toUpperCase();
 
-    // Generate email content
-    const emailContent = generatePasswordResetEmail({
-      userName: user.name || user.email,
-      resetUrl,
-      expirationHours: 24,
+    // Send SMS with reset code only (no URL to avoid truncation)
+    const formattedPhone = formatGhanaPhone(user.phone);
+    const smsContent = generatePasswordResetSms({
+      resetCode: resetCode,
+      expirationMinutes: 1440, // 24 hours in minutes
+      // Don't include resetUrl - SMS links often get truncated
     });
 
-    // Send email
-    try {
-      await sendEmail({
-        to: user.email,
-        subject: emailContent.subject,
-        html: emailContent.html,
-        text: emailContent.text,
-      });
-    } catch (emailError) {
-      console.error('Failed to send password reset email:', emailError);
-      // Don't expose email sending errors to the user
-      // Just log it and continue - we still created the token
+    const smsSent = await sendSms({
+      to: formattedPhone,
+      message: smsContent,
+    });
+
+    if (!smsSent) {
+      console.error('Failed to send password reset SMS - SMS service error');
+      return NextResponse.json(
+        { error: 'Failed to send password reset SMS. Please check that your phone number is correct or contact support.' },
+        { status: 500 }
+      );
     }
 
+    console.log(`✅ Password reset SMS sent to ${formattedPhone}`);
+
     return NextResponse.json({
-      message: 'If an account exists with this email, a password reset link has been sent.',
+      message: 'If an account exists with this information, a password reset SMS has been sent.',
     });
   } catch (error) {
     console.error('Forgot password error:', error);
