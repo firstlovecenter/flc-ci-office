@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import DashboardLayout from '@/components/DashboardLayout';
+import ModernDashboardLayout from '@/components/ModernDashboardLayout';
 
 export const metadata: Metadata = {
     title: 'Audit Trail - FLC CI Office',
@@ -11,5 +11,5 @@ export default function AuditLayout({
 }: {
     children: React.ReactNode;
 }) {
-    return <DashboardLayout>{children}</DashboardLayout>;
+    return <ModernDashboardLayout>{children}</ModernDashboardLayout>;
 }

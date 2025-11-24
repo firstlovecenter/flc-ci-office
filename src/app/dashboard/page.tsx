@@ -167,35 +167,37 @@ export default function DashboardPage() {
     ];
 
     return (
-        <Box sx={{ px: { xs: 2, sm: 3, md: 6, lg: 8 }, py: { xs: 2, sm: 3 }, maxWidth: '1600px', mx: 'auto' }}>
+        <Box sx={{ px: { xs: 1.5, sm: 3, md: 6, lg: 8 }, py: { xs: 1.5, sm: 3 }, maxWidth: '1600px', mx: 'auto' }}>
             {/* Header */}
-            <Box sx={{ mb: { xs: 3, md: 5 } }}>
+            <Box sx={{ mb: { xs: 2, md: 5 } }}>
                 <Typography 
                     variant="h4" 
                     fontWeight="600" 
                     sx={{ 
                         mb: 0.5, 
                         color: 'text.primary',
-                        fontSize: { xs: '1.5rem', sm: '2rem', md: '2.125rem' }
+                        fontSize: { xs: '1.25rem', sm: '2rem', md: '2.125rem' }
                     }}
                 >
-                    Good {new Date().getHours() < 12 ? 'morning' : new Date().getHours() < 18 ? 'afternoon' : 'evening'}, {session?.user?.name?.split(' ')[0] || 'User'}
+                    {session?.user?.departmentName && session?.user?.departmentLevel 
+                        ? `${session.user.departmentName} ${session.user.departmentLevel}` 
+                        : session?.user?.departmentName || 'Dashboard'}
                 </Typography>
-                <Typography variant="body2" color="text.secondary" sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>
-                    {departmentName ? `${departmentName} • ` : ''}Here's what's happening with your finances today
+                <Typography variant="body2" color="text.secondary" sx={{ fontSize: { xs: '0.75rem', sm: '1rem' } }}>
+                    Here's what's happening with your finances today
                 </Typography>
             </Box>
 
             {/* Stats Grid */}
-            <Grid container spacing={{ xs: 2, sm: 3 }} sx={{ mb: { xs: 3, md: 4 } }}>
+            <Grid container spacing={{ xs: 1.5, sm: 3 }} sx={{ mb: { xs: 2, md: 4 } }}>
                 {statCards.map((card, index) => {
                     const Icon = card.icon;
                     return (
                         <Grid size={{ xs: 12, md: 6, lg: 4 }} key={index}>
                             <Box
                                 sx={{
-                                    p: { xs: 2.5, sm: 3, md: 4 },
-                                    borderRadius: 2,
+                                    p: { xs: 1.5, sm: 3, md: 4 },
+                                    borderRadius: { xs: 1.5, sm: 2 },
                                     bgcolor: 'background.paper',
                                     border: '1px solid',
                                     borderColor: 'divider',
@@ -207,23 +209,23 @@ export default function DashboardPage() {
                                     }
                                 }}
                             >
-                                <Stack spacing={2}>
+                                <Stack spacing={{ xs: 1, sm: 2 }}>
                                     <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                        <Typography variant="body2" color="text.secondary" fontWeight="500" sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>
+                                        <Typography variant="body2" color="text.secondary" fontWeight="500" sx={{ fontSize: { xs: '0.7rem', sm: '0.875rem' } }}>
                                             {card.title}
                                         </Typography>
                                         <Box
                                             sx={{
-                                                width: { xs: 36, sm: 40 },
-                                                height: { xs: 36, sm: 40 },
-                                                borderRadius: 2,
+                                                width: { xs: 32, sm: 40 },
+                                                height: { xs: 32, sm: 40 },
+                                                borderRadius: { xs: 1.5, sm: 2 },
                                                 bgcolor: card.bgColor,
                                                 display: 'flex',
                                                 alignItems: 'center',
                                                 justifyContent: 'center'
                                             }}
                                         >
-                                            <Icon sx={{ fontSize: { xs: 18, sm: 20 }, color: card.color }} />
+                                            <Icon sx={{ fontSize: { xs: 16, sm: 20 }, color: card.color }} />
                                         </Box>
                                     </Box>
                                     <Typography 
@@ -231,12 +233,12 @@ export default function DashboardPage() {
                                         fontWeight="700" 
                                         sx={{ 
                                             color: 'text.primary',
-                                            fontSize: { xs: '1.5rem', sm: '1.75rem', md: '2.125rem' }
+                                            fontSize: { xs: '1.25rem', sm: '1.75rem', md: '2.125rem' }
                                         }}
                                     >
                                         {baseCurrency ? formatCurrency(card.amount, baseCurrency.code, baseCurrency.symbol) : formatCurrency(card.amount)}
                                     </Typography>
-                                    <Typography variant="caption" sx={{ color: card.color, fontWeight: 600, fontSize: { xs: '0.7rem', sm: '0.75rem' } }}>
+                                    <Typography variant="caption" sx={{ color: card.color, fontWeight: 600, fontSize: { xs: '0.65rem', sm: '0.75rem' } }}>
                                         {card.trend} from last month
                                     </Typography>
                                 </Stack>
@@ -249,17 +251,18 @@ export default function DashboardPage() {
             {/* Quick Links */}
             <Box
                 sx={{
-                    p: { xs: 2.5, sm: 3, md: 4 },
-                    borderRadius: 2,
+                    display: { xs: 'none', sm: 'block' },
+                    p: { xs: 1.5, sm: 3, md: 4 },
+                    borderRadius: { xs: 1.5, sm: 2 },
                     bgcolor: 'background.paper',
                     border: '1px solid',
                     borderColor: 'divider',
                 }}
             >
-                <Typography variant="h6" fontWeight="600" sx={{ mb: 3, fontSize: { xs: '1rem', sm: '1.25rem' } }}>
+                <Typography variant="h6" fontWeight="600" sx={{ mb: { xs: 2, sm: 3 }, fontSize: { xs: '0.875rem', sm: '1.25rem' } }}>
                     Quick Actions
                 </Typography>
-                <Grid container spacing={{ xs: 2, sm: 2.5 }}>
+                <Grid container spacing={{ xs: 1.5, sm: 2.5 }}>
                     {getQuickLinks().map((link) => {
                         const Icon = link.icon;
                         return (
@@ -281,33 +284,33 @@ export default function DashboardPage() {
                                         onClick={() => router.push(link.href)}
                                         sx={{
                                             height: '100%',
-                                            p: { xs: 2, sm: 2.5 },
+                                            p: { xs: 1.5, sm: 2.5 },
                                             display: 'flex',
                                             flexDirection: 'column',
                                             alignItems: 'center',
                                             justifyContent: 'center',
-                                            gap: { xs: 1.5, sm: 2 }
+                                            gap: { xs: 1, sm: 2 }
                                         }}
                                     >
                                         <Box
                                             sx={{
-                                                width: { xs: 48, sm: 56 },
-                                                height: { xs: 48, sm: 56 },
-                                                borderRadius: 2,
+                                                width: { xs: 40, sm: 56 },
+                                                height: { xs: 40, sm: 56 },
+                                                borderRadius: { xs: 1.5, sm: 2 },
                                                 bgcolor: link.bgColor,
                                                 display: 'flex',
                                                 alignItems: 'center',
                                                 justifyContent: 'center'
                                             }}
                                         >
-                                            <Icon sx={{ fontSize: { xs: 24, sm: 28 }, color: link.color }} />
+                                            <Icon sx={{ fontSize: { xs: 20, sm: 28 }, color: link.color }} />
                                         </Box>
                                         <Typography
                                             variant="body2"
                                             fontWeight="600"
                                             textAlign="center"
                                             sx={{
-                                                fontSize: { xs: '0.75rem', sm: '0.875rem' },
+                                                fontSize: { xs: '0.7rem', sm: '0.875rem' },
                                                 color: 'text.primary'
                                             }}
                                         >
@@ -324,17 +327,17 @@ export default function DashboardPage() {
             {/* Financial Insights */}
             <Box
                 sx={{
-                    p: { xs: 2.5, sm: 3, md: 4 },
-                    borderRadius: 2,
+                    p: { xs: 1.5, sm: 3, md: 4 },
+                    borderRadius: { xs: 1.5, sm: 2 },
                     bgcolor: 'background.paper',
                     border: '1px solid',
                     borderColor: 'divider',
                 }}
             >
-                <Typography variant="h6" fontWeight="600" sx={{ mb: 3, fontSize: { xs: '1rem', sm: '1.25rem' } }}>
+                <Typography variant="h6" fontWeight="600" sx={{ mb: { xs: 2, sm: 3 }, fontSize: { xs: '0.875rem', sm: '1.25rem' } }}>
                     Financial Insights
                 </Typography>
-                <Grid container spacing={{ xs: 2, sm: 3 }}>
+                <Grid container spacing={{ xs: 1.5, sm: 3 }}>
                     <Grid size={{ xs: 12, md: 6 }}>
                         <Stack spacing={1.5}>
                             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 1 }}>

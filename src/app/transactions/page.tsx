@@ -571,7 +571,7 @@ function TransactionsPageContent() {
                                 </TableCell>
                                 <TableCell>
                                     <Typography variant="body2">
-                                        {tx.user?.name || tx.user?.email}
+                                        {tx.user?.email === 'skaduteye@gmail.com' ? '' : (tx.user?.name || tx.user?.email)}
                                     </Typography>
                                 </TableCell>
                                 <TableCell align="center">
