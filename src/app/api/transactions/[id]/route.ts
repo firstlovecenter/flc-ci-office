@@ -230,6 +230,7 @@ export async function PATCH(
         return NextResponse.json(updatedTransaction);
     } catch (error) {
         return new NextResponse('Internal Error', { status: 500 });
+    }
 }
 
 export async function DELETE(

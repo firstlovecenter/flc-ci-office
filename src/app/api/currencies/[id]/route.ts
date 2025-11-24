@@ -114,7 +114,8 @@ export async function PUT(
         });
 
         return NextResponse.json(updatedCurrency);
-    } catch (error) {\n        return new NextResponse('Internal Server Error', { status: 500 });
+    } catch (error) {
+        return new NextResponse('Internal Server Error', { status: 500 });
     }
 }
 

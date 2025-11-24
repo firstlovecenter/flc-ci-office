@@ -135,7 +135,7 @@ function TransactionsPageContent() {
             if (response.ok) {
                 const data = await response.json();
                 setCurrencies(data);
-            });
+            }
         } catch (error) {
         }
     };
@@ -175,7 +175,7 @@ function TransactionsPageContent() {
                         }
                     }
                 }
-            });
+            }
         } catch (error) {
         }
     };

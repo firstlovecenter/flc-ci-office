@@ -54,7 +54,7 @@ export async function PUT(
             },
         });
 
-        return NextResponse.json(department);
+        return NextResponse.json(updatedDepartment);
     } catch (error) {
         return new NextResponse('Internal Error', { status: 500 });
     }

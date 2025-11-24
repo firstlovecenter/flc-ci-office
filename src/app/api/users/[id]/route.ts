@@ -295,6 +295,8 @@ export async function PUT(
                         message: smsContent,
                     });
                 } catch (notificationError) {
+                }
+            }
         }
 
         // Remove password from response

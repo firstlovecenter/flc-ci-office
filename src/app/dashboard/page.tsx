@@ -67,7 +67,8 @@ export default function DashboardPage() {
                 setStats(data);
             }
         } catch (error) {
-        } finally {ing(false);
+        } finally {
+            setLoading(false);
         }
     };
 

@@ -73,7 +73,7 @@ export async function PUT(
             },
         });
 
-        return NextResponse.json(exchangeRate);
+        return NextResponse.json(updatedRate);
     } catch (error) {
         return new NextResponse('Internal Server Error', { status: 500 });
     }

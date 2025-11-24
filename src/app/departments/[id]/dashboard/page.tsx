@@ -53,6 +53,8 @@ export default function DepartmentDashboardPage() {
             }
         } catch (error) {
         } finally {
+            setLoading(false);
+        }
     };
 
     const fetchDetailStats = async () => {
