@@ -25,7 +25,9 @@ import { signOut } from 'next-auth/react';
 const SidebarContainer = styled(Box)(({ theme }) => ({
     width: 260,
     height: '100vh',
-    background: 'linear-gradient(180deg, #6B00FF 0%, #8B3DFF 100%)',
+    background: theme.palette.mode === 'dark'
+        ? 'linear-gradient(180deg, #7F1D1D 0%, #991B1B 50%, #450A0A 100%)'
+        : 'linear-gradient(180deg, #B91C1C 0%, #DC2626 50%, #991B1B 100%)',
     padding: theme.spacing(3),
     display: 'flex',
     flexDirection: 'column',
@@ -35,6 +37,9 @@ const SidebarContainer = styled(Box)(({ theme }) => ({
     borderTopRightRadius: 24,
     borderBottomRightRadius: 24,
     overflow: 'hidden',
+    boxShadow: theme.palette.mode === 'dark'
+        ? '4px 0 24px rgba(0, 0, 0, 0.5)'
+        : '4px 0 24px rgba(185, 28, 28, 0.15)',
     [theme.breakpoints.down('md')]: {
         width: 240,
         padding: theme.spacing(2),

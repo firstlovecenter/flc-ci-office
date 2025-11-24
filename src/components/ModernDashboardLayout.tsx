@@ -11,13 +11,17 @@ import DashboardIcon from '@mui/icons-material/Dashboard';
 import ReceiptIcon from '@mui/icons-material/Receipt';
 import BusinessIcon from '@mui/icons-material/Business';
 import AccountCircleIcon from '@mui/icons-material/AccountCircle';
+import Brightness4Icon from '@mui/icons-material/Brightness4';
+import Brightness7Icon from '@mui/icons-material/Brightness7';
 import ModernSidebar from './ModernSidebar';
 import PushNotificationManager from './PushNotificationManager';
+import { useColorMode } from '@/app/providers';
 
 const MainContainer = styled(Box)(({ theme }) => ({
     display: 'flex',
     minHeight: '100vh',
-    backgroundColor: '#F5F7FA',
+    backgroundColor: theme.palette.background.default,
+    transition: 'background-color 0.3s ease',
     [theme.breakpoints.down('md')]: {
         flexDirection: 'column',
     },
@@ -46,7 +50,7 @@ const TopBar = styled(Box)(({ theme }) => ({
 const SearchBox = styled(TextField)(({ theme }) => ({
     '& .MuiOutlinedInput-root': {
         borderRadius: 12,
-        backgroundColor: '#FFFFFF',
+        backgroundColor: theme.palette.background.paper,
         '& fieldset': {
             borderColor: 'transparent',
         },
@@ -68,6 +72,7 @@ export default function ModernDashboardLayout({ children }: { children: React.Re
     const router = useRouter();
     const theme = useTheme();
     const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+    const colorMode = useColorMode();
 
     const mobileNavItems = [
         { text: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard' },
@@ -109,15 +114,37 @@ export default function ModernDashboardLayout({ children }: { children: React.Re
                             }}
                         />
                         
+                        <IconButton
+                            onClick={colorMode.toggleColorMode}
+                            sx={{
+                                backgroundColor: theme.palette.background.paper,
+                                '&:hover': { 
+                                    backgroundColor: theme.palette.mode === 'dark' ? '#2A2A2A' : '#F3F4F6' 
+                                },
+                                boxShadow: theme.palette.mode === 'dark'
+                                    ? '0 2px 8px rgba(0,0,0,0.3)'
+                                    : '0 1px 3px rgba(0,0,0,0.1)',
+                                border: `1px solid ${theme.palette.divider}`,
+                            }}
+                            title={`Switch to ${theme.palette.mode === 'dark' ? 'light' : 'dark'} mode`}
+                        >
+                            {theme.palette.mode === 'dark' ? <Brightness7Icon /> : <Brightness4Icon />}
+                        </IconButton>
+                        
                         <Box sx={{ display: { xs: 'none', md: 'block' } }}>
                             <PushNotificationManager />
                         </Box>
                         
                         <IconButton 
                             sx={{ 
-                                backgroundColor: '#FFFFFF',
-                                '&:hover': { backgroundColor: '#F9FAFB' },
-                                boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+                                backgroundColor: theme.palette.background.paper,
+                                '&:hover': { 
+                                    backgroundColor: theme.palette.mode === 'dark' ? '#2A2A2A' : '#F3F4F6' 
+                                },
+                                boxShadow: theme.palette.mode === 'dark'
+                                    ? '0 2px 8px rgba(0,0,0,0.3)'
+                                    : '0 1px 3px rgba(0,0,0,0.1)',
+                                border: `1px solid ${theme.palette.divider}`,
                             }}
                         >
                             <NotificationsOutlinedIcon />
@@ -131,8 +158,10 @@ export default function ModernDashboardLayout({ children }: { children: React.Re
                                 bgcolor: theme.palette.primary.main,
                                 fontWeight: 700,
                                 cursor: 'pointer',
-                                border: '2px solid #FFFFFF',
-                                boxShadow: '0 2px 8px rgba(107, 0, 255, 0.2)',
+                                border: `2px solid ${theme.palette.background.paper}`,
+                                boxShadow: theme.palette.mode === 'dark'
+                                    ? '0 2px 8px rgba(220, 38, 38, 0.3)'
+                                    : '0 2px 8px rgba(185, 28, 28, 0.2)',
                             }}
                             onClick={() => router.push('/profile')}
                         >
