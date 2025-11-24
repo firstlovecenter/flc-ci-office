@@ -1,7 +1,7 @@
 'use client';
 
-import React from 'react';
-import { Box, List, ListItem, ListItemButton, ListItemIcon, ListItemText, Typography, Avatar, IconButton } from '@mui/material';
+import React, { useState } from 'react';
+import { Box, List, ListItem, ListItemButton, ListItemIcon, ListItemText, Typography, Avatar, IconButton, Tooltip } from '@mui/material';
 import { styled } from '@mui/material/styles';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -20,15 +20,19 @@ import PendingActionsIcon from '@mui/icons-material/PendingActions';
 import BusinessIcon from '@mui/icons-material/Business';
 import AssessmentIcon from '@mui/icons-material/Assessment';
 import HistoryIcon from '@mui/icons-material/History';
+import MenuIcon from '@mui/icons-material/Menu';
+import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import { signOut } from 'next-auth/react';
 
-const SidebarContainer = styled(Box)(({ theme }) => ({
-    width: 260,
+const SidebarContainer = styled(Box, {
+    shouldForwardProp: (prop) => prop !== 'collapsed',
+})<{ collapsed?: boolean }>(({ theme, collapsed }) => ({
+    width: collapsed ? 80 : 260,
     height: '100vh',
     background: theme.palette.mode === 'dark'
         ? 'linear-gradient(180deg, #7F1D1D 0%, #991B1B 50%, #450A0A 100%)'
         : 'linear-gradient(180deg, #B91C1C 0%, #DC2626 50%, #991B1B 100%)',
-    padding: theme.spacing(3),
+    padding: theme.spacing(collapsed ? 2 : 3),
     display: 'flex',
     flexDirection: 'column',
     position: 'fixed',
@@ -40,15 +44,19 @@ const SidebarContainer = styled(Box)(({ theme }) => ({
     boxShadow: theme.palette.mode === 'dark'
         ? '4px 0 24px rgba(0, 0, 0, 0.5)'
         : '4px 0 24px rgba(185, 28, 28, 0.15)',
+    transition: 'width 0.3s ease, padding 0.3s ease',
     [theme.breakpoints.down('md')]: {
-        width: 240,
+        width: collapsed ? 70 : 240,
         padding: theme.spacing(2),
     },
 }));
 
-const Logo = styled(Box)(({ theme }) => ({
+const Logo = styled(Box, {
+    shouldForwardProp: (prop) => prop !== 'collapsed',
+})<{ collapsed?: boolean }>(({ theme, collapsed }) => ({
     display: 'flex',
     alignItems: 'center',
+    justifyContent: collapsed ? 'center' : 'flex-start',
     gap: theme.spacing(1.5),
     marginBottom: theme.spacing(4),
     color: '#FFFFFF',
@@ -70,14 +78,32 @@ const MenuSection = styled(Box)(({ theme }) => ({
     marginBottom: theme.spacing(2),
 }));
 
-const MenuLabel = styled(Typography)(({ theme }) => ({
+const MenuLabel = styled(Typography, {
+    shouldForwardProp: (prop) => prop !== 'collapsed',
+})<{ collapsed?: boolean }>(({ theme, collapsed }) => ({
     color: 'rgba(255, 255, 255, 0.6)',
     fontSize: '12px',
     fontWeight: 600,
     textTransform: 'uppercase',
     letterSpacing: '0.5px',
-    padding: theme.spacing(0, 2),
+    padding: theme.spacing(0, collapsed ? 0 : 2),
     marginBottom: theme.spacing(1),
+    textAlign: collapsed ? 'center' : 'left',
+    opacity: collapsed ? 0 : 1,
+    transition: 'opacity 0.2s ease',
+}));
+
+const ToggleButton = styled(IconButton)(({ theme }) => ({
+    position: 'absolute',
+    top: theme.spacing(2),
+    right: theme.spacing(1),
+    color: '#FFFFFF',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    '&:hover': {
+        backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    },
+    width: 32,
+    height: 32,
 }));
 
 const StyledListItemButton = styled(ListItemButton, {
@@ -113,6 +139,7 @@ interface ModernSidebarProps {
 
 export default function ModernSidebar({ userRole, userName, userImage }: ModernSidebarProps) {
     const pathname = usePathname();
+    const [collapsed, setCollapsed] = useState(true);
 
     const isSuperAdmin = userRole === 'SUPERADMIN';
     const isGlobalAdmin = userRole === 'GLOBAL_ADMIN';
@@ -156,34 +183,45 @@ export default function ModernSidebar({ userRole, userName, userImage }: ModernS
     };
 
     return (
-        <SidebarContainer>
-            <Logo>
+        <SidebarContainer collapsed={collapsed}>
+            <ToggleButton onClick={() => setCollapsed(!collapsed)} size="small">
+                {collapsed ? <MenuIcon fontSize="small" /> : <ChevronLeftIcon fontSize="small" />}
+            </ToggleButton>
+            
+            <Logo collapsed={collapsed}>
                 <LogoIcon>
                     💰
                 </LogoIcon>
-                <Typography variant="h6" fontWeight={700} color="#FFFFFF">
-                    Finance
-                </Typography>
+                {!collapsed && (
+                    <Typography variant="h6" fontWeight={700} color="#FFFFFF">
+                        CI OFFICE
+                    </Typography>
+                )}
             </Logo>
 
             <MenuSection>
-                <MenuLabel>Menu</MenuLabel>
+                <MenuLabel collapsed={collapsed}>Menu</MenuLabel>
                 <List disablePadding>
                     {filteredMenuItems.map((item) => (
                         <ListItem key={item.path} disablePadding>
                             <Link href={item.path} passHref style={{ textDecoration: 'none', width: '100%' }}>
-                                <StyledListItemButton
-                                    active={pathname === item.path}
-                                >
-                                    <ListItemIcon>{item.icon}</ListItemIcon>
-                                    <ListItemText 
-                                        primary={item.text}
-                                        primaryTypographyProps={{
-                                            fontSize: '14px',
-                                            fontWeight: 500,
-                                        }}
-                                    />
-                                </StyledListItemButton>
+                                <Tooltip title={collapsed ? item.text : ''} placement="right" arrow>
+                                    <StyledListItemButton
+                                        active={pathname === item.path}
+                                        sx={{ justifyContent: collapsed ? 'center' : 'flex-start' }}
+                                    >
+                                        <ListItemIcon sx={{ minWidth: collapsed ? 'auto' : 40 }}>{item.icon}</ListItemIcon>
+                                        {!collapsed && (
+                                            <ListItemText 
+                                                primary={item.text}
+                                                primaryTypographyProps={{
+                                                    fontSize: '14px',
+                                                    fontWeight: 500,
+                                                }}
+                                            />
+                                        )}
+                                    </StyledListItemButton>
+                                </Tooltip>
                             </Link>
                         </ListItem>
                     ))}
@@ -197,32 +235,44 @@ export default function ModernSidebar({ userRole, userName, userImage }: ModernS
                     {filteredBottomItems.map((item) => (
                         <ListItem key={item.path} disablePadding>
                             <Link href={item.path} passHref style={{ textDecoration: 'none', width: '100%' }}>
-                                <StyledListItemButton
-                                    active={pathname === item.path}
-                                >
-                                    <ListItemIcon>{item.icon}</ListItemIcon>
+                                <Tooltip title={collapsed ? item.text : ''} placement="right" arrow>
+                                    <StyledListItemButton
+                                        active={pathname === item.path}
+                                        sx={{ justifyContent: collapsed ? 'center' : 'flex-start' }}
+                                    >
+                                        <ListItemIcon sx={{ minWidth: collapsed ? 'auto' : 40 }}>{item.icon}</ListItemIcon>
+                                        {!collapsed && (
+                                            <ListItemText 
+                                                primary={item.text}
+                                                primaryTypographyProps={{
+                                                    fontSize: '14px',
+                                                    fontWeight: 500,
+                                                }}
+                                            />
+                                        )}
+                                    </StyledListItemButton>
+                                </Tooltip>
+                            </Link>
+                        </ListItem>
+                    ))}
+                    <ListItem disablePadding>
+                        <Tooltip title={collapsed ? 'Logout' : ''} placement="right" arrow>
+                            <StyledListItemButton 
+                                onClick={handleLogout}
+                                sx={{ justifyContent: collapsed ? 'center' : 'flex-start' }}
+                            >
+                                <ListItemIcon sx={{ minWidth: collapsed ? 'auto' : 40 }}><LogoutIcon /></ListItemIcon>
+                                {!collapsed && (
                                     <ListItemText 
-                                        primary={item.text}
+                                        primary="Logout"
                                         primaryTypographyProps={{
                                             fontSize: '14px',
                                             fontWeight: 500,
                                         }}
                                     />
-                                </StyledListItemButton>
-                            </Link>
-                        </ListItem>
-                    ))}
-                    <ListItem disablePadding>
-                        <StyledListItemButton onClick={handleLogout}>
-                            <ListItemIcon><LogoutIcon /></ListItemIcon>
-                            <ListItemText 
-                                primary="Logout"
-                                primaryTypographyProps={{
-                                    fontSize: '14px',
-                                    fontWeight: 500,
-                                }}
-                            />
-                        </StyledListItemButton>
+                                )}
+                            </StyledListItemButton>
+                        </Tooltip>
                     </ListItem>
                 </List>
             </MenuSection>

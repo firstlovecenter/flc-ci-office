@@ -29,8 +29,9 @@ const MainContainer = styled(Box)(({ theme }) => ({
 
 const ContentArea = styled(Box)(({ theme }) => ({
     flexGrow: 1,
-    marginLeft: 260,
+    marginLeft: 80, // Default for collapsed sidebar
     padding: theme.spacing(4),
+    transition: 'margin-left 0.3s ease',
     [theme.breakpoints.down('md')]: {
         marginLeft: 0,
         padding: theme.spacing(2),
