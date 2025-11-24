@@ -79,6 +79,7 @@ export const authOptions: NextAuthOptions = {
                         roles: user.roles,
                         departmentId: user.departmentId || undefined,
                         departmentLevel: undefined,
+                        departmentName: user.department?.name,
                     };
                 }
 
@@ -99,6 +100,7 @@ export const authOptions: NextAuthOptions = {
                     roles: allRoles,
                     departmentId: activeRole.departmentId,
                     departmentLevel: activeRole.department?.level,
+                    departmentName: activeRole.department?.name,
                 };
             },
         }),
@@ -114,6 +116,7 @@ export const authOptions: NextAuthOptions = {
                 session.user.roles = token.roles as string[];
                 session.user.departmentId = token.departmentId as string;
                 session.user.departmentLevel = token.departmentLevel as string;
+                session.user.departmentName = token.departmentName as string;
             }
             return session;
         },
@@ -127,6 +130,7 @@ export const authOptions: NextAuthOptions = {
                 token.roles = user.roles;
                 token.departmentId = user.departmentId;
                 token.departmentLevel = user.departmentLevel;
+                token.departmentName = user.departmentName;
             }
             
             // Handle session update (e.g., when switching roles)
@@ -158,6 +162,7 @@ export const authOptions: NextAuthOptions = {
                         token.roles = updatedUser.roles;
                         token.departmentId = updatedUser.departmentId;
                         token.departmentLevel = undefined;
+                        token.departmentName = updatedUser.department?.name;
                     } else {
                         const activeRole = updatedUser.activeUserRole || updatedUser.userRoles[0];
                         const allRoles = updatedUser.userRoles.map(ur => ur.role);
@@ -167,6 +172,7 @@ export const authOptions: NextAuthOptions = {
                         token.roles = allRoles;
                         token.departmentId = activeRole?.departmentId;
                         token.departmentLevel = activeRole?.department?.level;
+                        token.departmentName = activeRole?.department?.name;
                     }
                 }
             }

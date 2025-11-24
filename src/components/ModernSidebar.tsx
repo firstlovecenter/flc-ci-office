@@ -30,9 +30,9 @@ const SidebarContainer = styled(Box, {
     width: collapsed ? 80 : 260,
     height: '100vh',
     background: theme.palette.mode === 'dark'
-        ? 'linear-gradient(180deg, #7F1D1D 0%, #991B1B 50%, #450A0A 100%)'
-        : 'linear-gradient(180deg, #B91C1C 0%, #DC2626 50%, #991B1B 100%)',
-    padding: theme.spacing(collapsed ? 2 : 3),
+        ? 'linear-gradient(180deg, #450A0A 0%, #5A0F0F 50%, #2D0505 100%)'
+        : 'linear-gradient(180deg, #7F1D1D 0%, #991B1B 50%, #5A0F0F 100%)',
+    padding: theme.spacing(2),
     display: 'flex',
     flexDirection: 'column',
     position: 'fixed',
@@ -62,18 +62,6 @@ const Logo = styled(Box, {
     color: '#FFFFFF',
 }));
 
-const LogoIcon = styled(Box)(({ theme }) => ({
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    background: 'rgba(255, 255, 255, 0.2)',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    fontSize: '24px',
-    fontWeight: 700,
-}));
-
 const MenuSection = styled(Box)(({ theme }) => ({
     marginBottom: theme.spacing(2),
 }));
@@ -94,16 +82,14 @@ const MenuLabel = styled(Typography, {
 }));
 
 const ToggleButton = styled(IconButton)(({ theme }) => ({
-    position: 'absolute',
-    top: theme.spacing(2),
-    right: theme.spacing(1),
     color: '#FFFFFF',
     backgroundColor: 'rgba(255, 255, 255, 0.1)',
     '&:hover': {
         backgroundColor: 'rgba(255, 255, 255, 0.2)',
     },
-    width: 32,
-    height: 32,
+    width: 40,
+    height: 40,
+    marginBottom: theme.spacing(3),
 }));
 
 const StyledListItemButton = styled(ListItemButton, {
@@ -111,7 +97,7 @@ const StyledListItemButton = styled(ListItemButton, {
 })<{ active?: boolean }>(({ theme, active }) => ({
     borderRadius: 12,
     marginBottom: theme.spacing(0.5),
-    padding: theme.spacing(1.5, 2),
+    padding: theme.spacing(1.25),
     color: active ? '#FFFFFF' : 'rgba(255, 255, 255, 0.7)',
     backgroundColor: active ? 'rgba(255, 255, 255, 0.15)' : 'transparent',
     '&:hover': {
@@ -184,20 +170,11 @@ export default function ModernSidebar({ userRole, userName, userImage }: ModernS
 
     return (
         <SidebarContainer collapsed={collapsed}>
-            <ToggleButton onClick={() => setCollapsed(!collapsed)} size="small">
-                {collapsed ? <MenuIcon fontSize="small" /> : <ChevronLeftIcon fontSize="small" />}
-            </ToggleButton>
-            
-            <Logo collapsed={collapsed}>
-                <LogoIcon>
-                    💰
-                </LogoIcon>
-                {!collapsed && (
-                    <Typography variant="h6" fontWeight={700} color="#FFFFFF">
-                        CI OFFICE
-                    </Typography>
-                )}
-            </Logo>
+            <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: collapsed ? 'center' : 'flex-start', width: '100%' }}>
+                <ToggleButton onClick={() => setCollapsed(!collapsed)}>
+                    {collapsed ? <MenuIcon /> : <ChevronLeftIcon />}
+                </ToggleButton>
+            </Box>
 
             <MenuSection>
                 <MenuLabel collapsed={collapsed}>Menu</MenuLabel>

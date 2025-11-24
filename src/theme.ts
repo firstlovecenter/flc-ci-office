@@ -15,9 +15,9 @@ export const getDesignTokens = (mode: PaletteMode) => ({
     palette: {
         mode,
         primary: {
-            main: mode === 'dark' ? '#DC2626' : '#B91C1C', // Dark red
-            light: mode === 'dark' ? '#EF4444' : '#DC2626',
-            dark: mode === 'dark' ? '#991B1B' : '#7F1D1D',
+            main: mode === 'dark' ? '#7F1D1D' : '#991B1B', // Much darker red
+            light: mode === 'dark' ? '#991B1B' : '#B91C1C',
+            dark: mode === 'dark' ? '#5A0F0F' : '#450A0A',
         },
         secondary: {
             main: mode === 'dark' ? '#F59E0B' : '#D97706', // Amber/Gold accent

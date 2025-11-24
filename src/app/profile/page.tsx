@@ -36,7 +36,6 @@ import BadgeIcon from '@mui/icons-material/Badge';
 import BusinessIcon from '@mui/icons-material/Business';
 import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
 import MonetizationOnIcon from '@mui/icons-material/MonetizationOn';
-import NotificationSettings from '@/components/NotificationSettings';
 
 interface UserProfile {
     id: string;
@@ -243,11 +242,7 @@ export default function ProfilePage() {
     }
 
     return (
-        <Container maxWidth="md" sx={{ py: 4 }}>
-            <Typography variant="h4" gutterBottom fontWeight={700} sx={{ mb: 4 }}>
-                My Profile
-            </Typography>
-
+        <Box sx={{ py: 4 }}>
             {error && (
                 <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError('')}>
                     {error}
@@ -261,17 +256,31 @@ export default function ProfilePage() {
             )}
 
             {/* Profile Header Card */}
-            <Paper sx={{ p: 4, mb: 3 }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 3, flexDirection: { xs: 'column', sm: 'row' } }}>
+            <Paper 
+                elevation={0}
+                sx={{ 
+                    p: { xs: 3, sm: 4, md: 5 }, 
+                    mb: 3,
+                    borderRadius: 3,
+                    background: (theme) => theme.palette.mode === 'dark' 
+                        ? 'linear-gradient(135deg, #1A1A1A 0%, #2D2D2D 100%)'
+                        : 'linear-gradient(135deg, #FFFFFF 0%, #F5F5F5 100%)',
+                    border: '1px solid',
+                    borderColor: 'divider',
+                }}
+            >
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 2, sm: 4 }, flexDirection: { xs: 'column', sm: 'row' } }}>
                     <Box sx={{ position: 'relative' }}>
                         <Avatar
                             src={formData.image || undefined}
                             sx={{ 
-                                width: 120, 
-                                height: 120,
+                                width: { xs: 100, sm: 120, md: 140 }, 
+                                height: { xs: 100, sm: 120, md: 140 },
                                 border: '4px solid',
                                 borderColor: 'primary.main',
-                                boxShadow: (theme) => `0 4px 14px 0 ${alpha(theme.palette.primary.main, 0.4)}`,
+                                boxShadow: (theme) => `0 8px 24px ${alpha(theme.palette.primary.main, 0.3)}`,
+                                fontSize: '3rem',
+                                fontWeight: 700,
                             }}
                         >
                             {profile.name?.[0]?.toUpperCase() || 'U'}
@@ -285,19 +294,20 @@ export default function ProfilePage() {
                                 right: 0,
                                 bgcolor: 'primary.main',
                                 color: 'white',
+                                width: 40,
+                                height: 40,
                                 '&:hover': {
                                     bgcolor: 'primary.dark',
+                                    transform: 'scale(1.1)',
                                 },
-                                '&.Mui-disabled': {
-                                    bgcolor: 'primary.light',
-                                    color: 'white',
-                                },
+                                transition: 'all 0.2s',
+                                boxShadow: 3,
                             }}
                         >
                             {uploading ? (
-                                <CircularProgress size={24} color="inherit" />
+                                <CircularProgress size={20} color="inherit" />
                             ) : (
-                                <PhotoCameraIcon />
+                                <PhotoCameraIcon fontSize="small" />
                             )}
                             <input
                                 type="file"
@@ -310,19 +320,20 @@ export default function ProfilePage() {
                     </Box>
 
                     <Box sx={{ flex: 1, textAlign: { xs: 'center', sm: 'left' } }}>
-                        <Typography variant="h5" fontWeight={700} gutterBottom>
+                        <Typography variant="h4" fontWeight={700} gutterBottom sx={{ fontSize: { xs: '1.75rem', sm: '2rem', md: '2.25rem' } }}>
                             {profile.name || 'No name set'}
                         </Typography>
-                        <Typography variant="body1" color="text.secondary" gutterBottom>
+                        <Typography variant="body1" color="text.secondary" gutterBottom sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>
                             {profile.email}
                         </Typography>
-                        <Box sx={{ display: 'flex', gap: 0.5, mt: 1, flexWrap: 'wrap', justifyContent: { xs: 'center', sm: 'flex-start' } }}>
+                        <Box sx={{ display: 'flex', gap: 1, mt: 2, flexWrap: 'wrap', justifyContent: { xs: 'center', sm: 'flex-start' } }}>
                             {(profile.roles || []).map((role: string) => (
                                 <Chip 
                                     key={role}
                                     label={role.replace(/_/g, ' ')} 
                                     color={role === 'SUPERADMIN' ? 'error' : 'primary'}
-                                    size="small"
+                                    size="medium"
+                                    sx={{ fontWeight: 600 }}
                                 />
                             ))}
                         </Box>
@@ -330,9 +341,15 @@ export default function ProfilePage() {
 
                     {!editing && (
                         <Button
-                            variant="outlined"
+                            variant="contained"
+                            size="large"
                             startIcon={<EditIcon />}
                             onClick={() => setEditing(true)}
+                            sx={{ 
+                                borderRadius: 2,
+                                px: 3,
+                                boxShadow: 3,
+                            }}
                         >
                             Edit Profile
                         </Button>
@@ -343,42 +360,55 @@ export default function ProfilePage() {
             {/* Profile Details */}
             <Grid container spacing={3}>
                 {/* Personal Information */}
-                <Grid size={{ xs: 12 }}>
-                    <Card>
-                        <CardContent>
-                            <Typography variant="h6" fontWeight={600} gutterBottom sx={{ mb: 3 }}>
-                                Personal Information
-                            </Typography>
+                <Grid size={{ xs: 12, lg: 8 }}>
+                    <Card 
+                        elevation={0}
+                        sx={{ 
+                            borderRadius: 3,
+                            border: '1px solid',
+                            borderColor: 'divider',
+                            height: '100%',
+                        }}
+                    >
+                        <CardContent sx={{ p: { xs: 3, sm: 4 } }}>
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4 }}>
+                                <Typography variant="h6" fontWeight={700}>
+                                    Personal Information
+                                </Typography>
+                                <PersonIcon color="primary" sx={{ fontSize: 28 }} />
+                            </Box>
 
-                            <Stack spacing={3}>
+                            <Stack spacing={4}>
                                 <Box>
-                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                                        <PersonIcon color="action" fontSize="small" />
-                                        <Typography variant="body2" color="text.secondary">
-                                            Full Name
-                                        </Typography>
-                                    </Box>
+                                    <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: 1, fontWeight: 600, mb: 1, display: 'block' }}>
+                                        Full Name
+                                    </Typography>
                                     {editing ? (
                                         <TextField
                                             fullWidth
                                             value={formData.name}
                                             onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                                             placeholder="Enter your name"
+                                            variant="outlined"
+                                            sx={{ 
+                                                '& .MuiOutlinedInput-root': {
+                                                    borderRadius: 2,
+                                                }
+                                            }}
                                         />
                                     ) : (
-                                        <Typography variant="body1" fontWeight={500}>
+                                        <Typography variant="h6" fontWeight={500}>
                                             {profile.name || 'Not set'}
                                         </Typography>
                                     )}
                                 </Box>
 
+                                <Divider />
+
                                 <Box>
-                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                                        <EmailIcon color="action" fontSize="small" />
-                                        <Typography variant="body2" color="text.secondary">
-                                            Email Address
-                                        </Typography>
-                                    </Box>
+                                    <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: 1, fontWeight: 600, mb: 1, display: 'block' }}>
+                                        Email Address
+                                    </Typography>
                                     {editing && session?.user?.role === 'SUPERADMIN' ? (
                                         <TextField
                                             fullWidth
@@ -386,73 +416,89 @@ export default function ProfilePage() {
                                             value={formData.email}
                                             onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                                             placeholder="Enter your email"
+                                            variant="outlined"
+                                            sx={{ 
+                                                '& .MuiOutlinedInput-root': {
+                                                    borderRadius: 2,
+                                                }
+                                            }}
                                         />
                                     ) : (
                                         <>
-                                            <Typography variant="body1" fontWeight={500}>
+                                            <Typography variant="h6" fontWeight={500}>
                                                 {profile.email}
                                             </Typography>
                                             {session?.user?.role !== 'SUPERADMIN' && (
-                                                <Typography variant="caption" color="text.secondary">
-                                                    Email cannot be changed
+                                                <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
+                                                    Contact admin to change email
                                                 </Typography>
                                             )}
                                         </>
                                     )}
                                 </Box>
 
+                                <Divider />
+
                                 <Box>
-                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                                        <BadgeIcon color="action" fontSize="small" />
-                                        <Typography variant="body2" color="text.secondary">
-                                            Roles
-                                        </Typography>
-                                    </Box>
-                                    <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
+                                    <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: 1, fontWeight: 600, mb: 1, display: 'block' }}>
+                                        User Roles
+                                    </Typography>
+                                    <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
                                         {(profile.roles || []).map((role: string) => (
                                             <Chip 
                                                 key={role}
                                                 label={role.replace(/_/g, ' ')} 
-                                                size="small"
+                                                size="medium"
                                                 color={role === 'SUPERADMIN' ? 'error' : 'default'}
+                                                variant="outlined"
+                                                sx={{ fontWeight: 600 }}
                                             />
                                         ))}
                                     </Box>
                                 </Box>
 
                                 {profile.department && (
-                                    <Box>
-                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                                            <BusinessIcon color="action" fontSize="small" />
-                                            <Typography variant="body2" color="text.secondary">
+                                    <>
+                                        <Divider />
+                                        <Box>
+                                            <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: 1, fontWeight: 600, mb: 1, display: 'block' }}>
                                                 Department
                                             </Typography>
+                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                                                <BusinessIcon color="primary" />
+                                                <Box>
+                                                    <Typography variant="h6" fontWeight={500}>
+                                                        {profile.department.name}
+                                                    </Typography>
+                                                    <Typography variant="caption" color="text.secondary">
+                                                        {profile.department.level.replace(/_/g, ' ')}
+                                                    </Typography>
+                                                </Box>
+                                            </Box>
                                         </Box>
-                                        <Typography variant="body1" fontWeight={500}>
-                                            {profile.department.name}
-                                        </Typography>
-                                        <Typography variant="caption" color="text.secondary">
-                                            {profile.department.level.replace(/_/g, ' ')}
-                                        </Typography>
-                                    </Box>
+                                    </>
                                 )}
                             </Stack>
 
                             {editing && (
-                                <Box sx={{ mt: 3, display: 'flex', gap: 2, justifyContent: 'flex-end' }}>
+                                <Box sx={{ mt: 4, display: 'flex', gap: 2, justifyContent: 'flex-end' }}>
                                     <Button
                                         variant="outlined"
+                                        size="large"
                                         startIcon={<CancelIcon />}
                                         onClick={handleCancel}
                                         disabled={saving}
+                                        sx={{ borderRadius: 2, px: 3 }}
                                     >
                                         Cancel
                                     </Button>
                                     <Button
                                         variant="contained"
+                                        size="large"
                                         startIcon={<SaveIcon />}
                                         onClick={() => handleSave()}
                                         disabled={saving}
+                                        sx={{ borderRadius: 2, px: 3, boxShadow: 3 }}
                                     >
                                         {saving ? 'Saving...' : 'Save Changes'}
                                     </Button>
@@ -462,40 +508,55 @@ export default function ProfilePage() {
                     </Card>
                 </Grid>
 
-                {/* Push Notifications */}
-                <Grid size={{ xs: 12 }}>
-                    <NotificationSettings />
-                </Grid>
-
                 {/* Account Information */}
-                <Grid size={{ xs: 12 }}>
-                    <Card>
-                        <CardContent>
-                            <Typography variant="h6" fontWeight={600} gutterBottom sx={{ mb: 3 }}>
-                                Account Information
-                            </Typography>
+                <Grid size={{ xs: 12, lg: 4 }}>
+                    <Card 
+                        elevation={0}
+                        sx={{ 
+                            borderRadius: 3,
+                            border: '1px solid',
+                            borderColor: 'divider',
+                        }}
+                    >
+                        <CardContent sx={{ p: { xs: 3, sm: 4 } }}>
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4 }}>
+                                <Typography variant="h6" fontWeight={700}>
+                                    Account Details
+                                </Typography>
+                                <CalendarTodayIcon color="primary" sx={{ fontSize: 28 }} />
+                            </Box>
 
-                            <Stack spacing={2}>
-                                <Box>
-                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                                        <CalendarTodayIcon color="action" fontSize="small" />
-                                        <Typography variant="body2" color="text.secondary">
-                                            Account Created
-                                        </Typography>
-                                    </Box>
-                                    <Typography variant="body1" fontWeight={500}>
+                            <Stack spacing={3}>
+                                <Box 
+                                    sx={{ 
+                                        p: 2.5, 
+                                        borderRadius: 2, 
+                                        bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)',
+                                        border: '1px solid',
+                                        borderColor: 'divider',
+                                    }}
+                                >
+                                    <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: 1, fontWeight: 600, mb: 1, display: 'block' }}>
+                                        Member Since
+                                    </Typography>
+                                    <Typography variant="body1" fontWeight={600}>
                                         {formatDate(profile.createdAt)}
                                     </Typography>
                                 </Box>
 
-                                <Box>
-                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                                        <CalendarTodayIcon color="action" fontSize="small" />
-                                        <Typography variant="body2" color="text.secondary">
-                                            Last Updated
-                                        </Typography>
-                                    </Box>
-                                    <Typography variant="body1" fontWeight={500}>
+                                <Box 
+                                    sx={{ 
+                                        p: 2.5, 
+                                        borderRadius: 2, 
+                                        bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)',
+                                        border: '1px solid',
+                                        borderColor: 'divider',
+                                    }}
+                                >
+                                    <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: 1, fontWeight: 600, mb: 1, display: 'block' }}>
+                                        Last Updated
+                                    </Typography>
+                                    <Typography variant="body1" fontWeight={600}>
                                         {formatDate(profile.updatedAt)}
                                     </Typography>
                                 </Box>
@@ -504,6 +565,6 @@ export default function ProfilePage() {
                     </Card>
                 </Grid>
             </Grid>
-        </Container>
+        </Box>
     );
 }

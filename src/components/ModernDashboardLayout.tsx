@@ -3,18 +3,16 @@
 import React from 'react';
 import { Box, Typography, Avatar, IconButton, TextField, InputAdornment, Paper, BottomNavigation, BottomNavigationAction, useMediaQuery, useTheme } from '@mui/material';
 import { styled } from '@mui/material/styles';
-import { useSession } from 'next-auth/react';
+import { useSession, signOut } from 'next-auth/react';
 import { usePathname, useRouter } from 'next/navigation';
-import SearchIcon from '@mui/icons-material/Search';
-import NotificationsOutlinedIcon from '@mui/icons-material/NotificationsOutlined';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import ReceiptIcon from '@mui/icons-material/Receipt';
 import BusinessIcon from '@mui/icons-material/Business';
 import AccountCircleIcon from '@mui/icons-material/AccountCircle';
 import Brightness4Icon from '@mui/icons-material/Brightness4';
 import Brightness7Icon from '@mui/icons-material/Brightness7';
+import LogoutIcon from '@mui/icons-material/Logout';
 import ModernSidebar from './ModernSidebar';
-import PushNotificationManager from './PushNotificationManager';
 import { useColorMode } from '@/app/providers';
 
 const MainContainer = styled(Box)(({ theme }) => ({
@@ -46,19 +44,7 @@ const TopBar = styled(Box)(({ theme }) => ({
     marginBottom: theme.spacing(4),
     flexWrap: 'wrap',
     gap: theme.spacing(2),
-}));
-
-const SearchBox = styled(TextField)(({ theme }) => ({
-    '& .MuiOutlinedInput-root': {
-        borderRadius: 12,
-        backgroundColor: theme.palette.background.paper,
-        '& fieldset': {
-            borderColor: 'transparent',
-        },
-        '&:hover fieldset': {
-            borderColor: theme.palette.primary.main,
-        },
-    },
+    position: 'static',
 }));
 
 const UserSection = styled(Box)(({ theme }) => ({
@@ -80,6 +66,7 @@ export default function ModernDashboardLayout({ children }: { children: React.Re
         { text: 'Transactions', icon: <ReceiptIcon />, path: '/transactions' },
         { text: 'Departments', icon: <BusinessIcon />, path: '/departments' },
         { text: 'Profile', icon: <AccountCircleIcon />, path: '/profile' },
+        { text: 'Logout', icon: <LogoutIcon />, path: '/logout', isAction: true },
     ];
 
     return (
@@ -94,27 +81,9 @@ export default function ModernDashboardLayout({ children }: { children: React.Re
 
             <ContentArea>
                 <TopBar>
-                    <Typography variant="h5" fontWeight={700} color="text.primary">
-                        Welcome {session?.user?.name?.split(' ')[0] || 'User'}!
-                    </Typography>
+                    <Box />
                     
                     <UserSection>
-                        <SearchBox
-                            placeholder="Search your items"
-                            size="small"
-                            InputProps={{
-                                startAdornment: (
-                                    <InputAdornment position="start">
-                                        <SearchIcon sx={{ color: 'text.secondary' }} />
-                                    </InputAdornment>
-                                ),
-                            }}
-                            sx={{ 
-                                width: { xs: 200, sm: 300 },
-                                display: { xs: 'none', sm: 'block' }
-                            }}
-                        />
-                        
                         <IconButton
                             onClick={colorMode.toggleColorMode}
                             sx={{
@@ -132,24 +101,14 @@ export default function ModernDashboardLayout({ children }: { children: React.Re
                             {theme.palette.mode === 'dark' ? <Brightness7Icon /> : <Brightness4Icon />}
                         </IconButton>
                         
-                        <Box sx={{ display: { xs: 'none', md: 'block' } }}>
-                            <PushNotificationManager />
-                        </Box>
-                        
-                        <IconButton 
-                            sx={{ 
-                                backgroundColor: theme.palette.background.paper,
-                                '&:hover': { 
-                                    backgroundColor: theme.palette.mode === 'dark' ? '#2A2A2A' : '#F3F4F6' 
-                                },
-                                boxShadow: theme.palette.mode === 'dark'
-                                    ? '0 2px 8px rgba(0,0,0,0.3)'
-                                    : '0 1px 3px rgba(0,0,0,0.1)',
-                                border: `1px solid ${theme.palette.divider}`,
-                            }}
+                        <Typography 
+                            variant="body2" 
+                            fontWeight={600} 
+                            color="text.primary"
+                            sx={{ display: { xs: 'none', md: 'block' } }}
                         >
-                            <NotificationsOutlinedIcon />
-                        </IconButton>
+                            {session?.user?.name || 'User'}
+                        </Typography>
                         
                         <Avatar
                             src={session?.user?.image || undefined}
@@ -191,7 +150,11 @@ export default function ModernDashboardLayout({ children }: { children: React.Re
                     <BottomNavigation
                         value={pathname}
                         onChange={(event, newValue) => {
-                            router.push(newValue);
+                            if (newValue === '/logout') {
+                                signOut({ callbackUrl: '/auth/login' });
+                            } else {
+                                router.push(newValue);
+                            }
                         }}
                         showLabels
                         sx={{
