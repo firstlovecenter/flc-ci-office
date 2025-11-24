@@ -140,6 +140,7 @@ export const authOptions: NextAuthOptions = {
                 const updatedUser = await prisma.user.findUnique({
                     where: { email: token.email as string },
                     include: {
+                        department: true,
                         activeUserRole: {
                             include: {
                                 department: true,
