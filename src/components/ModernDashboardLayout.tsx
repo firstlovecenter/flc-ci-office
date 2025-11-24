@@ -1,0 +1,197 @@
+'use client';
+
+import React from 'react';
+import { Box, Typography, Avatar, IconButton, TextField, InputAdornment, Paper, BottomNavigation, BottomNavigationAction, useMediaQuery, useTheme } from '@mui/material';
+import { styled } from '@mui/material/styles';
+import { useSession } from 'next-auth/react';
+import { usePathname, useRouter } from 'next/navigation';
+import SearchIcon from '@mui/icons-material/Search';
+import NotificationsOutlinedIcon from '@mui/icons-material/NotificationsOutlined';
+import DashboardIcon from '@mui/icons-material/Dashboard';
+import ReceiptIcon from '@mui/icons-material/Receipt';
+import BusinessIcon from '@mui/icons-material/Business';
+import AccountCircleIcon from '@mui/icons-material/AccountCircle';
+import ModernSidebar from './ModernSidebar';
+import PushNotificationManager from './PushNotificationManager';
+
+const MainContainer = styled(Box)(({ theme }) => ({
+    display: 'flex',
+    minHeight: '100vh',
+    backgroundColor: '#F5F7FA',
+    [theme.breakpoints.down('md')]: {
+        flexDirection: 'column',
+    },
+}));
+
+const ContentArea = styled(Box)(({ theme }) => ({
+    flexGrow: 1,
+    marginLeft: 260,
+    padding: theme.spacing(4),
+    [theme.breakpoints.down('md')]: {
+        marginLeft: 0,
+        padding: theme.spacing(2),
+        paddingBottom: theme.spacing(10), // Space for bottom nav
+    },
+}));
+
+const TopBar = styled(Box)(({ theme }) => ({
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: theme.spacing(4),
+    flexWrap: 'wrap',
+    gap: theme.spacing(2),
+}));
+
+const SearchBox = styled(TextField)(({ theme }) => ({
+    '& .MuiOutlinedInput-root': {
+        borderRadius: 12,
+        backgroundColor: '#FFFFFF',
+        '& fieldset': {
+            borderColor: 'transparent',
+        },
+        '&:hover fieldset': {
+            borderColor: theme.palette.primary.main,
+        },
+    },
+}));
+
+const UserSection = styled(Box)(({ theme }) => ({
+    display: 'flex',
+    alignItems: 'center',
+    gap: theme.spacing(2),
+}));
+
+export default function ModernDashboardLayout({ children }: { children: React.ReactNode }) {
+    const { data: session } = useSession();
+    const pathname = usePathname();
+    const router = useRouter();
+    const theme = useTheme();
+    const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+
+    const mobileNavItems = [
+        { text: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard' },
+        { text: 'Transactions', icon: <ReceiptIcon />, path: '/transactions' },
+        { text: 'Departments', icon: <BusinessIcon />, path: '/departments' },
+        { text: 'Profile', icon: <AccountCircleIcon />, path: '/profile' },
+    ];
+
+    return (
+        <MainContainer>
+            {!isMobile && (
+                <ModernSidebar
+                    userRole={session?.user?.role}
+                    userName={session?.user?.name || undefined}
+                    userImage={session?.user?.image || undefined}
+                />
+            )}
+
+            <ContentArea>
+                <TopBar>
+                    <Typography variant="h5" fontWeight={700} color="text.primary">
+                        Welcome {session?.user?.name?.split(' ')[0] || 'User'}!
+                    </Typography>
+                    
+                    <UserSection>
+                        <SearchBox
+                            placeholder="Search your items"
+                            size="small"
+                            InputProps={{
+                                startAdornment: (
+                                    <InputAdornment position="start">
+                                        <SearchIcon sx={{ color: 'text.secondary' }} />
+                                    </InputAdornment>
+                                ),
+                            }}
+                            sx={{ 
+                                width: { xs: 200, sm: 300 },
+                                display: { xs: 'none', sm: 'block' }
+                            }}
+                        />
+                        
+                        <Box sx={{ display: { xs: 'none', md: 'block' } }}>
+                            <PushNotificationManager />
+                        </Box>
+                        
+                        <IconButton 
+                            sx={{ 
+                                backgroundColor: '#FFFFFF',
+                                '&:hover': { backgroundColor: '#F9FAFB' },
+                                boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+                            }}
+                        >
+                            <NotificationsOutlinedIcon />
+                        </IconButton>
+                        
+                        <Avatar
+                            src={session?.user?.image || undefined}
+                            sx={{
+                                width: 40,
+                                height: 40,
+                                bgcolor: theme.palette.primary.main,
+                                fontWeight: 700,
+                                cursor: 'pointer',
+                                border: '2px solid #FFFFFF',
+                                boxShadow: '0 2px 8px rgba(107, 0, 255, 0.2)',
+                            }}
+                            onClick={() => router.push('/profile')}
+                        >
+                            {session?.user?.name?.[0]?.toUpperCase() || 'U'}
+                        </Avatar>
+                    </UserSection>
+                </TopBar>
+
+                {children}
+            </ContentArea>
+
+            {/* Mobile Bottom Navigation */}
+            {isMobile && (
+                <Paper
+                    sx={{
+                        position: 'fixed',
+                        bottom: 0,
+                        left: 0,
+                        right: 0,
+                        zIndex: theme.zIndex.appBar,
+                        borderTop: '1px solid',
+                        borderColor: 'divider',
+                    }}
+                    elevation={3}
+                >
+                    <BottomNavigation
+                        value={pathname}
+                        onChange={(event, newValue) => {
+                            router.push(newValue);
+                        }}
+                        showLabels
+                        sx={{
+                            '& .MuiBottomNavigationAction-root': {
+                                minWidth: 'auto',
+                                px: 0,
+                            },
+                            '& .MuiBottomNavigationAction-label': {
+                                fontSize: '0.7rem',
+                                mt: 0.5,
+                            },
+                        }}
+                    >
+                        {mobileNavItems.map((item) => (
+                            <BottomNavigationAction
+                                key={item.path}
+                                label={item.text}
+                                value={item.path}
+                                icon={item.icon}
+                                sx={{
+                                    color: pathname === item.path ? 'primary.main' : 'text.secondary',
+                                    '&.Mui-selected': {
+                                        color: 'primary.main',
+                                    },
+                                }}
+                            />
+                        ))}
+                    </BottomNavigation>
+                </Paper>
+            )}
+        </MainContainer>
+    );
+}

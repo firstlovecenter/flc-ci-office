@@ -13,45 +13,49 @@ const theme = createTheme({
         fontFamily: roboto.style.fontFamily,
     },
     palette: {
-        mode: 'dark',
+        mode: 'light',
         primary: {
-            main: '#60a5fa', // Sky blue - more vibrant for dark mode
-            light: '#93c5fd',
-            dark: '#3b82f6',
+            main: '#6B00FF', // Vibrant purple
+            light: '#8B3DFF',
+            dark: '#5500CC',
         },
         secondary: {
-            main: '#a78bfa', // Purple
-            light: '#c4b5fd',
-            dark: '#8b5cf6',
+            main: '#FF6B00', // Orange accent
+            light: '#FF8B3D',
+            dark: '#CC5500',
         },
         background: {
-            default: '#0f172a', // Slate 900
-            paper: '#1e293b', // Slate 800
+            default: '#F5F7FA', // Light gray background
+            paper: '#FFFFFF', // White paper
         },
         text: {
-            primary: '#f1f5f9', // Slate 100
-            secondary: '#cbd5e1', // Slate 300
+            primary: '#1A1A1A', // Dark text
+            secondary: '#6B7280', // Gray text
         },
-        divider: 'rgba(148, 163, 184, 0.12)', // Slate 400 with opacity
+        divider: 'rgba(0, 0, 0, 0.08)',
         success: {
-            main: '#34d399', // Emerald
-            light: '#6ee7b7',
-            dark: '#10b981',
+            main: '#10B981', // Green
+            light: '#34D399',
+            dark: '#059669',
+            contrastText: '#FFFFFF',
         },
         error: {
-            main: '#f87171', // Red
-            light: '#fca5a5',
-            dark: '#ef4444',
+            main: '#EF4444', // Red
+            light: '#F87171',
+            dark: '#DC2626',
+            contrastText: '#FFFFFF',
         },
         warning: {
-            main: '#fbbf24', // Amber
-            light: '#fcd34d',
-            dark: '#f59e0b',
+            main: '#F59E0B', // Amber
+            light: '#FBBF24',
+            dark: '#D97706',
+            contrastText: '#FFFFFF',
         },
         info: {
-            main: '#38bdf8', // Sky
-            light: '#7dd3fc',
-            dark: '#0ea5e9',
+            main: '#3B82F6', // Blue
+            light: '#60A5FA',
+            dark: '#2563EB',
+            contrastText: '#FFFFFF',
         },
     },
     components: {
@@ -73,22 +77,22 @@ const theme = createTheme({
         MuiPaper: {
             styleOverrides: {
                 root: {
-                    borderRadius: 12,
+                    borderRadius: 16,
                     backgroundImage: 'none',
-                    backgroundColor: 'rgba(30, 41, 59, 0.9)',
-                    backdropFilter: 'blur(20px)',
-                    border: '1px solid rgba(148, 163, 184, 0.12)',
+                    backgroundColor: '#FFFFFF',
+                    border: '1px solid rgba(0, 0, 0, 0.08)',
+                    boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06)',
                 },
             },
         },
         MuiCard: {
             styleOverrides: {
                 root: {
-                    borderRadius: 12,
+                    borderRadius: 16,
                     backgroundImage: 'none',
-                    backgroundColor: 'rgba(30, 41, 59, 0.7)',
-                    backdropFilter: 'blur(10px)',
-                    border: '1px solid rgba(148, 163, 184, 0.12)',
+                    backgroundColor: '#FFFFFF',
+                    border: '1px solid rgba(0, 0, 0, 0.08)',
+                    boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06)',
                 },
             },
         },
@@ -96,8 +100,8 @@ const theme = createTheme({
             styleOverrides: {
                 root: {
                     '& .MuiOutlinedInput-root': {
-                        borderRadius: 8,
-                        backgroundColor: 'rgba(15, 23, 42, 0.4)',
+                        borderRadius: 12,
+                        backgroundColor: '#F9FAFB',
                         '&:hover': {
                             backgroundColor: 'rgba(15, 23, 42, 0.5)',
                         },
