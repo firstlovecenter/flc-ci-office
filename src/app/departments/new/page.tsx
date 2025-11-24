@@ -41,9 +41,12 @@ export default function NewDepartmentPage() {
     const [loading, setLoading] = useState(false);
     const [allowedLevels, setAllowedLevels] = useState<DepartmentLevel[]>([]);
     const [availableParents, setAvailableParents] = useState<any[]>([]);
+    const [currencies, setCurrencies] = useState<any[]>([]);
+    const [currencyId, setCurrencyId] = useState('');
 
     useEffect(() => {
         fetchDepartments();
+        fetchCurrencies();
     }, []);
 
     useEffect(() => {
@@ -138,6 +141,14 @@ export default function NewDepartmentPage() {
         }
     };
 
+    const fetchCurrencies = async () => {
+        const response = await fetch('/api/currencies?active=true');
+        if (response.ok) {
+            const data = await response.json();
+            setCurrencies(data);
+        }
+    };
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setLoading(true);
@@ -153,6 +164,7 @@ export default function NewDepartmentPage() {
                     name,
                     level,
                     parentId: parentId || null,
+                    currencyId: level === 'NATIONAL' && currencyId ? currencyId : undefined,
                 }),
             });
 
@@ -244,6 +256,25 @@ export default function NewDepartmentPage() {
                             ))}
                         </Select>
                     </FormControl>
+
+                    {level === 'NATIONAL' && (
+                        <FormControl fullWidth sx={{ mb: 3 }}>
+                            <InputLabel>Base Currency *</InputLabel>
+                            <Select
+                                value={currencyId}
+                                label="Base Currency *"
+                                onChange={(e) => setCurrencyId(e.target.value)}
+                                required
+                            >
+                                <MenuItem value="">Select a currency</MenuItem>
+                                {currencies.map((currency) => (
+                                    <MenuItem key={currency.id} value={currency.id}>
+                                        {currency.code} - {currency.name} ({currency.symbol})
+                                    </MenuItem>
+                                ))}
+                            </Select>
+                        </FormControl>
+                    )}
 
                     <Box sx={{ display: 'flex', gap: 2, justifyContent: 'flex-end' }}>
                         <Button onClick={() => router.back()} disabled={loading}>

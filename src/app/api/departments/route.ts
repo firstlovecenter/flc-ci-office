@@ -81,7 +81,7 @@ export async function POST(request: Request) {
 
     try {
         const body = await request.json();
-        const { name, level, parentId } = body;
+        const { name, level, parentId, currencyId } = body;
 
         // Get user's department to check level
         let userDepartmentLevel;
@@ -117,6 +117,14 @@ export async function POST(request: Request) {
             }
         }
 
+        // Validate currency for NATIONAL departments
+        if (level === 'NATIONAL' && !currencyId) {
+            return NextResponse.json(
+                { error: 'Currency is required for NATIONAL departments' },
+                { status: 400 }
+            );
+        }
+
         const department = await prisma.department.create({
             data: {
                 name,
@@ -125,6 +133,17 @@ export async function POST(request: Request) {
             },
         });
 
+        // Create DepartmentBaseCurrency for NATIONAL departments
+        if (level === 'NATIONAL' && currencyId) {
+            await prisma.departmentBaseCurrency.create({
+                data: {
+                    departmentId: department.id,
+                    currencyId: currencyId,
+                    setBy: session.user.id,
+                },
+            });
+        }
+
         // Create audit log
         await prisma.auditLog.create({
             data: {
@@ -132,7 +151,7 @@ export async function POST(request: Request) {
                 actionType: 'CREATE',
                 entityType: 'Department',
                 entityId: department.id,
-                afterData: { name, level, parentId },
+                afterData: { name, level, parentId, currencyId },
             },
         });
 
