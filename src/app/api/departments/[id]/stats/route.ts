@@ -85,19 +85,55 @@ export async function GET(
                     in: descendantIds,
                 },
             },
+            include: {
+                currency: true,
+            },
             orderBy: {
                 createdAt: 'desc',
             },
         });
 
-        // Calculate stats using amountInBase for accurate conversions
-        const income = transactions
-            .filter(t => t.type === 'INCOME')
-            .reduce((sum, t) => sum + Number(t.amountInBase || t.amount), 0);
+        // Get all exchange rates for conversion
+        const exchangeRates = await prisma.exchangeRate.findMany({
+            include: {
+                fromCurrency: true,
+                toCurrency: true,
+            },
+        });
 
-        const expense = transactions
-            .filter(t => t.type === 'EXPENSE')
-            .reduce((sum, t) => sum + Number(t.amountInBase || t.amount), 0);
+        // Calculate stats by converting each transaction to the department's base currency
+        let income = 0;
+        let expense = 0;
+
+        for (const t of transactions) {
+            let convertedAmount = Number(t.amount);
+
+            // If transaction has a currency different from department base, convert it
+            if (t.currencyId && baseCurrency && t.currencyId !== baseCurrency.id) {
+                // Find exchange rate
+                let rate = exchangeRates.find(
+                    (r) => r.fromCurrency.id === t.currencyId && r.toCurrency.id === baseCurrency.id
+                );
+
+                if (rate) {
+                    convertedAmount = Number(t.amount) * Number(rate.rate);
+                } else {
+                    // Try reverse rate
+                    rate = exchangeRates.find(
+                        (r) => r.fromCurrency.id === baseCurrency.id && r.toCurrency.id === t.currencyId
+                    );
+                    if (rate) {
+                        convertedAmount = Number(t.amount) / Number(rate.rate);
+                    }
+                }
+            }
+
+            if (t.type === 'INCOME') {
+                income += convertedAmount;
+            } else if (t.type === 'EXPENSE') {
+                expense += convertedAmount;
+            }
+        }
 
         const balance = income - expense;
 
