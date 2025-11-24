@@ -69,7 +69,6 @@ function DepartmentsPageContent() {
             });
             if (response.ok) {
                 const data = await response.json();
-                console.log('Fetched departments:', data);
                 // Filter by parent if parentParam is present
                 if (parentParam) {
                     const filtered = data.filter((dept: any) => dept.parentId === parentParam);
@@ -79,7 +78,6 @@ function DepartmentsPageContent() {
                 }
             }
         } catch (error) {
-            console.error('Error fetching departments:', error);
         } finally {
             setLoading(false);
         }
@@ -98,7 +96,6 @@ function DepartmentsPageContent() {
                 setAllDepartments(data);
             }
         } catch (error) {
-            console.error('Error fetching all departments:', error);
         }
     };
 
@@ -124,7 +121,6 @@ function DepartmentsPageContent() {
                 alert(data.error || 'Failed to delete department');
             }
         } catch (error) {
-            console.error('Error deleting department:', error);
             alert('Error deleting department');
         }
     };

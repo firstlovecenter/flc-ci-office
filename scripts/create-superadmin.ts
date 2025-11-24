@@ -23,6 +23,7 @@ async function main() {
     },
     create: {
       email: 'skaduteye@gmail.com',
+      phone: '0501234560',
       password: hashedPassword,
       roles: ['SUPERADMIN'],
       name: 'root',

@@ -5,6 +5,7 @@ import { authOptions } from '@/lib/auth';
 import bcrypt from 'bcryptjs';
 import { getDescendantDepartmentIds } from '@/lib/departments';
 import { validateRoleAssignment } from '@/lib/roleValidation';
+import crypto from 'crypto';
 
 export async function GET(request: Request) {
     const session = await getServerSession(authOptions);
@@ -91,25 +92,36 @@ export async function POST(request: Request) {
 
     try {
         const body = await request.json();
-        const { title, name, email, password, roleDepartmentPairs } = body;
+        const { title, name, email, phone, roleDepartmentPairs } = body;
 
-        if (!roleDepartmentPairs || roleDepartmentPairs.length === 0) {
-            return NextResponse.json({ error: 'At least one role-department pair is required' }, { status: 400 });
+        // Validate required fields
+        if (!phone?.trim()) {
+            return NextResponse.json({ error: 'Phone number is required' }, { status: 400 });
         }
 
-        // Extract unique roles for backward compatibility validation
-        const userRoles: string[] = Array.from(new Set(roleDepartmentPairs.map((pair: any) => pair.role as string)));
-        const firstDept = roleDepartmentPairs[0].departmentId;
+        // Validate required fields
+        if (!phone?.trim()) {
+            return NextResponse.json({ error: 'Phone number is required' }, { status: 400 });
+        }
 
-        // Validate role assignments (check SUPERADMIN and GLOBAL_ADMIN uniqueness)
-        const validation = await validateRoleAssignment('new-user', userRoles, firstDept, email);
-        if (!validation.valid) {
-            return NextResponse.json({ error: validation.error }, { status: 400 });
+        // Users can now be created without roles initially
+        const hasRoles = roleDepartmentPairs && roleDepartmentPairs.length > 0;
+        
+        // Extract unique roles for backward compatibility validation (only if roles provided)
+        const userRoles: string[] = hasRoles ? Array.from(new Set(roleDepartmentPairs.map((pair: any) => pair.role as string))) : [];
+        const firstDept = hasRoles ? roleDepartmentPairs[0].departmentId : null;
+
+        // Validate role assignments only if roles are provided
+        if (hasRoles) {
+            const validation = await validateRoleAssignment('new-user', userRoles, firstDept, email);
+            if (!validation.valid) {
+                return NextResponse.json({ error: validation.error }, { status: 400 });
+            }
         }
 
         // Check if user exists
         const existingUser = await prisma.user.findUnique({
-            where: { email },
+            where: { email: email.toLowerCase() },
         });
 
         if (existingUser) {
@@ -158,21 +170,23 @@ export async function POST(request: Request) {
             }
         }
 
-        // Create the user first with backward compatibility fields
+        // Create the user with a random password (user will set via password reset email)
+        const randomPassword = crypto.randomBytes(32).toString('hex');
         const user = await prisma.user.create({
             data: {
                 title: title?.trim() || null,
                 name,
-                email,
-                password: await bcrypt.hash(password, 10),
-                roles: userRoles as any, // Keep for backward compatibility during migration
-                activeRole: userRoles[0] as any, // Keep for backward compatibility during migration
+                email: email.toLowerCase(),
+                phone: phone.trim(),
+                password: await bcrypt.hash(randomPassword, 10),
+                roles: hasRoles ? (userRoles as any) : [], // Keep for backward compatibility
+                activeRole: hasRoles ? (userRoles[0] as any) : null, // Keep for backward compatibility
                 departmentId: firstDept, // Set to first department for backward compatibility
             },
         });
 
-        // Create UserRole entries for each role-department pair
-        if (roleDepartmentPairs.length > 0) {
+        // Create UserRole entries for each role-department pair (only if roles provided)
+        if (hasRoles && roleDepartmentPairs.length > 0) {
             await prisma.userRole.createMany({
                 data: roleDepartmentPairs.map((pair: any) => ({
                     userId: user.id,
@@ -199,11 +213,12 @@ export async function POST(request: Request) {
             }
         }
 
+        // Note: Password reset email will be sent when first role is assigned (in PUT /api/users/[id])
+
         const { password: _, ...safeUser } = user;
 
         return NextResponse.json(safeUser);
     } catch (error) {
-        console.error('Error creating user:', error);
         return new NextResponse('Internal Error', { status: 500 });
     }
 }

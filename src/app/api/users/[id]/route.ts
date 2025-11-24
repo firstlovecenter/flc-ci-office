@@ -1,8 +1,11 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { getServerSession } from 'next-auth';
+import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/lib/auth';
-import bcrypt from 'bcryptjs';
+import bcrypt from 'bcrypt';
+import crypto from 'crypto';
+import { sendSms, formatGhanaPhone } from '@/lib/sms';
+import { generateFirstRoleAssignmentSms } from '@/lib/sms-templates';
 import { canManageUser, canAssignRole, ROLE_HIERARCHY } from '@/lib/roles';
 import { getDescendantDepartmentIds } from '@/lib/departments';
 import { validateRoleAssignment } from '@/lib/roleValidation';
@@ -20,8 +23,13 @@ export async function PUT(
     try {
         const params = await context.params;
         const body = await request.json();
-        const { title, name, email, roleDepartmentPairs, password } = body;
+        const { title, name, email, phone, roleDepartmentPairs } = body;
         const userId = params.id;
+
+        // Validate required fields
+        if (!phone?.trim()) {
+            return NextResponse.json({ error: 'Phone number is required' }, { status: 400 });
+        }
 
         // Check if user has admin role
         const adminRoles = ['SUPERADMIN', 'GLOBAL_ADMIN', 'INTERNATIONAL_ADMIN', 'NATIONAL_ADMIN', 'REGIONAL_ADMIN', 'CAMPUS_ADMIN', 'STREAM_ADMIN', 'COUNCIL_ADMIN'];
@@ -124,20 +132,39 @@ export async function PUT(
         const updateData: any = {
             title: title?.trim() || null,
             name,
-            email,
+            email: email ? email.toLowerCase() : undefined,
         };
+
+        // Phone number update restriction: only user themselves, SUPERADMIN, or GLOBAL_ADMIN
+        if (phone !== undefined && phone?.trim() !== targetUser.phone) {
+            const canUpdatePhone = 
+                userId === session.user.id || // User updating their own phone
+                session.user.role === 'SUPERADMIN' || 
+                session.user.role === 'GLOBAL_ADMIN';
+            
+            if (!canUpdatePhone) {
+                return NextResponse.json(
+                    { error: 'You have no access to do this.' },
+                    { status: 403 }
+                );
+            }
+            
+            updateData.phone = phone.trim();
+        }
+
+        // Validate phone number if being updated
+        if (updateData.phone && !updateData.phone.trim()) {
+            return NextResponse.json(
+                { error: 'Phone number cannot be empty' },
+                { status: 400 }
+            );
+        }
 
         // Update backward compatibility fields if role-department pairs are provided
         if (roleDepartmentPairs && roleDepartmentPairs.length > 0 && userRoles && userRoles.length > 0) {
             updateData.roles = userRoles;
             updateData.activeRole = userRoles[0];
             updateData.departmentId = firstDept;
-        }
-
-        // Only update password if provided
-        if (password && password.trim()) {
-            const hashedPassword = await bcrypt.hash(password, 10);
-            updateData.password = hashedPassword;
         }
 
         // Update the user
@@ -150,32 +177,125 @@ export async function PUT(
         });
 
         // Handle UserRole updates if role-department pairs are provided
-        if (roleDepartmentPairs && roleDepartmentPairs.length > 0) {
+        if (roleDepartmentPairs !== undefined) {
+            // Get existing roles to determine if this is first assignment or removal
+            const existingUserRoles = await prisma.userRole.findMany({
+                where: { userId: userId },
+            });
+            const hadRolesBefore = existingUserRoles.length > 0;
+            const hasRolesNow = roleDepartmentPairs.length > 0;
+            
+            // First role assignment: never had roles before AND getting roles now
+            const isFirstRoleAssignment = !hadRolesBefore && hasRolesNow;
+            
+            // Re-assignment: had roles, then removed (0 roles), now getting roles again
+            const isReassignmentAfterRemoval = hadRolesBefore && hasRolesNow;
+
             // Delete existing UserRole entries
             await prisma.userRole.deleteMany({
                 where: { userId: userId },
             });
 
-            // Create new UserRole entries
-            await prisma.userRole.createMany({
-                data: roleDepartmentPairs.map((pair: any) => ({
-                    userId: userId,
-                    role: pair.role,
-                    departmentId: pair.departmentId,
-                })),
-            });
+            if (hasRolesNow) {
+                // Create new UserRole entries
+                await prisma.userRole.createMany({
+                    data: roleDepartmentPairs.map((pair: any) => ({
+                        userId: userId,
+                        role: pair.role,
+                        departmentId: pair.departmentId,
+                    })),
+                });
 
-            // Set the first UserRole as active
-            const firstUserRole = await prisma.userRole.findFirst({
-                where: { userId: userId },
-                orderBy: { createdAt: 'asc' },
-            });
+                // Set the first UserRole as active
+                const firstUserRole = await prisma.userRole.findFirst({
+                    where: { userId: userId },
+                    orderBy: { createdAt: 'asc' },
+                });
 
-            if (firstUserRole) {
+                if (firstUserRole) {
+                    await prisma.user.update({
+                        where: { id: userId },
+                        data: { activeUserRoleId: firstUserRole.id },
+                    });
+                }
+            } else {
+                // All roles removed - revoke access by invalidating password
                 await prisma.user.update({
                     where: { id: userId },
-                    data: { activeUserRoleId: firstUserRole.id },
+                    data: {
+                        password: null, // Revoke login access
+                        activeUserRoleId: null,
+                        activeRole: null,
+                        departmentId: null,
+                    },
                 });
+                
+                // Invalidate any password reset tokens
+                await prisma.passwordReset.updateMany({
+                    where: {
+                        userId: userId,
+                        used: false,
+                    },
+                    data: {
+                        used: true,
+                        usedAt: new Date(),
+                    },
+                });
+            }
+
+            // Send SMS notification for first role assignment OR re-assignment after removal (password creation)
+            const phoneNumber = updateData.phone || targetUser?.phone;
+            const needsPasswordCreation = isFirstRoleAssignment || (isReassignmentAfterRemoval && !targetUser.password);
+            
+            if (phoneNumber && hasRolesNow && needsPasswordCreation) {
+                try {
+                    // First role assignment: Send password creation SMS
+                    const resetToken = crypto.randomBytes(32).toString('hex');
+                    const expiresAt = new Date();
+                    expiresAt.setHours(expiresAt.getHours() + 24); // 24 hour expiration
+
+                    // Invalidate any existing password reset tokens
+                    await prisma.passwordReset.updateMany({
+                        where: {
+                            userId: userId,
+                            used: false,
+                        },
+                        data: {
+                            used: true,
+                            usedAt: new Date(),
+                        },
+                    });
+
+                    // Create new password reset record
+                    await prisma.passwordReset.create({
+                        data: {
+                            token: resetToken,
+                            userId: userId,
+                            expiresAt,
+                        },
+                    });
+
+                    const resetCode = resetToken.substring(0, 6).toUpperCase();
+                    const primaryRolePair = roleDepartmentPairs[0];
+                    const department = await prisma.department.findUnique({
+                        where: { id: primaryRolePair.departmentId },
+                        select: { name: true },
+                    });
+
+                    const formattedPhone = formatGhanaPhone(phoneNumber);
+                    const smsContent = generateFirstRoleAssignmentSms({
+                        userName: name || email || 'User',
+                        role: primaryRolePair.role,
+                        department: department?.name || 'Unknown Department',
+                        resetCode,
+                    });
+
+                    const smsSent = await sendSms({
+                        to: formattedPhone,
+                        message: smsContent,
+                    });
+                } catch (notificationError) {
+                }
             }
         }
 
@@ -197,7 +317,6 @@ export async function PUT(
 
         return NextResponse.json(userWithoutPassword);
     } catch (error) {
-        console.error('Error updating user:', error);
         return NextResponse.json(
             { error: 'Failed to update user. Please try again.' },
             { status: 500 }
@@ -257,7 +376,6 @@ export async function DELETE(
 
         return NextResponse.json({ success: true });
     } catch (error) {
-        console.error('Error deleting user:', error);
         return NextResponse.json(
             { error: 'Failed to delete user. Please try again.' },
             { status: 500 }
@@ -374,7 +492,6 @@ export async function PATCH(
 
         return NextResponse.json(userWithoutPassword);
     } catch (error) {
-        console.error('Error archiving user:', error);
         return NextResponse.json(
             { error: 'Failed to archive user. Please try again.' },
             { status: 500 }

@@ -124,11 +124,8 @@ export async function GET(request: Request) {
         const userBaseCurrency = await getUserBaseCurrency(session.user.id);
         
         if (!userBaseCurrency) {
-            console.error('No base currency found for user:', session.user.id);
             return NextResponse.json(transactions);
         }
-
-        console.log(`User ${session.user.email} base currency:`, userBaseCurrency.code);
 
         const exchangeRates = await prisma.exchangeRate.findMany({
             include: {
@@ -147,8 +144,6 @@ export async function GET(request: Request) {
                 exchangeRates
             );
             
-            console.log(`Transaction ${tx.id}: ${tx.amount} ${tx.currency?.code || 'BASE'} → ${convertedAmount} ${userBaseCurrency.code}`);
-            
             return {
                 ...tx,
                 amountInBase: convertedAmount,
@@ -157,7 +152,6 @@ export async function GET(request: Request) {
 
         return NextResponse.json(transactionsWithConversion);
     } catch (error) {
-        console.error('Transaction API Error:', error);
         return new NextResponse(JSON.stringify({ error: error instanceof Error ? error.message : 'Internal Error' }), { 
             status: 500,
             headers: { 'Content-Type': 'application/json' }
@@ -221,9 +215,6 @@ export async function POST(request: Request) {
         let amountInBase = amount; // Default to the original amount
         if (currencyId && exchangeRate) {
             amountInBase = amount * exchangeRate;
-            console.log(`Converting: ${amount} × ${exchangeRate} = ${amountInBase}`);
-        } else {
-            console.log(`No conversion: currencyId=${currencyId}, exchangeRate=${exchangeRate}, amountInBase=${amountInBase}`);
         }
 
         // Determine if this is a leader role (requires approval) or admin (auto-approved)
@@ -260,9 +251,11 @@ export async function POST(request: Request) {
                     })) || [],
                 },
             },
+            include: {
+                department: true,
+                currency: true,
+            },
         });
-
-
 
         // Create Audit Log
         await prisma.auditLog.create({
@@ -277,7 +270,6 @@ export async function POST(request: Request) {
 
         return NextResponse.json(transaction);
     } catch (error) {
-        console.error(error);
         return new NextResponse('Internal Error', { status: 500 });
     }
 }
@@ -420,6 +412,81 @@ export async function DELETE(request: Request) {
         });
 
         return NextResponse.json({ success: true });
+    } catch (error) {
+        return new NextResponse('Internal Error', { status: 500 });
+    }
+}
+
+export async function PATCH(request: Request) {
+    const session = await getServerSession(authOptions);
+
+    if (!session) {
+        return new NextResponse('Unauthorized', { status: 401 });
+    }
+
+    try {
+        const body = await request.json();
+        const { id, action, rejectionReason } = body;
+
+        if (!['approve', 'reject'].includes(action)) {
+            return new NextResponse('Invalid action', { status: 400 });
+        }
+
+        const transaction = await prisma.transaction.findUnique({
+            where: { id },
+            include: {
+                user: { select: { name: true, email: true } },
+                department: { select: { name: true } },
+                currency: { select: { code: true, symbol: true } },
+            },
+        });
+
+        if (!transaction) {
+            return new NextResponse('Not Found', { status: 404 });
+        }
+
+        // Only admins can approve/reject
+        const adminRoles = ['SUPERADMIN', 'GLOBAL_ADMIN', 'INTERNATIONAL_ADMIN', 'NATIONAL_ADMIN', 'REGIONAL_ADMIN', 'CAMPUS_ADMIN'];
+        if (!adminRoles.includes(session.user.role)) {
+            return new NextResponse('Only admins can approve/reject transactions', { status: 403 });
+        }
+
+        // Check permissions
+        const canAccess = await hasDepartmentAccess(session.user, transaction.departmentId);
+        if (!canAccess) {
+            return new NextResponse('Forbidden', { status: 403 });
+        }
+
+        // Check if already processed
+        if (transaction.status !== 'PENDING') {
+            return new NextResponse('Transaction already processed', { status: 400 });
+        }
+
+        const updatedTransaction = await prisma.transaction.update({
+            where: { id },
+            data: {
+                status: action === 'approve' ? 'APPROVED' : 'REJECTED',
+                approvedBy: action === 'approve' ? session.user.id : null,
+                approvedAt: action === 'approve' ? new Date() : null,
+                rejectedBy: action === 'reject' ? session.user.id : null,
+                rejectedAt: action === 'reject' ? new Date() : null,
+                rejectionReason: action === 'reject' ? rejectionReason : null,
+            },
+        });
+
+        // Audit Log
+        await prisma.auditLog.create({
+            data: {
+                userId: session.user.id,
+                actionType: action === 'approve' ? 'APPROVE' : 'REJECT',
+                entityType: 'Transaction',
+                entityId: transaction.id,
+                beforeData: transaction as any,
+                afterData: updatedTransaction as any,
+            },
+        });
+
+        return NextResponse.json(updatedTransaction);
     } catch (error) {
         return new NextResponse('Internal Error', { status: 500 });
     }

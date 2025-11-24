@@ -71,10 +71,10 @@ export default function EditUserDialog({
     const [title, setTitle] = useState('');
     const [name, setName] = useState('');
     const [email, setEmail] = useState('');
+    const [phone, setPhone] = useState('');
     const [roleDepartmentPairs, setRoleDepartmentPairs] = useState<Array<{ role: string; departmentId: string }>>([]);
     const [newRole, setNewRole] = useState('');
     const [newDepartment, setNewDepartment] = useState('');
-    const [password, setPassword] = useState('');
     const [error, setError] = useState('');
     const [saving, setSaving] = useState(false);
     const [assignableRoles, setAssignableRoles] = useState<string[]>([]);
@@ -84,7 +84,7 @@ export default function EditUserDialog({
             setTitle(user.title || '');
             setName(user.name || '');
             setEmail(user.email);
-            setPassword('');
+            setPhone(user.phone || '');
             
             // Load existing role-department pairs from userRoles relation
             if (user.userRoles && user.userRoles.length > 0) {
@@ -163,6 +163,16 @@ export default function EditUserDialog({
             return;
         }
 
+        if (!phone.trim()) {
+            setError('Phone number is required');
+            return;
+        }
+
+        if (!phone.trim()) {
+            setError('Phone number is required');
+            return;
+        }
+
         if (roleDepartmentPairs.length === 0) {
             setError('At least one role-department assignment is required');
             return;
@@ -176,13 +186,9 @@ export default function EditUserDialog({
                 title: title.trim() || null,
                 name,
                 email,
+                phone: phone.trim(),
                 roleDepartmentPairs,
             };
-
-            // Only include password if it's been changed
-            if (password.trim()) {
-                body.password = password;
-            }
 
             const response = await fetch(`/api/users/${user.id}`, {
                 method: 'PUT',
@@ -253,15 +259,16 @@ export default function EditUserDialog({
 
                 <TextField
                     fullWidth
-                    label="New Password (leave blank to keep current)"
-                    type="password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
+                    label="Phone Number"
+                    placeholder="e.g., 0241234567 or 233241234567"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
                     sx={{ mb: 2 }}
-                    helperText="Only enter a password if you want to change it"
+                    required
+                    helperText="Required for SMS notifications (password reset, role assignments)"
                 />
 
-                <Box sx={{ mb: 2 }}>
+                <Box sx={{ mb: 2, mt: 2 }}>
                     <Typography variant="subtitle2" gutterBottom>
                         Role-Department Assignments
                     </Typography>

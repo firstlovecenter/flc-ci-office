@@ -93,7 +93,6 @@ export async function POST(req: NextRequest) {
           );
           return { success: true, subscriptionId: sub.id };
         } catch (error: any) {
-          console.error('Failed to send notification:', error);
           
           // If subscription is no longer valid, delete it
           if (error.statusCode === 410 || error.statusCode === 404) {
@@ -117,7 +116,6 @@ export async function POST(req: NextRequest) {
       total: subscriptions.length,
     });
   } catch (error) {
-    console.error('Send notification error:', error);
     return new NextResponse('Internal Server Error', { status: 500 });
   }
 }

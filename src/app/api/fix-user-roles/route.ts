@@ -82,7 +82,6 @@ export async function POST(request: Request) {
     });
 
   } catch (error: any) {
-    console.error('Error fixing user roles:', error);
     return NextResponse.json({ 
       error: 'Failed to fix user roles',
       details: error.message 

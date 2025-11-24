@@ -103,7 +103,6 @@ export async function PUT(
 
         return NextResponse.json(updatedTransaction);
     } catch (error) {
-        console.error('Error updating transaction:', error);
         return NextResponse.json(
             { error: 'Internal server error' },
             { status: 500 }
@@ -230,7 +229,6 @@ export async function PATCH(
 
         return NextResponse.json(updatedTransaction);
     } catch (error) {
-        console.error('Error updating transaction status:', error);
         return new NextResponse('Internal Error', { status: 500 });
     }
 }
@@ -292,7 +290,6 @@ export async function DELETE(
 
         return NextResponse.json({ success: true });
     } catch (error) {
-        console.error('Error deleting transaction:', error);
         return NextResponse.json(
             { error: 'Internal server error' },
             { status: 500 }

@@ -56,7 +56,6 @@ export async function PUT(
 
         return NextResponse.json(updatedDepartment);
     } catch (error) {
-        console.error('Error updating department:', error);
         return new NextResponse('Internal Error', { status: 500 });
     }
 }
@@ -124,7 +123,6 @@ export async function DELETE(
 
         return NextResponse.json({ success: true });
     } catch (error) {
-        console.error('Error deleting department:', error);
         return new NextResponse('Internal Error', { status: 500 });
     }
 }

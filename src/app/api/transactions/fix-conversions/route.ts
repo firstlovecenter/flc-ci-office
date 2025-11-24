@@ -52,7 +52,6 @@ export async function POST(request: Request) {
     }
 
     try {
-        console.log('Starting transaction conversion fix...');
 
         // Get all transactions
         const transactions = await prisma.transaction.findMany({
@@ -64,8 +63,6 @@ export async function POST(request: Request) {
                 amountInBase: true,
             },
         });
-
-        console.log(`Found ${transactions.length} transactions to check`);
 
         let fixedCount = 0;
         const updates = [];
@@ -95,7 +92,6 @@ export async function POST(request: Request) {
         // Execute all updates
         if (updates.length > 0) {
             await Promise.all(updates);
-            console.log(`Fixed ${fixedCount} transactions`);
         }
 
         return NextResponse.json({
@@ -105,7 +101,6 @@ export async function POST(request: Request) {
             total: transactions.length,
         });
     } catch (error) {
-        console.error('Error fixing transactions:', error);
         return NextResponse.json(
             { error: error instanceof Error ? error.message : 'Internal server error' },
             { status: 500 }

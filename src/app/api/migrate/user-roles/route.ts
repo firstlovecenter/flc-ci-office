@@ -39,8 +39,6 @@ export async function GET() {
       },
     });
 
-    console.log(`Found ${users.length} users to migrate`);
-
     for (const user of users) {
       const userDetail: any = {
         email: user.email,
@@ -173,7 +171,6 @@ export async function GET() {
       details: results.details,
     });
   } catch (error: any) {
-    console.error('Migration error:', error);
     return NextResponse.json(
       {
         success: false,

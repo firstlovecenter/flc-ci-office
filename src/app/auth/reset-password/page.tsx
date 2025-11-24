@@ -20,8 +20,9 @@ import { LockReset, Visibility, VisibilityOff, CheckCircle } from '@mui/icons-ma
 function ResetPasswordForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const token = searchParams.get('token');
+  const urlToken = searchParams.get('token');
 
+  const [resetCode, setResetCode] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -30,11 +31,9 @@ function ResetPasswordForm() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
 
-  useEffect(() => {
-    if (!token) {
-      setError('Invalid reset link. Please request a new password reset.');
-    }
-  }, [token]);
+  // If there's a token in the URL (old email flow), use it
+  // Otherwise, user will enter the SMS code manually
+  const usingUrlToken = !!urlToken;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -51,13 +50,21 @@ function ResetPasswordForm() {
       return;
     }
 
+    if (!usingUrlToken && !resetCode.trim()) {
+      setError('Please enter the reset code sent via SMS');
+      return;
+    }
+
     setLoading(true);
 
     try {
       const response = await fetch('/api/auth/reset-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token, password }),
+        body: JSON.stringify({ 
+          token: usingUrlToken ? urlToken : resetCode.trim().toUpperCase(), 
+          password 
+        }),
       });
 
       const data = await response.json();
@@ -186,7 +193,9 @@ function ResetPasswordForm() {
             align="center"
             sx={{ mb: 3 }}
           >
-            Please enter your new password below.
+            {usingUrlToken 
+              ? 'Please enter your new password below.'
+              : 'Enter the 6-digit code sent to your phone via SMS and your new password.'}
           </Typography>
 
           {error && (
@@ -196,6 +205,28 @@ function ResetPasswordForm() {
           )}
 
           <Box component="form" onSubmit={handleSubmit} sx={{ width: '100%' }}>
+            {!usingUrlToken && (
+              <TextField
+                margin="normal"
+                required
+                fullWidth
+                id="resetCode"
+                label="Reset Code (6 digits)"
+                name="resetCode"
+                autoComplete="off"
+                autoFocus
+                value={resetCode}
+                onChange={(e) => setResetCode(e.target.value.toUpperCase())}
+                disabled={loading}
+                placeholder="F823A5"
+                helperText="Enter the code from the SMS"
+                inputProps={{
+                  maxLength: 6,
+                  style: { textTransform: 'uppercase', letterSpacing: '0.2em', fontSize: '1.2em' }
+                }}
+              />
+            )}
+            
             <TextField
               margin="normal"
               required
@@ -207,7 +238,7 @@ function ResetPasswordForm() {
               autoComplete="new-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              disabled={loading || !token}
+              disabled={loading}
               InputProps={{
                 endAdornment: (
                   <InputAdornment position="end">
@@ -235,7 +266,7 @@ function ResetPasswordForm() {
               autoComplete="new-password"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
-              disabled={loading || !token}
+              disabled={loading}
               InputProps={{
                 endAdornment: (
                   <InputAdornment position="end">
@@ -256,23 +287,23 @@ function ResetPasswordForm() {
               fullWidth
               variant="contained"
               sx={{ mt: 3, mb: 2 }}
-              disabled={loading || !token || !password || !confirmPassword}
+              disabled={loading || (!usingUrlToken && !resetCode.trim()) || !password || !confirmPassword}
             >
               {loading ? 'Resetting...' : 'Reset Password'}
             </Button>
 
             <Box sx={{ display: 'flex', justifyContent: 'center' }}>
-              <Link href="/auth/login" passHref legacyBehavior>
-                <MuiLink
-                  variant="body2"
-                  sx={{
-                    textDecoration: 'none',
-                    '&:hover': { textDecoration: 'underline' },
-                  }}
-                >
-                  Back to Login
-                </MuiLink>
-              </Link>
+              <MuiLink
+                component={Link}
+                href="/auth/login"
+                variant="body2"
+                sx={{
+                  textDecoration: 'none',
+                  '&:hover': { textDecoration: 'underline' },
+                }}
+              >
+                Back to Login
+              </MuiLink>
             </Box>
           </Box>
         </Paper>

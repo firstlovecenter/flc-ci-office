@@ -106,7 +106,6 @@ export default function CurrenciesPage() {
                 setCurrencies(data);
             }
         } catch (error) {
-            console.error('Error fetching currencies:', error);
         }
     };
 
@@ -118,7 +117,6 @@ export default function CurrenciesPage() {
                 setExchangeRates(data);
             }
         } catch (error) {
-            console.error('Error fetching exchange rates:', error);
         }
     };
 
@@ -131,7 +129,6 @@ export default function CurrenciesPage() {
                 setSystemBase(data.systemBase);
             }
         } catch (error) {
-            console.error('Error fetching base currencies:', error);
         }
     };
 
@@ -257,7 +254,6 @@ export default function CurrenciesPage() {
                 fetchCurrencies();
             }
         } catch (error) {
-            console.error('Error toggling currency:', error);
         }
     };
 
@@ -277,7 +273,6 @@ export default function CurrenciesPage() {
                 setError(text);
             }
         } catch (error) {
-            console.error('Error deleting exchange rate:', error);
             setError('Failed to delete exchange rate');
         }
     };

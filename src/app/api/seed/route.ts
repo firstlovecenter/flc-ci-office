@@ -4,7 +4,6 @@ import bcrypt from 'bcryptjs';
 
 export async function POST(request: Request) {
     try {
-        console.log('Starting seed...');
 
         // Create departments
         const globalDept = await prisma.department.upsert({
@@ -72,8 +71,6 @@ export async function POST(request: Request) {
             },
         });
 
-        console.log('Created departments');
-
         // Create users
         const hashedPassword = await bcrypt.hash('password123', 10);
 
@@ -83,6 +80,7 @@ export async function POST(request: Request) {
             create: {
                 email: 'admin@flc.org',
                 name: 'Super Admin',
+                phone: '0501234567',
                 password: hashedPassword,
                 roles: ['SUPERADMIN'],
             },
@@ -94,6 +92,7 @@ export async function POST(request: Request) {
             create: {
                 email: 'campus.admin@flc.org',
                 name: 'Campus Admin',
+                phone: '0501234568',
                 password: hashedPassword,
                 roles: ['CAMPUS_ADMIN'],
                 departmentId: campusDept.id,
@@ -106,13 +105,12 @@ export async function POST(request: Request) {
             create: {
                 email: 'council.leader@flc.org',
                 name: 'Council Leader',
+                phone: '0501234569',
                 password: hashedPassword,
                 roles: ['COUNCIL_LEADER'],
                 departmentId: councilDept.id,
             },
         });
-
-        console.log('Created users');
 
         return NextResponse.json({
             success: true,
@@ -124,7 +122,6 @@ export async function POST(request: Request) {
             },
         });
     } catch (error: any) {
-        console.error('Error seeding database:', error);
         return NextResponse.json(
             { success: false, error: error.message },
             { status: 500 }

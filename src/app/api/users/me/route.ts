@@ -120,7 +120,6 @@ export async function GET(request: NextRequest) {
             activeUserRoleId: user.activeUserRoleId,
         });
     } catch (error) {
-        console.error('Error fetching user profile:', error);
         return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
     }
 }
@@ -255,7 +254,6 @@ export async function PATCH(request: NextRequest) {
             baseCurrency: deptBaseCurrency.currency,
         });
     } catch (error) {
-        console.error('Error updating base currency:', error);
         return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
     }
 }

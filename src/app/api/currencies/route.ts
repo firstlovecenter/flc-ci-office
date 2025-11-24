@@ -25,8 +25,7 @@ export async function GET(req: NextRequest) {
 
         return NextResponse.json(currencies);
     } catch (error) {
-        console.error('Get currencies error:', error);
-        return new NextResponse('Internal Server Error', { status: 500 });
+        return new NextResponse('Internal Error', { status: 500 });
     }
 }
 
@@ -92,7 +91,6 @@ export async function POST(req: NextRequest) {
 
         return NextResponse.json(currency);
     } catch (error) {
-        console.error('Create currency error:', error);
-        return new NextResponse('Internal Server Error', { status: 500 });
+        return new NextResponse('Internal Error', { status: 500 });
     }
 }

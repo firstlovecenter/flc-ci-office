@@ -40,7 +40,6 @@ export async function GET(req: NextRequest) {
 
         return NextResponse.json(user);
     } catch (error) {
-        console.error('Get profile error:', error);
         return new NextResponse('Internal Server Error', { status: 500 });
     }
 }
@@ -104,7 +103,6 @@ export async function PATCH(req: NextRequest) {
 
         return NextResponse.json(updatedUser);
     } catch (error) {
-        console.error('Update profile error:', error);
         return new NextResponse('Internal Server Error', { status: 500 });
     }
 }

@@ -95,20 +95,17 @@ export default function NewTransactionPage() {
                 }
             }
         } catch (error) {
-            console.error('Error fetching user profile:', error);
         }
     };
 
     const fetchExchangeRate = async (fromId: string, toId: string) => {
         try {
-            console.log(`Fetching exchange rate from ${fromId} to ${toId}`);
             // Add timestamp to prevent caching
             const response = await fetch(`/api/exchange-rates?t=${Date.now()}`, {
                 cache: 'no-store'
             });
             if (response.ok) {
                 const rates = await response.json();
-                console.log('All exchange rates:', rates);
                 
                 // Search for exact match: fromId → toId
                 let rate = rates.find((r: any) => 
@@ -116,7 +113,6 @@ export default function NewTransactionPage() {
                 );
                 
                 if (rate) {
-                    console.log(`Found exact match: ${rate.fromCurrency.code} → ${rate.toCurrency.code} = ${rate.rate}`);
                     setExchangeRate(parseFloat(rate.rate));
                     return;
                 }
@@ -128,16 +124,13 @@ export default function NewTransactionPage() {
                 
                 if (rate) {
                     const invertedRate = 1 / parseFloat(rate.rate);
-                    console.log(`Found reverse: ${rate.fromCurrency.code} → ${rate.toCurrency.code} = ${rate.rate}, inverted to ${invertedRate}`);
                     setExchangeRate(invertedRate);
                     return;
                 }
                 
-                console.log('No matching exchange rate found');
                 setExchangeRate(null);
             }
         } catch (error) {
-            console.error('Error fetching exchange rate:', error);
         }
     };
 
@@ -183,8 +176,6 @@ export default function NewTransactionPage() {
                 exchangeRate: exchangeRate || null,
                 files: uploadedFiles,
             };
-
-            console.log('Creating transaction with payload:', payload);
 
             const response = await fetch('/api/transactions', {
                 method: 'POST',

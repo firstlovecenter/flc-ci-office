@@ -26,7 +26,6 @@ export async function getUserBaseCurrency(userId: string) {
 
     // Use the active role, or fall back to first role if no active role set
     const activeRole = user.activeRole || user.roles?.[0] || 'COUNCIL_LEADER';
-    console.log(`getUserBaseCurrency for user ${user.email}, role: ${activeRole}`);
 
     // For international level and above, use system base currency
     const highLevelRoles = ['SUPERADMIN', 'GLOBAL_ADMIN', 'GLOBAL_LEADER', 'INTERNATIONAL_ADMIN', 'INTERNATIONAL_LEADER'];
@@ -36,7 +35,6 @@ export async function getUserBaseCurrency(userId: string) {
         const systemBase = await prisma.currency.findFirst({
             where: { isBase: true },
         });
-        console.log(`International user - using system base:`, systemBase?.code);
         return systemBase;
     }
 
@@ -49,11 +47,9 @@ export async function getUserBaseCurrency(userId: string) {
     const isRegional = regionalRoles.includes(activeRole);
     
     if (isRegional) {
-        console.log(`User is below national, traversing up from department:`, nationalDept?.name);
         while (nationalDept && nationalDept.level !== 'NATIONAL') {
             nationalDept = nationalDept.parent as typeof nationalDept;
         }
-        console.log(`Found national department:`, nationalDept?.name);
     }
 
     if (nationalDept && nationalDept.level === 'NATIONAL') {
@@ -64,10 +60,7 @@ export async function getUserBaseCurrency(userId: string) {
         });
 
         if (deptBaseCurrency) {
-            console.log(`Using department base currency:`, deptBaseCurrency.currency.code);
             return deptBaseCurrency.currency;
-        } else {
-            console.log(`No department base currency set for:`, nationalDept.name);
         }
     }
 
@@ -75,7 +68,6 @@ export async function getUserBaseCurrency(userId: string) {
     const systemBase = await prisma.currency.findFirst({
         where: { isBase: true },
     });
-    console.log(`Fallback to system base:`, systemBase?.code);
     return systemBase;
 }
 
@@ -97,7 +89,6 @@ export function convertToUserBaseCurrency(
 
     if (rate) {
         const converted = amount * parseFloat(rate.rate.toString());
-        console.log(`Direct conversion: ${amount} × ${rate.rate} = ${converted}`);
         return converted;
     }
 
@@ -108,11 +99,9 @@ export function convertToUserBaseCurrency(
 
     if (rate) {
         const converted = amount / parseFloat(rate.rate.toString());
-        console.log(`Reverse conversion: ${amount} ÷ ${rate.rate} = ${converted}`);
         return converted;
     }
 
     // No conversion rate found, return original amount
-    console.log(`No exchange rate found between ${fromCurrencyId} and ${userBaseCurrencyId}`);
     return amount;
 }

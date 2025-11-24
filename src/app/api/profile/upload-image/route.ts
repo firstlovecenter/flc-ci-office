@@ -61,7 +61,6 @@ export async function POST(req: NextRequest) {
             url: imageUrl 
         });
     } catch (error) {
-        console.error('Profile image upload error:', error);
         return new NextResponse('Internal Server Error', { status: 500 });
     }
 }

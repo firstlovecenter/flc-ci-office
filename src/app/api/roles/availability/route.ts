@@ -31,7 +31,6 @@ export async function GET(request: Request) {
             return NextResponse.json(stats);
         }
     } catch (error) {
-        console.error('Error checking role availability:', error);
         return new NextResponse('Internal Error', { status: 500 });
     }
 }

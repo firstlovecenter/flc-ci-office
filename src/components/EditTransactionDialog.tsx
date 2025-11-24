@@ -133,7 +133,6 @@ export default function EditTransactionDialog({
                 }
             }
         } catch (error) {
-            console.error('Error fetching user profile:', error);
         }
     };
 
@@ -170,7 +169,6 @@ export default function EditTransactionDialog({
                 setExchangeRate(null);
             }
         } catch (error) {
-            console.error('Error fetching exchange rate:', error);
         }
     };
 

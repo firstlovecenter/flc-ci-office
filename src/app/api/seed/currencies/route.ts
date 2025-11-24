@@ -199,7 +199,6 @@ export async function POST(req: NextRequest) {
             updatedCurrencies: updatedCurrencies.length > 0 ? updatedCurrencies : undefined,
         });
     } catch (error) {
-        console.error('Seed currencies error:', error);
         return new NextResponse('Internal Server Error', { status: 500 });
     }
 }

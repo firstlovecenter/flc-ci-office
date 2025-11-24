@@ -102,14 +102,12 @@ export async function POST(
                 tag: `transaction-${action}`,
                 requireInteraction: true,
             }).catch(err => {
-                console.error('Failed to send push notification:', err);
                 // Don't fail the request if notification fails
             });
         }
 
         return NextResponse.json(updatedTransaction);
     } catch (error) {
-        console.error('Error approving transaction:', error);
         return new NextResponse('Internal Error', { status: 500 });
     }
 }

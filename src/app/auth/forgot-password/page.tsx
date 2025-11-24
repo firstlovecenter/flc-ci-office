@@ -13,11 +13,11 @@ import {
   Link as MuiLink,
 } from '@mui/material';
 import Link from 'next/link';
-import { Email, ArrowBack } from '@mui/icons-material';
+import { Sms, ArrowBack } from '@mui/icons-material';
 
 export default function ForgotPasswordPage() {
   const router = useRouter();
-  const [email, setEmail] = useState('');
+  const [identifier, setIdentifier] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
@@ -32,17 +32,22 @@ export default function ForgotPasswordPage() {
       const response = await fetch('/api/auth/forgot-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ identifier }),
       });
 
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to send reset email');
+        throw new Error(data.error || 'Failed to send reset SMS');
       }
 
       setSuccess(true);
-      setEmail('');
+      setIdentifier('');
+      
+      // Redirect to reset password page after 2 seconds
+      setTimeout(() => {
+        router.push('/auth/reset-password');
+      }, 2000);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
     } finally {
@@ -82,7 +87,7 @@ export default function ForgotPasswordPage() {
               mb: 2,
             }}
           >
-            <Email sx={{ color: 'white', fontSize: 28 }} />
+            <Sms sx={{ color: 'white', fontSize: 28 }} />
           </Box>
 
           <Typography component="h1" variant="h5" gutterBottom>
@@ -95,8 +100,7 @@ export default function ForgotPasswordPage() {
             align="center"
             sx={{ mb: 3 }}
           >
-            Enter your email address and we&apos;ll send you a link to reset your
-            password.
+            Enter your email or phone number and we&apos;ll send you an SMS with a code to reset your password.
           </Typography>
 
           {error && (
@@ -107,8 +111,7 @@ export default function ForgotPasswordPage() {
 
           {success && (
             <Alert severity="success" sx={{ width: '100%', mb: 2 }}>
-              If an account exists with this email, a password reset link has been
-              sent. Please check your inbox and spam folder.
+              If an account exists with this information, a password reset code has been sent via SMS. Redirecting to reset page...
             </Alert>
           )}
 
@@ -117,15 +120,14 @@ export default function ForgotPasswordPage() {
               margin="normal"
               required
               fullWidth
-              id="email"
-              label="Email Address"
-              name="email"
-              autoComplete="email"
+              id="identifier"
+              label="Email or Phone Number"
+              name="identifier"
+              placeholder="email@example.com or 0241234567"
               autoFocus
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              value={identifier}
+              onChange={(e) => setIdentifier(e.target.value)}
               disabled={loading || success}
-              type="email"
             />
 
             <Button
@@ -133,27 +135,27 @@ export default function ForgotPasswordPage() {
               fullWidth
               variant="contained"
               sx={{ mt: 3, mb: 2 }}
-              disabled={loading || success || !email}
+              disabled={loading || success || !identifier}
             >
-              {loading ? 'Sending...' : 'Send Reset Link'}
+              {loading ? 'Sending...' : 'Send Reset Code via SMS'}
             </Button>
 
             <Box sx={{ display: 'flex', justifyContent: 'center', gap: 1 }}>
-              <Link href="/auth/login" passHref legacyBehavior>
-                <MuiLink
-                  variant="body2"
-                  sx={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 0.5,
-                    textDecoration: 'none',
-                    '&:hover': { textDecoration: 'underline' },
-                  }}
-                >
-                  <ArrowBack fontSize="small" />
-                  Back to Login
-                </MuiLink>
-              </Link>
+              <MuiLink
+                component={Link}
+                href="/auth/login"
+                variant="body2"
+                sx={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 0.5,
+                  textDecoration: 'none',
+                  '&:hover': { textDecoration: 'underline' },
+                }}
+              >
+                <ArrowBack fontSize="small" />
+                Back to Login
+              </MuiLink>
             </Box>
           </Box>
         </Paper>

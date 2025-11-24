@@ -56,7 +56,6 @@ export default function ReportsPage() {
                 setBaseCurrency(data.baseCurrency);
             }
         } catch (error) {
-            console.error('Error fetching base currency:', error);
         }
     };
 
@@ -135,7 +134,6 @@ export default function ReportsPage() {
                 setStats({ income, expense, balance: income - expense });
             }
         } catch (error) {
-            console.error('Error generating report:', error);
         } finally {
             setLoading(false);
         }
@@ -171,7 +169,6 @@ export default function ReportsPage() {
                 window.URL.revokeObjectURL(url);
             }
         } catch (error) {
-            console.error('Error downloading PDF:', error);
         }
     };
 

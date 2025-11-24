@@ -58,7 +58,6 @@ export default function NotificationSettings() {
                 setIsSubscribed(false);
             }
         } catch (error) {
-            console.error('Error checking subscription:', error);
         } finally {
             setLoading(false);
         }
@@ -129,7 +128,6 @@ export default function NotificationSettings() {
                 });
             }, 500);
         } catch (error: any) {
-            console.error('Subscribe error:', error);
             setError(error.message || 'Failed to enable notifications');
         } finally {
             setProcessing(false);
@@ -159,7 +157,6 @@ export default function NotificationSettings() {
             setIsSubscribed(false);
             setSuccess('Push notifications disabled');
         } catch (error: any) {
-            console.error('Unsubscribe error:', error);
             setError(error.message || 'Failed to disable notifications');
         } finally {
             setProcessing(false);

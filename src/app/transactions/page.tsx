@@ -137,7 +137,6 @@ function TransactionsPageContent() {
                 setCurrencies(data);
             }
         } catch (error) {
-            console.error('Failed to fetch currencies', error);
         }
     };
 
@@ -178,7 +177,6 @@ function TransactionsPageContent() {
                 }
             }
         } catch (error) {
-            console.error('Failed to fetch base currency', error);
         }
     };
 
@@ -199,7 +197,6 @@ function TransactionsPageContent() {
                 await fetchTransactions();
             }
         } catch (error) {
-            console.error('Failed to update base currency', error);
         }
     };
 
@@ -223,7 +220,6 @@ function TransactionsPageContent() {
                 setTransactions(data);
             }
         } catch (error) {
-            console.error('Error fetching transactions:', error);
         } finally {
             setLoading(false);
         }
@@ -291,7 +287,6 @@ function TransactionsPageContent() {
                 alert(data.error || 'Failed to approve transaction');
             }
         } catch (error) {
-            console.error('Error approving transaction:', error);
             alert('Error approving transaction');
         }
     };
@@ -314,7 +309,6 @@ function TransactionsPageContent() {
                 alert(data.error || 'Failed to reject transaction');
             }
         } catch (error) {
-            console.error('Error rejecting transaction:', error);
             alert('Error rejecting transaction');
         }
     };
@@ -336,7 +330,6 @@ function TransactionsPageContent() {
                 alert(data.error || 'Failed to delete transaction');
             }
         } catch (error) {
-            console.error('Error deleting transaction:', error);
             alert('Error deleting transaction');
         }
     };

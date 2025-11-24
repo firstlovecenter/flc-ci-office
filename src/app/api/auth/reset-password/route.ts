@@ -21,11 +21,34 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Find valid password reset token
-    const passwordReset = await prisma.passwordReset.findUnique({
-      where: { token },
-      include: { user: true },
-    });
+    let passwordReset;
+
+    // If token is 6 characters, it's a code - search by prefix
+    // If token is longer, it's the full token - search exact match
+    if (token.length === 6) {
+      // Find token that starts with this 6-digit code
+      const allResets = await prisma.passwordReset.findMany({
+        where: {
+          used: false,
+          expiresAt: {
+            gt: new Date(), // Not expired
+          },
+        },
+        include: { user: true },
+        orderBy: { createdAt: 'desc' },
+      });
+
+      // Find the one whose token starts with the provided code
+      passwordReset = allResets.find(reset => 
+        reset.token.toUpperCase().startsWith(token.toUpperCase())
+      );
+    } else {
+      // Full token provided - direct lookup
+      passwordReset = await prisma.passwordReset.findUnique({
+        where: { token },
+        include: { user: true },
+      });
+    }
 
     if (!passwordReset) {
       return NextResponse.json(
@@ -72,7 +95,6 @@ export async function POST(request: NextRequest) {
       message: 'Password has been reset successfully. You can now log in with your new password.',
     });
   } catch (error) {
-    console.error('Reset password error:', error);
     return NextResponse.json(
       { error: 'An error occurred while resetting your password' },
       { status: 500 }

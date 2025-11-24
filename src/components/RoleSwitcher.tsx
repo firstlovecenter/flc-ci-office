@@ -54,7 +54,6 @@ export default function RoleSwitcher() {
                 }
             }
         } catch (error) {
-            console.error('Error fetching user roles:', error);
         }
     };
 
@@ -94,7 +93,6 @@ export default function RoleSwitcher() {
             // Force a full page reload to ensure all data refreshes with new role
             window.location.reload();
         } catch (error) {
-            console.error('Error switching role:', error);
             setSwitching(false);
         }
     };

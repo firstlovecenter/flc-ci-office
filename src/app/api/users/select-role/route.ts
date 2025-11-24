@@ -46,7 +46,6 @@ export async function POST(request: NextRequest) {
 
         return NextResponse.json({ success: true, userRoleId });
     } catch (error) {
-        console.error('Error selecting role:', error);
         return NextResponse.json({ error: 'Failed to select role' }, { status: 500 });
     }
 }

@@ -107,6 +107,7 @@ model User {
   title            String?            // e.g., Rev., Dr., Pastor, etc.
   name             String?
   email            String             @unique
+  phone            String             @unique // Phone number for SMS notifications (required)
   password         String?
   image            String?
   roles            Role[]             // Deprecated: keeping for backward compatibility, no default

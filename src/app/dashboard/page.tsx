@@ -56,7 +56,6 @@ export default function DashboardPage() {
                 }
             }
         } catch (error) {
-            console.error('Failed to fetch base currency', error);
         }
     };
 
@@ -68,7 +67,6 @@ export default function DashboardPage() {
                 setStats(data);
             }
         } catch (error) {
-            console.error('Failed to fetch stats', error);
         } finally {
             setLoading(false);
         }
