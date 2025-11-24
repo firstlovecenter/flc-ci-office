@@ -1,4 +1,4 @@
-import DashboardLayout from '@/components/DashboardLayout';
+import ModernDashboardLayout from '@/components/ModernDashboardLayout';
 
 export const metadata = {
     title: 'Profile - FLC CI Office',
@@ -10,5 +10,5 @@ export default function ProfileLayout({
 }: {
     children: React.ReactNode;
 }) {
-    return <DashboardLayout>{children}</DashboardLayout>;
+    return <ModernDashboardLayout>{children}</ModernDashboardLayout>;
 }

@@ -116,22 +116,25 @@ export default function ModernSidebar({ userRole, userName, userImage }: ModernS
 
     const menuItems: MenuItem[] = [
         { text: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard' },
-        { text: 'Analytics', icon: <BarChartIcon />, path: '/reports' },
-        { text: 'Wallet', icon: <AccountBalanceWalletIcon />, path: '/transactions' },
-        { text: 'Invoice', icon: <ReceiptIcon />, path: '/transactions/new' },
         { text: 'Departments', icon: <BusinessIcon />, path: '/departments' },
+        { text: 'Transactions', icon: <ReceiptIcon />, path: '/transactions' },
         { text: 'Approvals', icon: <PendingActionsIcon />, path: '/approvals', adminOnly: true },
+        { text: 'Users', icon: <PeopleIcon />, path: '/users' },
+        { text: 'Reports', icon: <AssessmentIcon />, path: '/reports' },
     ];
 
     const bottomMenuItems: MenuItem[] = [
-        { text: 'Users', icon: <PeopleIcon />, path: '/users' },
         { text: 'Currencies', icon: <MonetizationOnIcon />, path: '/currencies', adminOnly: true },
+        { text: 'Profile', icon: <SettingsIcon />, path: '/profile' },
         { text: 'Audit Trail', icon: <HistoryIcon />, path: '/audit', superAdminOnly: true },
-        { text: 'Help & Support', icon: <HelpOutlineIcon />, path: '/profile' },
-        { text: 'Setting', icon: <SettingsIcon />, path: '/profile' },
     ];
 
+    // Filter menu items based on user role - leaders don't see Users menu
+    const leaderRoles = ['GLOBAL_LEADER', 'INTERNATIONAL_LEADER', 'NATIONAL_LEADER', 'REGIONAL_LEADER', 'CAMPUS_LEADER', 'STREAM_LEADER', 'COUNCIL_LEADER'];
+    const isLeader = leaderRoles.includes(userRole || '');
+
     const filteredMenuItems = menuItems.filter(item => {
+        if (item.path === '/users' && isLeader) return false;
         if (item.superAdminOnly && !isSuperAdmin) return false;
         if (item.adminOnly && !isAdmin) return false;
         return true;
