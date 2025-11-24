@@ -86,7 +86,6 @@ export async function GET(req: NextRequest) {
         : null,
     });
   } catch (error) {
-    console.error('Error fetching base currencies:', error);
     return NextResponse.json(
       { error: 'Failed to fetch base currencies' },
       { status: 500 }
@@ -166,7 +165,6 @@ export async function POST(req: NextRequest) {
       departmentBaseCurrency: deptBaseCurrency,
     });
   } catch (error) {
-    console.error('Error setting base currency:', error);
     return NextResponse.json(
       { error: 'Failed to set base currency' },
       { status: 500 }

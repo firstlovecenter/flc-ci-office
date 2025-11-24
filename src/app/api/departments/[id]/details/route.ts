@@ -73,7 +73,6 @@ export async function GET(
             recentTransactions,
         });
     } catch (error) {
-        console.error('Error fetching department details:', error);
         return new NextResponse('Internal Error', { status: 500 });
     }
 }

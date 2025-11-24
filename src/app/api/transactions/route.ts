@@ -124,11 +124,8 @@ export async function GET(request: Request) {
         const userBaseCurrency = await getUserBaseCurrency(session.user.id);
         
         if (!userBaseCurrency) {
-            console.error('No base currency found for user:', session.user.id);
             return NextResponse.json(transactions);
         }
-
-        console.log(`User ${session.user.email} base currency:`, userBaseCurrency.code);
 
         const exchangeRates = await prisma.exchangeRate.findMany({
             include: {
@@ -147,8 +144,6 @@ export async function GET(request: Request) {
                 exchangeRates
             );
             
-            console.log(`Transaction ${tx.id}: ${tx.amount} ${tx.currency?.code || 'BASE'} → ${convertedAmount} ${userBaseCurrency.code}`);
-            
             return {
                 ...tx,
                 amountInBase: convertedAmount,
@@ -157,7 +152,6 @@ export async function GET(request: Request) {
 
         return NextResponse.json(transactionsWithConversion);
     } catch (error) {
-        console.error('Transaction API Error:', error);
         return new NextResponse(JSON.stringify({ error: error instanceof Error ? error.message : 'Internal Error' }), { 
             status: 500,
             headers: { 'Content-Type': 'application/json' }
@@ -221,9 +215,6 @@ export async function POST(request: Request) {
         let amountInBase = amount; // Default to the original amount
         if (currencyId && exchangeRate) {
             amountInBase = amount * exchangeRate;
-            console.log(`Converting: ${amount} × ${exchangeRate} = ${amountInBase}`);
-        } else {
-            console.log(`No conversion: currencyId=${currencyId}, exchangeRate=${exchangeRate}, amountInBase=${amountInBase}`);
         }
 
         // Determine if this is a leader role (requires approval) or admin (auto-approved)
@@ -279,7 +270,6 @@ export async function POST(request: Request) {
 
         return NextResponse.json(transaction);
     } catch (error) {
-        console.error(error);
         return new NextResponse('Internal Error', { status: 500 });
     }
 }
@@ -498,7 +488,6 @@ export async function PATCH(request: Request) {
 
         return NextResponse.json(updatedTransaction);
     } catch (error) {
-        console.error('Transaction approval error:', error);
         return new NextResponse('Internal Error', { status: 500 });
     }
 }

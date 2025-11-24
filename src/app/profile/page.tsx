@@ -144,7 +144,6 @@ export default function ProfilePage() {
             // Auto-save the image
             await handleSave(imageUrl);
         } catch (err: any) {
-            console.error('Upload error:', err);
             setError(err.message || 'Failed to upload image');
         } finally {
             setUploading(false);
@@ -203,7 +202,6 @@ export default function ProfilePage() {
                 },
             });
         } catch (err: any) {
-            console.error('Save error:', err);
             setError(err.message || 'Failed to update profile');
         } finally {
             setSaving(false);

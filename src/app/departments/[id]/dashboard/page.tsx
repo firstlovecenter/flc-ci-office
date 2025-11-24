@@ -41,7 +41,6 @@ export default function DepartmentDashboardPage() {
                 setDepartment(data);
             }
         } catch (error) {
-            console.error('Failed to fetch department', error);
         }
     };
 
@@ -53,10 +52,7 @@ export default function DepartmentDashboardPage() {
                 setStats(data);
             }
         } catch (error) {
-            console.error('Failed to fetch stats', error);
         } finally {
-            setLoading(false);
-        }
     };
 
     const fetchDetailStats = async () => {
@@ -67,7 +63,6 @@ export default function DepartmentDashboardPage() {
                 setDetailStats(data);
             }
         } catch (error) {
-            console.error('Failed to fetch detail stats', error);
         }
     };
 

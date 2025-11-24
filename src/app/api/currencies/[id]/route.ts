@@ -114,9 +114,7 @@ export async function PUT(
         });
 
         return NextResponse.json(updatedCurrency);
-    } catch (error) {
-        console.error('Update currency error:', error);
-        return new NextResponse('Internal Server Error', { status: 500 });
+    } catch (error) {\n        return new NextResponse('Internal Server Error', { status: 500 });
     }
 }
 
@@ -181,7 +179,6 @@ export async function PATCH(
 
         return NextResponse.json(updatedCurrency);
     } catch (error) {
-        console.error('Update currency error:', error);
         return new NextResponse('Internal Server Error', { status: 500 });
     }
 }
@@ -243,7 +240,6 @@ export async function DELETE(
 
         return NextResponse.json({ success: true });
     } catch (error) {
-        console.error('Delete currency error:', error);
-        return new NextResponse('Internal Server Error', { status: 500 });
+        return new NextResponse('Internal Error', { status: 500 });
     }
 }

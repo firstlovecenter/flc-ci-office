@@ -50,7 +50,6 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('Subscribe error:', error);
     return new NextResponse('Internal Server Error', { status: 500 });
   }
 }
@@ -81,7 +80,6 @@ export async function DELETE(req: NextRequest) {
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('Unsubscribe error:', error);
     return new NextResponse('Internal Server Error', { status: 500 });
   }
 }

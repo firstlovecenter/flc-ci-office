@@ -28,7 +28,6 @@ export async function sendPushNotification(
   notification: NotificationPayload
 ): Promise<{ sent: number; failed: number }> {
   if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) {
-    console.warn('Push notifications not configured - skipping');
     return { sent: 0, failed: 0 };
   }
 
@@ -62,7 +61,6 @@ export async function sendPushNotification(
           );
           return { success: true };
         } catch (error: any) {
-          console.error('Failed to send notification:', error);
           
           // If subscription is no longer valid, delete it
           if (error.statusCode === 410 || error.statusCode === 404) {
@@ -81,7 +79,6 @@ export async function sendPushNotification(
 
     return { sent: successful, failed };
   } catch (error) {
-    console.error('Send notification error:', error);
     return { sent: 0, failed: 0 };
   }
 }

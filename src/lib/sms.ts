@@ -18,18 +18,11 @@ export interface SmsOptions {
 export async function sendSms(options: SmsOptions): Promise<boolean> {
   try {
     if (!isSmsConfigured()) {
-      console.error('❌ SMS service not configured. Please check environment variables.');
       return false;
     }
 
     const apiKey = process.env.MNOTIFY_API_KEY;
-    const senderId = process.env.MNOTIFY_SENDER_ID || 'mNotify';
-
-    console.log('📤 Sending SMS:', {
-      to: options.to,
-      senderId,
-      messageLength: options.message.length,
-    });
+    const senderId = process.env.MNOTIFY_SENDER_ID;
 
     // Build request body EXACTLY as docs show - recipient array, sender, message, schedule fields
     const requestBody = {
@@ -39,8 +32,6 @@ export async function sendSms(options: SmsOptions): Promise<boolean> {
       is_schedule: false,
       schedule_date: ''
     };
-
-    console.log('📦 Request body:', JSON.stringify(requestBody, null, 2));
 
     // mNotify API endpoint - key as URL parameter as shown in docs
     const response = await axios.post(
@@ -53,25 +44,12 @@ export async function sendSms(options: SmsOptions): Promise<boolean> {
       }
     );
 
-    console.log('📨 mNotify response:', response.data);
-
     if (response.data.code === '2000' || response.data.status === 'success') {
-      console.log('✅ SMS sent successfully:', {
-        to: options.to,
-        messageId: response.data.message_id || response.data.id,
-      });
       return true;
     } else {
-      console.error('❌ Failed to send SMS:', response.data);
       return false;
     }
   } catch (error: any) {
-    console.error('❌ Failed to send SMS:', {
-      to: options.to,
-      error: error.message,
-      statusCode: error.response?.status,
-      response: error.response?.data,
-    });
     return false;
   }
 }

@@ -50,7 +50,6 @@ export async function GET(request: Request) {
 
         return NextResponse.json(report);
     } catch (error) {
-        console.error('Error:', error);
         return NextResponse.json(
             { error: error instanceof Error ? error.message : 'Internal server error' },
             { status: 500 }

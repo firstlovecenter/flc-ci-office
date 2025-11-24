@@ -94,7 +94,6 @@ export default function ApprovalsPage() {
                 setError('Failed to fetch pending transactions');
             }
         } catch (error) {
-            console.error('Error fetching transactions:', error);
             setError('Failed to fetch pending transactions');
         } finally {
             setLoading(false);
@@ -143,7 +142,6 @@ export default function ApprovalsPage() {
                 setError(errorText || `Failed to ${actionType} transaction`);
             }
         } catch (error) {
-            console.error('Error processing transaction:', error);
             setError(`Failed to ${actionType} transaction`);
         } finally {
             setProcessing(false);

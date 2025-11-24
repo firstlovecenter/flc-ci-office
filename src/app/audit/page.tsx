@@ -75,7 +75,6 @@ export default function AuditPage() {
                 setLogs(data);
             }
         } catch (error) {
-            console.error('Error fetching audit logs:', error);
         } finally {
             setLoading(false);
         }

@@ -81,20 +81,16 @@ export async function POST(request: NextRequest) {
     });
 
     if (!smsSent) {
-      console.error('Failed to send password reset SMS - SMS service error');
       return NextResponse.json(
         { error: 'Failed to send password reset SMS. Please check that your phone number is correct or contact support.' },
         { status: 500 }
       );
     }
 
-    console.log(`✅ Password reset SMS sent to ${formattedPhone}`);
-
     return NextResponse.json({
       message: 'If an account exists with this information, a password reset SMS has been sent.',
     });
   } catch (error) {
-    console.error('Forgot password error:', error);
     return NextResponse.json(
       { error: 'An error occurred while processing your request' },
       { status: 500 }

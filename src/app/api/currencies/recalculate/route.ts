@@ -82,7 +82,6 @@ export async function POST(req: NextRequest) {
 
                 updatedCount++;
             } catch (error) {
-                console.error(`Error updating transaction ${tx.id}:`, error);
                 errors.push({ transactionId: tx.id, error: String(error) });
             }
         }
@@ -110,7 +109,6 @@ export async function POST(req: NextRequest) {
             errors: errors.length > 0 ? errors : undefined,
         });
     } catch (error) {
-        console.error('Recalculate error:', error);
         return new NextResponse('Internal Server Error', { status: 500 });
     }
 }

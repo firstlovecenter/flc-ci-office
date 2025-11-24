@@ -124,7 +124,6 @@ function UsersPageContent() {
                 alert(data.error || 'Failed to delete user');
             }
         } catch (error) {
-            console.error('Error deleting user:', error);
             alert('Error deleting user');
         }
     };
@@ -151,7 +150,6 @@ function UsersPageContent() {
                 alert(data.error || `Failed to ${action} user`);
             }
         } catch (error) {
-            console.error(`Error ${action}ing user:`, error);
             alert(`Error ${action}ing user`);
         }
     };

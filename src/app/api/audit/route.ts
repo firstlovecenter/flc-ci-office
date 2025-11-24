@@ -34,7 +34,6 @@ export async function GET() {
 
         return NextResponse.json(logs);
     } catch (error) {
-        console.error('Error fetching audit logs:', error);
         return new NextResponse('Internal Error', { status: 500 });
     }
 }

@@ -44,7 +44,6 @@ export async function POST(request: Request) {
             size: file.size
         });
     } catch (error) {
-        console.error('Upload error:', error);
         return new NextResponse('Internal Error', { status: 500 });
     }
 }

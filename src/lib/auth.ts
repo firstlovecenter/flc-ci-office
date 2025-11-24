@@ -22,7 +22,6 @@ export const authOptions: NextAuthOptions = {
             },
             async authorize(credentials) {
                 if (!credentials?.email || !credentials?.password) {
-                    console.error('Missing credentials');
                     return null;
                 }
 
@@ -52,12 +51,10 @@ export const authOptions: NextAuthOptions = {
                 });
 
                 if (!user) {
-                    console.error('User not found:', loginIdentifier);
                     return null;
                 }
 
                 if (!user.password) {
-                    console.error('User has no password set:', loginIdentifier);
                     return null;
                 }
 
@@ -65,7 +62,6 @@ export const authOptions: NextAuthOptions = {
                 const isValid = await bcrypt.compare(credentials.password, user.password);
 
                 if (!isValid) {
-                    console.error('Invalid password for user:', loginIdentifier);
                     return null;
                 }
 
@@ -91,7 +87,6 @@ export const authOptions: NextAuthOptions = {
                 const allRoles = user.userRoles.map(ur => ur.role);
 
                 if (!activeRole) {
-                    console.error('No active role found for user:', user.email);
                     return null;
                 }
 

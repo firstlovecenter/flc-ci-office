@@ -219,7 +219,6 @@ export async function POST(request: Request) {
 
         return NextResponse.json(safeUser);
     } catch (error) {
-        console.error('Error creating user:', error);
         return new NextResponse('Internal Error', { status: 500 });
     }
 }

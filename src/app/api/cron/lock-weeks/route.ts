@@ -36,7 +36,6 @@ export async function GET(request: Request) {
             currentYear: year,
         });
     } catch (error) {
-        console.error('Error locking transactions:', error);
-        return new NextResponse('Internal Error', { status: 500 });
+        return new NextResponse('Internal Server Error', { status: 500 });
     }
 }

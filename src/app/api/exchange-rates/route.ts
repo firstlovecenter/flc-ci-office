@@ -26,7 +26,6 @@ export async function GET(req: NextRequest) {
         response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate');
         return response;
     } catch (error) {
-        console.error('Get exchange rates error:', error);
         return new NextResponse('Internal Server Error', { status: 500 });
     }
 }
@@ -136,7 +135,6 @@ export async function POST(req: NextRequest) {
 
         return NextResponse.json(exchangeRate);
     } catch (error) {
-        console.error('Create/update exchange rate error:', error);
         return new NextResponse('Internal Server Error', { status: 500 });
     }
 }

@@ -241,8 +241,6 @@ export async function PUT(
                         usedAt: new Date(),
                     },
                 });
-                
-                console.log(`🔒 All roles removed from user ${userId} - access revoked`);
             }
 
             // Send SMS notification for first role assignment OR re-assignment after removal (password creation)
@@ -296,17 +294,7 @@ export async function PUT(
                         to: formattedPhone,
                         message: smsContent,
                     });
-
-                    if (smsSent) {
-                        console.log(`✅ Password creation SMS sent to ${formattedPhone}`);
-                    } else {
-                        console.error(`❌ Failed to send password creation SMS to ${formattedPhone}`);
-                    }
                 } catch (notificationError) {
-                    // Log notification error but don't fail the request
-                    console.error('Failed to send SMS notification:', notificationError);
-                }
-            }
         }
 
         // Remove password from response
@@ -327,7 +315,6 @@ export async function PUT(
 
         return NextResponse.json(userWithoutPassword);
     } catch (error) {
-        console.error('Error updating user:', error);
         return NextResponse.json(
             { error: 'Failed to update user. Please try again.' },
             { status: 500 }
@@ -387,7 +374,6 @@ export async function DELETE(
 
         return NextResponse.json({ success: true });
     } catch (error) {
-        console.error('Error deleting user:', error);
         return NextResponse.json(
             { error: 'Failed to delete user. Please try again.' },
             { status: 500 }
@@ -504,7 +490,6 @@ export async function PATCH(
 
         return NextResponse.json(userWithoutPassword);
     } catch (error) {
-        console.error('Error archiving user:', error);
         return NextResponse.json(
             { error: 'Failed to archive user. Please try again.' },
             { status: 500 }

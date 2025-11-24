@@ -48,7 +48,6 @@ export async function GET(
             balance,
         });
     } catch (error) {
-        console.error('Error fetching department stats:', error);
-        return new NextResponse('Internal Error', { status: 500 });
+        return new NextResponse('Internal Server Error', { status: 500 });
     }
 }

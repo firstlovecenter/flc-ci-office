@@ -105,7 +105,6 @@ export default function PushNotificationManager() {
         severity: 'success',
       });
     } catch (error) {
-      console.error('Subscribe error:', error);
       setSnackbar({
         open: true,
         message: 'Failed to subscribe to notifications',
@@ -143,7 +142,6 @@ export default function PushNotificationManager() {
         severity: 'success',
       });
     } catch (error) {
-      console.error('Unsubscribe error:', error);
       setSnackbar({
         open: true,
         message: 'Failed to unsubscribe from notifications',

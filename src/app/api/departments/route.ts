@@ -35,12 +35,9 @@ export async function GET(request: Request) {
             if (session.user.role !== 'SUPERADMIN') {
                 if (session.user.departmentId) {
                     const allowedIds = await getDescendantDepartmentIds(session.user.departmentId);
-                    console.log('All descendant IDs (including user dept):', allowedIds);
                     
                     // Remove the user's own department from the list
                     const filteredIds = allowedIds.filter(id => id !== session.user.departmentId);
-                    console.log('Filtered IDs (excluding user dept):', filteredIds);
-                    console.log('User department ID:', session.user.departmentId);
                     
                     if (filteredIds.length === 0) {
                         // User has no child departments
@@ -69,7 +66,6 @@ export async function GET(request: Request) {
             filteredDepartments = departments.filter(dept => dept.id !== session.user.departmentId);
         }
 
-        console.log('Returning departments count:', filteredDepartments.length);
         return NextResponse.json(filteredDepartments);
     } catch (error) {
         return new NextResponse('Internal Error', { status: 500 });
@@ -142,7 +138,6 @@ export async function POST(request: Request) {
 
         return NextResponse.json(department);
     } catch (error) {
-        console.error('Error creating department:', error);
         return new NextResponse('Internal Error', { status: 500 });
     }
 }

@@ -4,7 +4,6 @@ import bcrypt from 'bcryptjs';
 
 export async function POST(request: Request) {
     try {
-        console.log('Starting seed...');
 
         // Create departments
         const globalDept = await prisma.department.upsert({
@@ -72,8 +71,6 @@ export async function POST(request: Request) {
             },
         });
 
-        console.log('Created departments');
-
         // Create users
         const hashedPassword = await bcrypt.hash('password123', 10);
 
@@ -115,8 +112,6 @@ export async function POST(request: Request) {
             },
         });
 
-        console.log('Created users');
-
         return NextResponse.json({
             success: true,
             message: 'Database seeded successfully',
@@ -127,7 +122,6 @@ export async function POST(request: Request) {
             },
         });
     } catch (error: any) {
-        console.error('Error seeding database:', error);
         return NextResponse.json(
             { success: false, error: error.message },
             { status: 500 }

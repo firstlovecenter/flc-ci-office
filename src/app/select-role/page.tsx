@@ -100,7 +100,6 @@ export default function SelectRolePage() {
             router.push('/dashboard');
             router.refresh();
         } catch (error) {
-            console.error('Error selecting role:', error);
             setSelecting(null);
         }
     };

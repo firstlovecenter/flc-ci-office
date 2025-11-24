@@ -205,7 +205,6 @@ export async function createAuditLog(data: AuditLogData): Promise<void> {
     });
   } catch (error) {
     // Log the error but don't throw - we don't want audit logging to break the main flow
-    console.error('Failed to create audit log:', error);
   }
 }
 
@@ -267,6 +266,5 @@ export async function createBulkAuditLogs(
       data: auditLogs as any,
     });
   } catch (error) {
-    console.error('Failed to create bulk audit logs:', error);
   }
 }
