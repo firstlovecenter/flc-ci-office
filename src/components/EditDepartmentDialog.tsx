@@ -47,14 +47,57 @@ export default function EditDepartmentDialog({
     const [parentId, setParentId] = useState('');
     const [error, setError] = useState('');
     const [saving, setSaving] = useState(false);
+    const [currencies, setCurrencies] = useState<any[]>([]);
+    const [currencyId, setCurrencyId] = useState('');
+    const [loading, setLoading] = useState(false);
+
+    useEffect(() => {
+        fetchCurrencies();
+    }, []);
 
     useEffect(() => {
         if (department) {
             setName(department.name);
             setLevel(department.level);
             setParentId(department.parentId || '');
+            
+            // Fetch current base currency if NATIONAL department
+            if (department.level === 'NATIONAL') {
+                fetchDepartmentCurrency(department.id);
+            } else {
+                setCurrencyId('');
+            }
         }
     }, [department]);
+
+    const fetchCurrencies = async () => {
+        setLoading(true);
+        try {
+            const response = await fetch('/api/currencies?active=true');
+            if (response.ok) {
+                const data = await response.json();
+                setCurrencies(data);
+            }
+        } catch (err) {
+            console.error('Failed to fetch currencies:', err);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const fetchDepartmentCurrency = async (deptId: string) => {
+        try {
+            const response = await fetch(`/api/admin/base-currencies?departmentId=${deptId}`);
+            if (response.ok) {
+                const data = await response.json();
+                if (data.length > 0) {
+                    setCurrencyId(data[0].currencyId);
+                }
+            }
+        } catch (err) {
+            console.error('Failed to fetch department currency:', err);
+        }
+    };
 
     const handleSave = async () => {
         if (!name.trim()) {
@@ -75,6 +118,7 @@ export default function EditDepartmentDialog({
                     name,
                     level,
                     parentId: parentId || null,
+                    currencyId: level === 'NATIONAL' && currencyId ? currencyId : undefined,
                 }),
             });
 
@@ -146,6 +190,26 @@ export default function EditDepartmentDialog({
                         ))}
                     </Select>
                 </FormControl>
+
+                {level === 'NATIONAL' && (
+                    <FormControl fullWidth sx={{ mb: 2 }}>
+                        <InputLabel>Base Currency *</InputLabel>
+                        <Select
+                            value={currencyId}
+                            label="Base Currency *"
+                            onChange={(e) => setCurrencyId(e.target.value)}
+                            required
+                            disabled={loading}
+                        >
+                            <MenuItem value="">Select a currency</MenuItem>
+                            {currencies.map((currency) => (
+                                <MenuItem key={currency.id} value={currency.id}>
+                                    {currency.code} - {currency.name} ({currency.symbol})
+                                </MenuItem>
+                            ))}
+                        </Select>
+                    </FormControl>
+                )}
             </DialogContent>
             <DialogActions>
                 <Button onClick={onClose} disabled={saving}>

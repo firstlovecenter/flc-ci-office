@@ -17,7 +17,7 @@ export async function PUT(
     try {
         const params = await context.params;
         const body = await request.json();
-        const { name, level, parentId } = body;
+        const { name, level, parentId, currencyId } = body;
         const departmentId = params.id;
 
         // Check if user has access to this department
@@ -33,6 +33,14 @@ export async function PUT(
             );
         }
 
+        // Validate currency for NATIONAL departments
+        if (level === 'NATIONAL' && !currencyId) {
+            return NextResponse.json(
+                { error: 'Currency is required for NATIONAL departments' },
+                { status: 400 }
+            );
+        }
+
         // Update the department
         const updatedDepartment = await prisma.department.update({
             where: { id: departmentId },
@@ -43,6 +51,22 @@ export async function PUT(
             },
         });
 
+        // Update or create DepartmentBaseCurrency for NATIONAL departments
+        if (level === 'NATIONAL' && currencyId) {
+            await prisma.departmentBaseCurrency.upsert({
+                where: { departmentId },
+                update: {
+                    currencyId,
+                    setBy: session.user.id,
+                },
+                create: {
+                    departmentId,
+                    currencyId,
+                    setBy: session.user.id,
+                },
+            });
+        }
+
         // Create audit log
         await prisma.auditLog.create({
             data: {
@@ -50,7 +74,7 @@ export async function PUT(
                 actionType: 'UPDATE',
                 entityType: 'Department',
                 entityId: updatedDepartment.id,
-                afterData: JSON.parse(JSON.stringify(updatedDepartment)),
+                afterData: JSON.parse(JSON.stringify({ ...updatedDepartment, currencyId })),
             },
         });
 
