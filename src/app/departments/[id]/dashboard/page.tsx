@@ -16,7 +16,12 @@ export default function DepartmentDashboardPage() {
     const router = useRouter();
     const theme = useTheme();
     const [department, setDepartment] = useState<any>(null);
-    const [stats, setStats] = useState({ income: 0, expense: 0, balance: 0 });
+    const [stats, setStats] = useState({ 
+        income: 0, 
+        expense: 0, 
+        balance: 0,
+        currency: { code: 'GHS', symbol: '₵' }
+    });
     const [detailStats, setDetailStats] = useState({ 
         users: 0, 
         subDepartments: 0, 
@@ -175,7 +180,7 @@ export default function DepartmentDashboardPage() {
                                             fontSize: { xs: '1.5rem', sm: '1.75rem', md: '2.125rem' }
                                         }}
                                     >
-                                        {formatCurrency(card.amount)}
+                                        {formatCurrency(card.amount, stats.currency.code, stats.currency.symbol)}
                                     </Typography>
                                     <Typography variant="caption" sx={{ color: card.trend.startsWith('+') ? 'success.main' : 'error.main', fontSize: { xs: '0.7rem', sm: '0.75rem' } }}>
                                         {card.trend} from last month
@@ -409,7 +414,7 @@ export default function DepartmentDashboardPage() {
                                 </Box>
                             </Box>
                             <Typography variant="h4" fontWeight="700" sx={{ mb: 0.5 }}>
-                                {formatCurrency(stats.balance)}
+                                {formatCurrency(stats.balance, stats.currency.code, stats.currency.symbol)}
                             </Typography>
                             <Typography variant="body2" color="text.secondary">
                                 Current Balance
