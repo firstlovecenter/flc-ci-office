@@ -276,6 +276,7 @@ export async function PUT(
                     });
 
                     const resetCode = resetToken.substring(0, 6).toUpperCase();
+                    const resetLink = `${process.env.NEXTAUTH_URL}/auth/reset-password?code=${resetCode}`;
                     const primaryRolePair = roleDepartmentPairs[0];
                     const department = await prisma.department.findUnique({
                         where: { id: primaryRolePair.departmentId },
@@ -287,7 +288,7 @@ export async function PUT(
                         userName: name || email || 'User',
                         role: primaryRolePair.role,
                         department: department?.name || 'Unknown Department',
-                        resetCode,
+                        resetLink,
                     });
 
                     const smsSent = await sendSms({

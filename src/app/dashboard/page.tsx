@@ -13,6 +13,7 @@ import AssessmentIcon from '@mui/icons-material/Assessment';
 import PeopleIcon from '@mui/icons-material/People';
 import MonetizationOnIcon from '@mui/icons-material/MonetizationOn';
 import PendingActionsIcon from '@mui/icons-material/PendingActions';
+import SmsIcon from '@mui/icons-material/Sms';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { Role } from '@prisma/client';
@@ -254,6 +255,14 @@ export default function DashboardPage() {
                             href: '/reports',
                             color: theme.palette.secondary.main,
                             bgColor: theme.palette.secondary.main + '15',
+                        },
+                        {
+                            title: 'SMS Management',
+                            description: 'Send SMS and manage notifications',
+                            icon: SmsIcon,
+                            href: '/admin/sms',
+                            color: '#9C27B0',
+                            bgColor: '#9C27B015',
                         },
                     ].map((card) => {
                         const Icon = card.icon;

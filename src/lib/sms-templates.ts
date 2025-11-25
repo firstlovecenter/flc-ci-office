@@ -20,15 +20,15 @@ interface FirstRoleAssignmentSmsParams {
     userName: string;
     role: string;
     department: string;
-    resetCode: string;
+    resetLink: string;
 }
 
 export function generateFirstRoleAssignmentSms(params: FirstRoleAssignmentSmsParams): string {
-    const { userName, role, department, resetCode } = params;
+    const { userName, role, department, resetLink } = params;
     
     const roleDisplay = role.replace(/_/g, ' ');
     
-    return `Welcome ${userName}! You've been assigned as ${roleDisplay} for ${department}. Use code ${resetCode} to set your password.`;
+    return `Welcome ${userName}! You've been assigned as ${roleDisplay} for ${department}. Set your password here: ${resetLink}`;
 }
 
 interface RoleAssignmentSmsParams {

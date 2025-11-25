@@ -1,0 +1,103 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
+import { sendSms, formatGhanaPhone } from '@/lib/sms';
+import {
+    generatePasswordResetSms,
+    generateFirstRoleAssignmentSms,
+    generateRoleAssignmentSms,
+    generateTransactionNotificationSms,
+    generateDepartmentAlertSms,
+    generateWeekLockNotificationSms,
+    generateApprovalReminderSms,
+} from '@/lib/sms-templates';
+
+export async function POST(req: NextRequest) {
+    try {
+        const session = await getServerSession(authOptions);
+
+        if (!session?.user?.id) {
+            return new NextResponse('Unauthorized', { status: 401 });
+        }
+
+        // Only SUPERADMIN can use this endpoint
+        if (session.user.role !== 'SUPERADMIN') {
+            return new NextResponse('Forbidden', { status: 403 });
+        }
+
+        const body = await req.json();
+        const { template, templateParams, phoneNumber, userName } = body;
+
+        if (!template || !templateParams) {
+            return NextResponse.json({ error: 'Template and parameters are required' }, { status: 400 });
+        }
+
+        if (!phoneNumber) {
+            return NextResponse.json({ error: 'Phone number is required' }, { status: 400 });
+        }
+
+        // Format and validate phone number
+        const formattedPhone = formatGhanaPhone(phoneNumber);
+        if (!formattedPhone) {
+            return NextResponse.json({ error: 'Invalid phone number format' }, { status: 400 });
+        }
+
+        // Generate message from template
+        let message: string;
+        try {
+            switch (template) {
+                case 'password_reset':
+                    message = generatePasswordResetSms(templateParams);
+                    break;
+                case 'first_role_assignment':
+                    message = generateFirstRoleAssignmentSms(templateParams);
+                    break;
+                case 'role_assignment':
+                    message = generateRoleAssignmentSms(templateParams);
+                    break;
+                case 'transaction_notification':
+                    message = generateTransactionNotificationSms(templateParams);
+                    break;
+                case 'department_alert':
+                    message = generateDepartmentAlertSms(templateParams);
+                    break;
+                case 'week_lock_notification':
+                    message = generateWeekLockNotificationSms(templateParams);
+                    break;
+                case 'approval_reminder':
+                    message = generateApprovalReminderSms(templateParams);
+                    break;
+                default:
+                    return NextResponse.json({ error: 'Invalid template' }, { status: 400 });
+            }
+        } catch (error: any) {
+            return NextResponse.json({ error: 'Failed to generate message: ' + error.message }, { status: 400 });
+        }
+
+        // Send SMS
+        const result = await sendSms({
+            to: formattedPhone,
+            message: message,
+        });
+
+        if (!result) {
+            return NextResponse.json({
+                error: 'Failed to send SMS'
+            }, { status: 500 });
+        }
+
+        return NextResponse.json({
+            success: true,
+            message: `SMS sent successfully to ${userName || 'user'} (${formattedPhone})`,
+            recipient: {
+                name: userName,
+                phone: formattedPhone,
+            }
+        });
+    } catch (error: any) {
+        console.error('SMS Error:', error);
+        return NextResponse.json({
+            error: 'Failed to send SMS: ' + error.message
+        }, { status: 500 });
+    }
+}
