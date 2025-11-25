@@ -119,6 +119,19 @@ export async function POST(request: NextRequest) {
         const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
         const boldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
         
+        // Helper to handle currency symbols that aren't supported by WinAnsi encoding (like Cedi)
+        const getSafeSymbol = (symbol: string, code: string) => {
+            // WinAnsi encoding doesn't support Cedi symbol (₵)
+            if (symbol.includes('₵') || code === 'GHS') return 'GHS ';
+            return symbol.replace(/₵/g, 'GHS');
+        };
+
+        const sanitizeText = (text: string) => {
+            return text.replace(/₵/g, 'GHS');
+        };
+
+        const safeCurrencySymbol = getSafeSymbol(userBaseCurrency.symbol, userBaseCurrency.code);
+
         // A4 size: 595 x 842 points
         let page = pdfDoc.addPage([595, 842]);
         const { width, height } = page.getSize();
@@ -154,9 +167,9 @@ export async function POST(request: NextRequest) {
         y -= 25;
         drawCenteredText('Bank Statement Report', y, 16, boldFont);
         y -= 20;
-        drawCenteredText(departmentName, y, 10, font);
+        drawCenteredText(sanitizeText(departmentName), y, 10, font);
         y -= 15;
-        drawCenteredText(`Currency: ${userBaseCurrency.code} (${userBaseCurrency.symbol})`, y, 9, font);
+        drawCenteredText(`Currency: ${userBaseCurrency.code} (${safeCurrencySymbol})`, y, 9, font);
         y -= 15;
         
         if (startDate || endDate) {
@@ -169,7 +182,7 @@ export async function POST(request: NextRequest) {
         y -= 20;
 
         // Opening Balance
-        page.drawText(`Opening Balance: ${userBaseCurrency.symbol}${openingBalance.toFixed(2)}`, {
+        page.drawText(`Opening Balance: ${safeCurrencySymbol}${openingBalance.toFixed(2)}`, {
             x: 50,
             y,
             size: 11,
@@ -228,21 +241,22 @@ export async function POST(request: NextRequest) {
             runningBalance += credit - debit;
 
             const dateStr = new Date(tx.createdAt).toLocaleDateString();
-            let description = tx.description.substring(0, 30);
+            let description = sanitizeText(tx.description.substring(0, 30));
             
             // Add original currency info if different from base
             if (tx.currency && tx.currency.code !== userBaseCurrency.code) {
-                description += ` (${tx.currency.symbol}${Number(tx.amount).toFixed(2)} ${tx.currency.code})`;
+                const txSafeSymbol = getSafeSymbol(tx.currency.symbol, tx.currency.code);
+                description += ` (${txSafeSymbol}${Number(tx.amount).toFixed(2)} ${tx.currency.code})`;
             }
             
-            const deptName = tx.department.name.substring(0, 20);
+            const deptName = sanitizeText(tx.department.name.substring(0, 20));
 
             page.drawText(dateStr, { x: colX.date, y, size: 8, font, color: rgb(0, 0, 0) });
             page.drawText(description, { x: colX.description, y, size: 8, font, color: rgb(0, 0, 0) });
             page.drawText(deptName, { x: colX.department, y, size: 8, font, color: rgb(0, 0, 0) });
-            drawRightText(debit ? `${userBaseCurrency.symbol}${debit.toFixed(2)}` : '-', colX.debit + 70, y, 8);
-            drawRightText(credit ? `${userBaseCurrency.symbol}${credit.toFixed(2)}` : '-', colX.credit + 70, y, 8);
-            drawRightText(`${userBaseCurrency.symbol}${runningBalance.toFixed(2)}`, colX.balance + 70, y, 8);
+            drawRightText(debit ? `${safeCurrencySymbol}${debit.toFixed(2)}` : '-', colX.debit + 70, y, 8);
+            drawRightText(credit ? `${safeCurrencySymbol}${credit.toFixed(2)}` : '-', colX.credit + 70, y, 8);
+            drawRightText(`${safeCurrencySymbol}${runningBalance.toFixed(2)}`, colX.balance + 70, y, 8);
 
             y -= 20;
         }
@@ -253,7 +267,7 @@ export async function POST(request: NextRequest) {
             page = pdfDoc.addPage([595, 842]);
             y = height - 50;
         }
-        drawRightText(`Closing Balance: ${userBaseCurrency.symbol}${runningBalance.toFixed(2)}`, 545, y, 11);
+        drawRightText(`Closing Balance: ${safeCurrencySymbol}${runningBalance.toFixed(2)}`, 545, y, 11);
         
         // Summary
         const income = transactions
@@ -285,14 +299,14 @@ export async function POST(request: NextRequest) {
             page = pdfDoc.addPage([595, 842]);
             y = height - 50;
         }
-        page.drawText(`Total Income: ${userBaseCurrency.symbol}${income.toFixed(2)}`, { x: 50, y, size: 10, font, color: rgb(0, 0, 0) });
+        page.drawText(`Total Income: ${safeCurrencySymbol}${income.toFixed(2)}`, { x: 50, y, size: 10, font, color: rgb(0, 0, 0) });
         y -= 15;
-        page.drawText(`Total Expense: ${userBaseCurrency.symbol}${expense.toFixed(2)}`, { x: 50, y, size: 10, font, color: rgb(0, 0, 0) });
+        page.drawText(`Total Expense: ${safeCurrencySymbol}${expense.toFixed(2)}`, { x: 50, y, size: 10, font, color: rgb(0, 0, 0) });
         y -= 15;
-        page.drawText(`Net Change: ${userBaseCurrency.symbol}${(income - expense).toFixed(2)}`, { x: 50, y, size: 10, font, color: rgb(0, 0, 0) });
+        page.drawText(`Net Change: ${safeCurrencySymbol}${(income - expense).toFixed(2)}`, { x: 50, y, size: 10, font, color: rgb(0, 0, 0) });
 
         // Footer
-        const footerText = `Generated on ${new Date().toLocaleString()} by ${session.user.name || session.user.email}`;
+        const footerText = `Generated on ${new Date().toLocaleString()} by ${sanitizeText(session.user.name || session.user.email || 'Unknown User')}`;
         drawCenteredText(footerText, 50, 8, font);
 
         // Generate PDF bytes
