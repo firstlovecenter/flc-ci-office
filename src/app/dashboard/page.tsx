@@ -78,6 +78,8 @@ export default function DashboardPage() {
 
     const getQuickLinks = () => {
         const userRole = session?.user?.role as Role;
+        const leaderRoles = [Role.GLOBAL_LEADER, Role.INTERNATIONAL_LEADER, Role.NATIONAL_LEADER, Role.REGIONAL_LEADER, Role.CAMPUS_LEADER, Role.STREAM_LEADER, Role.COUNCIL_LEADER] as Role[];
+        const isLeader = userRole && leaderRoles.includes(userRole);
         
         const allLinks = [
             {
@@ -94,7 +96,8 @@ export default function DashboardPage() {
                 href: '/transactions/new',
                 color: theme.palette.success.main,
                 bgColor: theme.palette.success.main + '15',
-                roles: null as Role[] | null // Available to all
+                roles: null as Role[] | null, // Available to all
+                excludeForLeaders: true // Hide from leaders
             },
             {
                 title: 'Transactions',
@@ -110,7 +113,8 @@ export default function DashboardPage() {
                 href: '/departments',
                 color: theme.palette.warning.main,
                 bgColor: theme.palette.warning.main + '15',
-                roles: null as Role[] | null // Available to all
+                roles: null as Role[] | null, // Available to all
+                excludeForLeaders: true // Hide from leaders
             },
             {
                 title: 'Reports',
@@ -138,9 +142,17 @@ export default function DashboardPage() {
             }
         ];
 
-        return allLinks.filter(link => 
-            !link.roles || link.roles.includes(userRole)
-        );
+        return allLinks.filter(link => {
+            // Check role permissions
+            if (link.roles && !link.roles.includes(userRole)) {
+                return false;
+            }
+            // Exclude items marked for leaders
+            if (isLeader && link.excludeForLeaders) {
+                return false;
+            }
+            return true;
+        });
     };
 
     if (loading) {

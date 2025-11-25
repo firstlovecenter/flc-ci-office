@@ -88,7 +88,17 @@ export default function ModernDashboardLayout({ children }: { children: React.Re
         { text: 'Transactions', icon: <ReceiptIcon />, path: '/transactions', badge: pendingCounts.transactions },
         { text: 'Users', icon: <PeopleIcon />, path: '/users' },
         { text: 'Logout', icon: <LogoutIcon />, path: '/logout', isAction: true },
-    ];
+    ].filter(item => {
+        // Hide Users from leaders
+        if (item.text === 'Users') {
+            const userRole = session?.user?.role;
+            const leaderRoles = ['GLOBAL_LEADER', 'INTERNATIONAL_LEADER', 'NATIONAL_LEADER', 'REGIONAL_LEADER', 'CAMPUS_LEADER', 'STREAM_LEADER', 'COUNCIL_LEADER'];
+            if (userRole && leaderRoles.includes(userRole)) {
+                return false;
+            }
+        }
+        return true;
+    });
 
     return (
         <MainContainer>
