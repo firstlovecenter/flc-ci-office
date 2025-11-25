@@ -154,12 +154,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         return true;
     });
 
-    // Mobile bottom nav items (top 4 most important)
+    // Mobile bottom nav items (Dashboard, Transactions, Users, Logout)
     const mobileNavItems = [
         { text: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard' },
         { text: 'Transactions', icon: <ReceiptIcon />, path: '/transactions' },
-        { text: 'Departments', icon: <AccountBalanceIcon />, path: '/departments' },
-        { text: 'Profile', icon: <AccountCircleIcon />, path: '/profile' },
+        { text: 'Users', icon: <PeopleIcon />, path: '/users' },
+        { text: 'Logout', icon: <AccountCircleIcon />, path: 'logout', action: 'logout' },
     ];
 
     const handleDrawerOpen = () => {
@@ -432,7 +432,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     p: { xs: 2, sm: 3 }, 
                     bgcolor: 'background.default', 
                     minHeight: '100vh',
-                    pb: { xs: 9, md: 3 }, // Extra padding bottom for mobile nav
+                    pb: { xs: 12, md: 3 }, // Extra padding bottom for mobile nav
                     width: { xs: '100%', sm: 'auto' },
                 }}
             >
@@ -457,17 +457,28 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     <BottomNavigation
                         value={pathname}
                         onChange={(event, newValue) => {
-                            router.push(newValue);
+                            const item = mobileNavItems.find(i => i.path === newValue);
+                            if (item?.action === 'logout') {
+                                handleLogout();
+                            } else {
+                                router.push(newValue);
+                            }
                         }}
                         showLabels
                         sx={{
+                            height: 80,
                             '& .MuiBottomNavigationAction-root': {
                                 minWidth: 'auto',
-                                px: 0,
+                                px: 1,
+                                py: 1.5,
                             },
                             '& .MuiBottomNavigationAction-label': {
-                                fontSize: '0.7rem',
+                                fontSize: '0.875rem',
+                                fontWeight: 600,
                                 mt: 0.5,
+                            },
+                            '& .MuiSvgIcon-root': {
+                                fontSize: '2rem',
                             },
                         }}
                     >

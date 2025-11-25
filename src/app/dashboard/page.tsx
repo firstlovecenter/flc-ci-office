@@ -12,6 +12,7 @@ import BusinessIcon from '@mui/icons-material/Business';
 import AssessmentIcon from '@mui/icons-material/Assessment';
 import PeopleIcon from '@mui/icons-material/People';
 import MonetizationOnIcon from '@mui/icons-material/MonetizationOn';
+import PendingActionsIcon from '@mui/icons-material/PendingActions';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { Role } from '@prisma/client';
@@ -24,6 +25,8 @@ export default function DashboardPage() {
     const { data: session } = useSession();
     const theme = useTheme();
     const router = useRouter();
+    
+    const isSuperAdmin = session?.user?.role === 'SUPERADMIN';
 
     useEffect(() => {
         fetchBaseCurrency();
@@ -76,6 +79,14 @@ export default function DashboardPage() {
         const userRole = session?.user?.role as Role;
         
         const allLinks = [
+            {
+                title: 'Request Expense',
+                icon: PendingActionsIcon,
+                href: '/transactions/new?type=EXPENSE',
+                color: theme.palette.error.main,
+                bgColor: theme.palette.error.main + '15',
+                roles: [Role.GLOBAL_LEADER, Role.INTERNATIONAL_LEADER, Role.NATIONAL_LEADER, Role.REGIONAL_LEADER, Role.CAMPUS_LEADER, Role.STREAM_LEADER, Role.COUNCIL_LEADER] as Role[]
+            },
             {
                 title: 'New Transaction',
                 icon: AddCircleIcon,
@@ -179,76 +190,190 @@ export default function DashboardPage() {
                         fontSize: { xs: '1.25rem', sm: '2rem', md: '2.125rem' }
                     }}
                 >
-                    {session?.user?.departmentName && session?.user?.departmentLevel 
-                        ? `${session.user.departmentName} ${session.user.departmentLevel}` 
-                        : session?.user?.departmentName || 'Dashboard'}
+                    {isSuperAdmin 
+                        ? 'System Management' 
+                        : session?.user?.departmentName && session?.user?.departmentLevel 
+                            ? `${session.user.departmentName} ${session.user.departmentLevel}` 
+                            : session?.user?.departmentName || 'Dashboard'}
                 </Typography>
                 <Typography variant="body2" color="text.secondary" sx={{ fontSize: { xs: '0.75rem', sm: '1rem' } }}>
-                    Here's what's happening with your finances today
+                    {isSuperAdmin 
+                        ? 'Manage all aspects of the system from one place' 
+                        : "Here's what's happening with your finances today"}
                 </Typography>
             </Box>
 
-            {/* Stats Grid */}
-            <Grid container spacing={{ xs: 1.5, sm: 3 }} sx={{ mb: { xs: 2, md: 4 } }}>
-                {statCards.map((card, index) => {
-                    const Icon = card.icon;
-                    return (
-                        <Grid size={{ xs: 12, md: 6, lg: 4 }} key={index}>
-                            <Box
-                                sx={{
-                                    p: { xs: 1.5, sm: 3, md: 4 },
-                                    borderRadius: { xs: 1.5, sm: 2 },
-                                    bgcolor: 'background.paper',
-                                    border: '1px solid',
-                                    borderColor: 'divider',
-                                    transition: 'all 0.2s ease-in-out',
-                                    '&:hover': {
-                                        borderColor: card.color,
-                                        transform: { xs: 'none', sm: 'translateY(-2px)' },
-                                        boxShadow: `0 4px 12px ${card.bgColor}`,
-                                    }
-                                }}
-                            >
-                                <Stack spacing={{ xs: 1, sm: 2 }}>
-                                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                        <Typography variant="body2" color="text.secondary" fontWeight="500" sx={{ fontSize: { xs: '0.7rem', sm: '0.875rem' } }}>
-                                            {card.title}
-                                        </Typography>
+            {/* SuperAdmin Management Cards */}
+            {isSuperAdmin ? (
+                <Grid container spacing={{ xs: 1.5, sm: 3 }} sx={{ mb: { xs: 2, md: 4 } }}>
+                    {[
+                        {
+                            title: 'User Management',
+                            description: 'Manage users, roles, and permissions',
+                            icon: PeopleIcon,
+                            href: '/users',
+                            color: theme.palette.primary.main,
+                            bgColor: theme.palette.primary.main + '15',
+                        },
+                        {
+                            title: 'Department Management',
+                            description: 'Organize and manage departments',
+                            icon: BusinessIcon,
+                            href: '/departments',
+                            color: theme.palette.warning.main,
+                            bgColor: theme.palette.warning.main + '15',
+                        },
+                        {
+                            title: 'Transaction Management',
+                            description: 'View and manage all transactions',
+                            icon: ReceiptIcon,
+                            href: '/transactions',
+                            color: theme.palette.info.main,
+                            bgColor: theme.palette.info.main + '15',
+                        },
+                        {
+                            title: 'Currency Management',
+                            description: 'Manage currencies and exchange rates',
+                            icon: MonetizationOnIcon,
+                            href: '/currencies',
+                            color: theme.palette.error.main,
+                            bgColor: theme.palette.error.main + '15',
+                        },
+                        {
+                            title: 'Approvals',
+                            description: 'Review pending approvals',
+                            icon: PendingActionsIcon,
+                            href: '/approvals',
+                            color: theme.palette.success.main,
+                            bgColor: theme.palette.success.main + '15',
+                        },
+                        {
+                            title: 'Reports & Analytics',
+                            description: 'View system-wide reports',
+                            icon: AssessmentIcon,
+                            href: '/reports',
+                            color: theme.palette.secondary.main,
+                            bgColor: theme.palette.secondary.main + '15',
+                        },
+                    ].map((card) => {
+                        const Icon = card.icon;
+                        return (
+                            <Grid size={{ xs: 12, sm: 6, md: 4 }} key={card.title}>
+                                <Card
+                                    sx={{
+                                        height: '100%',
+                                        border: '1px solid',
+                                        borderColor: 'divider',
+                                        transition: 'all 0.2s ease-in-out',
+                                        cursor: 'pointer',
+                                        '&:hover': {
+                                            borderColor: card.color,
+                                            transform: 'translateY(-4px)',
+                                            boxShadow: `0 8px 24px ${card.bgColor}`,
+                                        }
+                                    }}
+                                >
+                                    <CardActionArea
+                                        onClick={() => router.push(card.href)}
+                                        sx={{
+                                            height: '100%',
+                                            p: { xs: 2, sm: 3 },
+                                            display: 'flex',
+                                            flexDirection: 'column',
+                                            alignItems: 'flex-start',
+                                            justifyContent: 'flex-start',
+                                        }}
+                                    >
                                         <Box
                                             sx={{
-                                                width: { xs: 32, sm: 40 },
-                                                height: { xs: 32, sm: 40 },
-                                                borderRadius: { xs: 1.5, sm: 2 },
+                                                width: { xs: 48, sm: 56 },
+                                                height: { xs: 48, sm: 56 },
+                                                borderRadius: 2,
                                                 bgcolor: card.bgColor,
                                                 display: 'flex',
                                                 alignItems: 'center',
-                                                justifyContent: 'center'
+                                                justifyContent: 'center',
+                                                mb: 2
                                             }}
                                         >
-                                            <Icon sx={{ fontSize: { xs: 16, sm: 20 }, color: card.color }} />
+                                            <Icon sx={{ fontSize: { xs: 24, sm: 28 }, color: card.color }} />
                                         </Box>
-                                    </Box>
-                                    <Typography 
-                                        variant="h4" 
-                                        fontWeight="700" 
-                                        sx={{ 
-                                            color: 'text.primary',
-                                            fontSize: { xs: '1.25rem', sm: '1.75rem', md: '2.125rem' }
-                                        }}
-                                    >
-                                        {baseCurrency ? formatCurrency(card.amount, baseCurrency.code, baseCurrency.symbol) : formatCurrency(card.amount)}
-                                    </Typography>
-                                    <Typography variant="caption" sx={{ color: card.color, fontWeight: 600, fontSize: { xs: '0.65rem', sm: '0.75rem' } }}>
-                                        {card.trend} from last month
-                                    </Typography>
-                                </Stack>
-                            </Box>
-                        </Grid>
-                    );
-                })}
-            </Grid>
+                                        <Typography variant="h6" fontWeight="700" sx={{ mb: 0.5, fontSize: { xs: '1rem', sm: '1.25rem' } }}>
+                                            {card.title}
+                                        </Typography>
+                                        <Typography variant="body2" color="text.secondary" sx={{ fontSize: { xs: '0.8rem', sm: '0.875rem' } }}>
+                                            {card.description}
+                                        </Typography>
+                                    </CardActionArea>
+                                </Card>
+                            </Grid>
+                        );
+                    })}
+                </Grid>
+            ) : (
+                /* Stats Grid for non-superadmin users */
+                <Grid container spacing={{ xs: 1.5, sm: 3 }} sx={{ mb: { xs: 2, md: 4 } }}>
+                    {statCards.map((card, index) => {
+                        const Icon = card.icon;
+                        return (
+                            <Grid size={{ xs: 12, md: 6, lg: 4 }} key={index}>
+                                <Box
+                                    sx={{
+                                        p: { xs: 1.5, sm: 3, md: 4 },
+                                        borderRadius: { xs: 1.5, sm: 2 },
+                                        bgcolor: 'background.paper',
+                                        border: '1px solid',
+                                        borderColor: 'divider',
+                                        transition: 'all 0.2s ease-in-out',
+                                        '&:hover': {
+                                            borderColor: card.color,
+                                            transform: { xs: 'none', sm: 'translateY(-2px)' },
+                                            boxShadow: `0 4px 12px ${card.bgColor}`,
+                                        }
+                                    }}
+                                >
+                                    <Stack spacing={{ xs: 1, sm: 2 }}>
+                                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                            <Typography variant="body2" color="text.secondary" fontWeight="500" sx={{ fontSize: { xs: '0.7rem', sm: '0.875rem' } }}>
+                                                {card.title}
+                                            </Typography>
+                                            <Box
+                                                sx={{
+                                                    width: { xs: 32, sm: 40 },
+                                                    height: { xs: 32, sm: 40 },
+                                                    borderRadius: { xs: 1.5, sm: 2 },
+                                                    bgcolor: card.bgColor,
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    justifyContent: 'center'
+                                                }}
+                                            >
+                                                <Icon sx={{ fontSize: { xs: 16, sm: 20 }, color: card.color }} />
+                                            </Box>
+                                        </Box>
+                                        <Typography 
+                                            variant="h4" 
+                                            fontWeight="700" 
+                                            sx={{ 
+                                                color: 'text.primary',
+                                                fontSize: { xs: '1.25rem', sm: '1.75rem', md: '2.125rem' }
+                                            }}
+                                        >
+                                            {baseCurrency ? formatCurrency(card.amount, baseCurrency.code, baseCurrency.symbol) : formatCurrency(card.amount)}
+                                        </Typography>
+                                        <Typography variant="caption" sx={{ color: card.color, fontWeight: 600, fontSize: { xs: '0.65rem', sm: '0.75rem' } }}>
+                                            {card.trend} from last month
+                                        </Typography>
+                                    </Stack>
+                                </Box>
+                            </Grid>
+                        );
+                    })}
+                </Grid>
+            )}
 
-            {/* Quick Links */}
+            {/* Quick Links - Hidden for SuperAdmin */}
+            {!isSuperAdmin && (
             <Box
                 sx={{
                     display: { xs: 'none', sm: 'block' },
@@ -323,8 +448,10 @@ export default function DashboardPage() {
                     })}
                 </Grid>
             </Box>
+            )}
 
-            {/* Financial Insights */}
+            {/* Financial Insights - Hidden for SuperAdmin */}
+            {!isSuperAdmin && (
             <Box
                 sx={{
                     p: { xs: 1.5, sm: 3, md: 4 },
@@ -398,6 +525,7 @@ export default function DashboardPage() {
                     </Grid>
                 </Grid>
             </Box>
+            )}
         </Box>
     );
 }

@@ -90,6 +90,7 @@ function TransactionsPageContent() {
     const [filteredTransactions, setFilteredTransactions] = useState<TransactionWithDetails[]>([]);
     const [baseCurrency, setBaseCurrency] = useState<{ id: string; code: string; symbol: string } | null>(null);
     const [currencies, setCurrencies] = useState<any[]>([]);
+    const [department, setDepartment] = useState<any>(null);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
     const [typeFilter, setTypeFilter] = useState('ALL');
@@ -112,6 +113,9 @@ function TransactionsPageContent() {
         fetchCurrencies();
         fetchBaseCurrency();
         fetchTransactions();
+        if (deptParam) {
+            fetchDepartment();
+        }
 
         // Refresh data when page becomes visible (e.g., after switching tabs)
         const handleVisibilityChange = () => {
@@ -137,6 +141,7 @@ function TransactionsPageContent() {
                 setCurrencies(data);
             }
         } catch (error) {
+            console.error('Error fetching currencies:', error);
         }
     };
 
@@ -177,6 +182,7 @@ function TransactionsPageContent() {
                 }
             }
         } catch (error) {
+            console.error('Error fetching base currency:', error);
         }
     };
 
@@ -197,6 +203,20 @@ function TransactionsPageContent() {
                 await fetchTransactions();
             }
         } catch (error) {
+            console.error('Error updating base currency:', error);
+        }
+    };
+
+    const fetchDepartment = async () => {
+        if (!deptParam) return;
+        try {
+            const response = await fetch(`/api/departments/${deptParam}`);
+            if (response.ok) {
+                const data = await response.json();
+                setDepartment(data);
+            }
+        } catch (error) {
+            console.error('Error fetching department:', error);
         }
     };
 
@@ -220,6 +240,7 @@ function TransactionsPageContent() {
                 setTransactions(data);
             }
         } catch (error) {
+            console.error('Error fetching transactions:', error);
         } finally {
             setLoading(false);
         }
@@ -347,13 +368,17 @@ function TransactionsPageContent() {
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4 }}>
                 <Box>
                     <Typography variant="h4" fontWeight="700">
-                        Transactions
+                        {department?.name && department?.level 
+                            ? `${department.name} ${department.level} Transactions` 
+                            : department?.name
+                                ? `${department.name} Transactions`
+                                : 'Transactions'}
                     </Typography>
                     <Typography variant="body2" color="text.secondary">
-                        Manage and track all financial transactions
+                        {department ? `${exactDepartment ? 'Exact department' : 'Including sub-departments'}` : 'Manage and track all financial transactions'}
                     </Typography>
                 </Box>
-                <Link href="/transactions/new" style={{ textDecoration: 'none' }}>
+                <Link href={deptParam ? `/transactions/new?dept=${deptParam}${exactDepartment ? '&exact=true' : ''}` : '/transactions/new'} style={{ textDecoration: 'none' }}>
                     <Button 
                         variant="contained" 
                         startIcon={<AddIcon />}

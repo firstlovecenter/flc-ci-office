@@ -1,7 +1,7 @@
 'use client';
 
-import React from 'react';
-import { Box, Typography, Avatar, IconButton, TextField, InputAdornment, Paper, BottomNavigation, BottomNavigationAction, useMediaQuery, useTheme } from '@mui/material';
+import React, { useEffect, useState } from 'react';
+import { Box, Typography, Avatar, IconButton, TextField, InputAdornment, Paper, BottomNavigation, BottomNavigationAction, useMediaQuery, useTheme, Badge } from '@mui/material';
 import { styled } from '@mui/material/styles';
 import { useSession, signOut } from 'next-auth/react';
 import { usePathname, useRouter } from 'next/navigation';
@@ -12,6 +12,7 @@ import AccountCircleIcon from '@mui/icons-material/AccountCircle';
 import Brightness4Icon from '@mui/icons-material/Brightness4';
 import Brightness7Icon from '@mui/icons-material/Brightness7';
 import LogoutIcon from '@mui/icons-material/Logout';
+import PeopleIcon from '@mui/icons-material/People';
 import ModernSidebar from './ModernSidebar';
 import { useColorMode } from '@/app/providers';
 
@@ -60,12 +61,32 @@ export default function ModernDashboardLayout({ children }: { children: React.Re
     const theme = useTheme();
     const isMobile = useMediaQuery(theme.breakpoints.down('md'));
     const colorMode = useColorMode();
+    const [pendingCounts, setPendingCounts] = useState({ approvals: 0, transactions: 0 });
+
+    useEffect(() => {
+        if (session?.user) {
+            fetchPendingCounts();
+            const interval = setInterval(fetchPendingCounts, 60000); // Refresh every minute
+            return () => clearInterval(interval);
+        }
+    }, [session]);
+
+    const fetchPendingCounts = async () => {
+        try {
+            const response = await fetch('/api/pending-counts');
+            if (response.ok) {
+                const data = await response.json();
+                setPendingCounts(data);
+            }
+        } catch (error) {
+            console.error('Error fetching pending counts:', error);
+        }
+    };
 
     const mobileNavItems = [
         { text: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard' },
-        { text: 'Transactions', icon: <ReceiptIcon />, path: '/transactions' },
-        { text: 'Departments', icon: <BusinessIcon />, path: '/departments' },
-        { text: 'Profile', icon: <AccountCircleIcon />, path: '/profile' },
+        { text: 'Transactions', icon: <ReceiptIcon />, path: '/transactions', badge: pendingCounts.transactions },
+        { text: 'Users', icon: <PeopleIcon />, path: '/users' },
         { text: 'Logout', icon: <LogoutIcon />, path: '/logout', isAction: true },
     ];
 
@@ -76,6 +97,7 @@ export default function ModernDashboardLayout({ children }: { children: React.Re
                     userRole={session?.user?.role}
                     userName={session?.user?.name || undefined}
                     userImage={session?.user?.image || undefined}
+                    pendingCounts={pendingCounts}
                 />
             )}
 
@@ -158,13 +180,19 @@ export default function ModernDashboardLayout({ children }: { children: React.Re
                         }}
                         showLabels
                         sx={{
+                            height: 80,
                             '& .MuiBottomNavigationAction-root': {
                                 minWidth: 'auto',
-                                px: 0,
+                                px: 1,
+                                py: 1.5,
                             },
                             '& .MuiBottomNavigationAction-label': {
-                                fontSize: '0.7rem',
+                                fontSize: '0.875rem',
+                                fontWeight: 600,
                                 mt: 0.5,
+                            },
+                            '& .MuiSvgIcon-root': {
+                                fontSize: '2rem',
                             },
                         }}
                     >
@@ -173,7 +201,17 @@ export default function ModernDashboardLayout({ children }: { children: React.Re
                                 key={item.path}
                                 label={item.text}
                                 value={item.path}
-                                icon={item.icon}
+                                icon={
+                                    item.badge && item.badge > 0 ? (
+                                        <Badge 
+                                            badgeContent={item.badge} 
+                                            color="error"
+                                            max={99}
+                                        >
+                                            {item.icon}
+                                        </Badge>
+                                    ) : item.icon
+                                }
                                 sx={{
                                     color: pathname === item.path ? 'primary.main' : 'text.secondary',
                                     '&.Mui-selected': {

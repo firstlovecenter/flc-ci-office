@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Box, List, ListItem, ListItemButton, ListItemIcon, ListItemText, Typography, Avatar, IconButton, Tooltip } from '@mui/material';
+import { Box, List, ListItem, ListItemButton, ListItemIcon, ListItemText, Typography, Avatar, IconButton, Tooltip, Badge } from '@mui/material';
 import { styled } from '@mui/material/styles';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -121,9 +121,10 @@ interface ModernSidebarProps {
     userRole?: string;
     userName?: string;
     userImage?: string;
+    pendingCounts?: { approvals: number; transactions: number };
 }
 
-export default function ModernSidebar({ userRole, userName, userImage }: ModernSidebarProps) {
+export default function ModernSidebar({ userRole, userName, userImage, pendingCounts }: ModernSidebarProps) {
     const pathname = usePathname();
     const [collapsed, setCollapsed] = useState(true);
 
@@ -179,7 +180,14 @@ export default function ModernSidebar({ userRole, userName, userImage }: ModernS
             <MenuSection>
                 <MenuLabel collapsed={collapsed}>Menu</MenuLabel>
                 <List disablePadding>
-                    {filteredMenuItems.map((item) => (
+                    {filteredMenuItems.map((item) => {
+                        const showBadge = pendingCounts && (
+                            (item.path === '/approvals' && pendingCounts.approvals > 0) ||
+                            (item.path === '/transactions' && pendingCounts.transactions > 0)
+                        );
+                        const badgeCount = item.path === '/approvals' ? pendingCounts?.approvals : pendingCounts?.transactions;
+                        
+                        return (
                         <ListItem key={item.path} disablePadding>
                             <Link href={item.path} passHref style={{ textDecoration: 'none', width: '100%' }}>
                                 <Tooltip title={collapsed ? item.text : ''} placement="right" arrow>
@@ -187,7 +195,23 @@ export default function ModernSidebar({ userRole, userName, userImage }: ModernS
                                         active={pathname === item.path}
                                         sx={{ justifyContent: collapsed ? 'center' : 'flex-start' }}
                                     >
-                                        <ListItemIcon sx={{ minWidth: collapsed ? 'auto' : 40 }}>{item.icon}</ListItemIcon>
+                                        <ListItemIcon sx={{ minWidth: collapsed ? 'auto' : 40 }}>
+                                            {showBadge ? (
+                                                <Badge 
+                                                    badgeContent={badgeCount} 
+                                                    color="error"
+                                                    max={99}
+                                                    sx={{
+                                                        '& .MuiBadge-badge': {
+                                                            right: -3,
+                                                            top: 3,
+                                                        }
+                                                    }}
+                                                >
+                                                    {item.icon}
+                                                </Badge>
+                                            ) : item.icon}
+                                        </ListItemIcon>
                                         {!collapsed && (
                                             <ListItemText 
                                                 primary={item.text}
@@ -201,7 +225,8 @@ export default function ModernSidebar({ userRole, userName, userImage }: ModernS
                                 </Tooltip>
                             </Link>
                         </ListItem>
-                    ))}
+                        );
+                    })}
                 </List>
             </MenuSection>
 

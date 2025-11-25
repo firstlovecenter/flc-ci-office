@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import {
     Box,
     Typography,
@@ -14,13 +14,17 @@ import {
     Select,
     Alert,
     InputAdornment,
+    CircularProgress,
 } from '@mui/material';
 import { useSession } from 'next-auth/react';
 
 type TransactionType = 'INCOME' | 'EXPENSE';
 
-export default function NewTransactionPage() {
+function NewTransactionForm() {
     const router = useRouter();
+    const searchParams = useSearchParams();
+    const deptParam = searchParams?.get('dept');
+    const exactDepartment = searchParams?.get('exact') === 'true';
     const { data: session } = useSession();
     const [type, setType] = useState<TransactionType>('INCOME');
     const [amount, setAmount] = useState('');
@@ -43,10 +47,13 @@ export default function NewTransactionPage() {
     }, []);
 
     useEffect(() => {
-        if (session?.user?.departmentId) {
+        // Set department from URL parameter if present, otherwise use user's department
+        if (deptParam) {
+            setDepartmentId(deptParam);
+        } else if (session?.user?.departmentId) {
             setDepartmentId(session.user.departmentId);
         }
-    }, [session]);
+    }, [session, deptParam]);
 
     useEffect(() => {
         // Fetch exchange rate when currency changes
@@ -196,7 +203,12 @@ export default function NewTransactionPage() {
                 throw new Error(errorMessage);
             }
 
-            router.push('/transactions');
+            // Redirect back to department context if it exists
+            if (deptParam) {
+                router.push(`/transactions?dept=${deptParam}${exactDepartment ? '&exact=true' : ''}`);
+            } else {
+                router.push('/transactions');
+            }
             router.refresh();
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Error creating transaction');
@@ -339,5 +351,17 @@ export default function NewTransactionPage() {
                 </form>
             </Paper>
         </Box>
+    );
+}
+
+export default function NewTransactionPage() {
+    return (
+        <Suspense fallback={
+            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '60vh' }}>
+                <CircularProgress />
+            </Box>
+        }>
+            <NewTransactionForm />
+        </Suspense>
     );
 }

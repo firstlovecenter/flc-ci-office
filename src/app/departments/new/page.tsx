@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import {
     Box,
     Typography,
@@ -13,6 +13,7 @@ import {
     InputLabel,
     Select,
     Alert,
+    CircularProgress,
 } from '@mui/material';
 import { useSession } from 'next-auth/react';
 
@@ -30,12 +31,15 @@ const DEPARTMENT_HIERARCHY: Record<DepartmentLevel, number> = {
     COUNCIL: 7,
 };
 
-export default function NewDepartmentPage() {
+function NewDepartmentForm() {
     const router = useRouter();
+    const searchParams = useSearchParams();
+    const parentParam = searchParams?.get('parent');
     const { data: session } = useSession();
     const [name, setName] = useState('');
     const [level, setLevel] = useState<DepartmentLevel>('COUNCIL');
     const [parentId, setParentId] = useState('');
+    const [parentDepartment, setParentDepartment] = useState<any>(null);
     const [departments, setDepartments] = useState<any[]>([]);
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
@@ -50,11 +54,27 @@ export default function NewDepartmentPage() {
     }, []);
 
     useEffect(() => {
+        if (parentParam && departments.length > 0) {
+            const parent = departments.find(d => d.id === parentParam);
+            if (parent) {
+                setParentDepartment(parent);
+                setParentId(parent.id);
+                // Set level to one below parent's level
+                const parentRank = DEPARTMENT_HIERARCHY[parent.level as DepartmentLevel];
+                const childLevel = Object.entries(DEPARTMENT_HIERARCHY).find(([_, rank]) => rank === parentRank + 1)?.[0] as DepartmentLevel;
+                if (childLevel) {
+                    setLevel(childLevel);
+                }
+            }
+        }
+    }, [parentParam, departments]);
+
+    useEffect(() => {
         if (session && departments.length > 0) {
             calculateAllowedLevels();
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [session, departments]);
+    }, [session, departments, parentParam]);
 
     useEffect(() => {
         if (level && departments.length > 0) {
@@ -67,6 +87,18 @@ export default function NewDepartmentPage() {
         if (!session?.user) return;
 
         const userRole = session.user.role;
+        
+        // If creating from a parent department context, only allow the next level
+        if (parentDepartment) {
+            const parentRank = DEPARTMENT_HIERARCHY[parentDepartment.level as DepartmentLevel];
+            const childLevel = Object.entries(DEPARTMENT_HIERARCHY).find(([_, rank]) => rank === parentRank + 1)?.[0] as DepartmentLevel;
+            if (childLevel) {
+                setAllowedLevels([childLevel]);
+            } else {
+                setAllowedLevels([]);
+            }
+            return;
+        }
         
         // Superadmin can create any level
         if (userRole === 'SUPERADMIN') {
@@ -173,7 +205,12 @@ export default function NewDepartmentPage() {
                 throw new Error(data.error || 'Failed to create department');
             }
 
-            router.push('/departments');
+            // Redirect back to parent context if it exists
+            if (parentParam) {
+                router.push(`/departments?parent=${parentParam}`);
+            } else {
+                router.push('/departments');
+            }
             router.refresh();
         } catch (err: any) {
             setError(err.message || 'Error creating department');
@@ -291,5 +328,17 @@ export default function NewDepartmentPage() {
                 </form>
             </Paper>
         </Box>
+    );
+}
+
+export default function NewDepartmentPage() {
+    return (
+        <Suspense fallback={
+            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '60vh' }}>
+                <CircularProgress />
+            </Box>
+        }>
+            <NewDepartmentForm />
+        </Suspense>
     );
 }

@@ -57,6 +57,29 @@ export async function GET(request: Request) {
             include: {
                 parent: true,
                 children: true,
+                userRoles: {
+                    where: {
+                        OR: [
+                            { role: 'COUNCIL_LEADER' },
+                            { role: 'STREAM_LEADER' },
+                            { role: 'CAMPUS_LEADER' },
+                            { role: 'REGIONAL_LEADER' },
+                            { role: 'NATIONAL_LEADER' },
+                            { role: 'INTERNATIONAL_LEADER' },
+                            { role: 'GLOBAL_LEADER' },
+                        ],
+                    },
+                    include: {
+                        user: {
+                            select: {
+                                id: true,
+                                name: true,
+                                email: true,
+                            },
+                        },
+                    },
+                    take: 1,
+                },
             },
         });
 

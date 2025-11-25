@@ -22,7 +22,7 @@ interface EditDepartmentDialogProps {
     onClose: () => void;
     department: any;
     departments: any[];
-    onSave: () => void;
+    onSave: (updatedDept?: any) => void;
 }
 
 const DEPARTMENT_LEVELS: DepartmentLevel[] = [

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Typography, Box, CircularProgress, Grid, Stack, Paper, Chip, Card, CardContent, CardActionArea, useTheme } from '@mui/material';
+import { Typography, Box, CircularProgress, Grid, Stack, Paper, Chip, Card, CardContent, CardActionArea, IconButton, useTheme } from '@mui/material';
 import { formatCurrency } from '@/lib/utils';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import TrendingDownIcon from '@mui/icons-material/TrendingDown';
@@ -9,13 +9,20 @@ import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
 import PeopleIcon from '@mui/icons-material/People';
 import AccountTreeIcon from '@mui/icons-material/AccountTree';
 import ReceiptIcon from '@mui/icons-material/Receipt';
+import EditIcon from '@mui/icons-material/Edit';
 import { useParams, useRouter } from 'next/navigation';
+import EditDepartmentDialog from '@/components/EditDepartmentDialog';
+import { useSession } from 'next-auth/react';
 
 export default function DepartmentDashboardPage() {
     const params = useParams();
     const router = useRouter();
     const theme = useTheme();
+    const { data: session } = useSession();
+    const departmentId = typeof params.id === 'string' ? params.id : params.id?.[0];
     const [department, setDepartment] = useState<any>(null);
+    const [editDialogOpen, setEditDialogOpen] = useState(false);
+    const [allDepartments, setAllDepartments] = useState<any[]>([]);
     const [stats, setStats] = useState({ 
         income: 0, 
         expense: 0, 
@@ -31,16 +38,17 @@ export default function DepartmentDashboardPage() {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        if (params.id) {
+        if (departmentId) {
             fetchDepartment();
             fetchStats();
             fetchDetailStats();
+            fetchAllDepartments();
         }
-    }, [params.id]);
+    }, [departmentId]);
 
     const fetchDepartment = async () => {
         try {
-            const response = await fetch(`/api/departments/${params.id}`);
+            const response = await fetch(`/api/departments/${departmentId}`);
             if (response.ok) {
                 const data = await response.json();
                 setDepartment(data);
@@ -51,7 +59,7 @@ export default function DepartmentDashboardPage() {
 
     const fetchStats = async () => {
         try {
-            const response = await fetch(`/api/departments/${params.id}/stats`);
+            const response = await fetch(`/api/departments/${departmentId}/stats`);
             if (response.ok) {
                 const data = await response.json();
                 setStats(data);
@@ -64,13 +72,30 @@ export default function DepartmentDashboardPage() {
 
     const fetchDetailStats = async () => {
         try {
-            const response = await fetch(`/api/departments/${params.id}/details`);
+            const response = await fetch(`/api/departments/${departmentId}/details`);
             if (response.ok) {
                 const data = await response.json();
                 setDetailStats(data);
             }
         } catch (error) {
         }
+    };
+
+    const fetchAllDepartments = async () => {
+        try {
+            const response = await fetch('/api/departments?all=true');
+            if (response.ok) {
+                const data = await response.json();
+                setAllDepartments(data);
+            }
+        } catch (error) {
+        }
+    };
+
+    const handleSaveEdit = async (updatedDept: any) => {
+        await fetchDepartment();
+        await fetchStats();
+        setEditDialogOpen(false);
     };
 
     if (loading) {
@@ -111,25 +136,36 @@ export default function DepartmentDashboardPage() {
     return (
         <Box sx={{ px: { xs: 2, sm: 3, md: 6, lg: 8 }, py: { xs: 2, sm: 3 }, maxWidth: '1600px', mx: 'auto' }}>
             {/* Header */}
-            <Box sx={{ mb: { xs: 3, md: 5 } }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1 }}>
-                    <Typography 
-                        variant="h4" 
-                        fontWeight="600" 
-                        sx={{ 
-                            color: 'text.primary',
-                            fontSize: { xs: '1.5rem', sm: '2rem', md: '2.125rem' }
-                        }}
-                    >
-                        {department?.name || 'Department'} Dashboard
+            <Box sx={{ mb: { xs: 3, md: 5 }, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                <Box sx={{ flex: 1 }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                        <Typography 
+                            variant="h4" 
+                            fontWeight="600" 
+                            sx={{ 
+                                mb: 0.5,
+                                color: 'text.primary',
+                                fontSize: { xs: '1.5rem', sm: '2rem', md: '2.125rem' }
+                            }}
+                        >
+                            {department?.name && department?.level 
+                                ? `${department.name} ${department.level} Dashboard` 
+                                : department?.name 
+                                    ? `${department.name} Dashboard`
+                                    : 'Department Dashboard'}
+                        </Typography>
+                        <IconButton 
+                            onClick={() => setEditDialogOpen(true)}
+                            color="primary"
+                            sx={{ ml: 1 }}
+                        >
+                            <EditIcon />
+                        </IconButton>
+                    </Box>
+                    <Typography variant="body2" color="text.secondary" sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>
+                        Financial overview for this department
                     </Typography>
-                    {department?.level && (
-                        <Chip label={department.level} color="primary" />
-                    )}
                 </Box>
-                <Typography variant="body2" color="text.secondary" sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>
-                    Financial overview for this department
-                </Typography>
             </Box>
 
             {/* Stats Grid */}
@@ -280,7 +316,7 @@ export default function DepartmentDashboardPage() {
                             }
                         }}
                     >
-                        <CardActionArea onClick={() => router.push(`/users?dept=${params.id}`)}>
+                        <CardActionArea onClick={() => router.push(`/users?dept=${departmentId}`)}>
                             <CardContent>
                                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
                                     <Box
@@ -319,7 +355,7 @@ export default function DepartmentDashboardPage() {
                             }
                         }}
                     >
-                        <CardActionArea onClick={() => router.push(`/departments?parent=${params.id}`)}>
+                        <CardActionArea onClick={() => router.push(`/departments?parent=${departmentId}`)}>
                             <CardContent>
                                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
                                     <Box
@@ -358,7 +394,7 @@ export default function DepartmentDashboardPage() {
                             }
                         }}
                     >
-                        <CardActionArea onClick={() => router.push(`/transactions?dept=${params.id}&exact=true`)}>
+                        <CardActionArea onClick={() => router.push(`/transactions?dept=${departmentId}&exact=true`)}>
                             <CardContent>
                                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
                                     <Box
@@ -423,6 +459,14 @@ export default function DepartmentDashboardPage() {
                     </Card>
                 </Grid>
             </Grid>
+
+            <EditDepartmentDialog
+                open={editDialogOpen}
+                onClose={() => setEditDialogOpen(false)}
+                department={department}
+                departments={allDepartments}
+                onSave={handleSaveEdit}
+            />
         </Box>
     );
 }

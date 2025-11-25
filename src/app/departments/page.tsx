@@ -6,24 +6,22 @@ import {
     Box,
     Typography,
     Paper,
-    Table,
-    TableBody,
-    TableCell,
-    TableContainer,
-    TableHead,
-    TableRow,
     Button,
     IconButton,
     Chip,
     TextField,
     MenuItem,
     Stack,
+    Card,
+    CardContent,
+    CardActionArea,
+    Grid,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
-import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import FilterListIcon from '@mui/icons-material/FilterList';
+import PersonIcon from '@mui/icons-material/Person';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import EditDepartmentDialog from '@/components/EditDepartmentDialog';
@@ -155,7 +153,7 @@ function DepartmentsPageContent() {
         <Box>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 3 }}>
                 <Typography variant="h4">Departments</Typography>
-                <Link href="/departments/new">
+                <Link href={parentParam ? `/departments/new?parent=${parentParam}` : '/departments/new'}>
                     <Button variant="contained" startIcon={<AddIcon />}>
                         Add Department
                     </Button>
@@ -228,73 +226,72 @@ function DepartmentsPageContent() {
                 </Box>
             </Paper>
 
-            <TableContainer component={Paper}>
-                <Table>
-                    <TableHead>
-                        <TableRow>
-                            <TableCell>Name</TableCell>
-                            <TableCell>Level</TableCell>
-                            <TableCell>Parent Department</TableCell>
-                            <TableCell align="right">Actions</TableCell>
-                        </TableRow>
-                    </TableHead>
-                    <TableBody>
-                        {filteredDepartments.map((dept: any) => (
-                            <TableRow 
-                                key={dept.id}
-                                sx={{
-                                    cursor: 'pointer',
+            <Grid container spacing={3}>
+                {filteredDepartments.map((dept: any) => {
+                    const leader = dept.userRoles?.[0]?.user;
+                    return (
+                        <Grid key={dept.id} size={{ xs: 12, sm: 6, md: 4 }}>
+                            <Card 
+                                sx={{ 
+                                    height: '100%',
+                                    border: '1px solid',
+                                    borderColor: 'divider',
+                                    transition: 'all 0.2s',
                                     '&:hover': {
-                                        bgcolor: 'action.hover',
+                                        borderColor: 'primary.main',
+                                        boxShadow: 3,
                                     }
                                 }}
-                                onClick={() => router.push(`/departments/${dept.id}/dashboard`)}
                             >
-                                <TableCell>{dept.name}</TableCell>
-                                <TableCell>
-                                    <Chip label={dept.level} size="small" color="primary" variant="outlined" />
-                                </TableCell>
-                                <TableCell>{dept.parent?.name || '-'}</TableCell>
-                                <TableCell align="right" onClick={(e) => e.stopPropagation()}>
-                                    <IconButton 
-                                        size="small" 
-                                        color="primary"
-                                        onClick={() => handleEdit(dept)}
-                                        title="Edit department"
-                                    >
-                                        <EditIcon />
-                                    </IconButton>
-                                    <IconButton 
-                                        size="small" 
-                                        color="info"
-                                        onClick={() => router.push(`/departments/${dept.id}/dashboard`)}
-                                        title="View dashboard"
-                                    >
-                                        <OpenInNewIcon />
-                                    </IconButton>
-                                    {session?.user.role === 'SUPERADMIN' && (
-                                        <IconButton 
+                                <CardActionArea 
+                                    onClick={() => router.push(`/departments/${dept.id}/dashboard`)}
+                                    sx={{ height: '100%' }}
+                                >
+                                    <CardContent>
+                                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
+                                            <Typography variant="h6" fontWeight="600" sx={{ flex: 1 }}>
+                                                {dept.name}
+                                            </Typography>
+                                        </Box>
+                                        
+                                        <Chip 
+                                            label={dept.level} 
                                             size="small" 
-                                            color="error"
-                                            onClick={() => handleDelete(dept.id)}
-                                            title="Delete department"
-                                        >
-                                            <DeleteIcon />
-                                        </IconButton>
-                                    )}
-                                </TableCell>
-                            </TableRow>
-                        ))}
-                        {filteredDepartments.length === 0 && !loading && (
-                            <TableRow>
-                                <TableCell colSpan={4} align="center">
-                                    {departments.length === 0 ? 'No departments found' : 'No departments match the current filters'}
-                                </TableCell>
-                            </TableRow>
-                        )}
-                    </TableBody>
-                </Table>
-            </TableContainer>
+                                            color="primary" 
+                                            variant="outlined"
+                                            sx={{ mb: 2 }}
+                                        />
+                                        
+                                        {dept.parent && (
+                                            <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                                                Parent: {dept.parent.name}
+                                            </Typography>
+                                        )}
+                                        
+                                        {leader && (
+                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 2 }}>
+                                                <PersonIcon fontSize="small" color="action" />
+                                                <Typography variant="body2" color="text.secondary">
+                                                    {leader.name || leader.email}
+                                                </Typography>
+                                            </Box>
+                                        )}
+                                    </CardContent>
+                                </CardActionArea>
+                            </Card>
+                        </Grid>
+                    );
+                })}
+                {filteredDepartments.length === 0 && !loading && (
+                    <Grid size={12}>
+                        <Paper sx={{ p: 4, textAlign: 'center' }}>
+                            <Typography color="text.secondary">
+                                {departments.length === 0 ? 'No departments found' : 'No departments match the current filters'}
+                            </Typography>
+                        </Paper>
+                    </Grid>
+                )}
+            </Grid>
 
             <EditDepartmentDialog
                 open={editDialogOpen}
