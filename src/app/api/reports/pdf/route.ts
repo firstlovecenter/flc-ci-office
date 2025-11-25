@@ -1,14 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import PDFDocument from 'pdfkit';
 import { prisma } from '@/lib/prisma';
 import { getUserBaseCurrency } from '@/lib/currency-conversion';
 import { convertToUserBaseCurrency } from '@/lib/currency-conversion';
 import { getDescendantDepartmentIds } from '@/lib/departments';
 
+// Dynamic import PDFKit to avoid SSR issues
+let PDFDocument: any;
+
 export async function POST(request: NextRequest) {
     try {
+        // Dynamically import PDFKit only on server
+        if (!PDFDocument) {
+            PDFDocument = (await import('pdfkit')).default;
+        }
+
         const session = await getServerSession(authOptions);
         if (!session) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -104,18 +111,24 @@ export async function POST(request: NextRequest) {
             if (dept) departmentName = dept.name;
         }
 
-        // Create PDF - use bufferPages to avoid font loading issues
+        // Create PDF document with minimal options to avoid font issues
         const doc = new PDFDocument({ 
             margin: 50, 
             size: 'A4',
             bufferPages: true,
-            autoFirstPage: true
+            autoFirstPage: true,
+            compress: false // Disable compression to avoid issues
         });
-        const chunks: Buffer[] = [];
+        
+        const buffers: Buffer[] = [];
 
-        doc.on('data', (chunk) => chunks.push(chunk));
-        doc.on('error', (err) => {
-            console.error('PDFKit error:', err);
+        // Collect PDF chunks as Buffers
+        doc.on('data', (chunk: Buffer) => {
+            buffers.push(chunk);
+        });
+
+        doc.on('error', (err: Error) => {
+            console.error('PDFKit stream error:', err);
         });
 
         // Header - using default fonts that don't require external files
@@ -248,17 +261,33 @@ export async function POST(request: NextRequest) {
             { align: 'center' }
         );
 
+        // Finalize the PDF
         doc.end();
 
-        // Wait for PDF to be generated
+        // Wait for PDF to be fully generated
         const pdfBuffer = await new Promise<Buffer>((resolve, reject) => {
+            const timeout = setTimeout(() => {
+                reject(new Error('PDF generation timeout'));
+            }, 30000); // 30 second timeout
+
             doc.on('end', () => {
-                resolve(Buffer.concat(chunks));
+                clearTimeout(timeout);
+                resolve(Buffer.concat(buffers));
             });
-            doc.on('error', reject);
+
+            doc.on('error', (err: Error) => {
+                clearTimeout(timeout);
+                reject(err);
+            });
         });
 
-        return new NextResponse(new Uint8Array(pdfBuffer), {
+        // Convert Buffer to ArrayBuffer for Response
+        const arrayBuffer = pdfBuffer.buffer.slice(
+            pdfBuffer.byteOffset,
+            pdfBuffer.byteOffset + pdfBuffer.byteLength
+        ) as ArrayBuffer;
+
+        return new Response(arrayBuffer, {
             status: 200,
             headers: {
                 'Content-Type': 'application/pdf',

@@ -5,6 +5,8 @@ import { authOptions } from '@/lib/auth';
 
 import { getDescendantDepartmentIds, canCreateDepartmentLevel } from '@/lib/departments';
 
+export const revalidate = 60; // Revalidate every 60 seconds
+
 export async function GET(request: Request) {
     const session = await getServerSession(authOptions);
 

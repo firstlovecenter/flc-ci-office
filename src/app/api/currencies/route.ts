@@ -3,6 +3,8 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 
+export const revalidate = 300; // Revalidate every 5 minutes (currencies change infrequently)
+
 // Get all currencies
 export async function GET(req: NextRequest) {
     try {

@@ -7,6 +7,8 @@ import { getCurrentWeek } from '@/lib/utils';
 import { getDescendantDepartmentIds, hasDepartmentAccess } from '@/lib/departments';
 import { getUserBaseCurrency, convertToUserBaseCurrency } from '@/lib/currency-conversion';
 
+export const revalidate = 15; // Revalidate every 15 seconds
+
 export async function GET(request: Request) {
     const session = await getServerSession(authOptions);
 

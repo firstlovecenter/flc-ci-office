@@ -5,6 +5,8 @@ import { authOptions } from '@/lib/auth';
 import { getDescendantDepartmentIds } from '@/lib/departments';
 import { getUserBaseCurrency, convertToUserBaseCurrency } from '@/lib/currency-conversion';
 
+export const revalidate = 30; // Revalidate every 30 seconds
+
 export async function GET(request: Request) {
     const session = await getServerSession(authOptions);
 
@@ -23,23 +25,15 @@ export async function GET(request: Request) {
             whereClause.departmentId = { in: allowedIds };
         }
 
-        // Get user's base currency
-        const userBaseCurrency = await getUserBaseCurrency(session.user.id);
-        
-        if (!userBaseCurrency) {
-            return new NextResponse('Base currency not configured', { status: 500 });
-        }
-
-        // Get all exchange rates for conversion
-        const exchangeRates = await prisma.exchangeRate.findMany({
-            include: {
-                fromCurrency: true,
-                toCurrency: true,
-            },
-        });
-
-        // Get all transactions (we need to convert each one)
-        const [incomeTransactions, expenseTransactions] = await Promise.all([
+        // Fetch all data in parallel for better performance
+        const [userBaseCurrency, exchangeRates, incomeTransactions, expenseTransactions] = await Promise.all([
+            getUserBaseCurrency(session.user.id),
+            prisma.exchangeRate.findMany({
+                include: {
+                    fromCurrency: true,
+                    toCurrency: true,
+                },
+            }),
             prisma.transaction.findMany({
                 where: {
                     ...whereClause,
@@ -63,6 +57,10 @@ export async function GET(request: Request) {
                 },
             }),
         ]);
+        
+        if (!userBaseCurrency) {
+            return new NextResponse('Base currency not configured', { status: 500 });
+        }
 
         // Convert each transaction to user's base currency
         let totalIncome = 0;
@@ -91,11 +89,18 @@ export async function GET(request: Request) {
 
         const netBalance = totalIncome - totalExpense;
 
-        return NextResponse.json({
-            income: totalIncome,
-            expense: totalExpense,
-            balance: netBalance,
-        });
+        return NextResponse.json(
+            {
+                income: totalIncome,
+                expense: totalExpense,
+                balance: netBalance,
+            },
+            {
+                headers: {
+                    'Cache-Control': 'public, s-maxage=30, stale-while-revalidate=60',
+                },
+            }
+        );
     } catch (error) {
         return new NextResponse('Internal Server Error', { status: 500 });
     }

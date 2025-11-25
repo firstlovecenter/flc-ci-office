@@ -4,6 +4,8 @@ import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { TransactionStatus } from '@prisma/client';
 
+export const revalidate = 10; // Revalidate every 10 seconds
+
 export async function GET(request: NextRequest) {
     try {
         const session = await getServerSession(authOptions);
@@ -15,33 +17,34 @@ export async function GET(request: NextRequest) {
         const userRole = session.user.role;
         const userId = session.user.id;
 
-        // Initialize counts
-        let pendingApprovals = 0;
-        let pendingTransactions = 0;
-
         // Only admins see pending approvals
         const adminRoles = ['SUPERADMIN', 'GLOBAL_ADMIN', 'INTERNATIONAL_ADMIN', 'NATIONAL_ADMIN', 'REGIONAL_ADMIN', 'CAMPUS_ADMIN'];
-        if (adminRoles.includes(userRole)) {
-            // Get pending transactions that need approval
-            pendingApprovals = await prisma.transaction.count({
+        const isAdmin = adminRoles.includes(userRole);
+
+        // Run queries in parallel for better performance
+        const [pendingApprovals, pendingTransactions] = await Promise.all([
+            isAdmin ? prisma.transaction.count({
+                where: { status: TransactionStatus.PENDING },
+            }) : Promise.resolve(0),
+            prisma.transaction.count({
                 where: {
+                    userId: userId,
                     status: TransactionStatus.PENDING,
                 },
-            });
-        }
+            }),
+        ]);
 
-        // Get user's pending transactions (transactions they created that are pending)
-        pendingTransactions = await prisma.transaction.count({
-            where: {
-                userId: userId,
-                status: TransactionStatus.PENDING,
+        return NextResponse.json(
+            {
+                approvals: pendingApprovals,
+                transactions: pendingTransactions,
             },
-        });
-
-        return NextResponse.json({
-            approvals: pendingApprovals,
-            transactions: pendingTransactions,
-        });
+            {
+                headers: {
+                    'Cache-Control': 'public, s-maxage=10, stale-while-revalidate=30',
+                },
+            }
+        );
     } catch (error) {
         console.error('Error fetching pending counts:', error);
         return NextResponse.json(

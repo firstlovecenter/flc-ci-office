@@ -28,6 +28,14 @@ const nextConfig: NextConfig = {
       },
     ],
   },
+  // Performance optimizations
+  compress: true,
+  poweredByHeader: false,
+  generateEtags: true,
+  // Optimize output
+  outputFileTracingIncludes: {
+    '/api/**/*': ['./prisma/schema.prisma'],
+  },
 };
 
 export default nextConfig;

@@ -7,6 +7,8 @@ import { getDescendantDepartmentIds } from '@/lib/departments';
 import { validateRoleAssignment } from '@/lib/roleValidation';
 import crypto from 'crypto';
 
+export const revalidate = 30; // Revalidate every 30 seconds
+
 export async function GET(request: Request) {
     const session = await getServerSession(authOptions);
 
