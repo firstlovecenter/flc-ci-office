@@ -69,7 +69,7 @@ export async function POST(request: NextRequest) {
 
     // Send SMS with reset code only (no URL to avoid truncation)
     const formattedPhone = formatGhanaPhone(user.phone);
-    const smsContent = generatePasswordResetSms({
+    const smsContent = await generatePasswordResetSms({
       resetCode: resetCode,
       expirationMinutes: 1440, // 24 hours in minutes
       // Don't include resetUrl - SMS links often get truncated

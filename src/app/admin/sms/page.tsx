@@ -16,12 +16,17 @@ import {
     Stack,
     Divider,
     InputAdornment,
+    IconButton,
+    Chip,
 } from '@mui/material';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import SendIcon from '@mui/icons-material/Send';
 import SmsIcon from '@mui/icons-material/Sms';
 import SearchIcon from '@mui/icons-material/Search';
+import EditIcon from '@mui/icons-material/Edit';
+import SaveIcon from '@mui/icons-material/Save';
+import CancelIcon from '@mui/icons-material/Cancel';
 
 type SMSTemplate = 
     | 'password_reset'
@@ -53,6 +58,10 @@ export default function SMSManagementPage() {
     const [success, setSuccess] = useState('');
     const [previewMessage, setPreviewMessage] = useState('');
     const [searchTerm, setSearchTerm] = useState('');
+    const [dbTemplates, setDbTemplates] = useState<any[]>([]);
+    const [editingTemplate, setEditingTemplate] = useState<any | null>(null);
+    const [editedContent, setEditedContent] = useState('');
+    const [templateLoading, setTemplateLoading] = useState(false);
 
 
     const roles = [
@@ -135,6 +144,7 @@ export default function SMSManagementPage() {
 
     useEffect(() => {
         fetchUsers();
+        fetchTemplates();
     }, []);
 
     useEffect(() => {
@@ -183,6 +193,59 @@ export default function SMSManagementPage() {
             console.error('Error fetching users:', error);
             setUsers([]);
         }
+    };
+
+    const fetchTemplates = async () => {
+        try {
+            const response = await fetch('/api/admin/sms-templates');
+            if (response.ok) {
+                const data = await response.json();
+                setDbTemplates(data);
+            }
+        } catch (error) {
+            console.error('Error fetching templates:', error);
+        }
+    };
+
+    const handleEditTemplate = (template: any) => {
+        setEditingTemplate(template);
+        setEditedContent(template.template);
+    };
+
+    const handleSaveTemplate = async () => {
+        if (!editingTemplate) return;
+
+        setTemplateLoading(true);
+        setError('');
+        try {
+            const response = await fetch('/api/admin/sms-templates', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    id: editingTemplate.id,
+                    template: editedContent,
+                }),
+            });
+
+            if (response.ok) {
+                setSuccess('Template updated successfully!');
+                setEditingTemplate(null);
+                setEditedContent('');
+                await fetchTemplates();
+            } else {
+                const data = await response.json();
+                setError(data.error || 'Failed to update template');
+            }
+        } catch (error) {
+            setError('Network error occurred');
+        } finally {
+            setTemplateLoading(false);
+        }
+    };
+
+    const handleCancelEdit = () => {
+        setEditingTemplate(null);
+        setEditedContent('');
     };
 
     const updatePreview = () => {
@@ -560,6 +623,104 @@ export default function SMSManagementPage() {
                     >
                         {loading ? 'Sending SMS...' : 'Send SMS to ' + (selectedUser?.name || 'User')}
                     </Button>
+                </Stack>
+            </Paper>
+
+            {/* Template Management Section */}
+            <Paper elevation={2} sx={{ p: 4, mt: 4 }}>
+                <Stack spacing={3}>
+                    <Box>
+                        <Typography variant="h5" fontWeight="700" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <SmsIcon color="primary" />
+                            SMS Template Management
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary">
+                            Edit the content of SMS templates. Use {`{{variableName}}`} for dynamic values.
+                        </Typography>
+                    </Box>
+
+                    <Divider />
+
+                    {dbTemplates.map((template) => (
+                        <Paper key={template.id} variant="outlined" sx={{ p: 3 }}>
+                            <Stack spacing={2}>
+                                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
+                                    <Box>
+                                        <Typography variant="h6" fontWeight="600">
+                                            {template.name}
+                                        </Typography>
+                                        {template.description && (
+                                            <Typography variant="body2" color="text.secondary">
+                                                {template.description}
+                                            </Typography>
+                                        )}
+                                        <Box sx={{ mt: 1, display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
+                                            {template.variables.map((variable: string) => (
+                                                <Chip
+                                                    key={variable}
+                                                    label={`{{${variable}}}`}
+                                                    size="small"
+                                                    variant="outlined"
+                                                    color="primary"
+                                                />
+                                            ))}
+                                        </Box>
+                                    </Box>
+                                    {editingTemplate?.id !== template.id && (
+                                        <IconButton
+                                            color="primary"
+                                            onClick={() => handleEditTemplate(template)}
+                                            size="small"
+                                        >
+                                            <EditIcon />
+                                        </IconButton>
+                                    )}
+                                </Box>
+
+                                {editingTemplate?.id === template.id ? (
+                                    <>
+                                        <TextField
+                                            fullWidth
+                                            multiline
+                                            rows={4}
+                                            value={editedContent}
+                                            onChange={(e) => setEditedContent(e.target.value)}
+                                            label="Template Content"
+                                            helperText="Use {{variableName}} for dynamic content"
+                                        />
+                                        <Box sx={{ display: 'flex', gap: 1 }}>
+                                            <Button
+                                                variant="contained"
+                                                startIcon={<SaveIcon />}
+                                                onClick={handleSaveTemplate}
+                                                disabled={templateLoading}
+                                            >
+                                                Save
+                                            </Button>
+                                            <Button
+                                                variant="outlined"
+                                                startIcon={<CancelIcon />}
+                                                onClick={handleCancelEdit}
+                                                disabled={templateLoading}
+                                            >
+                                                Cancel
+                                            </Button>
+                                        </Box>
+                                    </>
+                                ) : (
+                                    <Paper sx={{ p: 2, bgcolor: 'grey.50' }}>
+                                        <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', fontFamily: 'monospace' }}>
+                                            {template.template}
+                                        </Typography>
+                                        <Divider sx={{ my: 1 }} />
+                                        <Typography variant="caption" color="text.secondary">
+                                            {template.template.length} characters • {Math.ceil(template.template.length / 160)} SMS segment(s)
+                                        </Typography>
+                                    </Paper>
+                                )}
+                            </Stack>
+                        </Paper>
+                    ))}
                 </Stack>
             </Paper>
         </Box>

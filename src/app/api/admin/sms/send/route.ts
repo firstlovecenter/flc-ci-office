@@ -47,25 +47,25 @@ export async function POST(req: NextRequest) {
         try {
             switch (template) {
                 case 'password_reset':
-                    message = generatePasswordResetSms(templateParams);
+                    message = await generatePasswordResetSms(templateParams);
                     break;
                 case 'first_role_assignment':
-                    message = generateFirstRoleAssignmentSms(templateParams);
+                    message = await generateFirstRoleAssignmentSms(templateParams);
                     break;
                 case 'role_assignment':
-                    message = generateRoleAssignmentSms(templateParams);
+                    message = await generateRoleAssignmentSms(templateParams);
                     break;
                 case 'transaction_notification':
-                    message = generateTransactionNotificationSms(templateParams);
+                    message = await generateTransactionNotificationSms(templateParams);
                     break;
                 case 'department_alert':
-                    message = generateDepartmentAlertSms(templateParams);
+                    message = await generateDepartmentAlertSms(templateParams);
                     break;
                 case 'week_lock_notification':
-                    message = generateWeekLockNotificationSms(templateParams);
+                    message = await generateWeekLockNotificationSms(templateParams);
                     break;
                 case 'approval_reminder':
-                    message = generateApprovalReminderSms(templateParams);
+                    message = await generateApprovalReminderSms(templateParams);
                     break;
                 default:
                     return NextResponse.json({ error: 'Invalid template' }, { status: 400 });

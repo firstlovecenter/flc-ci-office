@@ -284,7 +284,7 @@ export async function PUT(
                     });
 
                     const formattedPhone = formatGhanaPhone(phoneNumber);
-                    const smsContent = generateFirstRoleAssignmentSms({
+                    const smsContent = await generateFirstRoleAssignmentSms({
                         userName: name || email || 'User',
                         role: primaryRolePair.role,
                         department: department?.name || 'Unknown Department',
