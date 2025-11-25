@@ -125,24 +125,14 @@ export async function POST(request: NextRequest) {
         
         let y = height - 50; // Start from top with 50pt margin
 
-        // Helper function to add new page if needed
-        const checkAndAddPage = () => {
-            if (y < 100) { // Leave margin at bottom
-                page = pdfDoc.addPage([595, 842]);
-                y = height - 50;
-                return true;
-            }
-            return false;
-        };
-
         // Helper to draw centered text
-        const drawCenteredText = (text: string, yPos: number, size: number, font_: any = font) => {
-            const textWidth = font_.widthOfTextAtSize(text, size);
+        const drawCenteredText = (text: string, yPos: number, size: number, useFont: any) => {
+            const textWidth = useFont.widthOfTextAtSize(text, size);
             page.drawText(text, {
                 x: (width - textWidth) / 2,
                 y: yPos,
                 size,
-                font: font_,
+                font: useFont,
                 color: rgb(0, 0, 0),
             });
         };
@@ -164,15 +154,15 @@ export async function POST(request: NextRequest) {
         y -= 25;
         drawCenteredText('Bank Statement Report', y, 16, boldFont);
         y -= 20;
-        drawCenteredText(departmentName, y, 10);
+        drawCenteredText(departmentName, y, 10, font);
         y -= 15;
-        drawCenteredText(`Currency: ${userBaseCurrency.code} (${userBaseCurrency.symbol})`, y, 9);
+        drawCenteredText(`Currency: ${userBaseCurrency.code} (${userBaseCurrency.symbol})`, y, 9, font);
         y -= 15;
         
         if (startDate || endDate) {
             const startStr = startDate ? new Date(startDate).toLocaleDateString() : 'Start';
             const endStr = endDate ? new Date(endDate).toLocaleDateString() : 'Present';
-            drawCenteredText(`Period: ${startStr} - ${endStr}`, y, 9);
+            drawCenteredText(`Period: ${startStr} - ${endStr}`, y, 9, font);
             y -= 15;
         }
         
@@ -259,7 +249,10 @@ export async function POST(request: NextRequest) {
 
         // Closing Balance
         y -= 30;
-        checkAndAddPage();
+        if (y < 100) {
+            page = pdfDoc.addPage([595, 842]);
+            y = height - 50;
+        }
         drawRightText(`Closing Balance: ${userBaseCurrency.symbol}${runningBalance.toFixed(2)}`, 545, y, 11);
         
         // Summary
@@ -287,7 +280,11 @@ export async function POST(request: NextRequest) {
             }, 0);
 
         y -= 30;
-        checkAndAddPage();
+        // Check if we need a new page for summary
+        if (y < 100) {
+            page = pdfDoc.addPage([595, 842]);
+            y = height - 50;
+        }
         page.drawText(`Total Income: ${userBaseCurrency.symbol}${income.toFixed(2)}`, { x: 50, y, size: 10, font, color: rgb(0, 0, 0) });
         y -= 15;
         page.drawText(`Total Expense: ${userBaseCurrency.symbol}${expense.toFixed(2)}`, { x: 50, y, size: 10, font, color: rgb(0, 0, 0) });
@@ -296,7 +293,7 @@ export async function POST(request: NextRequest) {
 
         // Footer
         const footerText = `Generated on ${new Date().toLocaleString()} by ${session.user.name || session.user.email}`;
-        drawCenteredText(footerText, 50, 8);
+        drawCenteredText(footerText, 50, 8, font);
 
         // Generate PDF bytes
         const pdfBytes = await pdfDoc.save();
@@ -316,9 +313,12 @@ export async function POST(request: NextRequest) {
         });
     } catch (error) {
         console.error('PDF generation error:', error);
+        console.error('Error stack:', error instanceof Error ? error.stack : 'No stack trace');
+        console.error('Error details:', JSON.stringify(error, Object.getOwnPropertyNames(error)));
         return NextResponse.json({ 
             error: 'Failed to generate PDF', 
-            details: error instanceof Error ? error.message : 'Unknown error' 
+            details: error instanceof Error ? error.message : String(error),
+            stack: error instanceof Error ? error.stack : undefined
         }, { status: 500 });
     }
 }
