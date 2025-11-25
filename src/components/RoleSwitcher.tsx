@@ -97,9 +97,23 @@ export default function RoleSwitcher() {
         }
     };
 
-    // Don't show switcher if user only has one role
-    if (userRoles.length <= 1) {
+    // Always show for users with multiple roles
+    // For single role users, only show if they have userRoles configured
+    if (userRoles.length === 0) {
         return null;
+    }
+
+    // If user has only one role, show it as a badge but make it non-clickable
+    if (userRoles.length === 1) {
+        const singleRole = userRoles[0];
+        return (
+            <Chip
+                label={singleRole.role.replace(/_/g, ' ')}
+                size="small"
+                color="primary"
+                sx={{ ml: 1 }}
+            />
+        );
     }
 
     return (

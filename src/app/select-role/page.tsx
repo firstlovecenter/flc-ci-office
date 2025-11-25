@@ -58,31 +58,73 @@ export default function SelectRolePage() {
     const router = useRouter();
     const [loading, setLoading] = useState(true);
     const [selecting, setSelecting] = useState<string | null>(null);
+    const [detailedRoles, setDetailedRoles] = useState<any[]>([]);
 
     useEffect(() => {
         if (!session?.user) {
-            router.push('/auth/login');
             return;
         }
 
-        // If user only has one role, auto-redirect to dashboard
-        if (session.user.roles && session.user.roles.length === 1) {
-            handleRoleSelect(session.user.roles[0]);
-            return;
-        }
+        const fetchRoles = async () => {
+            try {
+                const res = await fetch('/api/users/me');
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.userRoles && data.userRoles.length > 0) {
+                        setDetailedRoles(data.userRoles);
+                        
+                        // Auto-select if only one role
+                        if (data.userRoles.length === 1) {
+                            handleRoleSelect(data.userRoles[0].id, data.userRoles[0].role);
+                            return;
+                        }
+                    } else if (session.user.roles && session.user.roles.length > 0) {
+                        // Fallback for superusers or legacy roles without UserRole entries
+                        const fallbackRoles = session.user.roles.map(role => ({
+                            role,
+                            department: { name: 'Global / System' }
+                        }));
+                        setDetailedRoles(fallbackRoles);
+                        
+                        // If only one legacy role, just redirect
+                        if (fallbackRoles.length === 1) {
+                            router.push('/dashboard');
+                            return;
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error('Failed to fetch detailed roles', error);
+                // Fallback to session roles
+                if (session.user.roles) {
+                    setDetailedRoles(session.user.roles.map(role => ({
+                        role,
+                        department: null
+                    })));
+                }
+            } finally {
+                setLoading(false);
+            }
+        };
 
-        setLoading(false);
+        fetchRoles();
     }, [session, router]);
 
-    const handleRoleSelect = async (role: string) => {
-        setSelecting(role);
+    const handleRoleSelect = async (userRoleId: string | undefined, roleName: string) => {
+        setSelecting(roleName);
+
+        // If no ID (legacy role), just redirect
+        if (!userRoleId) {
+            router.push('/dashboard');
+            return;
+        }
 
         try {
             // Update active role in database
             const response = await fetch('/api/users/select-role', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ role }),
+                body: JSON.stringify({ userRoleId }),
             });
 
             if (!response.ok) {
@@ -100,9 +142,12 @@ export default function SelectRolePage() {
             router.push('/dashboard');
             router.refresh();
         } catch (error) {
+            console.error('Error selecting role:', error);
             setSelecting(null);
         }
     };
+
+
 
     if (loading || !session?.user) {
         return (
@@ -118,8 +163,6 @@ export default function SelectRolePage() {
             </Box>
         );
     }
-
-    const userRoles = session.user.roles || [];
 
     return (
         <Box
@@ -157,8 +200,12 @@ export default function SelectRolePage() {
                 </Box>
 
                 <Grid container spacing={3}>
-                    {userRoles.map((role) => (
-                        <Grid key={role} size={{ xs: 12, sm: 6, md: 4 }}>
+                    {detailedRoles.map((item) => {
+                        const role = item.role;
+                        const departmentName = item.department?.name;
+                        
+                        return (
+                        <Grid key={item.id || role} size={{ xs: 12, sm: 6, md: 4 }}>
                             <Card
                                 sx={{
                                     height: '100%',
@@ -170,7 +217,7 @@ export default function SelectRolePage() {
                                 }}
                             >
                                 <CardActionArea
-                                    onClick={() => handleRoleSelect(role)}
+                                    onClick={() => handleRoleSelect(item.id, role)}
                                     disabled={selecting !== null}
                                     sx={{ height: '100%', p: 3 }}
                                 >
@@ -210,6 +257,11 @@ export default function SelectRolePage() {
                                                     color="primary"
                                                     sx={{ mb: 1, fontWeight: 600 }}
                                                 />
+                                                {departmentName && (
+                                                    <Typography variant="subtitle1" color="text.primary" sx={{ mb: 1, fontWeight: 600 }}>
+                                                        {departmentName}
+                                                    </Typography>
+                                                )}
                                                 <Typography variant="body2" color="text.secondary">
                                                     {roleDescriptions[role] || 'Manage your responsibilities'}
                                                 </Typography>
@@ -219,10 +271,10 @@ export default function SelectRolePage() {
                                 </CardActionArea>
                             </Card>
                         </Grid>
-                    ))}
+                    )})}
                 </Grid>
 
-                {userRoles.length === 0 && (
+                {detailedRoles.length === 0 && (
                     <Box sx={{ textAlign: 'center', mt: 4 }}>
                         <Typography variant="body1" color="text.secondary">
                             No roles assigned. Please contact your administrator.

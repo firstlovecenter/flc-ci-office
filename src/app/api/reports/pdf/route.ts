@@ -162,6 +162,28 @@ export async function POST(request: NextRequest) {
             });
         };
 
+        // Helper to wrap text
+        const wrapText = (text: string, maxWidth: number, fontSize: number) => {
+            if (!text) return [''];
+            
+            const words = text.split(' ');
+            const lines: string[] = [];
+            let currentLine = words[0];
+
+            for (let i = 1; i < words.length; i++) {
+                const word = words[i];
+                const width = font.widthOfTextAtSize(currentLine + ' ' + word, fontSize);
+                if (width < maxWidth) {
+                    currentLine += ' ' + word;
+                } else {
+                    lines.push(currentLine);
+                    currentLine = word;
+                }
+            }
+            lines.push(currentLine);
+            return lines;
+        };
+
         // Header
         drawCenteredText('FLC CI Office', y, 20, boldFont);
         y -= 25;
@@ -222,8 +244,24 @@ export async function POST(request: NextRequest) {
 
         // Table Rows
         for (const tx of transactions) {
+            const dateStr = new Date(tx.createdAt).toLocaleDateString();
+            let description = sanitizeText(tx.description);
+            
+            // Add original currency info if different from base
+            if (tx.currency && tx.currency.code !== userBaseCurrency.code) {
+                const txSafeSymbol = getSafeSymbol(tx.currency.symbol, tx.currency.code);
+                description += ` (${txSafeSymbol}${Number(tx.amount).toFixed(2)} ${tx.currency.code})`;
+            }
+            
+            const deptName = sanitizeText(tx.department.name.substring(0, 20));
+
+            // Calculate row height based on wrapped description
+            const descriptionLines = wrapText(description, 140, 8);
+            const lineHeight = 10;
+            const rowHeight = Math.max(20, descriptionLines.length * lineHeight + 5);
+
             // Check if we need a new page
-            if (y < 100) {
+            if (y < 50 + rowHeight) {
                 page = pdfDoc.addPage([595, 842]);
                 y = height - 50;
             }
@@ -240,25 +278,19 @@ export async function POST(request: NextRequest) {
             const credit = tx.type === 'INCOME' ? convertedAmount : 0;
             runningBalance += credit - debit;
 
-            const dateStr = new Date(tx.createdAt).toLocaleDateString();
-            let description = sanitizeText(tx.description.substring(0, 30));
-            
-            // Add original currency info if different from base
-            if (tx.currency && tx.currency.code !== userBaseCurrency.code) {
-                const txSafeSymbol = getSafeSymbol(tx.currency.symbol, tx.currency.code);
-                description += ` (${txSafeSymbol}${Number(tx.amount).toFixed(2)} ${tx.currency.code})`;
-            }
-            
-            const deptName = sanitizeText(tx.department.name.substring(0, 20));
-
             page.drawText(dateStr, { x: colX.date, y, size: 8, font, color: rgb(0, 0, 0) });
-            page.drawText(description, { x: colX.description, y, size: 8, font, color: rgb(0, 0, 0) });
+            
+            // Draw wrapped description
+            descriptionLines.forEach((line, i) => {
+                page.drawText(line, { x: colX.description, y: y - (i * lineHeight), size: 8, font, color: rgb(0, 0, 0) });
+            });
+
             page.drawText(deptName, { x: colX.department, y, size: 8, font, color: rgb(0, 0, 0) });
             drawRightText(debit ? `${safeCurrencySymbol}${debit.toFixed(2)}` : '-', colX.debit + 70, y, 8);
             drawRightText(credit ? `${safeCurrencySymbol}${credit.toFixed(2)}` : '-', colX.credit + 70, y, 8);
             drawRightText(`${safeCurrencySymbol}${runningBalance.toFixed(2)}`, colX.balance + 70, y, 8);
 
-            y -= 20;
+            y -= rowHeight;
         }
 
         // Closing Balance

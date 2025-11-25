@@ -3,7 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 
-export const revalidate = 60; // Revalidate every 60 seconds
+export const revalidate = 0; // Disable caching
 
 export async function GET(request: NextRequest) {
     try {
@@ -47,7 +47,19 @@ export async function GET(request: NextRequest) {
                 },
                 userRoles: {
                     include: {
-                        department: true,
+                        department: {
+                            include: {
+                                parent: {
+                                    include: {
+                                        parent: {
+                                            include: {
+                                                parent: true,
+                                            },
+                                        },
+                                    },
+                                },
+                            },
+                        },
                     },
                 },
             },
@@ -58,8 +70,14 @@ export async function GET(request: NextRequest) {
         }
 
         // Use the activeUserRole, or fall back to first userRole if no active role set
-        const activeUserRole = user.activeUserRole || user.userRoles[0];
-        const activeRole = activeUserRole?.role || 'COUNCIL_LEADER';
+        let activeUserRole = user.activeUserRole;
+        
+        if (!activeUserRole && user.userRoles.length > 0) {
+            // If no active role selected, prioritize SUPERADMIN or GLOBAL_ADMIN
+            activeUserRole = user.userRoles.find(ur => ['SUPERADMIN', 'GLOBAL_ADMIN'].includes(ur.role)) || user.userRoles[0];
+        }
+
+        const activeRole = activeUserRole?.role || user.activeRole || 'COUNCIL_LEADER';
 
         // For international level and above, use system base currency
         const highLevelRoles = ['SUPERADMIN', 'GLOBAL_ADMIN', 'GLOBAL_LEADER', 'INTERNATIONAL_ADMIN', 'INTERNATIONAL_LEADER'];
@@ -87,11 +105,20 @@ export async function GET(request: NextRequest) {
         if (isRegional && nationalDept) {
             // Traverse up to find national department
             while (nationalDept && nationalDept.level !== 'NATIONAL' && nationalDept.parentId) {
-                const parentDept = await prisma.department.findUnique({
+                nationalDept = await prisma.department.findUnique({
                     where: { id: nationalDept.parentId },
-                });
-                if (!parentDept) break;
-                nationalDept = parentDept;
+                    include: {
+                        parent: {
+                            include: {
+                                parent: {
+                                    include: {
+                                        parent: true,
+                                    },
+                                },
+                            },
+                        },
+                    },
+                }) || nationalDept;
             }
         }
 

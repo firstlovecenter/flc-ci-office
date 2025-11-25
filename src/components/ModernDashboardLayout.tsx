@@ -15,6 +15,7 @@ import LogoutIcon from '@mui/icons-material/Logout';
 import PeopleIcon from '@mui/icons-material/People';
 import ModernSidebar from './ModernSidebar';
 import { useColorMode } from '@/app/providers';
+import RoleSwitcher from './RoleSwitcher';
 
 const MainContainer = styled(Box)(({ theme }) => ({
     display: 'flex',
@@ -116,6 +117,8 @@ export default function ModernDashboardLayout({ children }: { children: React.Re
                     <Box />
                     
                     <UserSection>
+                        <RoleSwitcher />
+                        
                         <IconButton
                             onClick={colorMode.toggleColorMode}
                             sx={{

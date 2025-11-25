@@ -71,8 +71,25 @@ export async function getDepartmentBaseCurrency(departmentId: string) {
 export async function getUserBaseCurrency(userId: string) {
     const user = await prisma.user.findUnique({
         where: { id: userId },
-        select: { departmentId: true },
+        select: { 
+            departmentId: true,
+            activeRole: true,
+            activeUserRole: {
+                select: {
+                    role: true
+                }
+            }
+        },
     });
+
+    const role = user?.activeUserRole?.role || user?.activeRole;
+
+    if (role === 'SUPERADMIN' || role === 'GLOBAL_ADMIN') {
+        const systemBase = await prisma.currency.findFirst({
+            where: { isBase: true },
+        });
+        return systemBase;
+    }
 
     if (!user || !user.departmentId) {
         // Fallback to system base currency

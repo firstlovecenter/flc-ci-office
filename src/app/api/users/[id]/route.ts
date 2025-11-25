@@ -40,14 +40,6 @@ export async function PUT(
             );
         }
 
-        // Prevent users from editing themselves (should use profile page)
-        if (userId === session.user.id) {
-            return NextResponse.json(
-                { error: 'Use the profile page to edit your own details' },
-                { status: 400 }
-            );
-        }
-
         // Get the user being edited
         const targetUser = await prisma.user.findUnique({
             where: { id: userId },
