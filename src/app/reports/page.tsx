@@ -160,13 +160,28 @@ export default function ReportsPage() {
             });
 
             if (!response.ok) {
-                const errorData = await response.json();
-                console.error('PDF generation failed:', errorData);
-                alert(`Failed to generate PDF: ${errorData.error || 'Unknown error'}`);
+                let errorMessage = 'Unknown error';
+                try {
+                    const errorData = await response.json();
+                    errorMessage = errorData.error || errorData.details || 'Unknown error';
+                    console.error('PDF generation failed:', errorData);
+                } catch (parseError) {
+                    errorMessage = `Server error: ${response.status} ${response.statusText}`;
+                    console.error('PDF generation failed with status:', response.status, response.statusText);
+                }
+                alert(`Failed to generate PDF: ${errorMessage}`);
                 return;
             }
 
             const blob = await response.blob();
+            
+            // Check if the blob is actually a PDF
+            if (blob.type !== 'application/pdf') {
+                console.error('Unexpected response type:', blob.type);
+                alert('Failed to generate PDF: Invalid response format');
+                return;
+            }
+
             const url = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
@@ -177,7 +192,7 @@ export default function ReportsPage() {
             window.URL.revokeObjectURL(url);
         } catch (error) {
             console.error('Error downloading PDF:', error);
-            alert('Failed to download PDF. Please try again.');
+            alert(`Failed to download PDF: ${error instanceof Error ? error.message : 'Please try again.'}`);
         }
     };
 

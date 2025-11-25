@@ -5,23 +5,26 @@ import { prisma } from '@/lib/prisma';
 import { getUserBaseCurrency } from '@/lib/currency-conversion';
 import { convertToUserBaseCurrency } from '@/lib/currency-conversion';
 import { getDescendantDepartmentIds } from '@/lib/departments';
-
-// Dynamic import PDFKit to avoid SSR issues
-let PDFDocument: any;
+import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
 
 export async function POST(request: NextRequest) {
     try {
-        // Dynamically import PDFKit only on server
-        if (!PDFDocument) {
-            PDFDocument = (await import('pdfkit')).default;
-        }
-
         const session = await getServerSession(authOptions);
         if (!session) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const body = await request.json();
+        let body;
+        try {
+            body = await request.json();
+        } catch (parseError) {
+            console.error('Failed to parse request body:', parseError);
+            return NextResponse.json({ 
+                error: 'Invalid request body',
+                details: 'Request body must be valid JSON'
+            }, { status: 400 });
+        }
+
         const { departmentId, startDate, endDate, reportType, includeSubDepartments = true } = body;
 
         // Get user's base currency
@@ -111,79 +114,115 @@ export async function POST(request: NextRequest) {
             if (dept) departmentName = dept.name;
         }
 
-        // Create PDF document with minimal options to avoid font issues
-        const doc = new PDFDocument({ 
-            margin: 50, 
-            size: 'A4',
-            bufferPages: true,
-            autoFirstPage: true,
-            compress: false // Disable compression to avoid issues
-        });
+        // Create PDF document using pdf-lib (serverless-compatible)
+        const pdfDoc = await PDFDocument.create();
+        const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+        const boldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
         
-        const buffers: Buffer[] = [];
+        // A4 size: 595 x 842 points
+        let page = pdfDoc.addPage([595, 842]);
+        const { width, height } = page.getSize();
+        
+        let y = height - 50; // Start from top with 50pt margin
 
-        // Collect PDF chunks as Buffers
-        doc.on('data', (chunk: Buffer) => {
-            buffers.push(chunk);
-        });
+        // Helper function to add new page if needed
+        const checkAndAddPage = () => {
+            if (y < 100) { // Leave margin at bottom
+                page = pdfDoc.addPage([595, 842]);
+                y = height - 50;
+                return true;
+            }
+            return false;
+        };
 
-        doc.on('error', (err: Error) => {
-            console.error('PDFKit stream error:', err);
-        });
+        // Helper to draw centered text
+        const drawCenteredText = (text: string, yPos: number, size: number, font_: any = font) => {
+            const textWidth = font_.widthOfTextAtSize(text, size);
+            page.drawText(text, {
+                x: (width - textWidth) / 2,
+                y: yPos,
+                size,
+                font: font_,
+                color: rgb(0, 0, 0),
+            });
+        };
 
-        // Header - using default fonts that don't require external files
-        doc.fontSize(20).text('FLC CI Office', { align: 'center' });
-        doc.moveDown(0.5);
-        doc.fontSize(16).text('Bank Statement Report', { align: 'center' });
-        doc.moveDown(0.5);
-        doc.fontSize(10).text(departmentName, { align: 'center' });
-        doc.fontSize(9).text(`Currency: ${userBaseCurrency.code} (${userBaseCurrency.symbol})`, { align: 'center' });
+        // Helper to draw right-aligned text
+        const drawRightText = (text: string, x: number, yPos: number, size: number) => {
+            const textWidth = font.widthOfTextAtSize(text, size);
+            page.drawText(text, {
+                x: x - textWidth,
+                y: yPos,
+                size,
+                font,
+                color: rgb(0, 0, 0),
+            });
+        };
+
+        // Header
+        drawCenteredText('FLC CI Office', y, 20, boldFont);
+        y -= 25;
+        drawCenteredText('Bank Statement Report', y, 16, boldFont);
+        y -= 20;
+        drawCenteredText(departmentName, y, 10);
+        y -= 15;
+        drawCenteredText(`Currency: ${userBaseCurrency.code} (${userBaseCurrency.symbol})`, y, 9);
+        y -= 15;
         
         if (startDate || endDate) {
             const startStr = startDate ? new Date(startDate).toLocaleDateString() : 'Start';
             const endStr = endDate ? new Date(endDate).toLocaleDateString() : 'Present';
-            doc.text(`Period: ${startStr} - ${endStr}`, { align: 'center' });
+            drawCenteredText(`Period: ${startStr} - ${endStr}`, y, 9);
+            y -= 15;
         }
         
-        doc.moveDown(1);
+        y -= 20;
 
         // Opening Balance
-        doc.fontSize(11);
-        doc.text(`Opening Balance: ${userBaseCurrency.symbol}${openingBalance.toFixed(2)}`, { align: 'left' });
-        doc.moveDown(1);
+        page.drawText(`Opening Balance: ${userBaseCurrency.symbol}${openingBalance.toFixed(2)}`, {
+            x: 50,
+            y,
+            size: 11,
+            font: boldFont,
+            color: rgb(0, 0, 0),
+        });
+        y -= 30;
 
         // Table Header
-        const tableTop = doc.y;
-        const colWidths = {
-            date: 70,
-            description: 150,
-            department: 100,
-            debit: 70,
-            credit: 70,
-            balance: 70,
+        const tableTop = y;
+        const colX = {
+            date: 50,
+            description: 120,
+            department: 270,
+            debit: 370,
+            credit: 440,
+            balance: 510,
         };
 
-        doc.fontSize(9);
-        doc.text('Date', 50, tableTop, { width: colWidths.date });
-        doc.text('Description', 120, tableTop, { width: colWidths.description });
-        doc.text('Department', 270, tableTop, { width: colWidths.department });
-        doc.text('Debit', 370, tableTop, { width: colWidths.debit, align: 'right' });
-        doc.text('Credit', 440, tableTop, { width: colWidths.credit, align: 'right' });
-        doc.text('Balance', 510, tableTop, { width: colWidths.balance, align: 'right' });
+        page.drawText('Date', { x: colX.date, y: tableTop, size: 9, font: boldFont, color: rgb(0, 0, 0) });
+        page.drawText('Description', { x: colX.description, y: tableTop, size: 9, font: boldFont, color: rgb(0, 0, 0) });
+        page.drawText('Department', { x: colX.department, y: tableTop, size: 9, font: boldFont, color: rgb(0, 0, 0) });
+        drawRightText('Debit', colX.debit + 70, tableTop, 9);
+        drawRightText('Credit', colX.credit + 70, tableTop, 9);
+        drawRightText('Balance', colX.balance + 70, tableTop, 9);
 
-        doc.moveTo(50, tableTop + 15).lineTo(550, tableTop + 15).stroke();
+        // Draw line under header
+        page.drawLine({
+            start: { x: 50, y: tableTop - 5 },
+            end: { x: 545, y: tableTop - 5 },
+            thickness: 1,
+            color: rgb(0, 0, 0),
+        });
         
-        let y = tableTop + 25;
+        y = tableTop - 20;
         let runningBalance = openingBalance;
-
-        doc.fontSize(8);
 
         // Table Rows
         for (const tx of transactions) {
             // Check if we need a new page
-            if (y > 700) {
-                doc.addPage();
-                y = 50;
+            if (y < 100) {
+                page = pdfDoc.addPage([595, 842]);
+                y = height - 50;
             }
 
             // Convert amount to user's base currency
@@ -208,20 +247,20 @@ export async function POST(request: NextRequest) {
             
             const deptName = tx.department.name.substring(0, 20);
 
-            doc.text(dateStr, 50, y, { width: colWidths.date });
-            doc.text(description, 120, y, { width: colWidths.description });
-            doc.text(deptName, 270, y, { width: colWidths.department });
-            doc.text(debit ? `${userBaseCurrency.symbol}${debit.toFixed(2)}` : '-', 370, y, { width: colWidths.debit, align: 'right' });
-            doc.text(credit ? `${userBaseCurrency.symbol}${credit.toFixed(2)}` : '-', 440, y, { width: colWidths.credit, align: 'right' });
-            doc.text(`${userBaseCurrency.symbol}${runningBalance.toFixed(2)}`, 510, y, { width: colWidths.balance, align: 'right' });
+            page.drawText(dateStr, { x: colX.date, y, size: 8, font, color: rgb(0, 0, 0) });
+            page.drawText(description, { x: colX.description, y, size: 8, font, color: rgb(0, 0, 0) });
+            page.drawText(deptName, { x: colX.department, y, size: 8, font, color: rgb(0, 0, 0) });
+            drawRightText(debit ? `${userBaseCurrency.symbol}${debit.toFixed(2)}` : '-', colX.debit + 70, y, 8);
+            drawRightText(credit ? `${userBaseCurrency.symbol}${credit.toFixed(2)}` : '-', colX.credit + 70, y, 8);
+            drawRightText(`${userBaseCurrency.symbol}${runningBalance.toFixed(2)}`, colX.balance + 70, y, 8);
 
-            y += 20;
+            y -= 20;
         }
 
         // Closing Balance
-        doc.moveDown(2);
-        doc.fontSize(11);
-        doc.text(`Closing Balance: ${userBaseCurrency.symbol}${runningBalance.toFixed(2)}`, { align: 'right' });
+        y -= 30;
+        checkAndAddPage();
+        drawRightText(`Closing Balance: ${userBaseCurrency.symbol}${runningBalance.toFixed(2)}`, 545, y, 11);
         
         // Summary
         const income = transactions
@@ -247,47 +286,28 @@ export async function POST(request: NextRequest) {
                 return sum + converted;
             }, 0);
 
-        doc.moveDown(2);
-        doc.fontSize(10);
-        doc.text(`Total Income: ${userBaseCurrency.symbol}${income.toFixed(2)}`, { align: 'left' });
-        doc.text(`Total Expense: ${userBaseCurrency.symbol}${expense.toFixed(2)}`, { align: 'left' });
-        doc.text(`Net Change: ${userBaseCurrency.symbol}${(income - expense).toFixed(2)}`, { align: 'left' });
+        y -= 30;
+        checkAndAddPage();
+        page.drawText(`Total Income: ${userBaseCurrency.symbol}${income.toFixed(2)}`, { x: 50, y, size: 10, font, color: rgb(0, 0, 0) });
+        y -= 15;
+        page.drawText(`Total Expense: ${userBaseCurrency.symbol}${expense.toFixed(2)}`, { x: 50, y, size: 10, font, color: rgb(0, 0, 0) });
+        y -= 15;
+        page.drawText(`Net Change: ${userBaseCurrency.symbol}${(income - expense).toFixed(2)}`, { x: 50, y, size: 10, font, color: rgb(0, 0, 0) });
 
         // Footer
-        doc.fontSize(8).text(
-            `Generated on ${new Date().toLocaleString()} by ${session.user.name || session.user.email}`,
-            50,
-            750,
-            { align: 'center' }
-        );
+        const footerText = `Generated on ${new Date().toLocaleString()} by ${session.user.name || session.user.email}`;
+        drawCenteredText(footerText, 50, 8);
 
-        // Finalize the PDF
-        doc.end();
-
-        // Wait for PDF to be fully generated
-        const pdfBuffer = await new Promise<Buffer>((resolve, reject) => {
-            const timeout = setTimeout(() => {
-                reject(new Error('PDF generation timeout'));
-            }, 30000); // 30 second timeout
-
-            doc.on('end', () => {
-                clearTimeout(timeout);
-                resolve(Buffer.concat(buffers));
-            });
-
-            doc.on('error', (err: Error) => {
-                clearTimeout(timeout);
-                reject(err);
-            });
-        });
-
-        // Convert Buffer to ArrayBuffer for Response
-        const arrayBuffer = pdfBuffer.buffer.slice(
-            pdfBuffer.byteOffset,
-            pdfBuffer.byteOffset + pdfBuffer.byteLength
+        // Generate PDF bytes
+        const pdfBytes = await pdfDoc.save();
+        
+        // Convert to ArrayBuffer for Response
+        const buffer = pdfBytes.buffer.slice(
+            pdfBytes.byteOffset,
+            pdfBytes.byteOffset + pdfBytes.byteLength
         ) as ArrayBuffer;
 
-        return new Response(arrayBuffer, {
+        return new Response(buffer, {
             status: 200,
             headers: {
                 'Content-Type': 'application/pdf',
