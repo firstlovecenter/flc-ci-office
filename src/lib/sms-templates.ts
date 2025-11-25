@@ -23,23 +23,18 @@ function replaceVariables(template: string, params: Record<string, any>): string
 export async function generatePasswordResetSms(params: PasswordResetSmsParams): Promise<string> {
     const { resetCode, expirationMinutes = 30 } = params;
     
-    try {
-        const template = await prisma.smsTemplate.findUnique({
-            where: { key: 'password_reset' },
-        });
+    const template = await prisma.smsTemplate.findUnique({
+        where: { key: 'password_reset' },
+    });
 
-        if (template) {
-            return replaceVariables(template.template, {
-                resetCode,
-                expirationHours: expirationMinutes / 60,
-            });
-        }
-    } catch (error) {
-        console.error('Error fetching SMS template:', error);
+    if (!template) {
+        throw new Error('Password reset SMS template not found in database');
     }
-    
-    // Fallback to default template
-    return `FLC CI Office: Your password reset code is ${resetCode}. Valid for ${expirationMinutes/60} hours. Go to the reset page and enter this code.`;
+
+    return replaceVariables(template.template, {
+        resetCode,
+        expirationHours: expirationMinutes / 60,
+    });
 }
 
 interface FirstRoleAssignmentSmsParams {
@@ -53,24 +48,20 @@ export async function generateFirstRoleAssignmentSms(params: FirstRoleAssignment
     const { userName, role, department, resetLink } = params;
     const roleDisplay = role.replace(/_/g, ' ');
     
-    try {
-        const template = await prisma.smsTemplate.findUnique({
-            where: { key: 'first_role_assignment' },
-        });
+    const template = await prisma.smsTemplate.findUnique({
+        where: { key: 'first_role_assignment' },
+    });
 
-        if (template) {
-            return replaceVariables(template.template, {
-                userName,
-                role: roleDisplay,
-                department,
-                resetLink,
-            });
-        }
-    } catch (error) {
-        console.error('Error fetching SMS template:', error);
+    if (!template) {
+        throw new Error('First role assignment SMS template not found in database');
     }
-    
-    return `Welcome ${userName}! You've been assigned as ${roleDisplay} for ${department}. Set your password here: ${resetLink}`;
+
+    return replaceVariables(template.template, {
+        userName,
+        role: roleDisplay,
+        department,
+        resetLink,
+    });
 }
 
 interface RoleAssignmentSmsParams {
@@ -83,23 +74,19 @@ export async function generateRoleAssignmentSms(params: RoleAssignmentSmsParams)
     const { userName, role, department } = params;
     const roleDisplay = role.replace(/_/g, ' ');
     
-    try {
-        const template = await prisma.smsTemplate.findUnique({
-            where: { key: 'role_assignment' },
-        });
+    const template = await prisma.smsTemplate.findUnique({
+        where: { key: 'role_assignment' },
+    });
 
-        if (template) {
-            return replaceVariables(template.template, {
-                userName,
-                role: roleDisplay,
-                department,
-            });
-        }
-    } catch (error) {
-        console.error('Error fetching SMS template:', error);
+    if (!template) {
+        throw new Error('Role assignment SMS template not found in database');
     }
-    
-    return `FLC CI Office: Hello ${userName}, your role has been updated to ${roleDisplay} for ${department}.`;
+
+    return replaceVariables(template.template, {
+        userName,
+        role: roleDisplay,
+        department,
+    });
 }
 
 interface TransactionNotificationSmsParams {
@@ -113,24 +100,20 @@ export async function generateTransactionNotificationSms(params: TransactionNoti
     const { userName, type, amount, status } = params;
     const action = type === 'INCOME' ? 'Income' : 'Expense';
     
-    try {
-        const template = await prisma.smsTemplate.findUnique({
-            where: { key: 'transaction_notification' },
-        });
+    const template = await prisma.smsTemplate.findUnique({
+        where: { key: 'transaction_notification' },
+    });
 
-        if (template) {
-            return replaceVariables(template.template, {
-                userName,
-                type: action,
-                amount,
-                status,
-            });
-        }
-    } catch (error) {
-        console.error('Error fetching SMS template:', error);
+    if (!template) {
+        throw new Error('Transaction notification SMS template not found in database');
     }
-    
-    return `FLC CI: ${userName}, your ${action} transaction of ${amount} is now ${status}.`;
+
+    return replaceVariables(template.template, {
+        userName,
+        type: action,
+        amount,
+        status,
+    });
 }
 
 interface DepartmentAlertSmsParams {
@@ -145,22 +128,18 @@ export async function generateDepartmentAlertSms(params: DepartmentAlertSmsParam
         ? message.substring(0, maxMessageLength) + '...' 
         : message;
     
-    try {
-        const template = await prisma.smsTemplate.findUnique({
-            where: { key: 'department_alert' },
-        });
+    const template = await prisma.smsTemplate.findUnique({
+        where: { key: 'department_alert' },
+    });
 
-        if (template) {
-            return replaceVariables(template.template, {
-                departmentName,
-                message: truncatedMessage,
-            });
-        }
-    } catch (error) {
-        console.error('Error fetching SMS template:', error);
+    if (!template) {
+        throw new Error('Department alert SMS template not found in database');
     }
-    
-    return `FLC CI - ${departmentName}: ${truncatedMessage}`;
+
+    return replaceVariables(template.template, {
+        departmentName,
+        message: truncatedMessage,
+    });
 }
 
 interface WeekLockNotificationSmsParams {
@@ -171,22 +150,18 @@ interface WeekLockNotificationSmsParams {
 export async function generateWeekLockNotificationSms(params: WeekLockNotificationSmsParams): Promise<string> {
     const { userName, weekNumber } = params;
     
-    try {
-        const template = await prisma.smsTemplate.findUnique({
-            where: { key: 'week_lock_notification' },
-        });
+    const template = await prisma.smsTemplate.findUnique({
+        where: { key: 'week_lock_notification' },
+    });
 
-        if (template) {
-            return replaceVariables(template.template, {
-                userName,
-                weekNumber,
-            });
-        }
-    } catch (error) {
-        console.error('Error fetching SMS template:', error);
+    if (!template) {
+        throw new Error('Week lock notification SMS template not found in database');
     }
-    
-    return `FLC CI: Hello ${userName}, Week ${weekNumber} has been locked. No further changes can be made to transactions for this week.`;
+
+    return replaceVariables(template.template, {
+        userName,
+        weekNumber,
+    });
 }
 
 interface ApprovalReminderSmsParams {
@@ -197,21 +172,17 @@ interface ApprovalReminderSmsParams {
 export async function generateApprovalReminderSms(params: ApprovalReminderSmsParams): Promise<string> {
     const { userName, pendingCount } = params;
     
-    try {
-        const template = await prisma.smsTemplate.findUnique({
-            where: { key: 'approval_reminder' },
-        });
+    const template = await prisma.smsTemplate.findUnique({
+        where: { key: 'approval_reminder' },
+    });
 
-        if (template) {
-            return replaceVariables(template.template, {
-                userName,
-                pendingCount,
-                dashboardLink: '',
-            });
-        }
-    } catch (error) {
-        console.error('Error fetching SMS template:', error);
+    if (!template) {
+        throw new Error('Approval reminder SMS template not found in database');
     }
-    
-    return `FLC CI: Hello ${userName}, you have ${pendingCount} transaction${pendingCount > 1 ? 's' : ''} pending your approval.`;
+
+    return replaceVariables(template.template, {
+        userName,
+        pendingCount,
+        dashboardLink: '',
+    });
 }
