@@ -24,6 +24,7 @@ function NewTransactionForm() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const deptParam = searchParams?.get('dept');
+    const typeParam = searchParams?.get('type');
     const exactDepartment = searchParams?.get('exact') === 'true';
     const { data: session } = useSession();
     const [type, setType] = useState<TransactionType>('INCOME');
@@ -39,6 +40,13 @@ function NewTransactionForm() {
     const [files, setFiles] = useState<File[]>([]);
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
+
+    useEffect(() => {
+        // Set transaction type from URL parameter if present
+        if (typeParam && (typeParam === 'INCOME' || typeParam === 'EXPENSE')) {
+            setType(typeParam as TransactionType);
+        }
+    }, [typeParam]);
 
     useEffect(() => {
         fetchDepartments();

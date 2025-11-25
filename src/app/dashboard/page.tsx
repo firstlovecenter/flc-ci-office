@@ -376,12 +376,12 @@ export default function DashboardPage() {
             {!isSuperAdmin && (
             <Box
                 sx={{
-                    display: { xs: 'none', sm: 'block' },
                     p: { xs: 1.5, sm: 3, md: 4 },
                     borderRadius: { xs: 1.5, sm: 2 },
                     bgcolor: 'background.paper',
                     border: '1px solid',
                     borderColor: 'divider',
+                    mb: { xs: 2, md: 4 }
                 }}
             >
                 <Typography variant="h6" fontWeight="600" sx={{ mb: { xs: 2, sm: 3 }, fontSize: { xs: '0.875rem', sm: '1.25rem' } }}>
