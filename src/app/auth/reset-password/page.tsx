@@ -21,8 +21,9 @@ function ResetPasswordForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const urlToken = searchParams.get('token');
+  const urlCode = searchParams.get('code');
 
-  const [resetCode, setResetCode] = useState('');
+  const [resetCode, setResetCode] = useState(urlCode || '');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -31,9 +32,9 @@ function ResetPasswordForm() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
 
-  // If there's a token in the URL (old email flow), use it
-  // Otherwise, user will enter the SMS code manually
-  const usingUrlToken = !!urlToken;
+  // If there's a token or code in the URL, use it
+  // token = old email flow, code = SMS code from new user onboarding
+  const usingUrlToken = !!(urlToken || urlCode);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -62,7 +63,7 @@ function ResetPasswordForm() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
-          token: usingUrlToken ? urlToken : resetCode.trim().toUpperCase(), 
+          token: urlToken || urlCode || resetCode.trim().toUpperCase(), 
           password 
         }),
       });
