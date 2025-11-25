@@ -159,16 +159,25 @@ export default function ReportsPage() {
                 }),
             });
 
-            if (response.ok) {
-                const blob = await response.blob();
-                const url = window.URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = `statement-report-${new Date().toISOString().split('T')[0]}.pdf`;
-                a.click();
-                window.URL.revokeObjectURL(url);
+            if (!response.ok) {
+                const errorData = await response.json();
+                console.error('PDF generation failed:', errorData);
+                alert(`Failed to generate PDF: ${errorData.error || 'Unknown error'}`);
+                return;
             }
+
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `statement-report-${new Date().toISOString().split('T')[0]}.pdf`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
         } catch (error) {
+            console.error('Error downloading PDF:', error);
+            alert('Failed to download PDF. Please try again.');
         }
     };
 

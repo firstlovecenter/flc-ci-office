@@ -108,11 +108,15 @@ export async function POST(request: NextRequest) {
         const doc = new PDFDocument({ 
             margin: 50, 
             size: 'A4',
-            bufferPages: true 
+            bufferPages: true,
+            autoFirstPage: true
         });
         const chunks: Buffer[] = [];
 
         doc.on('data', (chunk) => chunks.push(chunk));
+        doc.on('error', (err) => {
+            console.error('PDFKit error:', err);
+        });
 
         // Header - using default fonts that don't require external files
         doc.fontSize(20).text('FLC CI Office', { align: 'center' });
@@ -247,19 +251,25 @@ export async function POST(request: NextRequest) {
         doc.end();
 
         // Wait for PDF to be generated
-        const pdfBuffer = await new Promise<Buffer>((resolve) => {
+        const pdfBuffer = await new Promise<Buffer>((resolve, reject) => {
             doc.on('end', () => {
                 resolve(Buffer.concat(chunks));
             });
+            doc.on('error', reject);
         });
 
-        return new NextResponse(pdfBuffer as any, {
+        return new NextResponse(new Uint8Array(pdfBuffer), {
+            status: 200,
             headers: {
                 'Content-Type': 'application/pdf',
                 'Content-Disposition': `attachment; filename="statement-report-${new Date().toISOString().split('T')[0]}.pdf"`,
             },
         });
     } catch (error) {
-        return NextResponse.json({ error: 'Failed to generate PDF' }, { status: 500 });
+        console.error('PDF generation error:', error);
+        return NextResponse.json({ 
+            error: 'Failed to generate PDF', 
+            details: error instanceof Error ? error.message : 'Unknown error' 
+        }, { status: 500 });
     }
 }
