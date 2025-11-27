@@ -10,6 +10,109 @@ import { canManageUser, canAssignRole, ROLE_HIERARCHY } from '@/lib/roles';
 import { getDescendantDepartmentIds } from '@/lib/departments';
 import { validateRoleAssignment } from '@/lib/roleValidation';
 
+// GET - Fetch a single user by ID
+export async function GET(
+    request: Request,
+    context: { params: Promise<{ id: string }> }
+) {
+    const session = await getServerSession(authOptions);
+
+    if (!session) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    try {
+        const params = await context.params;
+        const userId = params.id;
+
+        // Check if user has admin role
+        const adminRoles = ['SUPERADMIN', 'GLOBAL_ADMIN', 'INTERNATIONAL_ADMIN', 'NATIONAL_ADMIN', 'REGIONAL_ADMIN', 'CAMPUS_ADMIN', 'STREAM_ADMIN', 'COUNCIL_ADMIN'];
+        if (!adminRoles.includes(session.user.role)) {
+            return NextResponse.json(
+                { error: 'Admin role required' },
+                { status: 403 }
+            );
+        }
+
+        // Get the user
+        const user = await prisma.user.findUnique({
+            where: { id: userId },
+            include: {
+                department: {
+                    select: {
+                        id: true,
+                        name: true,
+                        level: true,
+                    },
+                },
+                userRoles: {
+                    include: {
+                        department: {
+                            select: {
+                                id: true,
+                                name: true,
+                                level: true,
+                            },
+                        },
+                    },
+                },
+                auditLogs: {
+                    select: {
+                        id: true,
+                        actionType: true,
+                        description: true,
+                        timestamp: true,
+                        ipAddress: true,
+                    },
+                    orderBy: {
+                        timestamp: 'desc',
+                    },
+                    take: 50,
+                },
+            },
+        });
+
+        if (!user) {
+            return NextResponse.json(
+                { error: 'User not found' },
+                { status: 404 }
+            );
+        }
+
+        // For non-superadmins, verify they can access this user
+        if (session.user.role !== 'SUPERADMIN') {
+            if (!session.user.departmentId) {
+                return NextResponse.json(
+                    { error: 'No department assigned' },
+                    { status: 403 }
+                );
+            }
+
+            // Get all departments this admin oversees
+            const allowedDepartmentIds = await getDescendantDepartmentIds(session.user.departmentId);
+            
+            // Check if user is in admin's department hierarchy
+            if (user.departmentId && !allowedDepartmentIds.includes(user.departmentId)) {
+                return NextResponse.json(
+                    { error: 'Cannot view users outside your department hierarchy' },
+                    { status: 403 }
+                );
+            }
+        }
+
+        // Remove password from response
+        const { password: _, ...userWithoutPassword } = user;
+
+        return NextResponse.json(userWithoutPassword);
+    } catch (error) {
+        console.error('Error fetching user:', error);
+        return NextResponse.json(
+            { error: 'Failed to fetch user' },
+            { status: 500 }
+        );
+    }
+}
+
 export async function PUT(
     request: Request,
     context: { params: Promise<{ id: string }> }

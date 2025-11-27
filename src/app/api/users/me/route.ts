@@ -162,42 +162,60 @@ export async function PATCH(request: NextRequest) {
 
         const user = await prisma.user.findUnique({
             where: { email: session.user.email },
-            include: { department: true },
+            include: { 
+                department: true,
+                userRoles: {
+                    include: {
+                        department: true,
+                    },
+                },
+            },
         });
 
         if (!user) {
             return NextResponse.json({ error: 'User not found' }, { status: 404 });
         }
 
-        // Only national admins can set base currency for their department
-        if (!user.roles || !user.roles.includes('NATIONAL_ADMIN')) {
+        const body = await request.json();
+        const { baseCurrencyId } = body;
+
+        // Check if user has NATIONAL_ADMIN role in any of their role-department assignments
+        const nationalAdminRole = user.userRoles?.find(
+            ur => ur.role === 'NATIONAL_ADMIN' && ur.department.level === 'NATIONAL'
+        );
+
+        // Fallback to legacy roles check
+        const hasNationalAdminLegacy = user.roles?.includes('NATIONAL_ADMIN') && 
+                                       user.department?.level === 'NATIONAL';
+
+        if (!nationalAdminRole && !hasNationalAdminLegacy) {
             return NextResponse.json(
-                { error: 'Only national admins can set base currency' },
+                { error: 'Only national admins with a national department assignment can set base currency' },
                 { status: 403 }
             );
         }
 
-        if (!user.department || user.department.level !== 'NATIONAL') {
+        // Use the national department from the role assignment, or fall back to legacy department
+        const nationalDepartment = nationalAdminRole?.department || user.department;
+
+        if (!nationalDepartment) {
             return NextResponse.json(
-                { error: 'User must be in a national-level department' },
+                { error: 'National department not found' },
                 { status: 400 }
             );
         }
 
-        const body = await request.json();
-        const { baseCurrencyId } = body;
-
         // Get the old base currency (if any) before updating
         const oldDeptBaseCurrency = await prisma.departmentBaseCurrency.findUnique({
-            where: { departmentId: user.department.id },
+            where: { departmentId: nationalDepartment.id },
             include: { currency: true },
         });
 
         // Upsert the department base currency
         const deptBaseCurrency = await prisma.departmentBaseCurrency.upsert({
-            where: { departmentId: user.department.id },
+            where: { departmentId: nationalDepartment.id },
             create: {
-                departmentId: user.department.id,
+                departmentId: nationalDepartment.id,
                 currencyId: baseCurrencyId,
                 setBy: user.id,
             },
@@ -223,7 +241,7 @@ export async function PATCH(request: NextRequest) {
             // Get all departments under this national department (including itself)
             const departmentIds = await prisma.$queryRaw<{ id: string }[]>`
                 WITH RECURSIVE dept_tree AS (
-                    SELECT id FROM "Department" WHERE id = ${user.department.id}
+                    SELECT id FROM "Department" WHERE id = ${user.department?.id}
                     UNION ALL
                     SELECT d.id FROM "Department" d
                     INNER JOIN dept_tree dt ON d."parentId" = dt.id

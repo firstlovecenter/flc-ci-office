@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState } from 'react';
-import { Box, List, ListItem, ListItemButton, ListItemIcon, ListItemText, Typography, Avatar, IconButton, Tooltip, Badge } from '@mui/material';
+import React, { useState, useEffect } from 'react';
+import { Box, List, ListItem, ListItemButton, ListItemIcon, ListItemText, Typography, Avatar, IconButton, Tooltip, Badge, Dialog, DialogTitle, DialogContent, DialogActions, Button, FormControl, InputLabel, Select, MenuItem as MuiMenuItem, Alert } from '@mui/material';
 import { styled } from '@mui/material/styles';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -18,6 +18,7 @@ import LogoutIcon from '@mui/icons-material/Logout';
 import MonetizationOnIcon from '@mui/icons-material/MonetizationOn';
 import PendingActionsIcon from '@mui/icons-material/PendingActions';
 import BusinessIcon from '@mui/icons-material/Business';
+import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
 import AssessmentIcon from '@mui/icons-material/Assessment';
 import HistoryIcon from '@mui/icons-material/History';
 import MenuIcon from '@mui/icons-material/Menu';
@@ -127,11 +128,67 @@ interface ModernSidebarProps {
 export default function ModernSidebar({ userRole, userName, userImage, pendingCounts }: ModernSidebarProps) {
     const pathname = usePathname();
     const [collapsed, setCollapsed] = useState(true);
+    const [baseCurrencyDialogOpen, setBaseCurrencyDialogOpen] = useState(false);
+    const [currencies, setCurrencies] = useState<any[]>([]);
+    const [selectedCurrency, setSelectedCurrency] = useState('');
+    const [saving, setSaving] = useState(false);
+    const [error, setError] = useState('');
+    const [success, setSuccess] = useState('');
 
     const isSuperAdmin = userRole === 'SUPERADMIN';
     const isGlobalAdmin = userRole === 'GLOBAL_ADMIN';
+    const isNationalAdmin = userRole === 'NATIONAL_ADMIN';
     const canManageCurrencies = isSuperAdmin || isGlobalAdmin;
     const isAdmin = userRole?.includes('ADMIN');
+
+    useEffect(() => {
+        if (baseCurrencyDialogOpen) {
+            fetchCurrencies();
+        }
+    }, [baseCurrencyDialogOpen]);
+
+    const fetchCurrencies = async () => {
+        try {
+            const response = await fetch('/api/currencies?active=true');
+            if (response.ok) {
+                const data = await response.json();
+                setCurrencies(data);
+            }
+        } catch (err) {
+            console.error('Error fetching currencies:', err);
+        }
+    };
+
+    const handleSaveBaseCurrency = async () => {
+        if (!selectedCurrency) return;
+        
+        setSaving(true);
+        setError('');
+        setSuccess('');
+        
+        try {
+            const response = await fetch('/api/users/me', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ baseCurrencyId: selectedCurrency }),
+            });
+            
+            if (!response.ok) {
+                const data = await response.json();
+                throw new Error(data.error || 'Failed to update base currency');
+            }
+            
+            setSuccess('Base currency updated successfully');
+            setTimeout(() => {
+                setBaseCurrencyDialogOpen(false);
+                window.location.reload();
+            }, 1500);
+        } catch (err: any) {
+            setError(err.message);
+        } finally {
+            setSaving(false);
+        }
+    };
 
     const menuItems: MenuItem[] = [
         { text: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard' },
@@ -147,6 +204,10 @@ export default function ModernSidebar({ userRole, userName, userImage, pendingCo
         { text: 'Profile', icon: <SettingsIcon />, path: '/profile' },
         { text: 'Audit Trail', icon: <HistoryIcon />, path: '/audit', superAdminOnly: true },
     ];
+
+    const nationalAdminItems = isNationalAdmin ? [
+        { text: 'Base Currency', icon: <AccountBalanceIcon />, action: () => setBaseCurrencyDialogOpen(true) },
+    ] : [];
 
     // Filter menu items based on user role - leaders don't see Users menu
     const leaderRoles = ['GLOBAL_LEADER', 'INTERNATIONAL_LEADER', 'NATIONAL_LEADER', 'REGIONAL_LEADER', 'CAMPUS_LEADER', 'STREAM_LEADER', 'COUNCIL_LEADER'];
@@ -232,6 +293,34 @@ export default function ModernSidebar({ userRole, userName, userImage, pendingCo
 
             <Box sx={{ flexGrow: 1 }} />
 
+            {nationalAdminItems.length > 0 && (
+                <MenuSection>
+                    <List disablePadding>
+                        {nationalAdminItems.map((item) => (
+                            <ListItem key={item.text} disablePadding>
+                                <Tooltip title={collapsed ? item.text : ''} placement="right" arrow>
+                                    <StyledListItemButton
+                                        onClick={item.action}
+                                        sx={{ justifyContent: collapsed ? 'center' : 'flex-start' }}
+                                    >
+                                        <ListItemIcon sx={{ minWidth: collapsed ? 'auto' : 40 }}>{item.icon}</ListItemIcon>
+                                        {!collapsed && (
+                                            <ListItemText 
+                                                primary={item.text}
+                                                primaryTypographyProps={{
+                                                    fontSize: '14px',
+                                                    fontWeight: 500,
+                                                }}
+                                            />
+                                        )}
+                                    </StyledListItemButton>
+                                </Tooltip>
+                            </ListItem>
+                        ))}
+                    </List>
+                </MenuSection>
+            )}
+
             <MenuSection>
                 <List disablePadding>
                     {filteredBottomItems.map((item) => (
@@ -278,6 +367,52 @@ export default function ModernSidebar({ userRole, userName, userImage, pendingCo
                     </ListItem>
                 </List>
             </MenuSection>
+
+            {/* Base Currency Dialog */}
+            <Dialog 
+                open={baseCurrencyDialogOpen} 
+                onClose={() => setBaseCurrencyDialogOpen(false)}
+                maxWidth="sm"
+                fullWidth
+            >
+                <DialogTitle>Set National Base Currency</DialogTitle>
+                <DialogContent>
+                    {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+                    {success && <Alert severity="success" sx={{ mb: 2 }}>{success}</Alert>}
+                    
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+                        Select the base currency for your national department. All transactions will be converted to this currency for reporting.
+                    </Typography>
+                    
+                    <FormControl fullWidth>
+                        <InputLabel>Base Currency</InputLabel>
+                        <Select
+                            value={selectedCurrency}
+                            label="Base Currency"
+                            onChange={(e) => setSelectedCurrency(e.target.value)}
+                            disabled={saving}
+                        >
+                            {currencies.map((currency) => (
+                                <MuiMenuItem key={currency.id} value={currency.id}>
+                                    {currency.code} - {currency.name} ({currency.symbol})
+                                </MuiMenuItem>
+                            ))}
+                        </Select>
+                    </FormControl>
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={() => setBaseCurrencyDialogOpen(false)} disabled={saving}>
+                        Cancel
+                    </Button>
+                    <Button 
+                        onClick={handleSaveBaseCurrency} 
+                        variant="contained" 
+                        disabled={!selectedCurrency || saving}
+                    >
+                        {saving ? 'Saving...' : 'Save'}
+                    </Button>
+                </DialogActions>
+            </Dialog>
         </SidebarContainer>
     );
 }

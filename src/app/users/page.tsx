@@ -232,68 +232,80 @@ function UsersPageContent() {
 
     return (
         <Box>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 3 }}>
-                <Typography variant="h4">Users</Typography>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                <Typography variant="h5">Users</Typography>
                 {canCreateUsers && (
                     <Button
                         variant="contained"
                         startIcon={<AddIcon />}
                         onClick={() => setOpen(true)}
+                        size="small"
                     >
                         New User
                     </Button>
                 )}
             </Box>
 
-            <TableContainer component={Paper}>
-                <Table>
+            <TableContainer component={Paper} sx={{ boxShadow: 1 }}>
+                <Table size="small">
                     <TableHead>
                         <TableRow>
-                            <TableCell>Name</TableCell>
-                            <TableCell>Email</TableCell>
-                            <TableCell>Role</TableCell>
-                            <TableCell>Department</TableCell>
-                            <TableCell>Status</TableCell>
-                            <TableCell>Created</TableCell>
-                            <TableCell align="right">Actions</TableCell>
+                            <TableCell sx={{ fontWeight: 600 }}>Name</TableCell>
+                            <TableCell sx={{ fontWeight: 600 }}>Email</TableCell>
+                            <TableCell sx={{ fontWeight: 600 }}>Role</TableCell>
+                            <TableCell align="right" sx={{ fontWeight: 600 }}>Actions</TableCell>
                         </TableRow>
                     </TableHead>
                     <TableBody>
                         {users.map((user) => (
-                            <TableRow key={user.id}>
-                                <TableCell>{user.name || '-'}</TableCell>
-                                <TableCell>{user.email}</TableCell>
+                            <TableRow 
+                                key={user.id}
+                                sx={{ 
+                                    cursor: 'pointer',
+                                    '&:hover': {
+                                        backgroundColor: 'action.hover',
+                                    },
+                                }}
+                                onClick={() => router.push(`/users/${user.id}`)}
+                            >
+                                <TableCell>
+                                    <Typography variant="body2" fontWeight={500}>
+                                        {user.name || '-'}
+                                    </Typography>
+                                </TableCell>
+                                <TableCell>
+                                    <Typography variant="body2" color="text.secondary">
+                                        {user.email}
+                                    </Typography>
+                                </TableCell>
                                 <TableCell>
                                     <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
-                                        {(user.roles || [user.role]).map((role: string) => (
+                                        {(user.roles || [user.role]).slice(0, 2).map((role: string) => (
                                             <Chip 
                                                 key={role} 
                                                 label={role.replace(/_/g, ' ')} 
                                                 size="small" 
                                                 color={role === 'SUPERADMIN' ? 'error' : 'default'}
+                                                sx={{ height: 20, fontSize: '0.688rem' }}
                                             />
                                         ))}
+                                        {(user.roles || [user.role]).length > 2 && (
+                                            <Chip 
+                                                label={`+${(user.roles || [user.role]).length - 2}`}
+                                                size="small"
+                                                sx={{ height: 20, fontSize: '0.688rem' }}
+                                            />
+                                        )}
                                     </Box>
                                 </TableCell>
-                                <TableCell>{user.department?.name || '-'}</TableCell>
-                                <TableCell>
-                                    <Chip 
-                                        label={user.archived ? 'Archived' : 'Active'} 
-                                        size="small" 
-                                        color={user.archived ? 'default' : 'success'}
-                                    />
-                                </TableCell>
-                                <TableCell>
-                                    {new Date(user.createdAt).toLocaleDateString()}
-                                </TableCell>
-                                <TableCell align="right">
+                                <TableCell align="right" onClick={(e) => e.stopPropagation()}>
                                     {!user.archived && (
                                         <IconButton 
                                             size="small" 
                                             color="primary"
                                             onClick={() => handleEdit(user)}
                                         >
-                                            <EditIcon />
+                                            <EditIcon fontSize="small" />
                                         </IconButton>
                                     )}
                                     {user.id !== session?.user.id && (
@@ -303,7 +315,7 @@ function UsersPageContent() {
                                             onClick={() => handleArchive(user)}
                                             title={user.archived ? 'Unarchive user' : 'Archive user'}
                                         >
-                                            {user.archived ? <UnarchiveIcon /> : <ArchiveIcon />}
+                                            {user.archived ? <UnarchiveIcon fontSize="small" /> : <ArchiveIcon fontSize="small" />}
                                         </IconButton>
                                     )}
                                     {session?.user.role === 'SUPERADMIN' && user.id !== session.user.id && (
@@ -313,7 +325,7 @@ function UsersPageContent() {
                                             onClick={() => handleDelete(user.id)}
                                             title="Permanently delete user (SUPERADMIN only)"
                                         >
-                                            <DeleteIcon />
+                                            <DeleteIcon fontSize="small" />
                                         </IconButton>
                                     )}
                                 </TableCell>
@@ -321,8 +333,10 @@ function UsersPageContent() {
                         ))}
                         {users.length === 0 && (
                             <TableRow>
-                                <TableCell colSpan={7} align="center">
-                                    No users found
+                                <TableCell colSpan={4} align="center">
+                                    <Typography variant="body2" color="text.secondary" sx={{ py: 2 }}>
+                                        No users found
+                                    </Typography>
                                 </TableCell>
                             </TableRow>
                         )}

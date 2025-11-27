@@ -4,14 +4,12 @@ import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import {
-    Container,
     Box,
     Typography,
     Paper,
     TextField,
     Button,
     Avatar,
-    Grid,
     Chip,
     Divider,
     Alert,
@@ -25,13 +23,21 @@ import {
     Select,
     MenuItem,
     CircularProgress,
+    Table,
+    TableBody,
+    TableCell,
+    TableContainer,
+    TableHead,
+    TableRow,
 } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
 import SaveIcon from '@mui/icons-material/Save';
 import CancelIcon from '@mui/icons-material/Cancel';
 import PhotoCameraIcon from '@mui/icons-material/PhotoCamera';
+import HistoryIcon from '@mui/icons-material/History';
 import PersonIcon from '@mui/icons-material/Person';
 import EmailIcon from '@mui/icons-material/Email';
+import PhoneIcon from '@mui/icons-material/Phone';
 import BadgeIcon from '@mui/icons-material/Badge';
 import BusinessIcon from '@mui/icons-material/Business';
 import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
@@ -42,15 +48,33 @@ interface UserProfile {
     title: string | null;
     name: string | null;
     email: string;
+    phone: string | null;
     image: string | null;
     role: string;
     roles?: string[];
+    archived: boolean;
     departmentId: string | null;
     department: {
         id: string;
         name: string;
         level: string;
     } | null;
+    userRoles?: Array<{
+        id: string;
+        role: string;
+        department: {
+            id: string;
+            name: string;
+            level: string;
+        };
+    }>;
+    auditLogs?: Array<{
+        id: string;
+        actionType: string;
+        description: string;
+        timestamp: string;
+        ipAddress?: string;
+    }>;
     createdAt: string;
     updatedAt: string;
 }
@@ -69,6 +93,7 @@ export default function ProfilePage() {
         name: '',
         image: '',
         email: '',
+        phone: '',
     });
 
     useEffect(() => {
@@ -89,6 +114,7 @@ export default function ProfilePage() {
                 name: data.name || '',
                 image: data.image || '',
                 email: data.email || '',
+                phone: data.phone || '',
             });
         } catch (err) {
             setError('Failed to load profile');
@@ -160,6 +186,7 @@ export default function ProfilePage() {
             const updatePayload: any = {
                 name: formData.name,
                 image: imageUrl || formData.image,
+                phone: formData.phone,
             };
 
             // Include email for superadmins
@@ -212,6 +239,7 @@ export default function ProfilePage() {
             name: profile?.name || '',
             image: profile?.image || '',
             email: profile?.email || '',
+            phone: profile?.phone || '',
         });
         setEditing(false);
         setError('');
@@ -222,349 +250,316 @@ export default function ProfilePage() {
             year: 'numeric',
             month: 'long',
             day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
         });
     };
 
     if (loading) {
         return (
-            <Container maxWidth="md" sx={{ mt: 4 }}>
-                <Typography>Loading profile...</Typography>
-            </Container>
+            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '60vh' }}>
+                <CircularProgress />
+            </Box>
         );
     }
 
     if (!profile) {
         return (
-            <Container maxWidth="md" sx={{ mt: 4 }}>
+            <Box sx={{ py: 4 }}>
                 <Alert severity="error">Failed to load profile</Alert>
-            </Container>
+            </Box>
         );
     }
 
     return (
-        <Box sx={{ py: 4 }}>
+        <Box sx={{ py: 2, maxWidth: 600, mx: 'auto' }}>
             {error && (
-                <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError('')}>
+                <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>
                     {error}
                 </Alert>
             )}
 
             {success && (
-                <Alert severity="success" sx={{ mb: 3 }} onClose={() => setSuccess('')}>
+                <Alert severity="success" sx={{ mb: 2 }} onClose={() => setSuccess('')}>
                     {success}
                 </Alert>
             )}
 
-            {/* Profile Header Card */}
+            {/* Header with Edit Button */}
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                {editing ? (
+                    <Box sx={{ display: 'flex', gap: 1 }}>
+                        <Button
+                            variant="outlined"
+                            size="small"
+                            startIcon={<CancelIcon />}
+                            onClick={handleCancel}
+                            disabled={saving}
+                        >
+                            Cancel
+                        </Button>
+                        <Button
+                            variant="contained"
+                            size="small"
+                            startIcon={<SaveIcon />}
+                            onClick={() => handleSave()}
+                            disabled={saving}
+                        >
+                            {saving ? 'Saving...' : 'Save'}
+                        </Button>
+                    </Box>
+                ) : (
+                    <Button
+                        variant="contained"
+                        size="small"
+                        startIcon={<EditIcon />}
+                        onClick={() => setEditing(true)}
+                        color="success"
+                    >
+                        Edit
+                    </Button>
+                )}
+            </Box>
+
+            {/* Profile Card */}
             <Paper 
                 elevation={0}
                 sx={{ 
-                    p: { xs: 3, sm: 4, md: 5 }, 
-                    mb: 3,
-                    borderRadius: 3,
-                    background: (theme) => theme.palette.mode === 'dark' 
-                        ? 'linear-gradient(135deg, #1A1A1A 0%, #2D2D2D 100%)'
-                        : 'linear-gradient(135deg, #FFFFFF 0%, #F5F5F5 100%)',
-                    border: '1px solid',
-                    borderColor: 'divider',
+                    p: 2,
+                    borderRadius: 2,
                 }}
             >
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 2, sm: 4 }, flexDirection: { xs: 'column', sm: 'row' } }}>
-                    <Box sx={{ position: 'relative' }}>
+                {/* Avatar and Name Section */}
+                <Box sx={{ textAlign: 'center', mb: 3 }}>
+                    <Box sx={{ position: 'relative', display: 'inline-block' }}>
                         <Avatar
                             src={formData.image || undefined}
                             sx={{ 
-                                width: { xs: 100, sm: 120, md: 140 }, 
-                                height: { xs: 100, sm: 120, md: 140 },
-                                border: '4px solid',
-                                borderColor: 'primary.main',
-                                boxShadow: (theme) => `0 8px 24px ${alpha(theme.palette.primary.main, 0.3)}`,
-                                fontSize: '3rem',
-                                fontWeight: 700,
+                                width: 120, 
+                                height: 120,
+                                mx: 'auto',
+                                mb: 1.5,
+                                border: '3px solid',
+                                borderColor: 'background.paper',
+                                boxShadow: 3,
                             }}
                         >
-                            {profile.name?.[0]?.toUpperCase() || 'U'}
+                            {profile.name?.[0]?.toUpperCase() || profile.email[0]?.toUpperCase()}
                         </Avatar>
-                        <IconButton
-                            component="label"
-                            disabled={uploading}
-                            sx={{
-                                position: 'absolute',
-                                bottom: 0,
-                                right: 0,
-                                bgcolor: 'primary.main',
-                                color: 'white',
-                                width: 40,
-                                height: 40,
-                                '&:hover': {
-                                    bgcolor: 'primary.dark',
-                                    transform: 'scale(1.1)',
-                                },
-                                transition: 'all 0.2s',
-                                boxShadow: 3,
-                            }}
-                        >
-                            {uploading ? (
-                                <CircularProgress size={20} color="inherit" />
-                            ) : (
-                                <PhotoCameraIcon fontSize="small" />
-                            )}
-                            <input
-                                type="file"
-                                hidden
-                                accept="image/*"
-                                onChange={handleImageUpload}
+                        {editing && (
+                            <IconButton
+                                component="label"
                                 disabled={uploading}
-                            />
-                        </IconButton>
-                    </Box>
-
-                    <Box sx={{ flex: 1, textAlign: { xs: 'center', sm: 'left' } }}>
-                        <Typography variant="h4" fontWeight={700} gutterBottom sx={{ fontSize: { xs: '1.75rem', sm: '2rem', md: '2.25rem' } }}>
-                            {profile.name || 'No name set'}
-                        </Typography>
-                        <Typography variant="body1" color="text.secondary" gutterBottom sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>
-                            {profile.email}
-                        </Typography>
-                        <Box sx={{ display: 'flex', gap: 1, mt: 2, flexWrap: 'wrap', justifyContent: { xs: 'center', sm: 'flex-start' } }}>
-                            {(profile.roles || []).map((role: string) => (
-                                <Chip 
-                                    key={role}
-                                    label={role.replace(/_/g, ' ')} 
-                                    color={role === 'SUPERADMIN' ? 'error' : 'primary'}
-                                    size="medium"
-                                    sx={{ fontWeight: 600 }}
+                                sx={{
+                                    position: 'absolute',
+                                    bottom: 12,
+                                    right: -8,
+                                    bgcolor: 'primary.main',
+                                    color: 'white',
+                                    width: 32,
+                                    height: 32,
+                                    '&:hover': {
+                                        bgcolor: 'primary.dark',
+                                    },
+                                    boxShadow: 2,
+                                }}
+                                size="small"
+                            >
+                                {uploading ? (
+                                    <CircularProgress size={16} color="inherit" />
+                                ) : (
+                                    <PhotoCameraIcon fontSize="small" />
+                                )}
+                                <input
+                                    type="file"
+                                    hidden
+                                    accept="image/*"
+                                    onChange={handleImageUpload}
+                                    disabled={uploading}
                                 />
-                            ))}
-                        </Box>
+                            </IconButton>
+                        )}
                     </Box>
 
-                    {!editing && (
-                        <Button
-                            variant="contained"
-                            size="large"
-                            startIcon={<EditIcon />}
-                            onClick={() => setEditing(true)}
+                    {editing ? (
+                        <TextField
+                            fullWidth
+                            value={formData.name}
+                            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                            placeholder="Enter your name"
+                            variant="standard"
                             sx={{ 
-                                borderRadius: 2,
-                                px: 3,
-                                boxShadow: 3,
+                                maxWidth: 300,
+                                mx: 'auto',
+                                '& input': {
+                                    textAlign: 'center',
+                                    fontSize: '1.25rem',
+                                    fontWeight: 600,
+                                }
                             }}
-                        >
-                            Edit Profile
+                        />
+                    ) : (
+                        <Typography variant="h5" fontWeight={600} sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5 }}>
+                            {profile.name || 'No name set'}
+                            {profile.archived && (
+                                <Chip label="Archived" size="small" color="warning" />
+                            )}
+                        </Typography>
+                    )}
+                </Box>
+
+                {/* Role Assignments */}
+                {profile.userRoles && profile.userRoles.length > 0 && (
+                    <Box sx={{ mb: 2, textAlign: 'center' }}>
+                        {profile.userRoles.map((userRole: any, index: number) => (
+                            <Box key={userRole.id}>
+                                <Typography variant="body2" color="text.secondary">
+                                    {userRole.role.replace(/_/g, ' ').split(' ').map((w: string) => w.charAt(0) + w.slice(1).toLowerCase()).join(' ')}
+                                    {' : '}
+                                    <strong>{userRole.department.name}</strong>
+                                </Typography>
+                                {profile.userRoles && profile.userRoles.length > 1 && index < profile.userRoles.length - 1 && (
+                                    <Typography variant="body2" color="text.secondary">
+                                        {userRole.role.replace('_LEADER', '').replace('_ADMIN', '')} Admin : {userRole.department.level.replace(/_/g, ' ')}
+                                    </Typography>
+                                )}
+                            </Box>
+                        ))}
+                    </Box>
+                )}
+
+                {/* User Info Grid */}
+                <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 1.5, mb: 2 }}>
+                    {/* Full Name */}
+                    <Paper sx={{ p: 1.5, bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)' }}>
+                        <Typography variant="caption" color="text.secondary">
+                            Full Name
+                        </Typography>
+                        {editing ? (
+                            <TextField
+                                fullWidth
+                                value={formData.name}
+                                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                                variant="standard"
+                                placeholder="Enter your full name"
+                            />
+                        ) : (
+                            <Typography variant="body2" fontWeight={500}>
+                                {profile.name || '-'}
+                            </Typography>
+                        )}
+                    </Paper>
+
+                    {/* Phone Number */}
+                    <Paper sx={{ p: 1.5, bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)', gridColumn: 'span 2' }}>
+                        <Typography variant="caption" color="text.secondary" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                            Phone Number
+                            <PhoneIcon sx={{ fontSize: 14, color: '#60a5fa' }} />
+                        </Typography>
+                        {editing ? (
+                            <TextField
+                                fullWidth
+                                type="tel"
+                                value={formData.phone}
+                                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                                variant="standard"
+                                placeholder="Enter your phone number"
+                            />
+                        ) : (
+                            <Typography variant="body2" fontWeight={500}>
+                                {profile.phone || '-'}
+                            </Typography>
+                        )}
+                    </Paper>
+
+
+
+                    {/* Email Address */}
+                    <Paper sx={{ p: 1.5, bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)', gridColumn: 'span 2' }}>
+                        <Typography variant="caption" color="text.secondary">
+                            Email Address
+                        </Typography>
+                        {editing && session?.user?.role === 'SUPERADMIN' ? (
+                            <TextField
+                                fullWidth
+                                type="email"
+                                value={formData.email}
+                                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                                variant="standard"
+                            />
+                        ) : (
+                            <Typography variant="body2" fontWeight={500}>
+                                {profile.email}
+                            </Typography>
+                        )}
+                    </Paper>
+
+                    {/* Department */}
+                    {profile.department && (
+                        <Paper sx={{ p: 1.5, bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)', gridColumn: 'span 2' }}>
+                            <Typography variant="caption" color="text.secondary">
+                                Department
+                            </Typography>
+                            <Typography variant="body2" fontWeight={500}>
+                                {profile.department.name}
+                            </Typography>
+                        </Paper>
+                    )}
+                </Box>
+
+                {/* User History Section */}
+                <Box>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1.5 }}>
+                        <Typography variant="h6" fontWeight={600}>
+                            USER HISTORY
+                        </Typography>
+                        <Button size="small" sx={{ textTransform: 'uppercase', fontSize: '0.688rem' }}>
+                            View All
                         </Button>
+                    </Box>
+
+                    {profile.auditLogs && profile.auditLogs.length > 0 ? (
+                        <Stack spacing={1}>
+                            {profile.auditLogs.slice(0, 3).map((log) => (
+                                <Paper 
+                                    key={log.id}
+                                    sx={{ 
+                                        p: 1.5,
+                                        bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)',
+                                        borderLeft: '3px solid',
+                                        borderLeftColor: 'error.main',
+                                    }}
+                                >
+                                    <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
+                                        <Box 
+                                            sx={{ 
+                                                width: 8, 
+                                                height: 8, 
+                                                borderRadius: '50%', 
+                                                bgcolor: 'error.main',
+                                                mt: 0.75,
+                                                flexShrink: 0,
+                                            }} 
+                                        />
+                                        <Box sx={{ flex: 1 }}>
+                                            <Typography variant="body2" fontWeight={500}>
+                                                {log.description || log.actionType.replace(/_/g, ' ')}
+                                            </Typography>
+                                            <Typography variant="caption" color="text.secondary">
+                                                {formatDate(log.timestamp)}
+                                            </Typography>
+                                        </Box>
+                                    </Box>
+                                </Paper>
+                            ))}
+                        </Stack>
+                    ) : (
+                        <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', py: 2 }}>
+                            No user history available
+                        </Typography>
                     )}
                 </Box>
             </Paper>
-
-            {/* Profile Details */}
-            <Grid container spacing={3}>
-                {/* Personal Information */}
-                <Grid size={{ xs: 12, lg: 8 }}>
-                    <Card 
-                        elevation={0}
-                        sx={{ 
-                            borderRadius: 3,
-                            border: '1px solid',
-                            borderColor: 'divider',
-                            height: '100%',
-                        }}
-                    >
-                        <CardContent sx={{ p: { xs: 3, sm: 4 } }}>
-                            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4 }}>
-                                <Typography variant="h6" fontWeight={700}>
-                                    Personal Information
-                                </Typography>
-                                <PersonIcon color="primary" sx={{ fontSize: 28 }} />
-                            </Box>
-
-                            <Stack spacing={4}>
-                                <Box>
-                                    <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: 1, fontWeight: 600, mb: 1, display: 'block' }}>
-                                        Full Name
-                                    </Typography>
-                                    {editing ? (
-                                        <TextField
-                                            fullWidth
-                                            value={formData.name}
-                                            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                                            placeholder="Enter your name"
-                                            variant="outlined"
-                                            sx={{ 
-                                                '& .MuiOutlinedInput-root': {
-                                                    borderRadius: 2,
-                                                }
-                                            }}
-                                        />
-                                    ) : (
-                                        <Typography variant="h6" fontWeight={500}>
-                                            {profile.name || 'Not set'}
-                                        </Typography>
-                                    )}
-                                </Box>
-
-                                <Divider />
-
-                                <Box>
-                                    <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: 1, fontWeight: 600, mb: 1, display: 'block' }}>
-                                        Email Address
-                                    </Typography>
-                                    {editing && session?.user?.role === 'SUPERADMIN' ? (
-                                        <TextField
-                                            fullWidth
-                                            type="email"
-                                            value={formData.email}
-                                            onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                                            placeholder="Enter your email"
-                                            variant="outlined"
-                                            sx={{ 
-                                                '& .MuiOutlinedInput-root': {
-                                                    borderRadius: 2,
-                                                }
-                                            }}
-                                        />
-                                    ) : (
-                                        <>
-                                            <Typography variant="h6" fontWeight={500}>
-                                                {profile.email}
-                                            </Typography>
-                                            {session?.user?.role !== 'SUPERADMIN' && (
-                                                <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
-                                                    Contact admin to change email
-                                                </Typography>
-                                            )}
-                                        </>
-                                    )}
-                                </Box>
-
-                                <Divider />
-
-                                <Box>
-                                    <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: 1, fontWeight: 600, mb: 1, display: 'block' }}>
-                                        User Roles
-                                    </Typography>
-                                    <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                                        {(profile.roles || []).map((role: string) => (
-                                            <Chip 
-                                                key={role}
-                                                label={role.replace(/_/g, ' ')} 
-                                                size="medium"
-                                                color={role === 'SUPERADMIN' ? 'error' : 'default'}
-                                                variant="outlined"
-                                                sx={{ fontWeight: 600 }}
-                                            />
-                                        ))}
-                                    </Box>
-                                </Box>
-
-                                {profile.department && (
-                                    <>
-                                        <Divider />
-                                        <Box>
-                                            <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: 1, fontWeight: 600, mb: 1, display: 'block' }}>
-                                                Department
-                                            </Typography>
-                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                                                <BusinessIcon color="primary" />
-                                                <Box>
-                                                    <Typography variant="h6" fontWeight={500}>
-                                                        {profile.department.name}
-                                                    </Typography>
-                                                    <Typography variant="caption" color="text.secondary">
-                                                        {profile.department.level.replace(/_/g, ' ')}
-                                                    </Typography>
-                                                </Box>
-                                            </Box>
-                                        </Box>
-                                    </>
-                                )}
-                            </Stack>
-
-                            {editing && (
-                                <Box sx={{ mt: 4, display: 'flex', gap: 2, justifyContent: 'flex-end' }}>
-                                    <Button
-                                        variant="outlined"
-                                        size="large"
-                                        startIcon={<CancelIcon />}
-                                        onClick={handleCancel}
-                                        disabled={saving}
-                                        sx={{ borderRadius: 2, px: 3 }}
-                                    >
-                                        Cancel
-                                    </Button>
-                                    <Button
-                                        variant="contained"
-                                        size="large"
-                                        startIcon={<SaveIcon />}
-                                        onClick={() => handleSave()}
-                                        disabled={saving}
-                                        sx={{ borderRadius: 2, px: 3, boxShadow: 3 }}
-                                    >
-                                        {saving ? 'Saving...' : 'Save Changes'}
-                                    </Button>
-                                </Box>
-                            )}
-                        </CardContent>
-                    </Card>
-                </Grid>
-
-                {/* Account Information */}
-                <Grid size={{ xs: 12, lg: 4 }}>
-                    <Card 
-                        elevation={0}
-                        sx={{ 
-                            borderRadius: 3,
-                            border: '1px solid',
-                            borderColor: 'divider',
-                        }}
-                    >
-                        <CardContent sx={{ p: { xs: 3, sm: 4 } }}>
-                            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4 }}>
-                                <Typography variant="h6" fontWeight={700}>
-                                    Account Details
-                                </Typography>
-                                <CalendarTodayIcon color="primary" sx={{ fontSize: 28 }} />
-                            </Box>
-
-                            <Stack spacing={3}>
-                                <Box 
-                                    sx={{ 
-                                        p: 2.5, 
-                                        borderRadius: 2, 
-                                        bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)',
-                                        border: '1px solid',
-                                        borderColor: 'divider',
-                                    }}
-                                >
-                                    <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: 1, fontWeight: 600, mb: 1, display: 'block' }}>
-                                        Member Since
-                                    </Typography>
-                                    <Typography variant="body1" fontWeight={600}>
-                                        {formatDate(profile.createdAt)}
-                                    </Typography>
-                                </Box>
-
-                                <Box 
-                                    sx={{ 
-                                        p: 2.5, 
-                                        borderRadius: 2, 
-                                        bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)',
-                                        border: '1px solid',
-                                        borderColor: 'divider',
-                                    }}
-                                >
-                                    <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: 1, fontWeight: 600, mb: 1, display: 'block' }}>
-                                        Last Updated
-                                    </Typography>
-                                    <Typography variant="body1" fontWeight={600}>
-                                        {formatDate(profile.updatedAt)}
-                                    </Typography>
-                                </Box>
-                            </Stack>
-                        </CardContent>
-                    </Card>
-                </Grid>
-            </Grid>
         </Box>
     );
 }

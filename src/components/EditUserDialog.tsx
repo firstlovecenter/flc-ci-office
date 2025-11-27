@@ -45,8 +45,9 @@ interface EditUserDialogProps {
     open: boolean;
     onClose: () => void;
     user: any;
-    departments: any[];
-    onSave: () => void;
+    departments?: any[];
+    onSave?: () => void;
+    onSuccess?: () => void;
 }
 
 const USER_ROLES: UserRole[] = [
@@ -64,8 +65,9 @@ export default function EditUserDialog({
     open,
     onClose,
     user,
-    departments,
+    departments: departmentsProp,
     onSave,
+    onSuccess,
 }: EditUserDialogProps) {
     const { data: session } = useSession();
     const [title, setTitle] = useState('');
@@ -78,6 +80,7 @@ export default function EditUserDialog({
     const [error, setError] = useState('');
     const [saving, setSaving] = useState(false);
     const [assignableRoles, setAssignableRoles] = useState<string[]>([]);
+    const [departments, setDepartments] = useState<any[]>(departmentsProp || []);
 
     useEffect(() => {
         if (user) {
@@ -115,6 +118,24 @@ export default function EditUserDialog({
             setAssignableRoles(roles);
         }
     }, [session]);
+
+    useEffect(() => {
+        // Fetch departments if not provided
+        if (!departmentsProp && open) {
+            const fetchDepartments = async () => {
+                try {
+                    const response = await fetch('/api/departments?all=true');
+                    if (response.ok) {
+                        const data = await response.json();
+                        setDepartments(data);
+                    }
+                } catch (err) {
+                    console.error('Failed to fetch departments:', err);
+                }
+            };
+            fetchDepartments();
+        }
+    }, [departmentsProp, open]);
 
     const handleAddRoleDepartment = () => {
         if (!newRole) {
@@ -210,7 +231,8 @@ export default function EditUserDialog({
                 throw new Error(errorMessage);
             }
 
-            onSave();
+            if (onSave) onSave();
+            if (onSuccess) onSuccess();
             onClose();
         } catch (err: any) {
             setError(err.message || 'Error updating user');

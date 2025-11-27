@@ -16,11 +16,14 @@ export async function GET(req: NextRequest) {
             where: { id: session.user.id },
             select: {
                 id: true,
+                title: true,
                 name: true,
                 email: true,
+                phone: true,
                 image: true,
                 roles: true,
                 activeRole: true,
+                archived: true,
                 departmentId: true,
                 department: {
                     select: {
@@ -28,6 +31,30 @@ export async function GET(req: NextRequest) {
                         name: true,
                         level: true,
                     },
+                },
+                userRoles: {
+                    include: {
+                        department: {
+                            select: {
+                                id: true,
+                                name: true,
+                                level: true,
+                            },
+                        },
+                    },
+                },
+                auditLogs: {
+                    select: {
+                        id: true,
+                        actionType: true,
+                        description: true,
+                        timestamp: true,
+                        ipAddress: true,
+                    },
+                    orderBy: {
+                        timestamp: 'desc',
+                    },
+                    take: 50,
                 },
                 createdAt: true,
                 updatedAt: true,
@@ -54,7 +81,7 @@ export async function PATCH(req: NextRequest) {
         }
 
         const body = await req.json();
-        const { name, image, email } = body;
+        const { name, image, email, phone } = body;
 
         const isSuperAdmin = session.user.role === 'SUPERADMIN';
 
@@ -63,6 +90,9 @@ export async function PATCH(req: NextRequest) {
             name: name || undefined,
             image: image || undefined,
         };
+
+        // Users can update their phone number
+        if (phone) updateData.phone = phone;
 
         // Superadmins can update email (but not role)
         if (isSuperAdmin) {
@@ -76,6 +106,7 @@ export async function PATCH(req: NextRequest) {
                 id: true,
                 name: true,
                 email: true,
+                phone: true,
                 image: true,
                 roles: true,
                 activeRole: true,

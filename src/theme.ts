@@ -11,28 +11,63 @@ const roboto = Roboto({
 export const getDesignTokens = (mode: PaletteMode) => ({
     typography: {
         fontFamily: roboto.style.fontFamily,
+        fontSize: 13, // Reduced from default 14
+        h1: {
+            fontSize: '2rem', // 32px (was ~96px)
+            fontWeight: 600,
+        },
+        h2: {
+            fontSize: '1.75rem', // 28px (was ~60px)
+            fontWeight: 600,
+        },
+        h3: {
+            fontSize: '1.5rem', // 24px (was ~48px)
+            fontWeight: 600,
+        },
+        h4: {
+            fontSize: '1.25rem', // 20px (was ~34px)
+            fontWeight: 600,
+        },
+        h5: {
+            fontSize: '1.125rem', // 18px (was ~24px)
+            fontWeight: 600,
+        },
+        h6: {
+            fontSize: '1rem', // 16px (was ~20px)
+            fontWeight: 600,
+        },
+        body1: {
+            fontSize: '0.875rem', // 14px (was ~16px)
+        },
+        body2: {
+            fontSize: '0.813rem', // 13px (was ~14px)
+        },
+        button: {
+            fontSize: '0.813rem', // 13px
+            fontWeight: 600,
+        },
     },
     palette: {
         mode,
         primary: {
-            main: mode === 'dark' ? '#7F1D1D' : '#991B1B', // Much darker red
+            main: mode === 'dark' ? '#7F1D1D' : '#991B1B',
             light: mode === 'dark' ? '#991B1B' : '#B91C1C',
             dark: mode === 'dark' ? '#5A0F0F' : '#450A0A',
         },
         secondary: {
-            main: mode === 'dark' ? '#F59E0B' : '#D97706', // Amber/Gold accent
+            main: mode === 'dark' ? '#F59E0B' : '#D97706',
             light: mode === 'dark' ? '#FBBF24' : '#F59E0B',
             dark: mode === 'dark' ? '#B45309' : '#92400E',
         },
         background: {
-            default: mode === 'dark' ? '#0F0F0F' : '#F5F5F5',
-            paper: mode === 'dark' ? '#1A1A1A' : '#FFFFFF',
+            default: mode === 'dark' ? '#1e293b' : '#f0f4f8', // Slate-800 : Slate-100
+            paper: mode === 'dark' ? '#334155' : '#ffffff', // Slate-700 : White
         },
         text: {
-            primary: mode === 'dark' ? '#F5F5F5' : '#1A1A1A',
-            secondary: mode === 'dark' ? '#A3A3A3' : '#6B7280',
+            primary: mode === 'dark' ? '#f1f5f9' : '#0f172a', // Slate-100 : Slate-900
+            secondary: mode === 'dark' ? '#cbd5e1' : '#475569', // Slate-300 : Slate-600
         },
-        divider: mode === 'dark' ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.08)',
+        divider: mode === 'dark' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.06)',
         success: {
             main: '#10B981',
             light: '#34D399',
@@ -56,6 +91,12 @@ export const getDesignTokens = (mode: PaletteMode) => ({
             light: '#60A5FA',
             dark: '#2563EB',
             contrastText: '#FFFFFF',
+        },
+        action: {
+            hover: mode === 'dark' ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)',
+            selected: mode === 'dark' ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.08)',
+            disabled: mode === 'dark' ? 'rgba(255, 255, 255, 0.3)' : 'rgba(0, 0, 0, 0.26)',
+            disabledBackground: mode === 'dark' ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.12)',
         },
     },
     components: {
@@ -81,30 +122,30 @@ export const getDesignTokens = (mode: PaletteMode) => ({
         MuiPaper: {
             styleOverrides: {
                 root: {
-                    borderRadius: 16,
+                    borderRadius: 12,
                     backgroundImage: 'none',
-                    backgroundColor: mode === 'dark' ? '#1A1A1A' : '#FFFFFF',
+                    backgroundColor: mode === 'dark' ? '#334155' : '#ffffff', // Slate-700 : White
                     border: mode === 'dark'
                         ? '1px solid rgba(255, 255, 255, 0.1)'
-                        : '1px solid rgba(0, 0, 0, 0.08)',
+                        : '1px solid rgba(0, 0, 0, 0.06)',
                     boxShadow: mode === 'dark'
-                        ? '0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.2)'
-                        : '0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06)',
+                        ? '0 2px 4px -1px rgba(0, 0, 0, 0.3)'
+                        : '0 1px 3px 0 rgba(0, 0, 0, 0.1)',
                 },
             },
         },
         MuiCard: {
             styleOverrides: {
                 root: {
-                    borderRadius: 16,
+                    borderRadius: 12,
                     backgroundImage: 'none',
-                    backgroundColor: mode === 'dark' ? '#1A1A1A' : '#FFFFFF',
+                    backgroundColor: mode === 'dark' ? '#334155' : '#ffffff', // Slate-700 : White
                     border: mode === 'dark'
                         ? '1px solid rgba(255, 255, 255, 0.1)'
-                        : '1px solid rgba(0, 0, 0, 0.08)',
+                        : '1px solid rgba(0, 0, 0, 0.06)',
                     boxShadow: mode === 'dark'
-                        ? '0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.2)'
-                        : '0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06)',
+                        ? '0 2px 4px -1px rgba(0, 0, 0, 0.3)'
+                        : '0 1px 3px 0 rgba(0, 0, 0, 0.1)',
                 },
             },
         },
@@ -112,8 +153,14 @@ export const getDesignTokens = (mode: PaletteMode) => ({
             styleOverrides: {
                 root: {
                     '& .MuiOutlinedInput-root': {
-                        borderRadius: 12,
-                        backgroundColor: mode === 'dark' ? 'rgba(255, 255, 255, 0.05)' : '#F9FAFB',
+                        borderRadius: 8,
+                        backgroundColor: mode === 'dark' ? 'rgba(255, 255, 255, 0.05)' : '#f8fafc',
+                        '& fieldset': {
+                            borderColor: mode === 'dark' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)',
+                        },
+                        '&:hover fieldset': {
+                            borderColor: mode === 'dark' ? 'rgba(255, 255, 255, 0.2)' : 'rgba(0, 0, 0, 0.2)',
+                        },
                     },
                 },
             },
@@ -122,7 +169,50 @@ export const getDesignTokens = (mode: PaletteMode) => ({
             styleOverrides: {
                 root: {
                     borderRadius: 12,
-                    backgroundColor: mode === 'dark' ? '#1A1A1A' : '#FFFFFF',
+                    backgroundColor: mode === 'dark' ? '#334155' : '#ffffff',
+                    border: mode === 'dark'
+                        ? '1px solid rgba(255, 255, 255, 0.1)'
+                        : '1px solid rgba(0, 0, 0, 0.06)',
+                },
+            },
+        },
+        MuiTableHead: {
+            styleOverrides: {
+                root: {
+                    backgroundColor: mode === 'dark' ? 'rgba(0, 0, 0, 0.2)' : 'rgba(0, 0, 0, 0.02)',
+                },
+            },
+        },
+        MuiTableRow: {
+            styleOverrides: {
+                root: {
+                    '&:hover': {
+                        backgroundColor: mode === 'dark' ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.02)',
+                    },
+                },
+            },
+        },
+        MuiDialog: {
+            styleOverrides: {
+                paper: {
+                    backgroundColor: mode === 'dark' ? '#334155' : '#ffffff',
+                    backgroundImage: 'none',
+                },
+            },
+        },
+        MuiAppBar: {
+            styleOverrides: {
+                root: {
+                    backgroundColor: mode === 'dark' ? '#334155' : '#ffffff',
+                    backgroundImage: 'none',
+                },
+            },
+        },
+        MuiDrawer: {
+            styleOverrides: {
+                paper: {
+                    backgroundColor: mode === 'dark' ? '#334155' : '#ffffff',
+                    backgroundImage: 'none',
                 },
             },
         },
