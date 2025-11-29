@@ -6,6 +6,237 @@ datasource db {
   provider = "postgresql"
 }
 
+model Department {
+  id                     String                  @id @default(cuid())
+  name                   String
+  level                  DepartmentLevel
+  parentId               String?
+  createdAt              DateTime                @default(now())
+  updatedAt              DateTime                @updatedAt
+  parent                 Department?             @relation("DepartmentHierarchy", fields: [parentId], references: [id])
+  children               Department[]            @relation("DepartmentHierarchy")
+  departmentBaseCurrency DepartmentBaseCurrency?
+  transactions           Transaction[]
+  users                  User[]
+  userRoles              UserRole[]
+
+  @@index([parentId])
+  @@index([level])
+}
+
+model UserRole {
+  id           String     @id @default(cuid())
+  userId       String
+  role         Role
+  departmentId String
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  activeUsers  User[]     @relation("ActiveUserRole")
+  department   Department @relation(fields: [departmentId], references: [id])
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, role, departmentId])
+  @@index([userId])
+  @@index([departmentId])
+  @@index([role])
+}
+
+model User {
+  id                          String                   @id @default(cuid())
+  name                        String?
+  email                       String                   @unique
+  password                    String?
+  image                       String?
+  departmentId                String?
+  createdAt                   DateTime                 @default(now())
+  updatedAt                   DateTime                 @updatedAt
+  archived                    Boolean                  @default(false)
+  baseCurrencyId              String?
+  activeRole                  Role?
+  roles                       Role[]
+  activeUserRoleId            String?
+  title                       String?
+  phone                       String                   @unique
+  auditLogs                   AuditLog[]
+  departmentBaseCurrenciesSet DepartmentBaseCurrency[]
+  passwordResets              PasswordReset[]
+  pushSubscriptions           PushSubscription[]
+  transactions                Transaction[]
+  activeUserRole              UserRole?                @relation("ActiveUserRole", fields: [activeUserRoleId], references: [id])
+  baseCurrency                Currency?                @relation(fields: [baseCurrencyId], references: [id])
+  department                  Department?              @relation(fields: [departmentId], references: [id])
+  userRoles                   UserRole[]
+
+  @@index([archived])
+  @@index([baseCurrencyId])
+  @@index([activeUserRoleId])
+}
+
+model Transaction {
+  id              String            @id @default(cuid())
+  departmentId    String
+  userId          String
+  type            TransactionType
+  amount          Decimal
+  description     String
+  weekNumber      Int
+  year            Int
+  locked          Boolean           @default(false)
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  approvedAt      DateTime?
+  approvedBy      String?
+  status          TransactionStatus @default(PENDING)
+  amountInBase    Decimal?
+  currencyId      String?
+  exchangeRate    Decimal?
+  rejectedAt      DateTime?
+  rejectedBy      String?
+  rejectionReason String?
+  files           File[]
+  currency        Currency?         @relation(fields: [currencyId], references: [id])
+  department      Department        @relation(fields: [departmentId], references: [id])
+  user            User              @relation(fields: [userId], references: [id])
+
+  @@index([departmentId])
+  @@index([userId])
+  @@index([status])
+  @@index([type])
+  @@index([createdAt])
+  @@index([departmentId, status, type])
+  @@index([currencyId])
+}
+
+model File {
+  id            String      @id @default(cuid())
+  transactionId String
+  fileName      String
+  fileUrl       String
+  fileMime      String
+  uploadedBy    String
+  uploadedAt    DateTime    @default(now())
+  transaction   Transaction @relation(fields: [transactionId], references: [id])
+}
+
+model AuditLog {
+  id           String        @id @default(cuid())
+  userId       String
+  actionType   ActionType
+  entityType   String
+  entityId     String
+  beforeData   Json?
+  afterData    Json?
+  timestamp    DateTime      @default(now())
+  ipAddress    String?
+  changes      Json?
+  description  String        @default("")
+  errorMessage String?
+  metadata     Json?
+  severity     AuditSeverity @default(LOW)
+  success      Boolean       @default(true)
+  userAgent    String?
+  user         User          @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([entityType, entityId])
+  @@index([actionType])
+  @@index([timestamp])
+  @@index([severity])
+}
+
+model PushSubscription {
+  id           String   @id @default(cuid())
+  userId       String
+  endpoint     String
+  subscription Json
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  user         User     @relation(fields: [userId], references: [id])
+
+  @@unique([userId, endpoint])
+  @@index([userId])
+}
+
+model Currency {
+  id                       String                   @id @default(cuid())
+  code                     String                   @unique
+  name                     String
+  symbol                   String
+  isBase                   Boolean                  @default(false)
+  isActive                 Boolean                  @default(true)
+  createdAt                DateTime                 @default(now())
+  updatedAt                DateTime                 @updatedAt
+  departmentBaseCurrencies DepartmentBaseCurrency[]
+  exchangeRates            ExchangeRate[]           @relation("FromCurrency")
+  reverseRates             ExchangeRate[]           @relation("ToCurrency")
+  transactions             Transaction[]
+  users                    User[]
+
+  @@index([code])
+  @@index([isActive])
+}
+
+model ExchangeRate {
+  id             String   @id @default(cuid())
+  fromCurrencyId String
+  toCurrencyId   String
+  rate           Decimal
+  effectiveDate  DateTime @default(now())
+  createdBy      String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  fromCurrency   Currency @relation("FromCurrency", fields: [fromCurrencyId], references: [id])
+  toCurrency     Currency @relation("ToCurrency", fields: [toCurrencyId], references: [id])
+
+  @@unique([fromCurrencyId, toCurrencyId])
+  @@index([fromCurrencyId])
+  @@index([toCurrencyId])
+  @@index([effectiveDate])
+}
+
+model DepartmentBaseCurrency {
+  id           String     @id @default(cuid())
+  departmentId String     @unique
+  currencyId   String
+  setBy        String
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  currency     Currency   @relation(fields: [currencyId], references: [id])
+  department   Department @relation(fields: [departmentId], references: [id])
+  setByUser    User       @relation(fields: [setBy], references: [id])
+
+  @@index([departmentId])
+  @@index([currencyId])
+}
+
+model PasswordReset {
+  id        String    @id @default(cuid())
+  userId    String
+  token     String    @unique
+  expiresAt DateTime
+  used      Boolean   @default(false)
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([token])
+  @@index([expiresAt])
+}
+
+model SmsTemplate {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  name        String
+  description String?
+  template    String
+  variables   String[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([key])
+}
+
 enum DepartmentLevel {
   GLOBAL
   INTERNATIONAL
@@ -48,10 +279,10 @@ enum ActionType {
   UPDATE
   DELETE
   LOGIN
-  LOGOUT
   ROLE_CHANGE
   LOCK_OVERRIDE
   FILE_UPLOAD
+  LOGOUT
   APPROVE
   REJECT
   ARCHIVE
@@ -65,235 +296,4 @@ enum AuditSeverity {
   MEDIUM
   HIGH
   CRITICAL
-}
-
-model Department {
-  id        String          @id @default(cuid())
-  name      String
-  level     DepartmentLevel
-  parentId  String?
-  parent    Department?     @relation("DepartmentHierarchy", fields: [parentId], references: [id])
-  children  Department[]    @relation("DepartmentHierarchy")
-  users     User[]
-  userRoles UserRole[]
-  transactions Transaction[]
-  departmentBaseCurrency DepartmentBaseCurrency?
-  createdAt DateTime        @default(now())
-  updatedAt DateTime        @updatedAt
-
-  @@index([parentId])
-  @@index([level])
-}
-
-model UserRole {
-  id           String      @id @default(cuid())
-  userId       String
-  user         User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  role         Role
-  departmentId String
-  department   Department  @relation(fields: [departmentId], references: [id])
-  activeUsers  User[]      @relation("ActiveUserRole")
-  createdAt    DateTime    @default(now())
-  updatedAt    DateTime    @updatedAt
-
-  @@unique([userId, role, departmentId])
-  @@index([userId])
-  @@index([departmentId])
-  @@index([role])
-}
-
-model User {
-  id               String             @id @default(cuid())
-  title            String?            // e.g., Rev., Dr., Pastor, etc.
-  name             String?
-  email            String             @unique
-  phone            String             @unique // Phone number for SMS notifications (required)
-  password         String?
-  image            String?
-  roles            Role[]             // Deprecated: keeping for backward compatibility, no default
-  activeRole       Role?              // Deprecated: keeping for backward compatibility
-  departmentId     String?            // Deprecated: keeping for backward compatibility
-  department       Department?        @relation(fields: [departmentId], references: [id])
-  baseCurrencyId   String?
-  baseCurrency     Currency?          @relation(fields: [baseCurrencyId], references: [id])
-  archived         Boolean            @default(false)
-  transactions     Transaction[]
-  auditLogs        AuditLog[]
-  pushSubscriptions PushSubscription[]
-  departmentBaseCurrenciesSet DepartmentBaseCurrency[]
-  userRoles        UserRole[]         // New: role-department assignments
-  activeUserRoleId String?            // New: tracks which role-department combo is active
-  activeUserRole   UserRole?          @relation("ActiveUserRole", fields: [activeUserRoleId], references: [id])
-  passwordResets   PasswordReset[]
-  createdAt        DateTime           @default(now())
-  updatedAt        DateTime           @updatedAt
-
-  @@index([archived])
-  @@index([baseCurrencyId])
-  @@index([activeUserRoleId])
-}
-
-model Transaction {
-  id            String            @id @default(cuid())
-  departmentId  String
-  department    Department        @relation(fields: [departmentId], references: [id])
-  userId        String
-  user          User              @relation(fields: [userId], references: [id])
-  type          TransactionType
-  amount        Decimal
-  currencyId    String?
-  currency      Currency?         @relation(fields: [currencyId], references: [id])
-  exchangeRate  Decimal?
-  amountInBase  Decimal?
-  description   String
-  status        TransactionStatus @default(PENDING)
-  approvedBy    String?
-  approvedAt    DateTime?
-  rejectedBy    String?
-  rejectedAt    DateTime?
-  rejectionReason String?
-  weekNumber    Int
-  year          Int
-  locked        Boolean           @default(false)
-  files         File[]
-  createdAt     DateTime          @default(now())
-  updatedAt     DateTime          @updatedAt
-
-  @@index([departmentId])
-  @@index([userId])
-  @@index([status])
-  @@index([type])
-  @@index([createdAt])
-  @@index([departmentId, status, type])
-  @@index([currencyId])
-}
-
-model File {
-  id            String      @id @default(cuid())
-  transactionId String
-  transaction   Transaction @relation(fields: [transactionId], references: [id])
-  fileName      String
-  fileUrl       String
-  fileMime      String
-  uploadedBy    String
-  uploadedAt    DateTime    @default(now())
-}
-
-model AuditLog {
-  id            String         @id @default(cuid())
-  userId        String
-  user          User           @relation(fields: [userId], references: [id])
-  actionType    ActionType
-  entityType    String
-  entityId      String
-  description   String         @default("") // Human-readable description of the action
-  beforeData    Json?
-  afterData     Json?
-  changes       Json?          // Detailed field-by-field changes
-  metadata      Json?          // Additional context (e.g., department, role, permissions)
-  timestamp     DateTime       @default(now())
-  ipAddress     String?
-  userAgent     String?        // Browser/client information
-  severity      AuditSeverity  @default(LOW)
-  success       Boolean        @default(true)
-  errorMessage  String?        // If action failed
-
-  @@index([userId])
-  @@index([entityType, entityId])
-  @@index([actionType])
-  @@index([timestamp])
-  @@index([severity])
-}
-
-model PushSubscription {
-  id           String   @id @default(cuid())
-  userId       String
-  user         User     @relation(fields: [userId], references: [id])
-  endpoint     String
-  subscription Json
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-
-  @@unique([userId, endpoint])
-  @@index([userId])
-}
-
-model Currency {
-  id           String        @id @default(cuid())
-  code         String        @unique
-  name         String
-  symbol       String
-  isBase       Boolean       @default(false)
-  isActive     Boolean       @default(true)
-  transactions Transaction[]
-  exchangeRates ExchangeRate[] @relation("FromCurrency")
-  reverseRates  ExchangeRate[] @relation("ToCurrency")
-  users        User[]
-  departmentBaseCurrencies DepartmentBaseCurrency[]
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
-
-  @@index([code])
-  @@index([isActive])
-}
-
-model ExchangeRate {
-  id           String   @id @default(cuid())
-  fromCurrencyId String
-  fromCurrency Currency @relation("FromCurrency", fields: [fromCurrencyId], references: [id])
-  toCurrencyId String
-  toCurrency   Currency @relation("ToCurrency", fields: [toCurrencyId], references: [id])
-  rate         Decimal
-  effectiveDate DateTime @default(now())
-  createdBy    String
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-
-  @@unique([fromCurrencyId, toCurrencyId])
-  @@index([fromCurrencyId])
-  @@index([toCurrencyId])
-  @@index([effectiveDate])
-}
-
-model DepartmentBaseCurrency {
-  id           String     @id @default(cuid())
-  departmentId String     @unique
-  department   Department @relation(fields: [departmentId], references: [id])
-  currencyId   String
-  currency     Currency   @relation(fields: [currencyId], references: [id])
-  setBy        String
-  setByUser    User       @relation(fields: [setBy], references: [id])
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt
-
-  @@index([departmentId])
-  @@index([currencyId])
-}
-
-model PasswordReset {
-  id        String   @id @default(cuid())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  token     String   @unique
-  expiresAt DateTime
-  used      Boolean  @default(false)
-  usedAt    DateTime?
-  createdAt DateTime @default(now())
-
-  @@index([userId])
-  @@index([token])
-  @@index([expiresAt])
-}
-
-model SmsTemplate {
-  id          String   @id @default(cuid())
-  key         String   @unique
-  name        String
-  description String?
-  template    String
-  variables   String[] // Array of variable names like ["userName", "resetLink"]
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  @@index([key])
 }

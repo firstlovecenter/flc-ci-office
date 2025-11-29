@@ -163,30 +163,43 @@ export default function DashboardPage() {
         );
     }
 
+    // Calculate color for Account Balance based on value
+    const getBalanceColor = (balance: number) => {
+        if (balance < 0) return theme.palette.error.main;
+        if (balance === 0) return theme.palette.warning.main;
+        if (balance < 5000) {
+            // Transition from green to yellow as balance approaches 0
+            const ratio = balance / 5000; // 0 to 1
+            // Mix success.main with warning.main based on ratio
+            return `rgba(76, 175, 80, ${ratio})`; // Green with decreasing opacity
+        }
+        return theme.palette.success.main;
+    };
+
     const statCards = [
         {
-            title: 'Total Income',
+            title: 'Account Balance',
+            amount: stats.balance,
+            icon: AccountBalanceWalletIcon,
+            color: 'white',
+            bgColor: getBalanceColor(stats.balance),
+            trend: stats.balance >= 0 ? '+4.3%' : '-4.3%'
+        },
+        {
+            title: 'Total Inflows',
             amount: stats.income,
             icon: TrendingUpIcon,
-            color: theme.palette.success.dark,
-            bgColor: `${theme.palette.success.dark}1A`, // 10% opacity
+            color: 'white',
+            bgColor: theme.palette.success.main,
             trend: '+12.5%'
         },
         {
             title: 'Total Expenses',
             amount: stats.expense,
             icon: TrendingDownIcon,
-            color: theme.palette.error.dark,
-            bgColor: `${theme.palette.error.dark}1A`, // 10% opacity
+            color: 'white',
+            bgColor: theme.palette.error.light,
             trend: '-8.2%'
-        },
-        {
-            title: 'Net Balance',
-            amount: stats.balance,
-            icon: AccountBalanceWalletIcon,
-            color: stats.balance >= 0 ? theme.palette.primary.dark : theme.palette.warning.dark,
-            bgColor: stats.balance >= 0 ? `${theme.palette.primary.dark}1A` : `${theme.palette.warning.dark}1A`, // 10% opacity
-            trend: stats.balance >= 0 ? '+4.3%' : '-4.3%'
         }
     ];
 
@@ -342,10 +355,17 @@ export default function DashboardPage() {
                                     sx={{
                                         p: { xs: 1.5, sm: 3, md: 4 },
                                         borderRadius: { xs: 1.5, sm: 2 },
-                                        bgcolor: 'background.paper',
-                                        border: '1px solid',
-                                        borderColor: 'divider',
+                                        bgcolor: card.bgColor,
+                                        border: '2px solid',
+                                        borderColor: card.bgColor,
                                         transition: 'all 0.2s ease-in-out',
+                                        '@keyframes blink': {
+                                            '0%, 100%': { opacity: 1 },
+                                            '50%': { opacity: 0.3 }
+                                        },
+                                        animation: card.title === 'Account Balance' && stats.balance < 5000 
+                                            ? 'blink 1s ease-in-out infinite' 
+                                            : 'none',
                                         '&:hover': {
                                             borderColor: card.color,
                                             transform: { xs: 'none', sm: 'translateY(-2px)' },
@@ -355,7 +375,12 @@ export default function DashboardPage() {
                                 >
                                     <Stack spacing={{ xs: 1, sm: 2 }}>
                                         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                            <Typography variant="body2" color="text.secondary" fontWeight="500" sx={{ fontSize: { xs: '0.7rem', sm: '0.875rem' } }}>
+                                            <Typography 
+                                                variant="body2" 
+                                                color="white" 
+                                                fontWeight="500" 
+                                                sx={{ fontSize: { xs: '0.7rem', sm: '0.875rem' }, opacity: 0.9 }}
+                                            >
                                                 {card.title}
                                             </Typography>
                                             <Box
@@ -363,26 +388,26 @@ export default function DashboardPage() {
                                                     width: { xs: 32, sm: 40 },
                                                     height: { xs: 32, sm: 40 },
                                                     borderRadius: { xs: 1.5, sm: 2 },
-                                                    bgcolor: card.bgColor,
+                                                    bgcolor: 'rgba(255, 255, 255, 0.2)',
                                                     display: 'flex',
                                                     alignItems: 'center',
                                                     justifyContent: 'center'
                                                 }}
                                             >
-                                                <Icon sx={{ fontSize: { xs: 16, sm: 20 }, color: card.color }} />
+                                                <Icon sx={{ fontSize: { xs: 16, sm: 20 }, color: 'white' }} />
                                             </Box>
                                         </Box>
                                         <Typography 
                                             variant="h4" 
                                             fontWeight="700" 
                                             sx={{ 
-                                                color: 'text.primary',
+                                                color: 'white',
                                                 fontSize: { xs: '1.25rem', sm: '1.75rem', md: '2.125rem' }
                                             }}
                                         >
                                             {baseCurrency ? formatCurrency(card.amount, baseCurrency.code, baseCurrency.symbol) : formatCurrency(card.amount)}
                                         </Typography>
-                                        <Typography variant="caption" sx={{ color: card.color, fontWeight: 600, fontSize: { xs: '0.65rem', sm: '0.75rem' } }}>
+                                        <Typography variant="caption" sx={{ color: 'white', opacity: 0.8, fontWeight: 600, fontSize: { xs: '0.65rem', sm: '0.75rem' } }}>
                                             {card.trend} from last month
                                         </Typography>
                                     </Stack>

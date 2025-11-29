@@ -26,7 +26,6 @@ import {
     CardContent,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
-import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import SearchIcon from '@mui/icons-material/Search';
 import FilterListIcon from '@mui/icons-material/FilterList';
@@ -35,10 +34,11 @@ import LockIcon from '@mui/icons-material/Lock';
 import LockOpenIcon from '@mui/icons-material/LockOpen';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import CancelIcon from '@mui/icons-material/Cancel';
+import EditNoteIcon from '@mui/icons-material/EditNote';
 import Link from 'next/link';
 import { formatCurrency } from '@/lib/utils';
 import { useSession } from 'next-auth/react';
-import EditTransactionDialog from '@/components/EditTransactionDialog';
+import CorrectTransactionDialog from '@/components/CorrectTransactionDialog';
 
 type Transaction = {
     id: string;
@@ -50,10 +50,10 @@ type Transaction = {
     departmentId: string;
     createdBy: string;
     weekLocked: boolean;
-    status: 'PENDING' | 'APPROVED' | 'REJECTED';
+    status: 'PENDING' | 'APPROVED' | 'DECLINED';
     approvedBy: string | null;
     approvedAt: Date | null;
-    rejectedReason: string | null;
+    declineReason: string | null;
     createdAt: Date;
     updatedAt: Date;
 };
@@ -96,7 +96,7 @@ function TransactionsPageContent() {
     const [typeFilter, setTypeFilter] = useState('ALL');
     const [statusFilter, setStatusFilter] = useState('ALL');
     const [approvalFilter, setApprovalFilter] = useState('ALL'); // NEW: Filter by approval status
-    const [editDialog, setEditDialog] = useState<{ open: boolean; transaction: any }>({
+    const [correctDialog, setCorrectDialog] = useState<{ open: boolean; transaction: any }>({
         open: false,
         transaction: null,
     });
@@ -107,6 +107,7 @@ function TransactionsPageContent() {
 
     const isSuperAdmin = session?.user?.role === 'SUPERADMIN';
     const isAdmin = session?.user?.role && ['SUPERADMIN', 'GLOBAL_ADMIN', 'INTERNATIONAL_ADMIN', 'NATIONAL_ADMIN', 'REGIONAL_ADMIN', 'CAMPUS_ADMIN'].includes(session.user.role);
+    const isLeader = session?.user?.role?.includes('LEADER') || false;
     const canSelectBaseCurrency = session?.user?.role === 'NATIONAL_ADMIN';
 
     useEffect(() => {
@@ -276,62 +277,22 @@ function TransactionsPageContent() {
             filtered = filtered.filter((tx) => !tx.weekLocked);
         }
 
+        // Sort by date (newest first)
+        filtered.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
         setFilteredTransactions(filtered);
     };
 
-    const handleEdit = (transaction: TransactionWithDetails) => {
-        setEditDialog({ open: true, transaction });
+    const handleCorrect = (transaction: any) => {
+        setCorrectDialog({ open: true, transaction });
     };
 
-    const handleCloseEdit = () => {
-        setEditDialog({ open: false, transaction: null });
+    const handleCloseCorrect = () => {
+        setCorrectDialog({ open: false, transaction: null });
     };
 
-    const handleSaveEdit = () => {
+    const handleSaveCorrect = () => {
         fetchTransactions();
-    };
-
-    const handleApprove = async (id: string) => {
-        if (!confirm('Approve this transaction?')) return;
-
-        try {
-            const response = await fetch(`/api/transactions/${id}/approve`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'approve' }),
-            });
-
-            if (response.ok) {
-                fetchTransactions();
-            } else {
-                const data = await response.json();
-                alert(data.error || 'Failed to approve transaction');
-            }
-        } catch (error) {
-            alert('Error approving transaction');
-        }
-    };
-
-    const handleReject = async (id: string) => {
-        const reason = prompt('Reason for rejection:');
-        if (!reason) return;
-
-        try {
-            const response = await fetch(`/api/transactions/${id}/approve`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'reject', reason }),
-            });
-
-            if (response.ok) {
-                fetchTransactions();
-            } else {
-                const data = await response.json();
-                alert(data.error || 'Failed to reject transaction');
-            }
-        } catch (error) {
-            alert('Error rejecting transaction');
-        }
     };
 
     const handleDelete = async (id: string, description: string) => {
@@ -391,40 +352,64 @@ function TransactionsPageContent() {
                             boxShadow: 3,
                         }}
                     >
-                        New Transaction
+                        {isLeader ? 'Request Expense' : 'New Transaction'}
                     </Button>
                 </Link>
             </Box>
 
             {/* Summary Cards */}
             <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr 1fr' }, gap: 2, mb: 4 }}>
-                <Card elevation={0} sx={{ border: '1px solid', borderColor: 'divider' }}>
+                <Card 
+                    elevation={0} 
+                    sx={{ 
+                        border: '2px solid', 
+                        borderColor: (() => {
+                            const balance = totalIncome - totalExpense;
+                            if (balance < 0) return 'error.main';
+                            if (balance === 0) return 'warning.main';
+                            if (balance < 5000) return `rgba(76, 175, 80, ${balance / 5000})`;
+                            return 'success.main';
+                        })(),
+                        bgcolor: (() => {
+                            const balance = totalIncome - totalExpense;
+                            if (balance < 0) return 'error.main';
+                            if (balance === 0) return 'warning.main';
+                            if (balance < 5000) return `rgba(76, 175, 80, ${balance / 5000})`;
+                            return 'success.main';
+                        })(),
+                        '@keyframes blink': {
+                            '0%, 100%': { opacity: 1 },
+                            '50%': { opacity: 0.3 }
+                        },
+                        animation: totalIncome - totalExpense < 5000 ? 'blink 1s ease-in-out infinite' : 'none'
+                    }}
+                >
                     <CardContent>
-                        <Typography variant="body2" color="text.secondary" gutterBottom>
-                            Total Income
+                        <Typography variant="body2" color="white" gutterBottom sx={{ opacity: 0.9 }}>
+                            Account Balance
                         </Typography>
-                        <Typography variant="h5" fontWeight="700" color="success.main">
+                        <Typography variant="h5" fontWeight="700" color="white">
+                            {baseCurrency ? formatCurrency(totalIncome - totalExpense, baseCurrency.code, baseCurrency.symbol) : formatCurrency(totalIncome - totalExpense)}
+                        </Typography>
+                    </CardContent>
+                </Card>
+                <Card elevation={0} sx={{ border: '2px solid', borderColor: 'success.main', bgcolor: 'success.main' }}>
+                    <CardContent>
+                        <Typography variant="body2" color="white" gutterBottom sx={{ opacity: 0.9 }}>
+                            Total Inflows
+                        </Typography>
+                        <Typography variant="h5" fontWeight="700" color="white">
                             {baseCurrency ? formatCurrency(totalIncome, baseCurrency.code, baseCurrency.symbol) : formatCurrency(totalIncome)}
                         </Typography>
                     </CardContent>
                 </Card>
-                <Card elevation={0} sx={{ border: '1px solid', borderColor: 'divider' }}>
+                <Card elevation={0} sx={{ border: '2px solid', borderColor: 'error.light', bgcolor: 'error.light' }}>
                     <CardContent>
-                        <Typography variant="body2" color="text.secondary" gutterBottom>
+                        <Typography variant="body2" color="white" gutterBottom sx={{ opacity: 0.9 }}>
                             Total Expense
                         </Typography>
-                        <Typography variant="h5" fontWeight="700" color="error.main">
+                        <Typography variant="h5" fontWeight="700" color="white">
                             {baseCurrency ? formatCurrency(totalExpense, baseCurrency.code, baseCurrency.symbol) : formatCurrency(totalExpense)}
-                        </Typography>
-                    </CardContent>
-                </Card>
-                <Card elevation={0} sx={{ border: '1px solid', borderColor: 'divider' }}>
-                    <CardContent>
-                        <Typography variant="body2" color="text.secondary" gutterBottom>
-                            Net Balance
-                        </Typography>
-                        <Typography variant="h5" fontWeight="700" color={totalIncome - totalExpense >= 0 ? 'success.main' : 'error.main'}>
-                            {baseCurrency ? formatCurrency(totalIncome - totalExpense, baseCurrency.code, baseCurrency.symbol) : formatCurrency(totalIncome - totalExpense)}
                         </Typography>
                     </CardContent>
                 </Card>
@@ -496,157 +481,144 @@ function TransactionsPageContent() {
                             <MenuItem value="ALL">All</MenuItem>
                             <MenuItem value="PENDING">Pending</MenuItem>
                             <MenuItem value="APPROVED">Approved</MenuItem>
-                            <MenuItem value="REJECTED">Rejected</MenuItem>
+                            <MenuItem value="DECLINED">Declined</MenuItem>
                         </Select>
                     </FormControl>
                 </Box>
             </Paper>
 
             <TableContainer component={Paper} elevation={0} sx={{ border: '1px solid', borderColor: 'divider' }}>
-                <Table>
+                <Table size="small">
                     <TableHead sx={{ bgcolor: 'action.hover' }}>
                         <TableRow>
-                            <TableCell sx={{ fontWeight: 700 }}>Date</TableCell>
-                            <TableCell sx={{ fontWeight: 700 }}>Department</TableCell>
-                            <TableCell sx={{ fontWeight: 700 }}>Type</TableCell>
-                            <TableCell sx={{ fontWeight: 700 }}>Description</TableCell>
-                            <TableCell align="right" sx={{ fontWeight: 700 }}>Amount</TableCell>
-                            <TableCell sx={{ fontWeight: 700 }}>Status</TableCell>
-                            <TableCell sx={{ fontWeight: 700 }}>Files</TableCell>
-                            <TableCell sx={{ fontWeight: 700 }}>User</TableCell>
-                            <TableCell align="center" sx={{ fontWeight: 700 }}>Actions</TableCell>
+                            <TableCell sx={{ fontWeight: 700, py: 1 }}>Date</TableCell>
+                            <TableCell sx={{ fontWeight: 700, py: 1 }}>Description</TableCell>
+                            <TableCell align="right" sx={{ fontWeight: 700, py: 1 }}>Debit</TableCell>
+                            <TableCell align="right" sx={{ fontWeight: 700, py: 1 }}>Credit</TableCell>
+                            <TableCell align="right" sx={{ fontWeight: 700, py: 1 }}>Balance</TableCell>
+                            {isAdmin && <TableCell align="center" sx={{ fontWeight: 700, py: 1 }}>Actions</TableCell>}
                         </TableRow>
                     </TableHead>
                     <TableBody>
-                        {filteredTransactions.map((tx) => (
+                        {filteredTransactions.map((tx, index) => {
+                            // Calculate running balance (from newest to current transaction)
+                            const runningBalance = filteredTransactions
+                                .slice(index)
+                                .reduce((balance, t) => {
+                                    if (t.status === 'APPROVED') {
+                                        return balance + (t.type === 'INCOME' ? Number(t.amountInBase || t.amount) : -Number(t.amountInBase || t.amount));
+                                    }
+                                    return balance;
+                                }, 0);
+
+                            return (
                             <TableRow 
                                 key={tx.id}
                                 sx={{ 
                                     '&:hover': { bgcolor: 'action.hover' },
-                                    transition: 'background-color 0.2s'
+                                    transition: 'background-color 0.2s',
+                                    '& td': { py: 0.5 },
+                                    bgcolor: tx.status === 'PENDING' ? 'warning.light' : tx.status === 'DECLINED' ? 'error.light' : 'inherit',
+                                    opacity: tx.status !== 'APPROVED' ? 0.7 : 1
                                 }}
                             >
-                                <TableCell>{new Date(tx.createdAt).toLocaleDateString()}</TableCell>
                                 <TableCell>
                                     <Typography variant="body2" fontWeight={600}>
-                                        {tx.department.name}
+                                        {new Date(tx.createdAt).toLocaleDateString()}
                                     </Typography>
                                     <Typography variant="caption" color="text.secondary">
-                                        {tx.department.level}
+                                        {new Date(tx.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                     </Typography>
                                 </TableCell>
                                 <TableCell>
-                                    <Chip
-                                        label={tx.type}
-                                        color={tx.type === 'INCOME' ? 'success' : 'error'}
-                                        size="small"
-                                        sx={{ fontWeight: 600 }}
-                                    />
-                                </TableCell>
-                                <TableCell sx={{ maxWidth: 200 }}>
-                                    <Typography variant="body2" noWrap>
+                                    <Typography variant="body2" fontWeight={600}>
                                         {tx.description}
+                                    </Typography>
+                                    <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', mt: 0.5 }}>
+                                        {!isLeader && (
+                                            <Typography variant="caption" color="text.secondary">
+                                                {tx.department.name}
+                                            </Typography>
+                                        )}
+                                        {tx.weekLocked && (
+                                            <Chip
+                                                icon={<LockIcon sx={{ fontSize: 10 }} />}
+                                                label="Locked"
+                                                size="small"
+                                                variant="outlined"
+                                                sx={{ height: 18, fontSize: '0.65rem' }}
+                                            />
+                                        )}
+                                        {!isLeader && tx.files && tx.files.length > 0 && (
+                                            <Chip
+                                                icon={<AttachFileIcon sx={{ fontSize: 10 }} />}
+                                                label={tx.files.length}
+                                                size="small"
+                                                variant="outlined"
+                                                sx={{ height: 18, fontSize: '0.65rem' }}
+                                            />
+                                        )}
+                                    </Box>
+                                    {tx.user?.email !== 'skaduteye@gmail.com' && (
+                                        <Typography variant="caption" color="text.secondary" display="block">
+                                            By: {tx.user?.name || tx.user?.email}
+                                        </Typography>
+                                    )}
+                                    {tx.currency && tx.currencyId && baseCurrency && tx.currency.code !== baseCurrency.code && (
+                                        <Typography variant="caption" color="text.secondary" display="block">
+                                            Original: {tx.currency.symbol}{Number(tx.amount).toLocaleString()} {tx.currency.code}
+                                        </Typography>
+                                    )}
+                                </TableCell>
+                                <TableCell align="right">
+                                    <Typography
+                                        variant="body2"
+                                        fontWeight="700"
+                                        color="error.main"
+                                    >
+                                        {tx.type === 'EXPENSE' && tx.status === 'APPROVED' ? (
+                                            baseCurrency ? formatCurrency(Number(tx.amountInBase || tx.amount), baseCurrency.code, baseCurrency.symbol) : formatCurrency(Number(tx.amountInBase || tx.amount))
+                                        ) : '-'}
                                     </Typography>
                                 </TableCell>
                                 <TableCell align="right">
                                     <Typography
                                         variant="body2"
                                         fontWeight="700"
-                                        color={tx.type === 'INCOME' ? 'success.main' : 'error.main'}
+                                        color="success.main"
                                     >
-                                        {tx.type === 'EXPENSE' ? '-' : '+'}
-                                        {baseCurrency ? formatCurrency(Number(tx.amountInBase || tx.amount), baseCurrency.code, baseCurrency.symbol) : formatCurrency(Number(tx.amountInBase || tx.amount))}
-                                    </Typography>
-                                    {tx.currency && tx.currencyId && baseCurrency && tx.currency.code !== baseCurrency.code && (
-                                        <Typography variant="caption" color="text.secondary" display="block">
-                                            {tx.currency.symbol}{Number(tx.amount).toLocaleString()} {tx.currency.code}
-                                        </Typography>
-                                    )}
-                                </TableCell>
-                                <TableCell>
-                                    <Chip
-                                        label={tx.status}
-                                        color={
-                                            tx.status === 'APPROVED' ? 'success' : 
-                                            tx.status === 'REJECTED' ? 'error' : 
-                                            'warning'
-                                        }
-                                        size="small"
-                                        variant={tx.status === 'PENDING' ? 'outlined' : 'filled'}
-                                    />
-                                    {tx.weekLocked && (
-                                        <Chip
-                                            icon={<LockIcon fontSize="small" />}
-                                            label="Locked"
-                                            size="small"
-                                            variant="outlined"
-                                            sx={{ ml: 0.5 }}
-                                        />
-                                    )}
-                                </TableCell>
-                                <TableCell>
-                                    {tx.files && tx.files.length > 0 && (
-                                        <Chip
-                                            icon={<AttachFileIcon fontSize="small" />}
-                                            label={tx.files.length}
-                                            size="small"
-                                            variant="outlined"
-                                        />
-                                    )}
-                                </TableCell>
-                                <TableCell>
-                                    <Typography variant="body2">
-                                        {tx.user?.email === 'skaduteye@gmail.com' ? '' : (tx.user?.name || tx.user?.email)}
+                                        {tx.type === 'INCOME' && tx.status === 'APPROVED' ? (
+                                            baseCurrency ? formatCurrency(Number(tx.amountInBase || tx.amount), baseCurrency.code, baseCurrency.symbol) : formatCurrency(Number(tx.amountInBase || tx.amount))
+                                        ) : '-'}
                                     </Typography>
                                 </TableCell>
+                                <TableCell align="right">
+                                    <Typography
+                                        variant="body2"
+                                        fontWeight="700"
+                                        color={runningBalance >= 0 ? 'success.main' : 'error.main'}
+                                    >
+                                        {baseCurrency ? formatCurrency(runningBalance, baseCurrency.code, baseCurrency.symbol) : formatCurrency(runningBalance)}
+                                    </Typography>
+                                </TableCell>
+                                {isAdmin && (
                                 <TableCell align="center">
                                     <Box sx={{ display: 'flex', gap: 1, justifyContent: 'center' }}>
-                                        {/* Approval buttons for admins viewing pending transactions */}
-                                        {tx.status === 'PENDING' && isAdmin && (
-                                            <>
-                                                <Tooltip title="Approve">
-                                                    <IconButton
-                                                        size="small"
-                                                        color="success"
-                                                        onClick={() => handleApprove(tx.id)}
-                                                        sx={{
-                                                            '&:hover': { bgcolor: 'success.dark', color: 'white' }
-                                                        }}
-                                                    >
-                                                        <CheckCircleIcon fontSize="small" />
-                                                    </IconButton>
-                                                </Tooltip>
-                                                <Tooltip title="Reject">
-                                                    <IconButton
-                                                        size="small"
-                                                        color="error"
-                                                        onClick={() => handleReject(tx.id)}
-                                                        sx={{
-                                                            '&:hover': { bgcolor: 'error.dark', color: 'white' }
-                                                        }}
-                                                    >
-                                                        <CancelIcon fontSize="small" />
-                                                    </IconButton>
-                                                </Tooltip>
-                                            </>
-                                        )}
-                                        
-                                        {/* Edit button for all users (with permission checks) */}
-                                        <Tooltip title={tx.weekLocked && !isSuperAdmin ? 'Locked - Superadmin only' : 'Edit'}>
-                                            <span>
+                                        {/* Correct button for approved/declined transactions (admins only) */}
+                                        {(tx.status === 'APPROVED' || tx.status === 'DECLINED') && isAdmin && (
+                                            <Tooltip title="Create Correction">
                                                 <IconButton
                                                     size="small"
-                                                    color="primary"
-                                                    onClick={() => handleEdit(tx)}
-                                                    disabled={tx.weekLocked && !isSuperAdmin}
+                                                    color="warning"
+                                                    onClick={() => handleCorrect(tx)}
                                                     sx={{
-                                                        '&:hover': { bgcolor: 'action.hover' }
+                                                        '&:hover': { bgcolor: 'warning.dark', color: 'white' }
                                                     }}
                                                 >
-                                                    <EditIcon fontSize="small" />
+                                                    <EditNoteIcon fontSize="small" />
                                                 </IconButton>
-                                            </span>
-                                        </Tooltip>
+                                            </Tooltip>
+                                        )}
 
                                         {/* Delete button for superadmin only */}
                                         {isSuperAdmin && (
@@ -665,11 +637,13 @@ function TransactionsPageContent() {
                                         )}
                                     </Box>
                                 </TableCell>
+                                )}
                             </TableRow>
-                        ))}
+                            );
+                        })}
                         {filteredTransactions.length === 0 && !loading && (
                             <TableRow>
-                                <TableCell colSpan={9} align="center" sx={{ py: 8 }}>
+                                <TableCell colSpan={isAdmin ? 6 : 5} align="center" sx={{ py: 8 }}>
                                     <Typography variant="body1" color="text.secondary">
                                         No transactions found
                                     </Typography>
@@ -680,12 +654,11 @@ function TransactionsPageContent() {
                 </Table>
             </TableContainer>
 
-            <EditTransactionDialog
-                open={editDialog.open}
-                transaction={editDialog.transaction}
-                onClose={handleCloseEdit}
-                onSave={handleSaveEdit}
-                isSuperAdmin={isSuperAdmin}
+            <CorrectTransactionDialog
+                open={correctDialog.open}
+                transaction={correctDialog.transaction}
+                onClose={handleCloseCorrect}
+                onSuccess={handleSaveCorrect}
             />
         </Box>
     );

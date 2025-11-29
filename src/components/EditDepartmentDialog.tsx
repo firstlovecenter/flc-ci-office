@@ -35,6 +35,16 @@ const DEPARTMENT_LEVELS: DepartmentLevel[] = [
     'COUNCIL',
 ];
 
+const DEPARTMENT_HIERARCHY: Record<DepartmentLevel, number> = {
+    GLOBAL: 1,
+    INTERNATIONAL: 2,
+    NATIONAL: 3,
+    REGIONAL: 4,
+    CAMPUS: 5,
+    STREAM: 6,
+    COUNCIL: 7,
+};
+
 export default function EditDepartmentDialog({
     open,
     onClose,
@@ -50,6 +60,7 @@ export default function EditDepartmentDialog({
     const [currencies, setCurrencies] = useState<any[]>([]);
     const [currencyId, setCurrencyId] = useState('');
     const [loading, setLoading] = useState(false);
+    const [availableParents, setAvailableParents] = useState<any[]>([]);
 
     useEffect(() => {
         fetchCurrencies();
@@ -69,6 +80,29 @@ export default function EditDepartmentDialog({
             }
         }
     }, [department]);
+
+    useEffect(() => {
+        // Filter available parents based on selected level
+        if (level && departments.length > 0) {
+            const selectedLevelRank = DEPARTMENT_HIERARCHY[level];
+            
+            // Filter departments that are one level above the selected level
+            const validParents = departments.filter(dept => {
+                const deptLevelRank = DEPARTMENT_HIERARCHY[dept.level as DepartmentLevel];
+                // Parent must be exactly one level above (one rank lower, which means rank - 1)
+                return deptLevelRank === selectedLevelRank - 1 && dept.id !== department?.id;
+            });
+            
+            setAvailableParents(validParents);
+            
+            // Reset parentId if current parent is not in available parents
+            if (parentId && !validParents.some(p => p.id === parentId)) {
+                setParentId('');
+            }
+        } else {
+            setAvailableParents([]);
+        }
+    }, [level, departments, department]);
 
     const fetchCurrencies = async () => {
         setLoading(true);
@@ -136,10 +170,6 @@ export default function EditDepartmentDialog({
         }
     };
 
-    const availableParents = departments.filter(
-        (d) => d.id !== department?.id && d.level !== level
-    );
-
     return (
         <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
             <DialogTitle>Edit Department</DialogTitle>
@@ -163,7 +193,10 @@ export default function EditDepartmentDialog({
                     <Select
                         value={level}
                         label="Level"
-                        onChange={(e) => setLevel(e.target.value as DepartmentLevel)}
+                        onChange={(e) => {
+                            setLevel(e.target.value as DepartmentLevel);
+                            setParentId(''); // Reset parent when level changes
+                        }}
                     >
                         {DEPARTMENT_LEVELS.map((lvl) => (
                             <MenuItem key={lvl} value={lvl}>
@@ -179,6 +212,7 @@ export default function EditDepartmentDialog({
                         value={parentId}
                         label="Parent Department"
                         onChange={(e) => setParentId(e.target.value)}
+                        disabled={!level || availableParents.length === 0}
                     >
                         <MenuItem value="">
                             <em>None (Top Level)</em>

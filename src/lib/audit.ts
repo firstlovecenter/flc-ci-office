@@ -85,7 +85,7 @@ function generateDescription(
     case 'APPROVE':
       return `Approved ${entity}${metadata?.name ? ` "${metadata.name}"` : ''}`;
     case 'REJECT':
-      return `Rejected ${entity}${metadata?.name ? ` "${metadata.name}"` : ''}${
+      return `Declined ${entity}${metadata?.name ? ` "${metadata.name}"` : ''}${
         metadata?.reason ? ` - Reason: ${metadata.reason}` : ''
       }`;
     case 'ARCHIVE':

@@ -30,27 +30,29 @@ export async function GET(request: Request) {
                 const allowedIds = await getDescendantDepartmentIds(session.user.departmentId);
                 whereClause.id = { in: allowedIds };
             } else {
+                // Non-superadmin users without department assignment return empty
                 return NextResponse.json([]);
             }
         } else {
             // Regular fetch - exclude user's own department and siblings
-            if (session.user.role !== 'SUPERADMIN') {
-                if (session.user.departmentId) {
-                    const allowedIds = await getDescendantDepartmentIds(session.user.departmentId);
-                    
-                    // Remove the user's own department from the list
-                    const filteredIds = allowedIds.filter(id => id !== session.user.departmentId);
-                    
-                    if (filteredIds.length === 0) {
-                        // User has no child departments
-                        return NextResponse.json([]);
-                    }
-                    
-                    whereClause.id = { in: filteredIds };
-                } else {
-                    // User has no department assigned, so they can't see any departments
+            if (session.user.role === 'SUPERADMIN') {
+                // Superadmin can see all departments
+                whereClause = {};
+            } else if (session.user.departmentId) {
+                const allowedIds = await getDescendantDepartmentIds(session.user.departmentId);
+                
+                // Remove the user's own department from the list
+                const filteredIds = allowedIds.filter(id => id !== session.user.departmentId);
+                
+                if (filteredIds.length === 0) {
+                    // User has no child departments
                     return NextResponse.json([]);
                 }
+                
+                whereClause.id = { in: filteredIds };
+            } else {
+                // User has no department assigned, so they can't see any departments
+                return NextResponse.json([]);
             }
         }
 

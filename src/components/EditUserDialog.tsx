@@ -120,8 +120,10 @@ export default function EditUserDialog({
     }, [session]);
 
     useEffect(() => {
-        // Fetch departments if not provided
-        if (!departmentsProp && open) {
+        // Update departments when prop changes or fetch if not provided
+        if (departmentsProp) {
+            setDepartments(departmentsProp);
+        } else if (open) {
             const fetchDepartments = async () => {
                 try {
                     const response = await fetch('/api/departments?all=true');

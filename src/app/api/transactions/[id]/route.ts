@@ -3,6 +3,8 @@ import { prisma } from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { hasDepartmentAccess } from '@/lib/departments';
+import { sendSms } from '@/lib/sms';
+import { generateTransactionApprovedSms, generateTransactionDeclinedSms, generateTransactionChargeSms } from '@/lib/sms-templates';
 
 export async function PUT(
     request: Request,
@@ -37,7 +39,18 @@ export async function PUT(
             // Only superadmin can edit locked transactions
             if (session.user.role !== 'SUPERADMIN') {
                 return NextResponse.json(
-                    { error: 'Transaction is locked. Only superadmins can edit locked transactions.' },
+                    { error: 'This transaction is locked. Only superadmins can edit locked transactions.' },
+                    { status: 403 }
+                );
+            }
+        }
+
+        // Check if transaction is approved - only CAMPUS_ADMIN and above can edit
+        if (existingTransaction.status === 'APPROVED') {
+            const adminRoles = ['SUPERADMIN', 'GLOBAL_ADMIN', 'INTERNATIONAL_ADMIN', 'NATIONAL_ADMIN', 'REGIONAL_ADMIN', 'CAMPUS_ADMIN'];
+            if (!adminRoles.includes(session.user.role)) {
+                return NextResponse.json(
+                    { error: 'Only Campus Admin and above can edit approved transactions' },
                     { status: 403 }
                 );
             }
@@ -123,11 +136,11 @@ export async function PATCH(
     try {
         const params = await context.params;
         const body = await request.json();
-        const { status, rejectionReason } = body;
+        const { status, rejectionReason, approvedAmount, charges } = body;
         const transactionId = params.id;
 
         // Validate status
-        if (!['APPROVED', 'REJECTED'].includes(status)) {
+        if (!['APPROVED', 'DECLINED'].includes(status)) {
             return new NextResponse('Invalid status', { status: 400 });
         }
 
@@ -137,6 +150,7 @@ export async function PATCH(
             include: {
                 department: true,
                 user: true,
+                currency: true,
             },
         });
 
@@ -144,7 +158,7 @@ export async function PATCH(
             return new NextResponse('Transaction not found', { status: 404 });
         }
 
-        // Check if transaction is already approved or rejected
+        // Check if transaction is already approved or declined
         if (transaction.status !== 'PENDING') {
             return new NextResponse(`Transaction already ${transaction.status.toLowerCase()}`, { status: 400 });
         }
@@ -168,15 +182,21 @@ export async function PATCH(
         }
 
         // Update transaction status
+        let finalApprovedAmount = transaction.amount;
+        if (status === 'APPROVED' && approvedAmount !== undefined) {
+            finalApprovedAmount = approvedAmount;
+        }
+
         const updatedTransaction = await prisma.transaction.update({
             where: { id: transactionId },
             data: {
                 status,
+                amount: status === 'APPROVED' && approvedAmount !== undefined ? approvedAmount : transaction.amount,
                 approvedBy: status === 'APPROVED' ? session.user.id : undefined,
                 approvedAt: status === 'APPROVED' ? new Date() : undefined,
-                rejectedBy: status === 'REJECTED' ? session.user.id : undefined,
-                rejectedAt: status === 'REJECTED' ? new Date() : undefined,
-                rejectionReason: status === 'REJECTED' ? rejectionReason : undefined,
+                rejectedBy: status === 'DECLINED' ? session.user.id : undefined,
+                rejectedAt: status === 'DECLINED' ? new Date() : undefined,
+                rejectionReason: status === 'DECLINED' ? rejectionReason : undefined,
             },
             include: {
                 department: {
@@ -191,6 +211,7 @@ export async function PATCH(
                         id: true,
                         name: true,
                         email: true,
+                        phone: true,
                     },
                 },
                 currency: {
@@ -204,6 +225,99 @@ export async function PATCH(
             },
         });
 
+        // Create transaction charge as DEBIT (EXPENSE) if charges are specified
+        if (status === 'APPROVED' && charges && parseFloat(charges) > 0) {
+            const chargeAmount = parseFloat(charges);
+            let chargeAmountInBase = chargeAmount;
+            
+            // Convert to base currency if needed
+            if (transaction.currencyId && transaction.exchangeRate) {
+                chargeAmountInBase = chargeAmount * Number(transaction.exchangeRate);
+            }
+
+            const chargeTransaction = await prisma.transaction.create({
+                data: {
+                    type: 'EXPENSE', // Transaction charge is always a debit/expense
+                    amount: chargeAmount,
+                    amountInBase: chargeAmountInBase,
+                    description: `Transaction charge for: ${transaction.description.substring(0, 50)}${transaction.description.length > 50 ? '...' : ''} - Ref: ${transaction.id.substring(0, 8)}`,
+                    departmentId: transaction.departmentId,
+                    userId: session.user.id, // Charge created by approving admin
+                    currencyId: transaction.currencyId,
+                    exchangeRate: transaction.exchangeRate,
+                    status: 'APPROVED', // Auto-approve transaction charges
+                    approvedBy: session.user.id,
+                    approvedAt: new Date(),
+                    locked: false,
+                    weekNumber: transaction.weekNumber,
+                    year: transaction.year,
+                },
+            });
+
+            // Send SMS notification to the department leader about the charge
+            try {
+                // Find the department leader based on department level
+                const leaderRole = updatedTransaction.department.level === 'GLOBAL' ? 'GLOBAL_LEADER' :
+                                  updatedTransaction.department.level === 'INTERNATIONAL' ? 'INTERNATIONAL_LEADER' :
+                                  updatedTransaction.department.level === 'NATIONAL' ? 'NATIONAL_LEADER' :
+                                  updatedTransaction.department.level === 'REGIONAL' ? 'REGIONAL_LEADER' :
+                                  updatedTransaction.department.level === 'CAMPUS' ? 'CAMPUS_LEADER' :
+                                  updatedTransaction.department.level === 'STREAM' ? 'STREAM_LEADER' :
+                                  'COUNCIL_LEADER';
+
+                const departmentLeaderRoles = await prisma.userRole.findMany({
+                    where: {
+                        role: leaderRole,
+                        departmentId: updatedTransaction.department.id,
+                    },
+                    include: {
+                        user: {
+                            select: {
+                                phone: true,
+                                name: true,
+                                archived: true,
+                            },
+                        },
+                    },
+                });
+
+                // Filter active users with phone numbers
+                const leaders = departmentLeaderRoles
+                    .filter(ur => ur.user.phone && !ur.user.archived)
+                    .map(ur => ({ phone: ur.user.phone!, name: ur.user.name }));
+
+                if (leaders.length > 0) {
+                    const currencySymbol = updatedTransaction.currency?.symbol || '$';
+                    const smsMessage = await generateTransactionChargeSms({
+                        currency: currencySymbol,
+                        chargeAmount: chargeAmount.toFixed(2),
+                        departmentName: updatedTransaction.department.name,
+                        transactionRef: updatedTransaction.id.substring(0, 8),
+                        description: transaction.description.substring(0, 25) + (transaction.description.length > 25 ? '...' : ''),
+                    });
+                    
+                    for (const leader of leaders) {
+                        if (leader.phone) {
+                            try {
+                                await sendSms({
+                                    to: leader.phone,
+                                    message: smsMessage
+                                });
+                                console.log(`Transaction charge SMS sent to leader: ${leader.name} (${leader.phone})`);
+                            } catch (err) {
+                                console.error(`Failed to send transaction charge SMS to ${leader.name}:`, err);
+                            }
+                        }
+                    }
+                } else {
+                    console.warn('No department leaders found for transaction charge notification');
+                }
+            } catch (smsError) {
+                console.error('Failed to send transaction charge SMS to leader:', smsError);
+                // Don't fail the request if SMS fails
+            }
+        }
+
         // Create audit log for the approval/rejection
         await prisma.auditLog.create({
             data: {
@@ -214,18 +328,69 @@ export async function PATCH(
                 afterData: { 
                     status, 
                     approvedBy: status === 'APPROVED' ? session.user.id : undefined,
-                    rejectedBy: status === 'REJECTED' ? session.user.id : undefined,
-                    rejectionReason: status === 'REJECTED' ? rejectionReason : undefined,
+                    rejectedBy: status === 'DECLINED' ? session.user.id : undefined,
+                    rejectionReason: status === 'DECLINED' ? rejectionReason : undefined,
                 },
             },
         });
 
-        // TODO: Send push notification to the user who created the transaction
-        // await sendPushNotification([transaction.userId], {
-        //     title: status === 'APPROVED' ? 'Transaction Approved' : 'Transaction Rejected',
-        //     body: `Your transaction "${transaction.description}" has been ${status.toLowerCase()}`,
-        //     url: `/transactions`,
-        // });
+        // Send SMS notification to the user who created the transaction
+        if (updatedTransaction.user.phone) {
+            try {
+                const currencySymbol = updatedTransaction.currency?.symbol || '$';
+                const transactionType = updatedTransaction.type === 'EXPENSE' ? 'expense' : 'income';
+                
+                let smsMessage = '';
+                if (status === 'APPROVED') {
+                    // Calculate the department balance after this transaction and charges
+                    const departmentTransactions = await prisma.transaction.findMany({
+                        where: {
+                            departmentId: updatedTransaction.department.id,
+                            status: 'APPROVED',
+                        },
+                        select: {
+                            type: true,
+                            amountInBase: true,
+                            amount: true,
+                        },
+                    });
+
+                    const balance = departmentTransactions.reduce((sum, tx) => {
+                        const txAmount = Number(tx.amountInBase || tx.amount);
+                        return sum + (tx.type === 'INCOME' ? txAmount : -txAmount);
+                    }, 0);
+
+                    // Build the charge text
+                    const chargeAmount = charges && parseFloat(charges) > 0 ? parseFloat(charges) : 0;
+                    const chargeText = chargeAmount > 0 ? ` Charge: ${currencySymbol}${chargeAmount.toFixed(2)}.` : '';
+                    
+                    smsMessage = await generateTransactionApprovedSms({
+                        transactionType,
+                        currency: currencySymbol,
+                        amount: updatedTransaction.amount.toFixed(2),
+                        chargeText,
+                        departmentName: updatedTransaction.department.name,
+                        balance: balance.toFixed(2),
+                    });
+                } else {
+                    const reasonText = rejectionReason ? ` Reason: ${rejectionReason}` : '';
+                    smsMessage = await generateTransactionDeclinedSms({
+                        transactionType,
+                        currency: currencySymbol,
+                        amount: updatedTransaction.amount.toFixed(2),
+                        reasonText,
+                    });
+                }
+                
+                await sendSms({
+                    to: updatedTransaction.user.phone,
+                    message: smsMessage
+                });
+            } catch (smsError) {
+                console.error('Failed to send SMS notification:', smsError);
+                // Don't fail the request if SMS fails
+            }
+        }
 
         return NextResponse.json(updatedTransaction);
     } catch (error) {

@@ -27,6 +27,7 @@ import {
     Card,
     CardContent,
     Grid,
+    CircularProgress,
 } from '@mui/material';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import CancelIcon from '@mui/icons-material/Cancel';
@@ -38,8 +39,7 @@ interface Transaction {
     description: string;
     amount: string;
     type: 'INCOME' | 'EXPENSE';
-    status: 'PENDING' | 'APPROVED' | 'REJECTED';
-    transactionDate: string;
+    status: 'PENDING' | 'APPROVED' | 'DECLINED';
     createdAt: string;
     user: {
         name: string;
@@ -60,7 +60,9 @@ export default function ApprovalsPage() {
     const { data: session } = useSession();
     const router = useRouter();
     const [transactions, setTransactions] = useState<Transaction[]>([]);
+    const [historicalTransactions, setHistoricalTransactions] = useState<Transaction[]>([]);
     const [loading, setLoading] = useState(true);
+    const [historyLoading, setHistoryLoading] = useState(true);
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
     const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
@@ -69,6 +71,8 @@ export default function ApprovalsPage() {
     const [rejectionReason, setRejectionReason] = useState('');
     const [actionType, setActionType] = useState<'approve' | 'reject'>('approve');
     const [processing, setProcessing] = useState(false);
+    const [approvedAmount, setApprovedAmount] = useState('');
+    const [charges, setCharges] = useState('');
 
     useEffect(() => {
         if (session?.user?.role) {
@@ -81,6 +85,7 @@ export default function ApprovalsPage() {
 
     useEffect(() => {
         fetchPendingTransactions();
+        fetchHistoricalTransactions();
     }, []);
 
     const fetchPendingTransactions = async () => {
@@ -89,7 +94,11 @@ export default function ApprovalsPage() {
             const response = await fetch('/api/transactions?status=PENDING');
             if (response.ok) {
                 const data = await response.json();
-                setTransactions(data);
+                // Exclude correction transactions
+                const nonCorrectionTransactions = data.filter((t: Transaction) => 
+                    !t.description.startsWith('CORRECTION:')
+                );
+                setTransactions(nonCorrectionTransactions);
             } else {
                 setError('Failed to fetch pending transactions');
             }
@@ -97,6 +106,27 @@ export default function ApprovalsPage() {
             setError('Failed to fetch pending transactions');
         } finally {
             setLoading(false);
+        }
+    };
+
+    const fetchHistoricalTransactions = async () => {
+        try {
+            setHistoryLoading(true);
+            const response = await fetch('/api/transactions');
+            if (response.ok) {
+                const data = await response.json();
+                // Filter for approved or declined EXPENSE transactions only, excluding corrections
+                const history = data.filter((t: Transaction) => 
+                    t.type === 'EXPENSE' && 
+                    (t.status === 'APPROVED' || t.status === 'DECLINED') &&
+                    !t.description.startsWith('CORRECTION:')
+                );
+                setHistoricalTransactions(history);
+            }
+        } catch (error) {
+            console.error('Failed to fetch historical transactions');
+        } finally {
+            setHistoryLoading(false);
         }
     };
 
@@ -109,6 +139,8 @@ export default function ApprovalsPage() {
         setSelectedTransaction(transaction);
         setActionType(action);
         setRejectionReason('');
+        setApprovedAmount(transaction.amount);
+        setCharges('0');
         setApprovalDialogOpen(true);
     };
 
@@ -128,15 +160,18 @@ export default function ApprovalsPage() {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    status: actionType === 'approve' ? 'APPROVED' : 'REJECTED',
+                    status: actionType === 'approve' ? 'APPROVED' : 'DECLINED',
                     rejectionReason: actionType === 'reject' ? rejectionReason : undefined,
+                    approvedAmount: actionType === 'approve' ? parseFloat(approvedAmount) : undefined,
+                    charges: actionType === 'approve' ? parseFloat(charges || '0') : undefined,
                 }),
             });
 
             if (response.ok) {
-                setSuccess(`Transaction ${actionType === 'approve' ? 'approved' : 'rejected'} successfully`);
+                setSuccess(`Transaction ${actionType === 'approve' ? 'approved' : 'declined'} successfully`);
                 setApprovalDialogOpen(false);
                 fetchPendingTransactions();
+                fetchHistoricalTransactions();
             } else {
                 const errorText = await response.text();
                 setError(errorText || `Failed to ${actionType} transaction`);
@@ -148,8 +183,11 @@ export default function ApprovalsPage() {
         }
     };
 
-    const formatDate = (dateString: string) => {
-        return new Date(dateString).toLocaleDateString('en-US', {
+    const formatDate = (dateString: string | null | undefined) => {
+        if (!dateString) return 'N/A';
+        const date = new Date(dateString);
+        if (isNaN(date.getTime())) return 'Invalid Date';
+        return date.toLocaleDateString('en-US', {
             year: 'numeric',
             month: 'short',
             day: 'numeric',
@@ -164,7 +202,7 @@ export default function ApprovalsPage() {
         switch (status) {
             case 'PENDING': return 'warning';
             case 'APPROVED': return 'success';
-            case 'REJECTED': return 'error';
+            case 'DECLINED': return 'error';
             default: return 'default';
         }
     };
@@ -178,7 +216,7 @@ export default function ApprovalsPage() {
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }}>
                 <PendingActionsIcon sx={{ fontSize: 40 }} />
                 <Typography variant="h4" fontWeight={700}>
-                    Transaction Approvals
+                    Expense Approvals
                 </Typography>
             </Box>
 
@@ -196,7 +234,7 @@ export default function ApprovalsPage() {
 
             {/* Summary Cards */}
             <Grid container spacing={3} sx={{ mb: 3 }}>
-                <Grid size={{ xs: 12, sm: 6, md: 4 }}>
+                <Grid size={{ xs: 12, sm: 6 }}>
                     <Card>
                         <CardContent>
                             <Typography variant="body2" color="text.secondary" gutterBottom>
@@ -208,30 +246,14 @@ export default function ApprovalsPage() {
                         </CardContent>
                     </Card>
                 </Grid>
-                <Grid size={{ xs: 12, sm: 6, md: 4 }}>
+                <Grid size={{ xs: 12, sm: 6 }}>
                     <Card>
                         <CardContent>
                             <Typography variant="body2" color="text.secondary" gutterBottom>
-                                Total Amount (Expenses)
+                                Total Amount
                             </Typography>
                             <Typography variant="h4" fontWeight={700} color="error.main">
                                 {transactions
-                                    .filter(t => t.type === 'EXPENSE')
-                                    .reduce((sum, t) => sum + parseFloat(t.amount), 0)
-                                    .toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                            </Typography>
-                        </CardContent>
-                    </Card>
-                </Grid>
-                <Grid size={{ xs: 12, sm: 6, md: 4 }}>
-                    <Card>
-                        <CardContent>
-                            <Typography variant="body2" color="text.secondary" gutterBottom>
-                                Total Amount (Income)
-                            </Typography>
-                            <Typography variant="h4" fontWeight={700} color="success.main">
-                                {transactions
-                                    .filter(t => t.type === 'INCOME')
                                     .reduce((sum, t) => sum + parseFloat(t.amount), 0)
                                     .toLocaleString('en-US', { minimumFractionDigits: 2 })}
                             </Typography>
@@ -240,8 +262,11 @@ export default function ApprovalsPage() {
                 </Grid>
             </Grid>
 
-            {/* Transactions Table */}
-            <TableContainer component={Paper}>
+            {/* Pending Approvals Section */}
+            <Typography variant="h5" fontWeight={600} sx={{ mb: 2 }}>
+                Pending Approvals
+            </Typography>
+            <TableContainer component={Paper} sx={{ mb: 6 }}>
                 <Table>
                     <TableHead>
                         <TableRow>
@@ -271,7 +296,7 @@ export default function ApprovalsPage() {
                         ) : (
                             transactions.map((transaction) => (
                                 <TableRow key={transaction.id}>
-                                    <TableCell>{formatDate(transaction.transactionDate)}</TableCell>
+                                    <TableCell>{formatDate(transaction.createdAt)}</TableCell>
                                     <TableCell>{transaction.description}</TableCell>
                                     <TableCell>
                                         <Typography variant="body2">{transaction.department.name}</Typography>
@@ -281,9 +306,6 @@ export default function ApprovalsPage() {
                                     </TableCell>
                                     <TableCell>
                                         <Typography variant="body2">{transaction.user.name}</Typography>
-                                        <Typography variant="caption" color="text.secondary">
-                                            {transaction.user.email}
-                                        </Typography>
                                     </TableCell>
                                     <TableCell>
                                         <Chip 
@@ -371,7 +393,9 @@ export default function ApprovalsPage() {
                                 </Box>
                                 <Box>
                                     <Typography variant="caption" color="text.secondary">Transaction Date</Typography>
-                                    <Typography variant="body1">{formatDate(selectedTransaction.transactionDate)}</Typography>
+                                    <Typography variant="body1">
+                                        {formatDate(selectedTransaction.createdAt)}
+                                    </Typography>
                                 </Box>
                                 <Box>
                                     <Typography variant="caption" color="text.secondary">Submitted On</Typography>
@@ -410,6 +434,30 @@ export default function ApprovalsPage() {
                                 <strong>Submitted By:</strong> {selectedTransaction.user.name}
                             </Typography>
 
+                            {actionType === 'approve' && (
+                                <>
+                                    <TextField
+                                        fullWidth
+                                        type="number"
+                                        label="Approved Amount"
+                                        value={approvedAmount}
+                                        onChange={(e) => setApprovedAmount(e.target.value)}
+                                        required
+                                        sx={{ mt: 2 }}
+                                        helperText="You can modify the requested amount if needed"
+                                    />
+                                    <TextField
+                                        fullWidth
+                                        type="number"
+                                        label="Charges (Optional)"
+                                        value={charges}
+                                        onChange={(e) => setCharges(e.target.value)}
+                                        sx={{ mt: 2 }}
+                                        helperText="Any additional charges to be deducted"
+                                    />
+                                </>
+                            )}
+
                             {actionType === 'reject' && (
                                 <TextField
                                     fullWidth
@@ -446,6 +494,75 @@ export default function ApprovalsPage() {
                     </Button>
                 </DialogActions>
             </Dialog>
+
+            {/* Request History Section */}
+            <Box sx={{ mt: 6 }}>
+                <Typography variant="h5" sx={{ mb: 3, fontWeight: 600 }}>
+                    Request History
+                </Typography>
+
+                {historyLoading ? (
+                    <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
+                        <CircularProgress />
+                    </Box>
+                ) : historicalTransactions.length === 0 ? (
+                    <Alert severity="info">
+                        No historical requests found.
+                    </Alert>
+                ) : (
+                    <TableContainer component={Paper}>
+                        <Table>
+                            <TableHead>
+                                <TableRow>
+                                    <TableCell>Date</TableCell>
+                                    <TableCell>Description</TableCell>
+                                    <TableCell>Submitted By</TableCell>
+                                    <TableCell>Status</TableCell>
+                                    <TableCell align="right">Amount</TableCell>
+                                    <TableCell>Action</TableCell>
+                                </TableRow>
+                            </TableHead>
+                            <TableBody>
+                                {historicalTransactions.map((transaction) => (
+                                    <TableRow key={transaction.id}>
+                                        <TableCell>{formatDate(transaction.createdAt)}</TableCell>
+                                        <TableCell>{transaction.description}</TableCell>
+                                        <TableCell>
+                                            <Box>
+                                                <Typography variant="body2">{transaction.user.name}</Typography>
+                                                <Typography variant="caption" color="text.secondary">
+                                                    {transaction.department.name}
+                                                </Typography>
+                                            </Box>
+                                        </TableCell>
+                                        <TableCell>
+                                            <Chip 
+                                                label={transaction.status}
+                                                color={transaction.status === 'APPROVED' ? 'success' : 'error'}
+                                                size="small"
+                                            />
+                                        </TableCell>
+                                        <TableCell align="right">
+                                            {formatCurrency(transaction.amount, transaction.currency.code)}
+                                        </TableCell>
+                                        <TableCell>
+                                            <Button
+                                                size="small"
+                                                onClick={() => {
+                                                    setSelectedTransaction(transaction);
+                                                    setDetailsOpen(true);
+                                                }}
+                                            >
+                                                View Details
+                                            </Button>
+                                        </TableCell>
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
+                    </TableContainer>
+                )}
+            </Box>
         </Box>
     );
 }

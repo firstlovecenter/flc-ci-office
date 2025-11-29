@@ -21,6 +21,7 @@ import BusinessIcon from '@mui/icons-material/Business';
 import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
 import AssessmentIcon from '@mui/icons-material/Assessment';
 import HistoryIcon from '@mui/icons-material/History';
+import ShowChartIcon from '@mui/icons-material/ShowChart';
 import MenuIcon from '@mui/icons-material/Menu';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import { signOut } from 'next-auth/react';
@@ -197,6 +198,7 @@ export default function ModernSidebar({ userRole, userName, userImage, pendingCo
         { text: 'Approvals', icon: <PendingActionsIcon />, path: '/approvals', adminOnly: true },
         { text: 'Users', icon: <PeopleIcon />, path: '/users' },
         { text: 'Reports', icon: <AssessmentIcon />, path: '/reports' },
+        { text: 'Analytics', icon: <ShowChartIcon />, path: '/analytics', adminOnly: true },
     ];
 
     const bottomMenuItems: MenuItem[] = [

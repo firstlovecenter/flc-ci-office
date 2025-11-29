@@ -186,3 +186,126 @@ export async function generateApprovalReminderSms(params: ApprovalReminderSmsPar
         dashboardLink: '',
     });
 }
+
+interface TransactionApprovedSmsParams {
+    transactionType: string;
+    currency: string;
+    amount: string;
+    chargeText: string;
+    departmentName: string;
+    balance: string;
+}
+
+export async function generateTransactionApprovedSms(params: TransactionApprovedSmsParams): Promise<string> {
+    const template = await prisma.smsTemplate.findUnique({
+        where: { key: 'TRANSACTION_APPROVED' },
+    });
+
+    if (!template) {
+        throw new Error('Transaction approved SMS template not found in database');
+    }
+
+    return replaceVariables(template.template, params);
+}
+
+interface TransactionDeclinedSmsParams {
+    transactionType: string;
+    currency: string;
+    amount: string;
+    reasonText: string;
+}
+
+export async function generateTransactionDeclinedSms(params: TransactionDeclinedSmsParams): Promise<string> {
+    const template = await prisma.smsTemplate.findUnique({
+        where: { key: 'TRANSACTION_DECLINED' },
+    });
+
+    if (!template) {
+        throw new Error('Transaction declined SMS template not found in database');
+    }
+
+    return replaceVariables(template.template, params);
+}
+
+interface TransactionChargeSmsParams {
+    currency: string;
+    chargeAmount: string;
+    departmentName: string;
+    transactionRef: string;
+    description: string;
+}
+
+export async function generateTransactionChargeSms(params: TransactionChargeSmsParams): Promise<string> {
+    const template = await prisma.smsTemplate.findUnique({
+        where: { key: 'TRANSACTION_CHARGE' },
+    });
+
+    if (!template) {
+        throw new Error('Transaction charge SMS template not found in database');
+    }
+
+    return replaceVariables(template.template, params);
+}
+
+interface PendingApprovalRequestSmsParams {
+    userName: string;
+    transactionType: string;
+    currency: string;
+    amount: string;
+    description: string;
+}
+
+export async function generatePendingApprovalRequestSms(params: PendingApprovalRequestSmsParams): Promise<string> {
+    const template = await prisma.smsTemplate.findUnique({
+        where: { key: 'PENDING_APPROVAL_REQUEST' },
+    });
+
+    if (!template) {
+        throw new Error('Pending approval request SMS template not found in database');
+    }
+
+    return replaceVariables(template.template, params);
+}
+
+interface CorrectionNotificationSmsParams {
+    transactionType: string;
+    departmentName: string;
+    currency: string;
+    originalAmount: string;
+    newAmount: string;
+    correctionType: string;
+    adjustmentAmount: string;
+    reason: string;
+}
+
+export async function generateCorrectionNotificationSms(params: CorrectionNotificationSmsParams): Promise<string> {
+    const template = await prisma.smsTemplate.findUnique({
+        where: { key: 'CORRECTION_NOTIFICATION' },
+    });
+
+    if (!template) {
+        throw new Error('Correction notification SMS template not found in database');
+    }
+
+    return replaceVariables(template.template, params);
+}
+
+interface CreditAlertSmsParams {
+    currency: string;
+    amount: string;
+    departmentName: string;
+    description: string;
+    balance: string;
+}
+
+export async function generateCreditAlertSms(params: CreditAlertSmsParams): Promise<string> {
+    const template = await prisma.smsTemplate.findUnique({
+        where: { key: 'CREDIT_ALERT' },
+    });
+
+    if (!template) {
+        throw new Error('Credit alert SMS template not found in database');
+    }
+
+    return replaceVariables(template.template, params);
+}

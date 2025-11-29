@@ -469,29 +469,41 @@ export default function ReportsPage() {
 
             {transactions.length > 0 && (
                 <>
-                    <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr 1fr' }, gap: 3, mb: 3, '@media print': { display: 'none' } }}>
-                        <Paper sx={{ p: 2 }}>
-                            <Typography variant="subtitle2" color="text.secondary">
-                                Total Income
+                    <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr 1fr' }, gap: 2, mb: 3, '@media print': { display: 'none' } }}>
+                        <Paper 
+                            sx={{ 
+                                p: 2, 
+                                border: '2px solid', 
+                                borderColor: stats.balance >= 0 ? 'success.main' : 'error.main', 
+                                bgcolor: stats.balance >= 0 ? 'success.main' : 'error.main',
+                                '@keyframes blink': {
+                                    '0%, 100%': { opacity: 1 },
+                                    '50%': { opacity: 0.3 }
+                                },
+                                animation: stats.balance < 5000 ? 'blink 1s ease-in-out infinite' : 'none'
+                            }}
+                        >
+                            <Typography variant="subtitle2" color="white" sx={{ opacity: 0.9 }}>
+                                Account Balance
                             </Typography>
-                            <Typography variant="h5" color="success.main">
+                            <Typography variant="h5" color="white">
+                                {formatCurrency(stats.balance)}
+                            </Typography>
+                        </Paper>
+                        <Paper sx={{ p: 2, border: '2px solid', borderColor: 'success.main', bgcolor: 'success.main' }}>
+                            <Typography variant="subtitle2" color="white" sx={{ opacity: 0.9 }}>
+                                Total Inflows
+                            </Typography>
+                            <Typography variant="h5" color="white">
                                 {formatCurrency(stats.income)}
                             </Typography>
                         </Paper>
-                        <Paper sx={{ p: 2 }}>
-                            <Typography variant="subtitle2" color="text.secondary">
+                        <Paper sx={{ p: 2, border: '2px solid', borderColor: 'error.main', bgcolor: 'error.main' }}>
+                            <Typography variant="subtitle2" color="white" sx={{ opacity: 0.9 }}>
                                 Total Expenses
                             </Typography>
-                            <Typography variant="h5" color="error.main">
+                            <Typography variant="h5" color="white">
                                 {formatCurrency(stats.expense)}
-                            </Typography>
-                        </Paper>
-                        <Paper sx={{ p: 2 }}>
-                            <Typography variant="subtitle2" color="text.secondary">
-                                Net Balance
-                            </Typography>
-                            <Typography variant="h5">
-                                {formatCurrency(stats.balance)}
                             </Typography>
                         </Paper>
                     </Box>

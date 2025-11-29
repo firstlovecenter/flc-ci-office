@@ -463,6 +463,24 @@ export async function DELETE(
             );
         }
 
+        // Check if user has been involved in any transactions
+        const transactionCount = await prisma.transaction.count({
+            where: {
+                OR: [
+                    { userId: userId },
+                    { approvedBy: userId },
+                    { rejectedBy: userId },
+                ],
+            },
+        });
+
+        if (transactionCount > 0) {
+            return NextResponse.json(
+                { error: `This user has been involved in ${transactionCount} transaction(s) and cannot be deleted. Please archive the user instead to preserve transaction history.` },
+                { status: 400 }
+            );
+        }
+
         // Delete the user permanently (SUPERADMIN only)
         await prisma.user.delete({
             where: { id: userId },

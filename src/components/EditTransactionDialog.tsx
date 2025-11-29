@@ -27,6 +27,7 @@ interface EditTransactionDialogProps {
     onClose: () => void;
     onSave: () => void;
     isSuperAdmin: boolean;
+    userRole?: string;
 }
 
 export default function EditTransactionDialog({
@@ -35,10 +36,12 @@ export default function EditTransactionDialog({
     onClose,
     onSave,
     isSuperAdmin,
+    userRole,
 }: EditTransactionDialogProps) {
     const [type, setType] = useState<TransactionType>('INCOME');
     const [amount, setAmount] = useState('');
     const [description, setDescription] = useState('');
+    const [descriptionPreset, setDescriptionPreset] = useState('');
     const [departmentId, setDepartmentId] = useState('');
     const [currencyId, setCurrencyId] = useState('');
     const [date, setDate] = useState('');
@@ -49,12 +52,35 @@ export default function EditTransactionDialog({
     const [files, setFiles] = useState<File[]>([]);
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
+    
+    // Check if user is a leader (not an admin)
+    const isLeader = userRole && !['SUPERADMIN', 'GLOBAL_ADMIN', 'INTERNATIONAL_ADMIN', 'NATIONAL_ADMIN', 'REGIONAL_ADMIN', 'CAMPUS_ADMIN', 'STREAM_ADMIN', 'COUNCIL_ADMIN'].includes(userRole);
+
 
     useEffect(() => {
         if (transaction) {
             setType(transaction.type);
             setAmount(transaction.amount.toString());
-            setDescription(transaction.description);
+            
+            // Parse description for preset
+            const desc = transaction.description || '';
+            if (desc.startsWith('HR - ')) {
+                setDescriptionPreset('HR');
+                setDescription(desc.substring(5));
+            } else if (desc.startsWith('Ministry expense - ')) {
+                setDescriptionPreset('Ministry expense');
+                setDescription(desc.substring(19));
+            } else if (desc === 'HR') {
+                setDescriptionPreset('HR');
+                setDescription('');
+            } else if (desc === 'Ministry expense') {
+                setDescriptionPreset('Ministry expense');
+                setDescription('');
+            } else {
+                setDescriptionPreset('');
+                setDescription(desc);
+            }
+            
             setDepartmentId(transaction.departmentId);
             setCurrencyId(transaction.currencyId || transaction.currency?.id || '');
             // Set date from transaction createdAt or use current date
@@ -204,6 +230,11 @@ export default function EditTransactionDialog({
         try {
             const uploadedFiles = await uploadFiles();
 
+            // Combine preset and custom description
+            const finalDescription = descriptionPreset 
+                ? (description ? `${descriptionPreset} - ${description}` : descriptionPreset)
+                : description;
+
             const response = await fetch(`/api/transactions/${transaction.id}`, {
                 method: 'PUT',
                 headers: {
@@ -212,7 +243,7 @@ export default function EditTransactionDialog({
                 body: JSON.stringify({
                     type,
                     amount: parseFloat(amount),
-                    description,
+                    description: finalDescription,
                     departmentId,
                     currencyId: currencyId || null,
                     exchangeRate: exchangeRate || null,
@@ -271,7 +302,7 @@ export default function EditTransactionDialog({
                         onChange={(e) => setType(e.target.value as TransactionType)}
                         disabled={transaction?.locked && !isSuperAdmin}
                     >
-                        <MenuItem value="INCOME">Income</MenuItem>
+                        {!isLeader && <MenuItem value="INCOME">Income</MenuItem>}
                         <MenuItem value="EXPENSE">Expense</MenuItem>
                     </Select>
                 </FormControl>
@@ -317,16 +348,31 @@ export default function EditTransactionDialog({
                     }
                 />
 
+                <FormControl fullWidth sx={{ mb: 3 }}>
+                    <InputLabel>Description Type</InputLabel>
+                    <Select
+                        value={descriptionPreset}
+                        label="Description Type"
+                        onChange={(e) => setDescriptionPreset(e.target.value)}
+                        disabled={transaction?.locked && !isSuperAdmin}
+                    >
+                        <MenuItem value="">Custom</MenuItem>
+                        <MenuItem value="HR">HR</MenuItem>
+                        <MenuItem value="Ministry expense">Ministry expense</MenuItem>
+                    </Select>
+                </FormControl>
+
                 <TextField
                     fullWidth
-                    label="Description"
+                    label={descriptionPreset ? "Additional Details (Optional)" : "Description"}
                     multiline
                     rows={3}
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
-                    required
+                    required={!descriptionPreset && type === 'EXPENSE'}
                     sx={{ mb: 3 }}
                     disabled={transaction?.locked && !isSuperAdmin}
+                    helperText={descriptionPreset ? 'Optional - Add more details if needed' : (type === 'INCOME' ? 'Optional for income transactions' : 'Required for expenses')}
                 />
 
                 <TextField

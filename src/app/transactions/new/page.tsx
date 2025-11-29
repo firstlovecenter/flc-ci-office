@@ -30,6 +30,7 @@ function NewTransactionForm() {
     const [type, setType] = useState<TransactionType>('INCOME');
     const [amount, setAmount] = useState('');
     const [description, setDescription] = useState('');
+    const [descriptionPreset, setDescriptionPreset] = useState('');
     const [departmentId, setDepartmentId] = useState('');
     const [currencyId, setCurrencyId] = useState('');
     const [departments, setDepartments] = useState<any[]>([]);
@@ -41,12 +42,28 @@ function NewTransactionForm() {
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
 
+    // Check if user is a leader
+    const leaderRoles = ['GLOBAL_LEADER', 'INTERNATIONAL_LEADER', 'NATIONAL_LEADER', 'REGIONAL_LEADER', 'CAMPUS_LEADER', 'STREAM_LEADER', 'COUNCIL_LEADER'];
+    const isLeader = session?.user?.role && leaderRoles.includes(session.user.role);
+
     useEffect(() => {
+        // Check time restriction for leaders making expense requests
+        if (isLeader) {
+            const now = new Date();
+            const hour = now.getHours();
+            if (hour < 6 || hour >= 15) {
+                // Don't set error yet, just note the restriction
+            }
+        }
+
         // Set transaction type from URL parameter if present
         if (typeParam && (typeParam === 'INCOME' || typeParam === 'EXPENSE')) {
             setType(typeParam as TransactionType);
+        } else if (isLeader) {
+            // Leaders can only make expense requests
+            setType('EXPENSE');
         }
-    }, [typeParam]);
+    }, [typeParam, isLeader]);
 
     useEffect(() => {
         fetchDepartments();
@@ -179,13 +196,29 @@ function NewTransactionForm() {
         setLoading(true);
         setError('');
 
+        // Check time restriction for expense requests (6am - 3pm)
+        if (type === 'EXPENSE') {
+            const now = new Date();
+            const hour = now.getHours();
+            if (hour < 6 || hour >= 15) {
+                setError('Expense requests can only be made between 6:00 AM and 3:00 PM');
+                setLoading(false);
+                return;
+            }
+        }
+
         try {
             const uploadedFiles = await uploadFiles();
+
+            // Combine preset and custom description
+            const finalDescription = descriptionPreset 
+                ? (description ? `${descriptionPreset} - ${description}` : descriptionPreset)
+                : description;
 
             const payload = {
                 type,
                 amount: parseFloat(amount),
-                description,
+                description: finalDescription,
                 departmentId,
                 currencyId: currencyId || null,
                 exchangeRate: exchangeRate || null,
@@ -225,10 +258,45 @@ function NewTransactionForm() {
         }
     };
 
+    // Check time restriction for leaders
+    if (isLeader) {
+        const now = new Date();
+        const hour = now.getHours();
+        if (hour < 6 || hour >= 15) {
+            return (
+                <Box maxWidth="sm" sx={{ mx: 'auto', mt: 8 }}>
+                    <Paper sx={{ p: 4 }}>
+                        <Alert severity="warning" sx={{ mb: 3 }}>
+                            <Typography variant="h6" gutterBottom>
+                                Outside Operating Hours
+                            </Typography>
+                            <Typography variant="body2">
+                                Expense requests can only be made between <strong>6:00 AM and 3:00 PM</strong>.
+                            </Typography>
+                            <Typography variant="body2" sx={{ mt: 2 }}>
+                                Current time: {now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}
+                            </Typography>
+                            <Typography variant="body2" sx={{ mt: 2 }}>
+                                Please return during operating hours to submit your expense request.
+                            </Typography>
+                        </Alert>
+                        <Button 
+                            variant="outlined" 
+                            fullWidth
+                            onClick={() => router.push('/transactions')}
+                        >
+                            Back to Transactions
+                        </Button>
+                    </Paper>
+                </Box>
+            );
+        }
+    }
+
     return (
         <Box maxWidth="sm" sx={{ mx: 'auto' }}>
             <Typography variant="h4" gutterBottom>
-                New Transaction
+                {isLeader ? 'New Expense Request' : 'New Transaction'}
             </Typography>
             <Paper sx={{ p: 4 }}>
                 <form onSubmit={handleSubmit}>
@@ -238,34 +306,38 @@ function NewTransactionForm() {
                         </Alert>
                     )}
 
-                    <FormControl fullWidth sx={{ mb: 3 }}>
-                        <InputLabel>Type</InputLabel>
-                        <Select
-                            value={type}
-                            label="Type"
-                            onChange={(e) => setType(e.target.value as TransactionType)}
-                        >
-                            <MenuItem value="INCOME">Income</MenuItem>
-                            <MenuItem value="EXPENSE">Expense</MenuItem>
-                        </Select>
-                    </FormControl>
+                    {!isLeader && (
+                        <FormControl fullWidth sx={{ mb: 3 }}>
+                            <InputLabel>Type</InputLabel>
+                            <Select
+                                value={type}
+                                label="Type"
+                                onChange={(e) => setType(e.target.value as TransactionType)}
+                            >
+                                <MenuItem value="INCOME">Income</MenuItem>
+                                <MenuItem value="EXPENSE">Expense</MenuItem>
+                            </Select>
+                        </FormControl>
+                    )}
 
-                    <FormControl fullWidth sx={{ mb: 3 }}>
-                        <InputLabel>Currency</InputLabel>
-                        <Select
-                            value={currencyId}
-                            label="Currency"
-                            onChange={(e) => setCurrencyId(e.target.value)}
-                            required
-                        >
-                            {currencies.map((currency) => (
-                                <MenuItem key={currency.id} value={currency.id}>
-                                    {currency.code} - {currency.name} ({currency.symbol})
-                                    {currency.isBase && ' [Base]'}
-                                </MenuItem>
-                            ))}
-                        </Select>
-                    </FormControl>
+                    {!isLeader && (
+                        <FormControl fullWidth sx={{ mb: 3 }}>
+                            <InputLabel>Currency</InputLabel>
+                            <Select
+                                value={currencyId}
+                                label="Currency"
+                                onChange={(e) => setCurrencyId(e.target.value)}
+                                required
+                            >
+                                {currencies.map((currency) => (
+                                    <MenuItem key={currency.id} value={currency.id}>
+                                        {currency.code} - {currency.name} ({currency.symbol})
+                                        {currency.isBase && ' [Base]'}
+                                    </MenuItem>
+                                ))}
+                            </Select>
+                        </FormControl>
+                    )}
 
                     <TextField
                         fullWidth
@@ -289,32 +361,48 @@ function NewTransactionForm() {
                         }
                     />
 
+                    <FormControl fullWidth sx={{ mb: 3 }}>
+                        <InputLabel>Description Type</InputLabel>
+                        <Select
+                            value={descriptionPreset}
+                            label="Description Type"
+                            onChange={(e) => setDescriptionPreset(e.target.value)}
+                        >
+                            <MenuItem value="">Custom</MenuItem>
+                            <MenuItem value="HR">HR</MenuItem>
+                            <MenuItem value="Ministry expense">Ministry expense</MenuItem>
+                        </Select>
+                    </FormControl>
+
                     <TextField
                         fullWidth
-                        label="Description"
+                        label={descriptionPreset ? "Additional Details (Optional)" : "Description"}
                         value={description}
                         onChange={(e) => setDescription(e.target.value)}
-                        required
+                        required={!descriptionPreset}
                         multiline
                         rows={3}
                         sx={{ mb: 3 }}
+                        placeholder={isLeader ? "What is this expense for?" : "Transaction description"}
                     />
 
-                    <FormControl fullWidth sx={{ mb: 3 }}>
-                        <InputLabel>Department</InputLabel>
-                        <Select
-                            value={departmentId}
-                            label="Department"
-                            onChange={(e) => setDepartmentId(e.target.value)}
-                            required
-                        >
-                            {departments.map((dept) => (
-                                <MenuItem key={dept.id} value={dept.id}>
-                                    {dept.name} ({dept.level})
-                                </MenuItem>
-                            ))}
-                        </Select>
-                    </FormControl>
+                    {!isLeader && (
+                        <FormControl fullWidth sx={{ mb: 3 }}>
+                            <InputLabel>Department</InputLabel>
+                            <Select
+                                value={departmentId}
+                                label="Department"
+                                onChange={(e) => setDepartmentId(e.target.value)}
+                                required
+                            >
+                                {departments.map((dept) => (
+                                    <MenuItem key={dept.id} value={dept.id}>
+                                        {dept.name} ({dept.level})
+                                    </MenuItem>
+                                ))}
+                            </Select>
+                        </FormControl>
+                    )}
 
                     <Box sx={{ mb: 3 }}>
                         <Button
@@ -353,7 +441,7 @@ function NewTransactionForm() {
                             variant="contained" 
                             disabled={loading || !baseCurrency}
                         >
-                            {loading ? 'Saving...' : 'Save Transaction'}
+                            {loading ? 'Submitting...' : isLeader ? 'Submit Expense Request' : 'Save Transaction'}
                         </Button>
                     </Box>
                 </form>

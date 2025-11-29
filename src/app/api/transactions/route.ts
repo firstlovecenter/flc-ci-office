@@ -3,7 +3,8 @@ import { prisma } from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { getCurrentWeek } from '@/lib/utils';
-
+import { sendSms } from '@/lib/sms';
+import { generatePendingApprovalRequestSms, generateCreditAlertSms } from '@/lib/sms-templates';
 import { getDescendantDepartmentIds, hasDepartmentAccess } from '@/lib/departments';
 import { getUserBaseCurrency, convertToUserBaseCurrency } from '@/lib/currency-conversion';
 
@@ -269,6 +270,180 @@ export async function POST(request: Request) {
                 afterData: transaction as any,
             },
         });
+
+        // Send SMS to campus admins if this is a pending transaction (created by leader)
+        if (isLeader && transaction.status === 'PENDING') {
+            try {
+                // Get the department with its hierarchy
+                const dept = await prisma.department.findUnique({
+                    where: { id: transaction.departmentId },
+                    include: {
+                        parent: {
+                            include: {
+                                parent: {
+                                    include: {
+                                        parent: true
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+
+                // Build array of department IDs in the hierarchy (from current up to campus level)
+                const departmentHierarchy: string[] = [];
+                if (dept) {
+                    departmentHierarchy.push(dept.id);
+                    let currentDept: any = dept.parent;
+                    while (currentDept) {
+                        departmentHierarchy.push(currentDept.id);
+                        if (currentDept.level === 'CAMPUS') break; // Stop at campus level
+                        currentDept = currentDept.parent;
+                    }
+                }
+
+                // Find all users who have been assigned CAMPUS_ADMIN role for departments in the hierarchy
+                const campusAdminRoles = await prisma.userRole.findMany({
+                    where: {
+                        role: 'CAMPUS_ADMIN',
+                        departmentId: { in: departmentHierarchy },
+                    },
+                    include: {
+                        user: {
+                            select: {
+                                phone: true,
+                                name: true,
+                                archived: true,
+                            },
+                        },
+                    },
+                });
+
+                // Filter to active users with phone numbers and extract unique users
+                const campusAdmins = campusAdminRoles
+                    .filter(ur => ur.user.phone && !ur.user.archived)
+                    .map(ur => ({ phone: ur.user.phone!, name: ur.user.name }))
+                    .filter((admin, index, self) => 
+                        index === self.findIndex(a => a.phone === admin.phone)
+                    );
+
+                // Send SMS to all campus admins
+                if (campusAdmins.length > 0) {
+                    const currencySymbol = transaction.currency?.symbol || '$';
+                    const smsMessage = await generatePendingApprovalRequestSms({
+                        userName: session.user.name || 'A user',
+                        transactionType: type.toLowerCase(),
+                        currency: currencySymbol,
+                        amount: amount.toFixed(2),
+                        description: description,
+                    });
+                    
+                    for (const admin of campusAdmins) {
+                        if (admin.phone) {
+                            try {
+                                await sendSms({
+                                    to: admin.phone,
+                                    message: smsMessage
+                                });
+                                console.log(`SMS sent to campus admin: ${admin.name} (${admin.phone})`);
+                            } catch (err) {
+                                console.error(`Failed to send SMS to ${admin.name}:`, err);
+                            }
+                        }
+                    }
+                } else {
+                    console.warn('No campus admins found for department hierarchy:', departmentHierarchy);
+                }
+            } catch (smsError) {
+                console.error('Failed to send SMS to campus admin:', smsError);
+                // Don't fail the request if SMS fails
+            }
+        }
+
+        // Send CREDIT ALERT to department leaders when admin creates income transaction
+        if (!isLeader && type === 'INCOME' && transaction.status === 'APPROVED') {
+            try {
+                // Find the department leader based on department level
+                const leaderRole = transaction.department.level === 'GLOBAL' ? 'GLOBAL_LEADER' :
+                                  transaction.department.level === 'INTERNATIONAL' ? 'INTERNATIONAL_LEADER' :
+                                  transaction.department.level === 'NATIONAL' ? 'NATIONAL_LEADER' :
+                                  transaction.department.level === 'REGIONAL' ? 'REGIONAL_LEADER' :
+                                  transaction.department.level === 'CAMPUS' ? 'CAMPUS_LEADER' :
+                                  transaction.department.level === 'STREAM' ? 'STREAM_LEADER' :
+                                  'COUNCIL_LEADER';
+
+                const departmentLeaderRoles = await prisma.userRole.findMany({
+                    where: {
+                        role: leaderRole,
+                        departmentId: transaction.departmentId,
+                    },
+                    include: {
+                        user: {
+                            select: {
+                                phone: true,
+                                name: true,
+                                archived: true,
+                            },
+                        },
+                    },
+                });
+
+                // Filter active users with phone numbers
+                const leaders = departmentLeaderRoles
+                    .filter(ur => ur.user.phone && !ur.user.archived)
+                    .map(ur => ({ phone: ur.user.phone!, name: ur.user.name }));
+
+                if (leaders.length > 0) {
+                    // Calculate department balance after this income
+                    const departmentTransactions = await prisma.transaction.findMany({
+                        where: {
+                            departmentId: transaction.departmentId,
+                            status: 'APPROVED',
+                        },
+                        select: {
+                            type: true,
+                            amountInBase: true,
+                            amount: true,
+                        },
+                    });
+
+                    const balance = departmentTransactions.reduce((sum, tx) => {
+                        const txAmount = Number(tx.amountInBase || tx.amount);
+                        return sum + (tx.type === 'INCOME' ? txAmount : -txAmount);
+                    }, 0);
+
+                    const currencySymbol = transaction.currency?.symbol || '$';
+                    
+                    // Generate credit alert message using template
+                    const smsMessage = await generateCreditAlertSms({
+                        currency: currencySymbol,
+                        amount: amount.toFixed(2),
+                        departmentName: transaction.department.name,
+                        description: description.substring(0, 40) + (description.length > 40 ? '...' : ''),
+                        balance: balance.toFixed(2),
+                    });
+                    
+                    for (const leader of leaders) {
+                        if (leader.phone) {
+                            try {
+                                await sendSms({
+                                    to: leader.phone,
+                                    message: smsMessage
+                                });
+                                console.log(`Credit alert SMS sent to leader: ${leader.name} (${leader.phone})`);
+                            } catch (err) {
+                                console.error(`Failed to send credit alert SMS to ${leader.name}:`, err);
+                            }
+                        }
+                    }
+                } else {
+                    console.warn('No department leaders found for credit alert notification');
+                }
+            } catch (smsError) {
+                console.error('Failed to send credit alert SMS to leader:', smsError);
+                // Don't fail the request if SMS fails
+            }
+        }
 
         return NextResponse.json(transaction);
     } catch (error) {
