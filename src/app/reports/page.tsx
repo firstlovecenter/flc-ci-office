@@ -23,7 +23,7 @@ import {
     Divider,
 } from '@mui/material';
 import { Download as DownloadIcon, Print as PrintIcon } from '@mui/icons-material';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency, formatNumber } from '@/lib/utils';
 import { useSession } from 'next-auth/react';
 
 type ReportType = 'summary' | 'statement';
@@ -212,7 +212,7 @@ export default function ReportsPage() {
         if (reportType === 'summary') {
             const headers = `Date,Department,Type,Description,Amount (${currencyCode})\n`;
             const rows = transactions.map(tx => 
-                `${new Date(tx.createdAt).toLocaleDateString()},${tx.department.name},${tx.type},${tx.description},${Number(tx.amountInBase || tx.amount).toFixed(2)}`
+                `${new Date(tx.createdAt).toLocaleDateString()},${tx.department.name},${tx.type},${tx.description},${formatNumber(Number(tx.amountInBase || tx.amount))}`
             ).join('\n');
             return headers + rows;
         } else {
@@ -222,7 +222,7 @@ export default function ReportsPage() {
                 const debit = tx.type === 'EXPENSE' ? Number(tx.amountInBase || tx.amount) : 0;
                 const credit = tx.type === 'INCOME' ? Number(tx.amountInBase || tx.amount) : 0;
                 balance += credit - debit;
-                return `${new Date(tx.createdAt).toLocaleDateString()},${tx.description},${tx.department.name},${debit || ''},${credit || ''},${balance.toFixed(2)}`;
+                return `${new Date(tx.createdAt).toLocaleDateString()},${tx.description},${tx.department.name},${debit || ''},${credit || ''},${formatNumber(balance)}`;
             }).join('\n');
             return headers + rows;
         }

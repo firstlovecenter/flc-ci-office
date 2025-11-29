@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { createAuditLog } from '@/lib/audit';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency, formatNumber } from '@/lib/utils';
 import { sendSms } from '@/lib/sms';
 import { generateCorrectionNotificationSms } from '@/lib/sms-templates';
 
@@ -173,10 +173,10 @@ export async function POST(
                     transactionType: originalTransaction.type.toLowerCase(),
                     departmentName: originalTransaction.department.name,
                     currency: currencySymbol,
-                    originalAmount: originalAmount.toFixed(2),
-                    newAmount: newAmount.toFixed(2),
+                    originalAmount: formatNumber(originalAmount),
+                    newAmount: formatNumber(newAmount),
                     correctionType: correctionType === 'INCOME' ? 'Credit' : 'Debit',
-                    adjustmentAmount: absoluteCorrectionAmount.toFixed(2),
+                    adjustmentAmount: formatNumber(absoluteCorrectionAmount),
                     reason: reason || 'Amount adjustment',
                 });
                 

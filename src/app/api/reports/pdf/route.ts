@@ -6,6 +6,7 @@ import { getUserBaseCurrency } from '@/lib/currency-conversion';
 import { convertToUserBaseCurrency } from '@/lib/currency-conversion';
 import { getDescendantDepartmentIds } from '@/lib/departments';
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
+import { formatCurrency, formatNumber } from '@/lib/utils';
 
 export async function POST(request: NextRequest) {
     try {
@@ -204,7 +205,7 @@ export async function POST(request: NextRequest) {
         y -= 20;
 
         // Opening Balance
-        page.drawText(`Opening Balance: ${safeCurrencySymbol}${openingBalance.toFixed(2)}`, {
+        page.drawText(`Opening Balance: ${safeCurrencySymbol}${formatNumber(openingBalance)}`, {
             x: 50,
             y,
             size: 11,
@@ -250,7 +251,7 @@ export async function POST(request: NextRequest) {
             // Add original currency info if different from base
             if (tx.currency && tx.currency.code !== userBaseCurrency.code) {
                 const txSafeSymbol = getSafeSymbol(tx.currency.symbol, tx.currency.code);
-                description += ` (${txSafeSymbol}${Number(tx.amount).toFixed(2)} ${tx.currency.code})`;
+                description += ` (${txSafeSymbol}${formatNumber(Number(tx.amount))} ${tx.currency.code})`;
             }
             
             const deptName = sanitizeText(tx.department.name.substring(0, 20));
@@ -286,9 +287,9 @@ export async function POST(request: NextRequest) {
             });
 
             page.drawText(deptName, { x: colX.department, y, size: 8, font, color: rgb(0, 0, 0) });
-            drawRightText(debit ? `${safeCurrencySymbol}${debit.toFixed(2)}` : '-', colX.debit + 70, y, 8);
-            drawRightText(credit ? `${safeCurrencySymbol}${credit.toFixed(2)}` : '-', colX.credit + 70, y, 8);
-            drawRightText(`${safeCurrencySymbol}${runningBalance.toFixed(2)}`, colX.balance + 70, y, 8);
+            drawRightText(debit ? `${safeCurrencySymbol}${formatNumber(debit)}` : '-', colX.debit + 70, y, 8);
+            drawRightText(credit ? `${safeCurrencySymbol}${formatNumber(credit)}` : '-', colX.credit + 70, y, 8);
+            drawRightText(`${safeCurrencySymbol}${formatNumber(runningBalance)}`, colX.balance + 70, y, 8);
 
             y -= rowHeight;
         }
@@ -299,7 +300,7 @@ export async function POST(request: NextRequest) {
             page = pdfDoc.addPage([595, 842]);
             y = height - 50;
         }
-        drawRightText(`Closing Balance: ${safeCurrencySymbol}${runningBalance.toFixed(2)}`, 545, y, 11);
+        drawRightText(`Closing Balance: ${safeCurrencySymbol}${formatNumber(runningBalance)}`, 545, y, 11);
         
         // Summary
         const income = transactions
@@ -331,11 +332,11 @@ export async function POST(request: NextRequest) {
             page = pdfDoc.addPage([595, 842]);
             y = height - 50;
         }
-        page.drawText(`Total Income: ${safeCurrencySymbol}${income.toFixed(2)}`, { x: 50, y, size: 10, font, color: rgb(0, 0, 0) });
+        page.drawText(`Total Income: ${safeCurrencySymbol}${formatNumber(income)}`, { x: 50, y, size: 10, font, color: rgb(0, 0, 0) });
         y -= 15;
-        page.drawText(`Total Expense: ${safeCurrencySymbol}${expense.toFixed(2)}`, { x: 50, y, size: 10, font, color: rgb(0, 0, 0) });
+        page.drawText(`Total Expense: ${safeCurrencySymbol}${formatNumber(expense)}`, { x: 50, y, size: 10, font, color: rgb(0, 0, 0) });
         y -= 15;
-        page.drawText(`Net Change: ${safeCurrencySymbol}${(income - expense).toFixed(2)}`, { x: 50, y, size: 10, font, color: rgb(0, 0, 0) });
+        page.drawText(`Net Change: ${safeCurrencySymbol}${formatNumber(income - expense)}`, { x: 50, y, size: 10, font, color: rgb(0, 0, 0) });
 
         // Footer
         const footerText = `Generated on ${new Date().toLocaleString()} by ${sanitizeText(session.user.name || session.user.email || 'Unknown User')}`;

@@ -17,6 +17,7 @@ import {
     CircularProgress,
 } from '@mui/material';
 import { useSession } from 'next-auth/react';
+import { formatNumber } from '@/lib/utils';
 
 type TransactionType = 'INCOME' | 'EXPENSE';
 
@@ -356,7 +357,7 @@ function NewTransactionForm() {
                         }}
                         helperText={
                             exchangeRate && amount
-                                ? `≈ ${baseCurrency?.symbol}${(parseFloat(amount) * exchangeRate).toFixed(2)} (${baseCurrency?.code})`
+                                ? `≈ ${baseCurrency?.symbol}${formatNumber(parseFloat(amount) * exchangeRate)} (${baseCurrency?.code})`
                                 : ''
                         }
                     />

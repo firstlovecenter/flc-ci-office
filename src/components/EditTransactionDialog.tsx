@@ -18,6 +18,7 @@ import {
     Chip,
     Typography,
 } from '@mui/material';
+import { formatNumber } from '@/lib/utils';
 
 type TransactionType = 'INCOME' | 'EXPENSE';
 
@@ -343,7 +344,7 @@ export default function EditTransactionDialog({
                     }}
                     helperText={
                         exchangeRate && amount
-                            ? `≈ ${baseCurrency?.symbol}${(parseFloat(amount) * exchangeRate).toFixed(2)} (${baseCurrency?.code})`
+                            ? `≈ ${baseCurrency?.symbol}${formatNumber(parseFloat(amount) * exchangeRate)} (${baseCurrency?.code})`
                             : ''
                     }
                 />

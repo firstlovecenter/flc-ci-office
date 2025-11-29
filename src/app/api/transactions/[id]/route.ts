@@ -5,6 +5,7 @@ import { authOptions } from '@/lib/auth';
 import { hasDepartmentAccess } from '@/lib/departments';
 import { sendSms } from '@/lib/sms';
 import { generateTransactionApprovedSms, generateTransactionDeclinedSms, generateTransactionChargeSms } from '@/lib/sms-templates';
+import { formatNumber } from '@/lib/utils';
 
 export async function PUT(
     request: Request,
@@ -290,9 +291,9 @@ export async function PATCH(
                     const currencySymbol = updatedTransaction.currency?.symbol || '$';
                     const smsMessage = await generateTransactionChargeSms({
                         currency: currencySymbol,
-                        chargeAmount: chargeAmount.toFixed(2),
-                        departmentName: updatedTransaction.department.name,
-                        transactionRef: updatedTransaction.id.substring(0, 8),
+                        chargeAmount: formatNumber(chargeAmount),
+                        departmentName: transaction.department.name,
+                        transactionRef: transaction.id.substring(0, 8),
                         description: transaction.description.substring(0, 25) + (transaction.description.length > 25 ? '...' : ''),
                     });
                     

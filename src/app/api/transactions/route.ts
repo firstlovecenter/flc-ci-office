@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { getCurrentWeek } from '@/lib/utils';
+import { getCurrentWeek, formatNumber } from '@/lib/utils';
 import { sendSms } from '@/lib/sms';
 import { generatePendingApprovalRequestSms, generateCreditAlertSms } from '@/lib/sms-templates';
 import { getDescendantDepartmentIds, hasDepartmentAccess } from '@/lib/departments';
@@ -334,7 +334,7 @@ export async function POST(request: Request) {
                         userName: session.user.name || 'A user',
                         transactionType: type.toLowerCase(),
                         currency: currencySymbol,
-                        amount: amount.toFixed(2),
+                        amount: formatNumber(amount),
                         description: description,
                     });
                     
@@ -417,10 +417,10 @@ export async function POST(request: Request) {
                     // Generate credit alert message using template
                     const smsMessage = await generateCreditAlertSms({
                         currency: currencySymbol,
-                        amount: amount.toFixed(2),
+                        amount: formatNumber(amount),
                         departmentName: transaction.department.name,
                         description: description.substring(0, 40) + (description.length > 40 ? '...' : ''),
-                        balance: balance.toFixed(2),
+                        balance: formatNumber(balance),
                     });
                     
                     for (const leader of leaders) {

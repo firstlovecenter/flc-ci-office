@@ -32,6 +32,14 @@ export function formatCurrency(amount: number | string, currencyCode: string = '
     }
 }
 
+// Format number with commas (no currency symbol)
+export function formatNumber(amount: number | string, decimals: number = 2): string {
+    return Number(amount).toLocaleString('en-US', {
+        minimumFractionDigits: decimals,
+        maximumFractionDigits: decimals,
+    });
+}
+
 export function isWeekLocked(weekNumber: number, year: number): boolean {
     const { weekNumber: currentWeek, year: currentYear } = getCurrentWeek();
 
