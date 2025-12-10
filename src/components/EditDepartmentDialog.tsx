@@ -15,8 +15,18 @@ import {
     Alert,
     Typography,
     Box,
+    Divider,
+    List,
+    ListItem,
+    ListItemIcon,
+    ListItemText,
+    CircularProgress,
 } from '@mui/material';
-import { formatDepartmentLevel } from '@/lib/utils';
+import WarningAmberIcon from '@mui/icons-material/WarningAmber';
+import ErrorIcon from '@mui/icons-material/Error';
+import PersonOffIcon from '@mui/icons-material/PersonOff';
+import BlockIcon from '@mui/icons-material/Block';
+import { formatDepartmentLevel, formatRole } from '@/lib/utils';
 
 type DepartmentLevel = 'GLOBAL' | 'INTERNATIONAL' | 'NATIONAL' | 'REGIONAL' | 'CAMPUS' | 'STREAM' | 'COUNCIL';
 
@@ -26,6 +36,7 @@ interface EditDepartmentDialogProps {
     department: any;
     departments: any[];
     onSave: (updatedDept?: any) => void;
+    onDepartmentClosed?: () => void;
 }
 
 const DEPARTMENT_LEVELS: DepartmentLevel[] = [
@@ -57,6 +68,7 @@ export default function EditDepartmentDialog({
     department,
     departments,
     onSave,
+    onDepartmentClosed,
 }: EditDepartmentDialogProps) {
     const [name, setName] = useState('');
     const [level, setLevel] = useState<DepartmentLevel>('COUNCIL');
@@ -73,6 +85,13 @@ export default function EditDepartmentDialog({
     const [currentLeader, setCurrentLeader] = useState<any>(null);
     const [currentAdmin, setCurrentAdmin] = useState<any>(null);
     const [usersLoading, setUsersLoading] = useState(false);
+    
+    // Close department state
+    const [closeDialogOpen, setCloseDialogOpen] = useState(false);
+    const [closeInfo, setCloseInfo] = useState<any>(null);
+    const [closeLoading, setCloseLoading] = useState(false);
+    const [closingDepartment, setClosingDepartment] = useState(false);
+    const [closeReason, setCloseReason] = useState('');
 
     useEffect(() => {
         fetchCurrencies();
@@ -186,6 +205,68 @@ export default function EditDepartmentDialog({
         }
     };
 
+    const handleOpenCloseDialog = async () => {
+        if (!department) return;
+        
+        setCloseLoading(true);
+        setCloseDialogOpen(true);
+        
+        try {
+            const response = await fetch(`/api/departments/${department.id}/close`);
+            if (response.ok) {
+                const data = await response.json();
+                setCloseInfo(data);
+            } else {
+                const errorData = await response.json();
+                setError(errorData.error || 'Failed to check department closure');
+                setCloseDialogOpen(false);
+            }
+        } catch (err) {
+            setError('Failed to check department closure');
+            setCloseDialogOpen(false);
+        } finally {
+            setCloseLoading(false);
+        }
+    };
+
+    const handleCloseDepartment = async () => {
+        if (!department) return;
+        
+        setClosingDepartment(true);
+        setError('');
+        
+        try {
+            const response = await fetch(`/api/departments/${department.id}/close`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ reason: closeReason }),
+            });
+            
+            if (response.ok) {
+                setCloseDialogOpen(false);
+                onClose(); // Close the edit dialog
+                if (onDepartmentClosed) {
+                    onDepartmentClosed(); // Redirect to parent list
+                } else {
+                    onSave(); // Fallback: just refresh the list
+                }
+            } else {
+                const errorData = await response.json();
+                setError(errorData.error || 'Failed to close department');
+            }
+        } catch (err) {
+            setError('Failed to close department');
+        } finally {
+            setClosingDepartment(false);
+        }
+    };
+
+    const handleCloseDialogClose = () => {
+        setCloseDialogOpen(false);
+        setCloseInfo(null);
+        setCloseReason('');
+    };
+
     const handleSave = async () => {
         if (!name.trim()) {
             setError('Department name is required');
@@ -226,9 +307,17 @@ export default function EditDepartmentDialog({
     };
 
     return (
-        <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
+        <Dialog 
+            open={open} 
+            onClose={onClose} 
+            maxWidth="sm" 
+            fullWidth
+            PaperProps={{
+                sx: { maxHeight: '90vh' }
+            }}
+        >
             <DialogTitle>Edit Department</DialogTitle>
-            <DialogContent>
+            <DialogContent dividers sx={{ overflowY: 'auto' }}>
                 {error && (
                     <Alert severity="error" sx={{ mb: 2 }}>
                         {error}
@@ -363,6 +452,33 @@ export default function EditDepartmentDialog({
                         </Select>
                     </FormControl>
                 )}
+
+                {/* Close Department Section */}
+                <Divider sx={{ my: 3 }} />
+                <Box sx={{ 
+                    mt: 2, 
+                    p: 2, 
+                    border: '2px solid #d32f2f', 
+                    borderRadius: 1,
+                    backgroundColor: '#ffebee',
+                }}>
+                    <Typography variant="subtitle2" sx={{ color: '#c62828', fontWeight: 'bold', mb: 1 }}>
+                        ⚠️ Danger Zone
+                    </Typography>
+                    <Button
+                        variant="contained"
+                        color="error"
+                        startIcon={<BlockIcon />}
+                        onClick={handleOpenCloseDialog}
+                        fullWidth
+                        sx={{ mb: 1 }}
+                    >
+                        Close Department
+                    </Button>
+                    <Typography variant="caption" sx={{ color: '#c62828', display: 'block' }}>
+                        Closing a department removes all user access but preserves transaction history.
+                    </Typography>
+                </Box>
             </DialogContent>
             <DialogActions>
                 <Button onClick={onClose} disabled={saving}>
@@ -372,6 +488,120 @@ export default function EditDepartmentDialog({
                     {saving ? 'Saving...' : 'Save'}
                 </Button>
             </DialogActions>
+
+            {/* Close Department Confirmation Dialog */}
+            <Dialog 
+                open={closeDialogOpen} 
+                onClose={handleCloseDialogClose}
+                maxWidth="sm"
+                fullWidth
+            >
+                <DialogTitle sx={{ color: 'error.main', display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <BlockIcon />
+                    Close Department
+                </DialogTitle>
+                <DialogContent>
+                    {closeLoading ? (
+                        <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
+                            <CircularProgress />
+                        </Box>
+                    ) : closeInfo ? (
+                        <>
+                            <Alert severity="warning" sx={{ mb: 2 }}>
+                                Are you sure you want to close <strong>{closeInfo.department?.name}</strong>?
+                                This action cannot be easily undone.
+                            </Alert>
+
+                            {/* Blockers - prevent closure */}
+                            {closeInfo.blockers?.length > 0 && (
+                                <Box sx={{ mb: 2 }}>
+                                    <Typography variant="subtitle2" color="error" gutterBottom>
+                                        Cannot Close Department:
+                                    </Typography>
+                                    <List dense>
+                                        {closeInfo.blockers.map((blocker: string, index: number) => (
+                                            <ListItem key={index}>
+                                                <ListItemIcon sx={{ minWidth: 36 }}>
+                                                    <ErrorIcon color="error" fontSize="small" />
+                                                </ListItemIcon>
+                                                <ListItemText primary={blocker} />
+                                            </ListItem>
+                                        ))}
+                                    </List>
+                                </Box>
+                            )}
+
+                            {/* Warnings */}
+                            {closeInfo.warnings?.length > 0 && closeInfo.canClose && (
+                                <Box sx={{ mb: 2 }}>
+                                    <Typography variant="subtitle2" color="warning.main" gutterBottom>
+                                        Warnings:
+                                    </Typography>
+                                    <List dense>
+                                        {closeInfo.warnings.map((warning: string, index: number) => (
+                                            <ListItem key={index}>
+                                                <ListItemIcon sx={{ minWidth: 36 }}>
+                                                    <WarningAmberIcon color="warning" fontSize="small" />
+                                                </ListItemIcon>
+                                                <ListItemText primary={warning} />
+                                            </ListItem>
+                                        ))}
+                                    </List>
+                                </Box>
+                            )}
+
+                            {/* Affected Users */}
+                            {closeInfo.affectedUsers?.length > 0 && closeInfo.canClose && (
+                                <Box sx={{ mb: 2 }}>
+                                    <Typography variant="subtitle2" gutterBottom>
+                                        Users who will lose access:
+                                    </Typography>
+                                    <List dense>
+                                        {closeInfo.affectedUsers.map((user: any) => (
+                                            <ListItem key={user.id}>
+                                                <ListItemIcon sx={{ minWidth: 36 }}>
+                                                    <PersonOffIcon fontSize="small" />
+                                                </ListItemIcon>
+                                                <ListItemText 
+                                                    primary={user.name || 'Unknown User'}
+                                                    secondary={formatRole(user.role)}
+                                                />
+                                            </ListItem>
+                                        ))}
+                                    </List>
+                                </Box>
+                            )}
+
+                            {/* Closure Reason */}
+                            {closeInfo.canClose && (
+                                <TextField
+                                    fullWidth
+                                    label="Reason for closing (optional)"
+                                    multiline
+                                    rows={2}
+                                    value={closeReason}
+                                    onChange={(e) => setCloseReason(e.target.value)}
+                                    placeholder="e.g., Department merged with another, no longer active, etc."
+                                    sx={{ mt: 2 }}
+                                />
+                            )}
+                        </>
+                    ) : null}
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={handleCloseDialogClose} disabled={closingDepartment}>
+                        Cancel
+                    </Button>
+                    <Button 
+                        onClick={handleCloseDepartment} 
+                        variant="contained" 
+                        color="error"
+                        disabled={!closeInfo?.canClose || closingDepartment}
+                    >
+                        {closingDepartment ? 'Closing...' : 'Close Department'}
+                    </Button>
+                </DialogActions>
+            </Dialog>
         </Dialog>
     );
 }

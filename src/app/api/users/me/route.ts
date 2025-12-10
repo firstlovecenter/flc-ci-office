@@ -3,7 +3,8 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 
-export const revalidate = 0; // Disable caching
+// Force dynamic rendering - data is user/role specific
+export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
     try {

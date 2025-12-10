@@ -11,6 +11,10 @@ model Department {
   name                   String
   level                  DepartmentLevel
   parentId               String?
+  isActive               Boolean                 @default(true)
+  closedAt               DateTime?
+  closedBy               String?
+  closureReason          String?
   createdAt              DateTime                @default(now())
   updatedAt              DateTime                @updatedAt
   parent                 Department?             @relation("DepartmentHierarchy", fields: [parentId], references: [id])
@@ -22,6 +26,7 @@ model Department {
 
   @@index([parentId])
   @@index([level])
+  @@index([isActive])
 }
 
 model UserRole {

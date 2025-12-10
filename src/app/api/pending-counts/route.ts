@@ -4,7 +4,8 @@ import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { TransactionStatus } from '@prisma/client';
 
-export const revalidate = 10; // Revalidate every 10 seconds
+// Force dynamic rendering - data is user/role specific
+export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
     try {

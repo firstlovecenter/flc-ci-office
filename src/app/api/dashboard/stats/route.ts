@@ -5,7 +5,8 @@ import { authOptions } from '@/lib/auth';
 import { getDescendantDepartmentIds } from '@/lib/departments';
 import { getUserBaseCurrency, convertToUserBaseCurrency } from '@/lib/currency-conversion';
 
-export const revalidate = 30; // Revalidate every 30 seconds
+// Force dynamic rendering - data is user/role specific
+export const dynamic = 'force-dynamic';
 
 export async function GET(request: Request) {
     const session = await getServerSession(authOptions);

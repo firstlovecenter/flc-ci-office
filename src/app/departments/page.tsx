@@ -129,6 +129,18 @@ function DepartmentsPageContent() {
         fetchAllDepartments();
     };
 
+    const handleDepartmentClosed = () => {
+        // Redirect to the parent department list or main departments page
+        if (parentParam) {
+            // If viewing a parent's children, go back to main departments
+            router.push('/departments');
+        } else {
+            // Just refresh the current list
+            fetchDepartments();
+            fetchAllDepartments();
+        }
+    };
+
     // Filter departments based on search and filters
     const filteredDepartments = departments.filter((dept: any) => {
         const matchesSearch = searchQuery === '' || 
@@ -300,6 +312,7 @@ function DepartmentsPageContent() {
                 department={selectedDepartment}
                 departments={allDepartments}
                 onSave={handleSaveEdit}
+                onDepartmentClosed={handleDepartmentClosed}
             />
         </Box>
     );

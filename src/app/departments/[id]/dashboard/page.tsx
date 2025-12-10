@@ -98,6 +98,11 @@ export default function DepartmentDashboardPage() {
         setEditDialogOpen(false);
     };
 
+    const handleDepartmentClosed = () => {
+        // Redirect to the main departments list after closing
+        router.push('/departments');
+    };
+
     if (loading) {
         return (
             <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '60vh' }}>
@@ -410,6 +415,7 @@ export default function DepartmentDashboardPage() {
                 department={department}
                 departments={allDepartments}
                 onSave={handleSaveEdit}
+                onDepartmentClosed={handleDepartmentClosed}
             />
         </Box>
     );

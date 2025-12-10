@@ -36,20 +36,35 @@ export function getAdminRoleForLevel(level: DepartmentLevel): Role | null {
  * Recursively fetches all descendant department IDs for a given department ID.
  * Includes the given department ID in the result.
  * Optimized to use a single query with CTE instead of N+1 queries.
+ * Only includes active departments by default.
  */
-export async function getDescendantDepartmentIds(departmentId: string): Promise<string[]> {
+export async function getDescendantDepartmentIds(departmentId: string, includeInactive: boolean = false): Promise<string[]> {
     // Use raw SQL with recursive CTE for much better performance
-    const result = await prisma.$queryRaw<Array<{ id: string }>>`
-        WITH RECURSIVE dept_tree AS (
-            SELECT id FROM "Department" WHERE id = ${departmentId}
-            UNION ALL
-            SELECT d.id FROM "Department" d
-            INNER JOIN dept_tree dt ON d."parentId" = dt.id
-        )
-        SELECT id FROM dept_tree
-    `;
-
-    return result.map(row => row.id);
+    // Only traverse active departments unless includeInactive is true
+    if (includeInactive) {
+        const result = await prisma.$queryRaw<Array<{ id: string }>>`
+            WITH RECURSIVE dept_tree AS (
+                SELECT id FROM "Department" WHERE id = ${departmentId}
+                UNION ALL
+                SELECT d.id FROM "Department" d
+                INNER JOIN dept_tree dt ON d."parentId" = dt.id
+            )
+            SELECT id FROM dept_tree
+        `;
+        return result.map(row => row.id);
+    } else {
+        const result = await prisma.$queryRaw<Array<{ id: string }>>`
+            WITH RECURSIVE dept_tree AS (
+                SELECT id FROM "Department" WHERE id = ${departmentId} AND "isActive" = true
+                UNION ALL
+                SELECT d.id FROM "Department" d
+                INNER JOIN dept_tree dt ON d."parentId" = dt.id
+                WHERE d."isActive" = true
+            )
+            SELECT id FROM dept_tree
+        `;
+        return result.map(row => row.id);
+    }
 }
 
 /**

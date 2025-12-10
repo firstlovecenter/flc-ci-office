@@ -8,7 +8,8 @@ import { sendSms, formatGhanaPhone } from '@/lib/sms';
 import { generateFirstRoleAssignmentSms } from '@/lib/sms-templates';
 import crypto from 'crypto';
 
-export const revalidate = 60; // Revalidate every 60 seconds
+// Force dynamic rendering - data is user/role specific
+export const dynamic = 'force-dynamic';
 
 export async function GET(request: Request) {
     const session = await getServerSession(authOptions);
@@ -20,14 +21,19 @@ export async function GET(request: Request) {
     try {
         const { searchParams } = new URL(request.url);
         const fetchAll = searchParams.get('all') === 'true';
+        const includeClosed = searchParams.get('includeClosed') === 'true';
 
         let whereClause: any = {};
+
+        // By default, exclude closed departments unless specifically requested
+        if (!includeClosed) {
+            whereClause.isActive = true;
+        }
 
         // If fetching all departments (for dropdowns), return based on role
         if (fetchAll) {
             if (session.user.role === 'SUPERADMIN') {
-                // Superadmin can see all departments
-                whereClause = {};
+                // Superadmin can see all departments (whereClause already has isActive filter)
             } else if (session.user.departmentId) {
                 // Others see their department and descendants
                 const allowedIds = await getDescendantDepartmentIds(session.user.departmentId);
@@ -39,8 +45,7 @@ export async function GET(request: Request) {
         } else {
             // Regular fetch - exclude user's own department and siblings
             if (session.user.role === 'SUPERADMIN') {
-                // Superadmin can see all departments
-                whereClause = {};
+                // Superadmin can see all departments (whereClause already has isActive filter)
             } else if (session.user.departmentId) {
                 const allowedIds = await getDescendantDepartmentIds(session.user.departmentId);
                 
@@ -63,7 +68,9 @@ export async function GET(request: Request) {
             where: whereClause,
             include: {
                 parent: true,
-                children: true,
+                children: {
+                    where: includeClosed ? {} : { isActive: true },
+                },
                 userRoles: {
                     where: {
                         OR: [
