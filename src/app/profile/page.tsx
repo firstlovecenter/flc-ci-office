@@ -168,6 +168,10 @@ export default function ProfilePage() {
             
             // Refresh profile to get updated image
             await fetchProfile();
+            
+            // Update NextAuth session to reflect new image across all pages
+            await update();
+            
             setSuccess('Profile picture updated successfully!');
         } catch (err: any) {
             console.error('Upload error:', err);

@@ -157,6 +157,10 @@ export const authOptions: NextAuthOptions = {
                 if (updatedUser) {
                     const isSuperUserOnUpdate = updatedUser.roles.includes('SUPERADMIN') || updatedUser.roles.includes('GLOBAL_ADMIN');
                     
+                    // Always update name and image
+                    token.name = updatedUser.name;
+                    token.picture = updatedUser.image;
+                    
                     if (isSuperUserOnUpdate && updatedUser.userRoles.length === 0) {
                         token.id = updatedUser.id;
                         token.role = updatedUser.roles.includes('SUPERADMIN') ? 'SUPERADMIN' : 'GLOBAL_ADMIN';
