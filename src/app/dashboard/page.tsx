@@ -17,9 +17,10 @@ import SmsIcon from '@mui/icons-material/Sms';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { Role } from '@prisma/client';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 
 export default function DashboardPage() {
-    const [stats, setStats] = useState({ income: 0, expense: 0, balance: 0, weeklyIncome: 0 });
+    const [stats, setStats] = useState({ income: 0, expense: 0, balance: 0, weeklyIncome: 0, chartData: [] as { week: string; income: number }[] });
     const [baseCurrency, setBaseCurrency] = useState<{ code: string; symbol: string } | null>(null);
     const [departmentName, setDepartmentName] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
@@ -508,6 +509,71 @@ export default function DashboardPage() {
                         );
                     })}
                 </Grid>
+            </Box>
+            )}
+
+            {/* Weekly Income Chart - Hidden for SuperAdmin */}
+            {!isSuperAdmin && stats.chartData && stats.chartData.length > 0 && (
+            <Box
+                sx={{
+                    p: { xs: 1.5, sm: 3, md: 4 },
+                    borderRadius: { xs: 1.5, sm: 2 },
+                    bgcolor: 'background.paper',
+                    border: '1px solid',
+                    borderColor: 'divider',
+                }}
+            >
+                <Typography variant="h6" fontWeight="600" sx={{ mb: { xs: 2, sm: 3 }, fontSize: { xs: '0.875rem', sm: '1.25rem' } }}>
+                    Weekly Income (Last 4 Weeks)
+                </Typography>
+                <Box sx={{ width: '100%', height: { xs: 200, sm: 250, md: 300 } }}>
+                    <ResponsiveContainer width="100%" height="100%">
+                        <BarChart
+                            data={stats.chartData}
+                            margin={{
+                                top: 5,
+                                right: 10,
+                                left: 0,
+                                bottom: 5,
+                            }}
+                        >
+                            <CartesianGrid strokeDasharray="3 3" stroke={theme.palette.divider} />
+                            <XAxis 
+                                dataKey="week" 
+                                tick={{ fill: theme.palette.text.secondary, fontSize: 12 }}
+                                axisLine={{ stroke: theme.palette.divider }}
+                            />
+                            <YAxis 
+                                tick={{ fill: theme.palette.text.secondary, fontSize: 12 }}
+                                axisLine={{ stroke: theme.palette.divider }}
+                                tickFormatter={(value) => baseCurrency ? `${baseCurrency.symbol}${value.toLocaleString()}` : value.toLocaleString()}
+                            />
+                            <Tooltip 
+                                formatter={(value: number) => [
+                                    baseCurrency ? `${baseCurrency.symbol}${value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : value.toLocaleString(),
+                                    'Income'
+                                ]}
+                                contentStyle={{
+                                    backgroundColor: theme.palette.background.paper,
+                                    border: `1px solid ${theme.palette.divider}`,
+                                    borderRadius: 8,
+                                }}
+                                labelStyle={{ color: theme.palette.text.primary }}
+                            />
+                            <Bar 
+                                dataKey="income" 
+                                radius={[4, 4, 0, 0]}
+                            >
+                                {stats.chartData.map((entry, index) => (
+                                    <Cell 
+                                        key={`cell-${index}`} 
+                                        fill={index === stats.chartData.length - 1 ? theme.palette.primary.main : theme.palette.success.main} 
+                                    />
+                                ))}
+                            </Bar>
+                        </BarChart>
+                    </ResponsiveContainer>
+                </Box>
             </Box>
             )}
         </Box>
