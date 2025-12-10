@@ -25,6 +25,7 @@ import PersonIcon from '@mui/icons-material/Person';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import EditDepartmentDialog from '@/components/EditDepartmentDialog';
+import { formatDepartmentLevel } from '@/lib/utils';
 
 type Department = {
     id: string;
@@ -189,7 +190,7 @@ function DepartmentsPageContent() {
                             <MenuItem value="">All Levels</MenuItem>
                             {levels.map((level) => (
                                 <MenuItem key={level} value={level}>
-                                    {level}
+                                    {formatDepartmentLevel(level)}
                                 </MenuItem>
                             ))}
                         </TextField>
@@ -255,7 +256,7 @@ function DepartmentsPageContent() {
                                         </Box>
                                         
                                         <Chip 
-                                            label={dept.level} 
+                                            label={formatDepartmentLevel(dept.level)} 
                                             size="small" 
                                             color="primary" 
                                             variant="outlined"

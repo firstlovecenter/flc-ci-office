@@ -16,6 +16,7 @@ import {
     CircularProgress,
 } from '@mui/material';
 import { useSession } from 'next-auth/react';
+import { formatDepartmentLevel } from '@/lib/utils';
 
 type DepartmentLevel = 'GLOBAL' | 'INTERNATIONAL' | 'NATIONAL' | 'REGIONAL' | 'CAMPUS' | 'STREAM' | 'COUNCIL';
 
@@ -303,7 +304,7 @@ function NewDepartmentForm() {
                                 : allowedLevels
                             ).map((lvl) => (
                                 <MenuItem key={lvl} value={lvl}>
-                                    {lvl}
+                                    {formatDepartmentLevel(lvl)}
                                 </MenuItem>
                             ))}
                         </Select>
@@ -320,7 +321,7 @@ function NewDepartmentForm() {
                             <MenuItem value="">None</MenuItem>
                             {availableParents.map((dept) => (
                                 <MenuItem key={dept.id} value={dept.id}>
-                                    {dept.name} ({dept.level})
+                                    {dept.name} ({formatDepartmentLevel(dept.level)})
                                 </MenuItem>
                             ))}
                         </Select>

@@ -6,7 +6,7 @@ import { getUserBaseCurrency } from '@/lib/currency-conversion';
 import { convertToUserBaseCurrency } from '@/lib/currency-conversion';
 import { getDescendantDepartmentIds } from '@/lib/departments';
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
-import { formatCurrency, formatNumber } from '@/lib/utils';
+import { formatCurrency, formatNumber, formatDepartmentLevel } from '@/lib/utils';
 
 export async function POST(request: NextRequest) {
     try {
@@ -111,13 +111,17 @@ export async function POST(request: NextRequest) {
             });
         }
 
-        // Get department name
+        // Get department name and level
         let departmentName = 'All Departments';
+        let departmentLevel = '';
         if (departmentId) {
             const dept = await prisma.department.findUnique({
                 where: { id: departmentId },
             });
-            if (dept) departmentName = dept.name;
+            if (dept) {
+                departmentName = dept.name;
+                departmentLevel = formatDepartmentLevel(dept.level);
+            }
         }
 
         // Create PDF document using pdf-lib (serverless-compatible)
@@ -219,7 +223,10 @@ export async function POST(request: NextRequest) {
         y -= 25;
         drawCenteredText('Bank Statement Report', y, 16, boldFont);
         y -= 20;
-        drawCenteredText(sanitizeText(departmentName), y, 10, font);
+        const deptDisplayName = departmentLevel 
+            ? `${sanitizeText(departmentName)} (${departmentLevel})`
+            : sanitizeText(departmentName);
+        drawCenteredText(deptDisplayName, y, 10, font);
         y -= 15;
         drawCenteredText(`Currency: ${userBaseCurrency.code} (${safeCurrencySymbol})`, y, 9, font);
         y -= 15;

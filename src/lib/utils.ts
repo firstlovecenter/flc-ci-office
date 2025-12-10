@@ -48,3 +48,45 @@ export function isWeekLocked(weekNumber: number, year: number): boolean {
 
     return false;
 }
+
+/**
+ * Format a role enum value for display (e.g., STREAM_LEADER -> Stream Leader)
+ */
+export function formatRole(role: string | null | undefined): string {
+    if (!role) return '';
+    
+    // Handle special case for SUPERADMIN
+    if (role === 'SUPERADMIN') return 'Super Admin';
+    
+    // Replace underscores with spaces and capitalize each word
+    return role
+        .split('_')
+        .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+        .join(' ');
+}
+
+/**
+ * Format a department level enum value for display (e.g., INTERNATIONAL -> International)
+ */
+export function formatDepartmentLevel(level: string | null | undefined): string {
+    if (!level) return '';
+    
+    // Capitalize first letter, lowercase the rest
+    return level.charAt(0).toUpperCase() + level.slice(1).toLowerCase();
+}
+
+/**
+ * Format transaction status for display (e.g., PENDING -> Pending)
+ */
+export function formatStatus(status: string | null | undefined): string {
+    if (!status) return '';
+    return status.charAt(0).toUpperCase() + status.slice(1).toLowerCase();
+}
+
+/**
+ * Format transaction type for display (e.g., INCOME -> Income)
+ */
+export function formatTransactionType(type: string | null | undefined): string {
+    if (!type) return '';
+    return type.charAt(0).toUpperCase() + type.slice(1).toLowerCase();
+}

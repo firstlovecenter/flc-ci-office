@@ -15,6 +15,7 @@ import {
 } from '@mui/material';
 import SwapHorizIcon from '@mui/icons-material/SwapHoriz';
 import CheckIcon from '@mui/icons-material/Check';
+import { formatRole } from '@/lib/utils';
 
 interface UserRoleOption {
     id: string;
@@ -108,7 +109,7 @@ export default function RoleSwitcher() {
         const singleRole = userRoles[0];
         return (
             <Chip
-                label={singleRole.role.replace(/_/g, ' ')}
+                label={formatRole(singleRole.role)}
                 size="small"
                 color="primary"
                 sx={{ ml: 1 }}
@@ -153,7 +154,7 @@ export default function RoleSwitcher() {
                         <ListItemText
                             primary={
                                 <Chip
-                                    label={userRole.role.replace(/_/g, ' ')}
+                                    label={formatRole(userRole.role)}
                                     size="small"
                                     color={userRole.id === activeUserRoleId ? 'primary' : 'default'}
                                 />

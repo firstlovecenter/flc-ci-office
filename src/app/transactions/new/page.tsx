@@ -17,7 +17,7 @@ import {
     CircularProgress,
 } from '@mui/material';
 import { useSession } from 'next-auth/react';
-import { formatNumber } from '@/lib/utils';
+import { formatNumber, formatDepartmentLevel } from '@/lib/utils';
 
 type TransactionType = 'INCOME' | 'EXPENSE';
 
@@ -469,7 +469,7 @@ function NewTransactionForm() {
                             >
                                 {departments.map((dept) => (
                                     <MenuItem key={dept.id} value={dept.id}>
-                                        {dept.name} ({dept.level})
+                                        {dept.name} ({formatDepartmentLevel(dept.level)})
                                     </MenuItem>
                                 ))}
                             </Select>

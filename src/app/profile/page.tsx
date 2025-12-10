@@ -42,6 +42,7 @@ import BadgeIcon from '@mui/icons-material/Badge';
 import BusinessIcon from '@mui/icons-material/Business';
 import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
 import MonetizationOnIcon from '@mui/icons-material/MonetizationOn';
+import { formatRole, formatDepartmentLevel } from '@/lib/utils';
 
 interface UserProfile {
     id: string;
@@ -152,23 +153,24 @@ export default function ProfilePage() {
                 body: formDataToSend,
             });
 
-            if (!response.ok) {
-                const errorData = await response.text();
-                throw new Error(errorData || 'Upload failed');
-            }
-
             const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.error || data.details || 'Upload failed');
+            }
             
             if (!data.success || !data.url) {
-                throw new Error('Invalid response from server');
+                throw new Error(data.error || 'Invalid response from server');
             }
 
             const imageUrl = data.url;
             setFormData(prev => ({ ...prev, image: imageUrl }));
             
-            // Auto-save the image
-            await handleSave(imageUrl);
+            // Refresh profile to get updated image
+            await fetchProfile();
+            setSuccess('Profile picture updated successfully!');
         } catch (err: any) {
+            console.error('Upload error:', err);
             setError(err.message || 'Failed to upload image');
         } finally {
             setUploading(false);
@@ -414,13 +416,13 @@ export default function ProfilePage() {
                         {profile.userRoles.map((userRole: any, index: number) => (
                             <Box key={userRole.id}>
                                 <Typography variant="body2" color="text.secondary">
-                                    {userRole.role.replace(/_/g, ' ').split(' ').map((w: string) => w.charAt(0) + w.slice(1).toLowerCase()).join(' ')}
+                                    {formatRole(userRole.role)}
                                     {' : '}
                                     <strong>{userRole.department.name}</strong>
                                 </Typography>
                                 {profile.userRoles && profile.userRoles.length > 1 && index < profile.userRoles.length - 1 && (
                                     <Typography variant="body2" color="text.secondary">
-                                        {userRole.role.replace('_LEADER', '').replace('_ADMIN', '')} Admin : {userRole.department.level.replace(/_/g, ' ')}
+                                        {formatDepartmentLevel(userRole.department.level)}
                                     </Typography>
                                 )}
                             </Box>
@@ -543,7 +545,7 @@ export default function ProfilePage() {
                                         />
                                         <Box sx={{ flex: 1 }}>
                                             <Typography variant="body2" fontWeight={500}>
-                                                {log.description || log.actionType.replace(/_/g, ' ')}
+                                                {log.description || formatRole(log.actionType)}
                                             </Typography>
                                             <Typography variant="caption" color="text.secondary">
                                                 {formatDate(log.timestamp)}

@@ -18,7 +18,7 @@ import {
     Chip,
     Typography,
 } from '@mui/material';
-import { formatNumber } from '@/lib/utils';
+import { formatNumber, formatDepartmentLevel } from '@/lib/utils';
 
 type TransactionType = 'INCOME' | 'EXPENSE';
 
@@ -399,7 +399,7 @@ export default function EditTransactionDialog({
                     >
                         {departments.map((dept) => (
                             <MenuItem key={dept.id} value={dept.id}>
-                                {dept.name} ({dept.level})
+                                {dept.name} ({formatDepartmentLevel(dept.level)})
                             </MenuItem>
                         ))}
                     </Select>

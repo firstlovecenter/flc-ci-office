@@ -35,6 +35,7 @@ import BusinessIcon from '@mui/icons-material/Business';
 import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
 import BadgeIcon from '@mui/icons-material/Badge';
 import EditUserDialog from '@/components/EditUserDialog';
+import { formatRole, formatDepartmentLevel } from '@/lib/utils';
 
 interface UserDetail {
     id: string;
@@ -224,13 +225,13 @@ export default function UserDetailPage() {
                         {user.userRoles.map((userRole: any, index: number) => (
                             <Box key={userRole.id}>
                                 <Typography variant="body2" color="text.secondary">
-                                    {userRole.role.replace(/_/g, ' ').split(' ').map((w: string) => w.charAt(0) + w.slice(1).toLowerCase()).join(' ')}
+                                    {formatRole(userRole.role)}
                                     {' : '}
                                     <strong>{userRole.department.name}</strong>
                                 </Typography>
                                 {user.userRoles && user.userRoles.length > 1 && index < user.userRoles.length - 1 && (
                                     <Typography variant="body2" color="text.secondary">
-                                        {userRole.role.replace('_LEADER', '').replace('_ADMIN', '')} Admin : {userRole.department.level.replace(/_/g, ' ')}
+                                        {formatDepartmentLevel(userRole.department.level)}
                                     </Typography>
                                 )}
                             </Box>
@@ -320,7 +321,7 @@ export default function UserDetailPage() {
                                         />
                                         <Box sx={{ flex: 1 }}>
                                             <Typography variant="body2" fontWeight={500}>
-                                                {log.description || log.actionType.replace(/_/g, ' ')}
+                                                {log.description || formatRole(log.actionType)}
                                             </Typography>
                                             <Typography variant="caption" color="text.secondary">
                                                 {formatDate(log.timestamp)}

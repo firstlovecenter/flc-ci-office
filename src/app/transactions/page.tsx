@@ -34,7 +34,7 @@ import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import CancelIcon from '@mui/icons-material/Cancel';
 import EditNoteIcon from '@mui/icons-material/EditNote';
 import Link from 'next/link';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency, formatDepartmentLevel } from '@/lib/utils';
 import { useSession } from 'next-auth/react';
 import CorrectTransactionDialog from '@/components/CorrectTransactionDialog';
 
@@ -319,7 +319,7 @@ function TransactionsPageContent() {
                 <Box>
                     <Typography variant="h4" fontWeight="700">
                         {department?.name && department?.level 
-                            ? `${department.name} ${department.level} Transactions History` 
+                            ? `${department.name} ${formatDepartmentLevel(department.level)} Transactions History` 
                             : department?.name
                                 ? `${department.name} Transactions History`
                                 : 'Transactions History'}

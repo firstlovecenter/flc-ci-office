@@ -23,6 +23,7 @@ import {
     Skeleton,
 } from '@mui/material';
 import { Download as DownloadIcon, Print as PrintIcon } from '@mui/icons-material';
+import { formatDepartmentLevel } from '@/lib/utils';
 import { formatCurrency } from '@/lib/utils';
 import { BarChart, Bar, XAxis, Tooltip, ResponsiveContainer, Cell, LabelList } from 'recharts';
 import { useSession } from 'next-auth/react';
@@ -562,7 +563,7 @@ export default function ReportsPage() {
                                                 <MenuItem value="">All Departments</MenuItem>
                                                 {departments.map((dept) => (
                                                     <MenuItem key={dept.id} value={dept.id}>
-                                                        {dept.name}
+                                                        {dept.name} ({formatDepartmentLevel(dept.level)})
                                                     </MenuItem>
                                                 ))}
                                             </Select>

@@ -23,6 +23,7 @@ import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
 import { useSession } from 'next-auth/react';
 import { getAssignableRoles, getDepartmentLevelForRole } from '@/lib/roles';
+import { formatRole, formatDepartmentLevel } from '@/lib/utils';
 
 type UserRole = 
     | 'SUPERADMIN'
@@ -304,7 +305,7 @@ export default function EditUserDialog({
                                 return (
                                     <Chip
                                         key={index}
-                                        label={`${pair.role.replace(/_/g, ' ')} - ${dept?.name || 'Unknown'}`}
+                                        label={`${formatRole(pair.role)} - ${dept?.name || 'Unknown'}`}
                                         onDelete={() => handleRemoveRoleDepartment(index)}
                                         color="primary"
                                         sx={{ mb: 1 }}
@@ -327,7 +328,7 @@ export default function EditUserDialog({
                             >
                                 {assignableRoles.map((r) => (
                                     <MenuItem key={r} value={r}>
-                                        {r.replace(/_/g, ' ')}
+                                        {formatRole(r)}
                                     </MenuItem>
                                 ))}
                             </Select>
@@ -348,7 +349,7 @@ export default function EditUserDialog({
                                     })
                                     .map((dept) => (
                                         <MenuItem key={dept.id} value={dept.id}>
-                                            {dept.name} ({dept.level})
+                                            {dept.name} ({formatDepartmentLevel(dept.level)})
                                         </MenuItem>
                                     ))}
                             </Select>

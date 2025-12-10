@@ -20,6 +20,7 @@ import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
 import BusinessIcon from '@mui/icons-material/Business';
 import GroupsIcon from '@mui/icons-material/Groups';
 import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
+import { formatRole } from '@/lib/utils';
 
 const roleIcons: Record<string, React.ReactElement> = {
     SUPERADMIN: <AdminPanelSettingsIcon />,
@@ -253,7 +254,7 @@ export default function SelectRolePage() {
 
                                             <Box>
                                                 <Chip
-                                                    label={role.replace(/_/g, ' ')}
+                                                    label={formatRole(role)}
                                                     color="primary"
                                                     sx={{ mb: 1, fontWeight: 600 }}
                                                 />

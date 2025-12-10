@@ -16,6 +16,7 @@ import {
     Typography,
     Box,
 } from '@mui/material';
+import { formatDepartmentLevel } from '@/lib/utils';
 
 type DepartmentLevel = 'GLOBAL' | 'INTERNATIONAL' | 'NATIONAL' | 'REGIONAL' | 'CAMPUS' | 'STREAM' | 'COUNCIL';
 
@@ -254,7 +255,7 @@ export default function EditDepartmentDialog({
                     >
                         {DEPARTMENT_LEVELS.map((lvl) => (
                             <MenuItem key={lvl} value={lvl}>
-                                {lvl}
+                                {formatDepartmentLevel(lvl)}
                             </MenuItem>
                         ))}
                     </Select>
@@ -273,7 +274,7 @@ export default function EditDepartmentDialog({
                         </MenuItem>
                         {availableParents.map((dept) => (
                             <MenuItem key={dept.id} value={dept.id}>
-                                {dept.name} ({dept.level})
+                                {dept.name} ({formatDepartmentLevel(dept.level)})
                             </MenuItem>
                         ))}
                     </Select>

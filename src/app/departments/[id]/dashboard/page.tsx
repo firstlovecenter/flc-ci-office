@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { Typography, Box, CircularProgress, Grid, Stack, Paper, Chip, Card, CardContent, CardActionArea, IconButton, useTheme } from '@mui/material';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency, formatDepartmentLevel } from '@/lib/utils';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import TrendingDownIcon from '@mui/icons-material/TrendingDown';
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
@@ -159,7 +159,7 @@ export default function DepartmentDashboardPage() {
                             }}
                         >
                             {department?.name && department?.level 
-                                ? `${department.name} ${department.level} Dashboard` 
+                                ? `${department.name} ${formatDepartmentLevel(department.level)} Dashboard` 
                                 : department?.name 
                                     ? `${department.name} Dashboard`
                                     : 'Department Dashboard'}

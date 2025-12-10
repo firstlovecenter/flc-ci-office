@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth';
 import { writeFile, mkdir } from 'fs/promises';
 import { join } from 'path';
 import { existsSync } from 'fs';
+import { prisma } from '@/lib/prisma';
 
 // Configure route to handle file uploads
 export const runtime = 'nodejs';
@@ -14,25 +15,32 @@ export async function POST(req: NextRequest) {
         const session = await getServerSession(authOptions);
 
         if (!session?.user?.id) {
-            return new NextResponse('Unauthorized', { status: 401 });
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const formData = await req.formData();
+        let formData;
+        try {
+            formData = await req.formData();
+        } catch (formError) {
+            console.error('FormData parse error:', formError);
+            return NextResponse.json({ error: 'Failed to parse form data' }, { status: 400 });
+        }
+
         const file = formData.get('file') as File;
 
         if (!file) {
-            return new NextResponse('No file provided', { status: 400 });
+            return NextResponse.json({ error: 'No file provided' }, { status: 400 });
         }
 
         // Validate file type
         const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif'];
         if (!validTypes.includes(file.type)) {
-            return new NextResponse('Invalid file type. Only images are allowed.', { status: 400 });
+            return NextResponse.json({ error: 'Invalid file type. Only images are allowed.' }, { status: 400 });
         }
 
         // Validate file size (max 5MB)
         if (file.size > 5 * 1024 * 1024) {
-            return new NextResponse('File too large. Maximum size is 5MB.', { status: 400 });
+            return NextResponse.json({ error: 'File too large. Maximum size is 5MB.' }, { status: 400 });
         }
 
         const bytes = await file.arrayBuffer();
@@ -46,7 +54,7 @@ export async function POST(req: NextRequest) {
 
         // Generate unique filename
         const timestamp = Date.now();
-        const fileExt = file.name.split('.').pop();
+        const fileExt = file.name.split('.').pop()?.toLowerCase() || 'jpg';
         const filename = `${session.user.id}-${timestamp}.${fileExt}`;
         const filepath = join(uploadsDir, filename);
 
@@ -56,11 +64,21 @@ export async function POST(req: NextRequest) {
         // Return the URL path
         const imageUrl = `/uploads/avatars/${filename}`;
 
+        // Also update the user's image in the database directly
+        await prisma.user.update({
+            where: { id: session.user.id },
+            data: { image: imageUrl },
+        });
+
         return NextResponse.json({ 
             success: true, 
             url: imageUrl 
         });
     } catch (error) {
-        return new NextResponse('Internal Server Error', { status: 500 });
+        console.error('Image upload error:', error);
+        return NextResponse.json({ 
+            error: 'Internal Server Error',
+            details: error instanceof Error ? error.message : 'Unknown error'
+        }, { status: 500 });
     }
 }

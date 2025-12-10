@@ -35,6 +35,7 @@ import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import EditUserDialog from '@/components/EditUserDialog';
 import { getAssignableRoles, getDepartmentLevelForRole } from '@/lib/roles';
+import { formatRole, formatDepartmentLevel } from '@/lib/utils';
 
 function UsersPageContent() {
     const { data: session } = useSession();
@@ -283,7 +284,7 @@ function UsersPageContent() {
                                         {(user.roles || [user.role]).slice(0, 2).map((role: string) => (
                                             <Chip 
                                                 key={role} 
-                                                label={role.replace(/_/g, ' ')} 
+                                                label={formatRole(role)} 
                                                 size="small" 
                                                 color={role === 'SUPERADMIN' ? 'error' : 'default'}
                                                 sx={{ height: 20, fontSize: '0.688rem' }}
@@ -408,7 +409,7 @@ function UsersPageContent() {
                                     return (
                                         <Chip
                                             key={index}
-                                            label={`${pair.role.replace(/_/g, ' ')} - ${dept?.name || 'Unknown'}`}
+                                            label={`${formatRole(pair.role)} - ${dept?.name || 'Unknown'}`}
                                             onDelete={() => handleRemoveRoleDepartment(index)}
                                             color="primary"
                                             sx={{ mr: 1, mb: 1 }}
@@ -431,7 +432,7 @@ function UsersPageContent() {
                                 >
                                     {assignableRoles.map((role) => (
                                         <MenuItem key={role} value={role}>
-                                            {role.replace(/_/g, ' ')}
+                                            {formatRole(role)}
                                         </MenuItem>
                                     ))}
                                 </Select>

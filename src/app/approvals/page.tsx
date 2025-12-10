@@ -33,6 +33,7 @@ import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import CancelIcon from '@mui/icons-material/Cancel';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import PendingActionsIcon from '@mui/icons-material/PendingActions';
+import { formatDepartmentLevel } from '@/lib/utils';
 
 interface Transaction {
     id: string;
@@ -301,7 +302,7 @@ export default function ApprovalsPage() {
                                     <TableCell>
                                         <Typography variant="body2">{transaction.department.name}</Typography>
                                         <Typography variant="caption" color="text.secondary">
-                                            {transaction.department.level}
+                                            {formatDepartmentLevel(transaction.department.level)}
                                         </Typography>
                                     </TableCell>
                                     <TableCell>
