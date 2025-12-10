@@ -330,10 +330,10 @@ function TransactionsPageContent() {
                 <Box>
                     <Typography variant="h4" fontWeight="700">
                         {department?.name && department?.level 
-                            ? `${department.name} ${department.level} Transactions` 
+                            ? `${department.name} ${department.level} Transactions History` 
                             : department?.name
-                                ? `${department.name} Transactions`
-                                : 'Transactions'}
+                                ? `${department.name} Transactions History`
+                                : 'Transactions History'}
                     </Typography>
                     <Typography variant="body2" color="text.secondary">
                         {department ? `${exactDepartment ? 'Exact department' : 'Including sub-departments'}` : 'Manage and track all financial transactions'}

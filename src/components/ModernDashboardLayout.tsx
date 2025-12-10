@@ -86,7 +86,7 @@ export default function ModernDashboardLayout({ children }: { children: React.Re
 
     const mobileNavItems = [
         { text: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard' },
-        { text: 'Transactions', icon: <ReceiptIcon />, path: '/transactions', badge: pendingCounts.transactions },
+        { text: 'Transactions History', icon: <ReceiptIcon />, path: '/transactions', badge: pendingCounts.transactions },
         { text: 'Users', icon: <PeopleIcon />, path: '/users' },
         { text: 'Logout', icon: <LogoutIcon />, path: '/logout', isAction: true },
     ].filter(item => {

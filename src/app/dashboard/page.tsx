@@ -100,7 +100,7 @@ export default function DashboardPage() {
                 excludeForLeaders: true // Hide from leaders
             },
             {
-                title: 'Transactions',
+                title: 'Transactions History',
                 icon: ReceiptIcon,
                 href: '/transactions',
                 color: theme.palette.info.main,
@@ -273,7 +273,7 @@ export default function DashboardPage() {
                             bgColor: theme.palette.warning.main + '15',
                         },
                         {
-                            title: 'Transaction Management',
+                            title: 'Transactions History',
                             description: 'View and manage all transactions',
                             icon: ReceiptIcon,
                             href: '/transactions',

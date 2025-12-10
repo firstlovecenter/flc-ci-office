@@ -194,7 +194,7 @@ export default function ModernSidebar({ userRole, userName, userImage, pendingCo
     const menuItems: MenuItem[] = [
         { text: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard' },
         { text: 'Departments', icon: <BusinessIcon />, path: '/departments' },
-        { text: 'Transactions', icon: <ReceiptIcon />, path: '/transactions' },
+        { text: 'Transactions History', icon: <ReceiptIcon />, path: '/transactions' },
         { text: 'Approvals', icon: <PendingActionsIcon />, path: '/approvals', adminOnly: true },
         { text: 'Users', icon: <PeopleIcon />, path: '/users' },
         { text: 'Reports', icon: <AssessmentIcon />, path: '/reports' },
