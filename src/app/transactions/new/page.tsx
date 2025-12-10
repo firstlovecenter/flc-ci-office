@@ -42,6 +42,9 @@ function NewTransactionForm() {
     const [files, setFiles] = useState<File[]>([]);
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
+    const [departmentBalance, setDepartmentBalance] = useState<number | null>(null);
+    const [balanceCurrency, setBalanceCurrency] = useState<{ code: string; symbol: string } | null>(null);
+    const [balanceLoading, setBalanceLoading] = useState(false);
 
     // Check if user is a leader
     const leaderRoles = ['GLOBAL_LEADER', 'INTERNATIONAL_LEADER', 'NATIONAL_LEADER', 'REGIONAL_LEADER', 'CAMPUS_LEADER', 'STREAM_LEADER', 'COUNCIL_LEADER'];
@@ -81,6 +84,13 @@ function NewTransactionForm() {
         }
     }, [session, deptParam]);
 
+    // Fetch department balance when departmentId changes (for leaders)
+    useEffect(() => {
+        if (isLeader && departmentId) {
+            fetchDepartmentBalance(departmentId);
+        }
+    }, [departmentId, isLeader]);
+
     useEffect(() => {
         // Fetch exchange rate when currency changes
         if (currencyId && baseCurrency && currencyId !== baseCurrency.id) {
@@ -95,6 +105,22 @@ function NewTransactionForm() {
         if (response.ok) {
             const data = await response.json();
             setDepartments(data);
+        }
+    };
+
+    const fetchDepartmentBalance = async (deptId: string) => {
+        setBalanceLoading(true);
+        try {
+            const response = await fetch(`/api/departments/${deptId}/stats`);
+            if (response.ok) {
+                const data = await response.json();
+                setDepartmentBalance(data.balance);
+                setBalanceCurrency(data.currency);
+            }
+        } catch (error) {
+            console.error('Failed to fetch department balance:', error);
+        } finally {
+            setBalanceLoading(false);
         }
     };
 
@@ -208,6 +234,16 @@ function NewTransactionForm() {
             }
         }
 
+        // Check balance for leaders making expense requests
+        if (isLeader && type === 'EXPENSE' && departmentBalance !== null) {
+            const requestAmount = parseFloat(amount);
+            if (requestAmount > departmentBalance) {
+                setError(`Insufficient balance. Your available balance is ${balanceCurrency?.symbol || '₵'}${formatNumber(departmentBalance)}. You cannot request more than this amount.`);
+                setLoading(false);
+                return;
+            }
+        }
+
         try {
             const uploadedFiles = await uploadFiles();
 
@@ -299,6 +335,41 @@ function NewTransactionForm() {
             <Typography variant="h4" gutterBottom>
                 {isLeader ? 'New Expense Request' : 'New Transaction'}
             </Typography>
+
+            {/* Show account balance for leaders */}
+            {isLeader && (
+                <Paper 
+                    sx={{ 
+                        p: 3, 
+                        mb: 3, 
+                        background: (theme) => theme.palette.mode === 'dark' 
+                            ? 'linear-gradient(135deg, #1a472a 0%, #2d5a3d 100%)' 
+                            : 'linear-gradient(135deg, #2e7d32 0%, #4caf50 100%)',
+                        color: 'white'
+                    }}
+                >
+                    <Typography variant="subtitle2" sx={{ opacity: 0.9, mb: 0.5 }}>
+                        Available Balance
+                    </Typography>
+                    {balanceLoading ? (
+                        <CircularProgress size={24} sx={{ color: 'white' }} />
+                    ) : departmentBalance !== null ? (
+                        <>
+                            <Typography variant="h4" sx={{ fontWeight: 'bold' }}>
+                                {balanceCurrency?.symbol || '₵'}{formatNumber(departmentBalance)}
+                            </Typography>
+                            <Typography variant="caption" sx={{ opacity: 0.8 }}>
+                                You cannot request more than this amount
+                            </Typography>
+                        </>
+                    ) : (
+                        <Typography variant="body2" sx={{ opacity: 0.8 }}>
+                            Unable to load balance
+                        </Typography>
+                    )}
+                </Paper>
+            )}
+
             <Paper sx={{ p: 4 }}>
                 <form onSubmit={handleSubmit}>
                     {error && (
