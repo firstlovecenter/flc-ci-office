@@ -11,11 +11,14 @@ interface PasswordResetSmsParams {
     resetUrl?: string;
 }
 
-// Helper to replace variables in template
+// Helper to replace variables in template (supports both {{var}} and {var} formats)
 function replaceVariables(template: string, params: Record<string, any>): string {
     let result = template;
     for (const [key, value] of Object.entries(params)) {
+        // Replace double braces {{variable}} format
         result = result.replace(new RegExp(`{{${key}}}`, 'g'), String(value));
+        // Replace single braces {variable} format
+        result = result.replace(new RegExp(`{${key}}`, 'g'), String(value));
     }
     return result;
 }

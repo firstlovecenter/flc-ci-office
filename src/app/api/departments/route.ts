@@ -5,6 +5,7 @@ import { authOptions } from '@/lib/auth';
 
 import { getDescendantDepartmentIds, canCreateDepartmentLevel, getLeaderRoleForLevel, getAdminRoleForLevel } from '@/lib/departments';
 import { sendSms, formatGhanaPhone } from '@/lib/sms';
+import { generateFirstRoleAssignmentSms } from '@/lib/sms-templates';
 import crypto from 'crypto';
 
 export const revalidate = 60; // Revalidate every 60 seconds
@@ -263,7 +264,12 @@ export async function POST(request: Request) {
             const baseUrl = process.env.NEXTAUTH_URL || 'https://your-app.com';
             const resetLink = `${baseUrl}/auth/reset-password?token=${resetToken}`;
             
-            const smsMessage = `Welcome to FLC Accounts! You have been assigned as ${leaderRole.replace('_', ' ')} for ${name}. Please set up your password: ${resetLink}`;
+            const smsMessage = await generateFirstRoleAssignmentSms({
+                userName: leader.name || 'User',
+                role: leaderRole,
+                department: name,
+                resetLink,
+            });
             
             try {
                 await sendSms({
@@ -321,7 +327,12 @@ export async function POST(request: Request) {
                     const baseUrl = process.env.NEXTAUTH_URL || 'https://your-app.com';
                     const resetLink = `${baseUrl}/auth/reset-password?token=${resetToken}`;
                     
-                    const smsMessage = `Welcome to FLC Accounts! You have been assigned as ${adminRole.replace('_', ' ')} for ${name}. Please set up your password: ${resetLink}`;
+                    const smsMessage = await generateFirstRoleAssignmentSms({
+                        userName: admin.name || 'User',
+                        role: adminRole,
+                        department: name,
+                        resetLink,
+                    });
                     
                     try {
                         await sendSms({

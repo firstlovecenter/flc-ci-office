@@ -4,6 +4,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { hasDepartmentAccess, getLeaderRoleForLevel, getAdminRoleForLevel } from '@/lib/departments';
 import { sendSms, formatGhanaPhone } from '@/lib/sms';
+import { generateFirstRoleAssignmentSms } from '@/lib/sms-templates';
 import crypto from 'crypto';
 
 export async function GET(
@@ -225,7 +226,12 @@ export async function PUT(
                     const baseUrl = process.env.NEXTAUTH_URL || 'https://your-app.com';
                     const resetLink = `${baseUrl}/auth/reset-password?token=${resetToken}`;
                     
-                    const smsMessage = `Welcome to FLC Accounts! You have been assigned as ${leaderRole.replace('_', ' ')} for ${name}. Please set up your password: ${resetLink}`;
+                    const smsMessage = await generateFirstRoleAssignmentSms({
+                        userName: newLeader.name || 'User',
+                        role: leaderRole,
+                        department: name,
+                        resetLink,
+                    });
                     
                     try {
                         await sendSms({
@@ -346,7 +352,12 @@ export async function PUT(
                         const baseUrl = process.env.NEXTAUTH_URL || 'https://your-app.com';
                         const resetLink = `${baseUrl}/auth/reset-password?token=${resetToken}`;
                         
-                        const smsMessage = `Welcome to FLC Accounts! You have been assigned as ${adminRole.replace('_', ' ')} for ${name}. Please set up your password: ${resetLink}`;
+                        const smsMessage = await generateFirstRoleAssignmentSms({
+                            userName: newAdmin.name || 'User',
+                            role: adminRole,
+                            department: name,
+                            resetLink,
+                        });
                         
                         try {
                             await sendSms({
