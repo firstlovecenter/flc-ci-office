@@ -125,24 +125,21 @@ export default function DepartmentDashboardPage() {
             amount: stats.balance,
             icon: AccountBalanceWalletIcon,
             color: 'white',
-            bgColor: getBalanceColor(stats.balance),
-            trend: stats.balance >= 0 ? '+4.3%' : '-4.3%'
+            bgColor: getBalanceColor(stats.balance)
         },
         {
             title: 'Total Inflows',
             amount: stats.income,
             icon: TrendingUpIcon,
             color: 'white',
-            bgColor: theme.palette.success.main,
-            trend: '+12.5%'
+            bgColor: theme.palette.success.main
         },
         {
             title: 'Total Expenses',
             amount: stats.expense,
             icon: TrendingDownIcon,
             color: 'white',
-            bgColor: theme.palette.error.light,
-            trend: '-8.2%'
+            bgColor: theme.palette.error.light
         }
     ];
 
@@ -242,9 +239,6 @@ export default function DepartmentDashboardPage() {
                                         }}
                                     >
                                         {formatCurrency(card.amount, stats.currency.code, stats.currency.symbol)}
-                                    </Typography>
-                                    <Typography variant="caption" sx={{ color: 'white', opacity: 0.8, fontWeight: 600, fontSize: { xs: '0.7rem', sm: '0.75rem' } }}>
-                                        {card.trend} from last month
                                     </Typography>
                                 </Stack>
                             </Box>
