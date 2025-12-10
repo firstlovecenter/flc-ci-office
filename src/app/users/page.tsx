@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, Suspense } from 'react';
+import { useState, useEffect, Suspense, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
 import {
     Box,
@@ -24,12 +24,15 @@ import {
     Select,
     MenuItem,
     Alert,
+    Avatar,
+    CircularProgress,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import ArchiveIcon from '@mui/icons-material/Archive';
 import UnarchiveIcon from '@mui/icons-material/Unarchive';
+import PhotoCameraIcon from '@mui/icons-material/PhotoCamera';
 import IconButton from '@mui/material/IconButton';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
@@ -42,12 +45,14 @@ function UsersPageContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const deptParam = searchParams?.get('dept');
+    const fileInputRef = useRef<HTMLInputElement>(null);
     const [users, setUsers] = useState<any[]>([]);
     const [departments, setDepartments] = useState<any[]>([]);
     const [open, setOpen] = useState(false);
     const [editDialogOpen, setEditDialogOpen] = useState(false);
     const [selectedUser, setSelectedUser] = useState<any>(null);
     const [loading, setLoading] = useState(false);
+    const [uploading, setUploading] = useState(false);
     const [error, setError] = useState('');
     const [assignableRoles, setAssignableRoles] = useState<string[]>([]);
     const [formData, setFormData] = useState({
@@ -55,6 +60,7 @@ function UsersPageContent() {
         name: '',
         email: '',
         phone: '',
+        image: '',
     });
     const [roleDepartmentPairs, setRoleDepartmentPairs] = useState<Array<{ role: string; departmentId: string }>>([]);
     const [newRole, setNewRole] = useState('');
@@ -159,6 +165,31 @@ function UsersPageContent() {
         fetchUsers();
     };
 
+    const handleImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        // Validate file type
+        if (!file.type.startsWith('image/')) {
+            setError('Please upload an image file');
+            return;
+        }
+
+        // Validate file size (5MB)
+        if (file.size > 5 * 1024 * 1024) {
+            setError('Image must be less than 5MB');
+            return;
+        }
+
+        // For new users, we'll store the file temporarily and upload after user creation
+        // For now, create a preview URL
+        const previewUrl = URL.createObjectURL(file);
+        setFormData({ ...formData, image: previewUrl });
+        
+        // Store the file for later upload
+        (window as any).__pendingUserImage = file;
+    };
+
     const handleAddRoleDepartment = () => {
         if (!newRole) {
             setError('Please select a role');
@@ -195,13 +226,17 @@ function UsersPageContent() {
         setError('');
 
         try {
+            // First create the user
             const response = await fetch('/api/users', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({
-                    ...formData,
+                    title: formData.title,
+                    name: formData.name,
+                    email: formData.email,
+                    phone: formData.phone,
                     roleDepartmentPairs,
                 }),
             });
@@ -211,12 +246,33 @@ function UsersPageContent() {
                 throw new Error(text || 'Failed to create user');
             }
 
+            const newUser = await response.json();
+
+            // If there's a pending image, upload it
+            const pendingImage = (window as any).__pendingUserImage;
+            if (pendingImage && newUser.id) {
+                try {
+                    const imageFormData = new FormData();
+                    imageFormData.append('file', pendingImage);
+                    imageFormData.append('userId', newUser.id);
+
+                    await fetch('/api/users/upload-image', {
+                        method: 'POST',
+                        body: imageFormData,
+                    });
+                } catch (imgErr) {
+                    console.error('Failed to upload image:', imgErr);
+                }
+                delete (window as any).__pendingUserImage;
+            }
+
             setOpen(false);
             setFormData({
                 title: '',
                 name: '',
                 email: '',
                 phone: '',
+                image: '',
             });
             setRoleDepartmentPairs([]);
             fetchUsers();
@@ -354,6 +410,46 @@ function UsersPageContent() {
                                 {error}
                             </Alert>
                         )}
+
+                        {/* Profile Picture Upload */}
+                        <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2, mb: 2 }}>
+                            <Box sx={{ position: 'relative' }}>
+                                <Avatar
+                                    src={formData.image || undefined}
+                                    sx={{
+                                        width: 100,
+                                        height: 100,
+                                        bgcolor: 'primary.main',
+                                        fontSize: '2.5rem',
+                                    }}
+                                >
+                                    {formData.name?.[0]?.toUpperCase() || 'U'}
+                                </Avatar>
+                                <input
+                                    type="file"
+                                    ref={fileInputRef}
+                                    onChange={handleImageSelect}
+                                    accept="image/*"
+                                    style={{ display: 'none' }}
+                                />
+                                <IconButton
+                                    sx={{
+                                        position: 'absolute',
+                                        bottom: 0,
+                                        right: 0,
+                                        bgcolor: 'background.paper',
+                                        boxShadow: 1,
+                                        '&:hover': { bgcolor: 'background.paper' },
+                                    }}
+                                    size="small"
+                                    onClick={() => fileInputRef.current?.click()}
+                                    type="button"
+                                >
+                                    <PhotoCameraIcon fontSize="small" />
+                                </IconButton>
+                            </Box>
+                        </Box>
+
                         <TextField
                             margin="normal"
                             fullWidth

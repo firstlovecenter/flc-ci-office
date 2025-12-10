@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
     Dialog,
     DialogTitle,
@@ -18,9 +18,12 @@ import {
     IconButton,
     Stack,
     Typography,
+    Avatar,
+    CircularProgress,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
+import PhotoCameraIcon from '@mui/icons-material/PhotoCamera';
 import { useSession } from 'next-auth/react';
 import { getAssignableRoles, getDepartmentLevelForRole } from '@/lib/roles';
 import { formatRole, formatDepartmentLevel } from '@/lib/utils';
@@ -71,10 +74,13 @@ export default function EditUserDialog({
     onSuccess,
 }: EditUserDialogProps) {
     const { data: session } = useSession();
+    const fileInputRef = useRef<HTMLInputElement>(null);
     const [title, setTitle] = useState('');
     const [name, setName] = useState('');
     const [email, setEmail] = useState('');
     const [phone, setPhone] = useState('');
+    const [image, setImage] = useState('');
+    const [uploading, setUploading] = useState(false);
     const [roleDepartmentPairs, setRoleDepartmentPairs] = useState<Array<{ role: string; departmentId: string }>>([]);
     const [newRole, setNewRole] = useState('');
     const [newDepartment, setNewDepartment] = useState('');
@@ -89,6 +95,7 @@ export default function EditUserDialog({
             setName(user.name || '');
             setEmail(user.email);
             setPhone(user.phone || '');
+            setImage(user.image || '');
             
             // Load existing role-department pairs from userRoles relation
             if (user.userRoles && user.userRoles.length > 0) {
@@ -174,6 +181,49 @@ export default function EditUserDialog({
         }
     };
 
+    const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        // Validate file type
+        if (!file.type.startsWith('image/')) {
+            setError('Please upload an image file');
+            return;
+        }
+
+        // Validate file size (5MB)
+        if (file.size > 5 * 1024 * 1024) {
+            setError('Image must be less than 5MB');
+            return;
+        }
+
+        setUploading(true);
+        setError('');
+
+        try {
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('userId', user.id);
+
+            const response = await fetch('/api/users/upload-image', {
+                method: 'POST',
+                body: formData,
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.error || 'Upload failed');
+            }
+
+            setImage(data.url);
+        } catch (err: any) {
+            setError(err.message || 'Failed to upload image');
+        } finally {
+            setUploading(false);
+        }
+    };
+
     const isSuperAdminEmail = user?.email === 'skaduteye@gmail.com';
 
     const handleSave = async () => {
@@ -184,11 +234,6 @@ export default function EditUserDialog({
 
         if (!email.trim()) {
             setError('Email is required');
-            return;
-        }
-
-        if (!phone.trim()) {
-            setError('Phone number is required');
             return;
         }
 
@@ -211,6 +256,7 @@ export default function EditUserDialog({
                 name,
                 email,
                 phone: phone.trim(),
+                image: image || null,
                 roleDepartmentPairs,
             };
 
@@ -254,13 +300,56 @@ export default function EditUserDialog({
                     </Alert>
                 )}
 
+                {/* Profile Picture Upload */}
+                <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2, mb: 3 }}>
+                    <Box sx={{ position: 'relative' }}>
+                        <Avatar
+                            src={image || undefined}
+                            sx={{
+                                width: 100,
+                                height: 100,
+                                bgcolor: 'primary.main',
+                                fontSize: '2.5rem',
+                            }}
+                        >
+                            {name?.[0]?.toUpperCase() || 'U'}
+                        </Avatar>
+                        <input
+                            type="file"
+                            ref={fileInputRef}
+                            onChange={handleImageUpload}
+                            accept="image/*"
+                            style={{ display: 'none' }}
+                        />
+                        <IconButton
+                            sx={{
+                                position: 'absolute',
+                                bottom: 0,
+                                right: 0,
+                                bgcolor: 'background.paper',
+                                boxShadow: 1,
+                                '&:hover': { bgcolor: 'background.paper' },
+                            }}
+                            size="small"
+                            onClick={() => fileInputRef.current?.click()}
+                            disabled={uploading}
+                        >
+                            {uploading ? (
+                                <CircularProgress size={20} />
+                            ) : (
+                                <PhotoCameraIcon fontSize="small" />
+                            )}
+                        </IconButton>
+                    </Box>
+                </Box>
+
                 <TextField
                     fullWidth
                     label="Title (Optional)"
                     placeholder="e.g., Rev., Dr., Pastor"
                     value={title}
                     onChange={(e) => setTitle(e.target.value)}
-                    sx={{ mt: 2, mb: 2 }}
+                    sx={{ mb: 2 }}
                 />
 
                 <TextField

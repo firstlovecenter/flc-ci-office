@@ -126,7 +126,7 @@ export async function PUT(
     try {
         const params = await context.params;
         const body = await request.json();
-        const { title, name, email, phone, roleDepartmentPairs } = body;
+        const { title, name, email, phone, image, roleDepartmentPairs } = body;
         const userId = params.id;
 
         // Validate required fields
@@ -229,6 +229,11 @@ export async function PUT(
             name,
             email: email ? email.toLowerCase() : undefined,
         };
+
+        // Update image if provided
+        if (image !== undefined) {
+            updateData.image = image || null;
+        }
 
         // Phone number update restriction: only user themselves, SUPERADMIN, or GLOBAL_ADMIN
         if (phone !== undefined && phone?.trim() !== targetUser.phone) {
