@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
     Box,
     Typography,
@@ -20,6 +20,7 @@ import {
     TextField,
     Divider,
     useTheme,
+    Skeleton,
 } from '@mui/material';
 import { Download as DownloadIcon, Print as PrintIcon } from '@mui/icons-material';
 import { formatCurrency } from '@/lib/utils';
@@ -459,11 +460,12 @@ export default function ReportsPage() {
                                         tickLine={false}
                                     />
                                     <Tooltip 
-                                        formatter={(value: number, name: string) => {
+                                        formatter={(value: any, name: any) => {
+                                            const numValue = Number(value);
                                             const label = name === 'income' ? 'Income' : name === 'expense' ? 'Expense' : name;
                                             const formatted = baseCurrency
-                                                ? `${baseCurrency.symbol}${value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                                                : value.toLocaleString();
+                                                ? `${baseCurrency.symbol}${numValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                                                : numValue.toLocaleString();
                                             return [formatted, label];
                                         }}
                                         contentStyle={{

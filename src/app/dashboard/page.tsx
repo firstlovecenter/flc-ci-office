@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { Typography, Box, CircularProgress, Grid, Stack, useTheme, Card, CardActionArea } from '@mui/material';
+import { useEffect, useState, useMemo, useCallback } from 'react';
+import { Typography, Box, CircularProgress, Grid, Stack, useTheme, Card, CardActionArea, Skeleton } from '@mui/material';
 import { formatCurrency } from '@/lib/utils';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import TrendingDownIcon from '@mui/icons-material/TrendingDown';
@@ -17,7 +17,14 @@ import SmsIcon from '@mui/icons-material/Sms';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { Role } from '@prisma/client';
-import { BarChart, Bar, XAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, LabelList } from 'recharts';
+import { BarChart, Bar, XAxis, Tooltip, ResponsiveContainer, Cell, LabelList } from 'recharts';
+
+// Chart loading skeleton
+const ChartSkeleton = () => (
+    <Box sx={{ width: '100%', height: { xs: 280, sm: 320, md: 350 } }}>
+        <Skeleton variant="rectangular" width="100%" height="100%" sx={{ borderRadius: 2 }} />
+    </Box>
+);
 
 export default function DashboardPage() {
     const [stats, setStats] = useState({ income: 0, expense: 0, balance: 0, weeklyIncome: 0, chartData: [] as { week: string; income: number; expense: number }[] });
@@ -29,6 +36,39 @@ export default function DashboardPage() {
     const router = useRouter();
     
     const isSuperAdmin = session?.user?.role === 'SUPERADMIN';
+
+    const fetchBaseCurrency = useCallback(async () => {
+        try {
+            // Use the /api/users/me endpoint which handles base currency logic
+            const response = await fetch('/api/users/me');
+            if (response.ok) {
+                const userData = await response.json();
+                if (userData.baseCurrency) {
+                    setBaseCurrency({ code: userData.baseCurrency.code, symbol: userData.baseCurrency.symbol });
+                }
+                // Set department name if available
+                if (userData.department) {
+                    setDepartmentName(userData.department.name);
+                }
+            }
+        } catch (error) {
+            // Silent error handling
+        }
+    }, []);
+
+    const fetchStats = useCallback(async () => {
+        try {
+            const response = await fetch('/api/dashboard/stats');
+            if (response.ok) {
+                const data = await response.json();
+                setStats(data);
+            }
+        } catch (error) {
+            // Silent error handling
+        } finally {
+            setLoading(false);
+        }
+    }, []);
 
     useEffect(() => {
         fetchBaseCurrency();
@@ -44,40 +84,10 @@ export default function DashboardPage() {
 
         document.addEventListener('visibilitychange', handleVisibilityChange);
         return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-    }, []);
+    }, [fetchBaseCurrency, fetchStats]);
 
-    const fetchBaseCurrency = async () => {
-        try {
-            // Use the /api/users/me endpoint which handles base currency logic
-            const response = await fetch('/api/users/me');
-            if (response.ok) {
-                const userData = await response.json();
-                if (userData.baseCurrency) {
-                    setBaseCurrency({ code: userData.baseCurrency.code, symbol: userData.baseCurrency.symbol });
-                }
-                // Set department name if available
-                if (userData.department) {
-                    setDepartmentName(userData.department.name);
-                }
-            }
-        } catch (error) {
-        }
-    };
-
-    const fetchStats = async () => {
-        try {
-            const response = await fetch('/api/dashboard/stats');
-            if (response.ok) {
-                const data = await response.json();
-                setStats(data);
-            }
-        } catch (error) {
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const getQuickLinks = () => {
+    // Memoize quick links to avoid recalculating on every render
+    const quickLinks = useMemo(() => {
         const userRole = session?.user?.role as Role;
         const leaderRoles = [Role.GLOBAL_LEADER, Role.INTERNATIONAL_LEADER, Role.NATIONAL_LEADER, Role.REGIONAL_LEADER, Role.CAMPUS_LEADER, Role.STREAM_LEADER, Role.COUNCIL_LEADER] as Role[];
         const isLeader = userRole && leaderRoles.includes(userRole);
@@ -154,7 +164,7 @@ export default function DashboardPage() {
             }
             return true;
         });
-    };
+    }, [session?.user?.role, theme.palette]);
 
     if (loading) {
         return (
@@ -466,11 +476,12 @@ export default function DashboardPage() {
                                 tickLine={false}
                             />
                             <Tooltip 
-                                formatter={(value: number, name: string) => {
+                                formatter={(value: any, name: any) => {
+                                    const numValue = Number(value);
                                     const label = name === 'income' ? 'Income' : name === 'expense' ? 'Expense' : name;
                                     const formatted = baseCurrency
-                                        ? `${baseCurrency.symbol}${value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                                        : value.toLocaleString();
+                                        ? `${baseCurrency.symbol}${numValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                                        : numValue.toLocaleString();
                                     return [formatted, label];
                                 }}
                                 contentStyle={{
@@ -488,7 +499,7 @@ export default function DashboardPage() {
                             >
                                 <LabelList 
                                     dataKey="income" 
-                                    position="top" 
+                                    position="top"
                                     fill={theme.palette.text.primary}
                                     fontSize={11}
                                     formatter={(value) => baseCurrency ? `${baseCurrency.symbol}${Number(value).toLocaleString()}` : Number(value).toLocaleString()}
@@ -535,7 +546,7 @@ export default function DashboardPage() {
                     gap: 1.5
                 }}
             >
-                {getQuickLinks().map((link) => (
+                {quickLinks.map((link) => (
                     <Card
                         key={link.title}
                         sx={{

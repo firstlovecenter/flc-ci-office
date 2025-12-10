@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, Suspense } from 'react';
+import { useState, useEffect, Suspense, useCallback, useMemo } from 'react';
 import { useSearchParams } from 'next/navigation';
 import {
     Box,
@@ -30,8 +30,6 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import SearchIcon from '@mui/icons-material/Search';
 import FilterListIcon from '@mui/icons-material/FilterList';
 import AttachFileIcon from '@mui/icons-material/AttachFile';
-import LockIcon from '@mui/icons-material/Lock';
-import LockOpenIcon from '@mui/icons-material/LockOpen';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import CancelIcon from '@mui/icons-material/Cancel';
 import EditNoteIcon from '@mui/icons-material/EditNote';
@@ -94,7 +92,6 @@ function TransactionsPageContent() {
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
     const [typeFilter, setTypeFilter] = useState('ALL');
-    const [statusFilter, setStatusFilter] = useState('ALL');
     const [approvalFilter, setApprovalFilter] = useState('ALL'); // NEW: Filter by approval status
     const [correctDialog, setCorrectDialog] = useState<{ open: boolean; transaction: any }>({
         open: false,
@@ -103,7 +100,6 @@ function TransactionsPageContent() {
     const { data: session } = useSession();
     const searchParams = useSearchParams();
     const deptParam = searchParams?.get('dept');
-    const exactDepartment = searchParams?.get('exact') === 'true';
 
     const isSuperAdmin = session?.user?.role === 'SUPERADMIN';
     const isAdmin = session?.user?.role && ['SUPERADMIN', 'GLOBAL_ADMIN', 'INTERNATIONAL_ADMIN', 'NATIONAL_ADMIN', 'REGIONAL_ADMIN', 'CAMPUS_ADMIN'].includes(session.user.role);
@@ -128,11 +124,11 @@ function TransactionsPageContent() {
 
         document.addEventListener('visibilitychange', handleVisibilityChange);
         return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-    }, [deptParam, exactDepartment]);
+    }, [deptParam]);
 
     useEffect(() => {
         filterTransactions();
-    }, [transactions, searchTerm, typeFilter, statusFilter, approvalFilter]);
+    }, [transactions, searchTerm, typeFilter, approvalFilter]);
 
     const fetchCurrencies = async () => {
         try {
@@ -228,7 +224,7 @@ function TransactionsPageContent() {
             
             if (deptParam) {
                 params.append('departmentId', deptParam);
-                params.append('exactDepartment', exactDepartment ? 'true' : 'false');
+                // Always include sub-departments
             }
             
             if (params.toString()) {
@@ -268,13 +264,6 @@ function TransactionsPageContent() {
         // Approval status filter
         if (approvalFilter !== 'ALL') {
             filtered = filtered.filter((tx) => tx.status === approvalFilter);
-        }
-
-        // Lock status filter
-        if (statusFilter === 'LOCKED') {
-            filtered = filtered.filter((tx) => tx.weekLocked);
-        } else if (statusFilter === 'OPEN') {
-            filtered = filtered.filter((tx) => !tx.weekLocked);
         }
 
         // Sort by date (newest first)
@@ -336,10 +325,10 @@ function TransactionsPageContent() {
                                 : 'Transactions History'}
                     </Typography>
                     <Typography variant="body2" color="text.secondary">
-                        {department ? `${exactDepartment ? 'Exact department' : 'Including sub-departments'}` : 'Manage and track all financial transactions'}
+                        {department ? 'Including sub-departments' : 'Manage and track all financial transactions'}
                     </Typography>
                 </Box>
-                <Link href={deptParam ? `/transactions/new?dept=${deptParam}${exactDepartment ? '&exact=true' : ''}` : '/transactions/new'} style={{ textDecoration: 'none' }}>
+                <Link href={deptParam ? `/transactions/new?dept=${deptParam}` : '/transactions/new'} style={{ textDecoration: 'none' }}>
                     <Button 
                         variant="contained" 
                         startIcon={<AddIcon />}
@@ -460,18 +449,6 @@ function TransactionsPageContent() {
                         </Select>
                     </FormControl>
                     <FormControl sx={{ minWidth: 150 }}>
-                        <InputLabel>Status</InputLabel>
-                        <Select
-                            value={statusFilter}
-                            label="Status"
-                            onChange={(e) => setStatusFilter(e.target.value)}
-                        >
-                            <MenuItem value="ALL">All Status</MenuItem>
-                            <MenuItem value="OPEN">Open</MenuItem>
-                            <MenuItem value="LOCKED">Locked</MenuItem>
-                        </Select>
-                    </FormControl>
-                    <FormControl sx={{ minWidth: 150 }}>
                         <InputLabel>Approval</InputLabel>
                         <Select
                             value={approvalFilter}
@@ -539,15 +516,6 @@ function TransactionsPageContent() {
                                             <Typography variant="caption" color="text.secondary">
                                                 {tx.department.name}
                                             </Typography>
-                                        )}
-                                        {tx.weekLocked && (
-                                            <Chip
-                                                icon={<LockIcon sx={{ fontSize: 10 }} />}
-                                                label="Locked"
-                                                size="small"
-                                                variant="outlined"
-                                                sx={{ height: 18, fontSize: '0.65rem' }}
-                                            />
                                         )}
                                         {!isLeader && tx.files && tx.files.length > 0 && (
                                             <Chip

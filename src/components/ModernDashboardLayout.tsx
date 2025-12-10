@@ -105,6 +105,7 @@ export default function ModernDashboardLayout({ children }: { children: React.Re
     });
 
     return (
+        <>
         <PullToRefresh>
         <MainContainer>
             {!isMobile && (
@@ -171,8 +172,10 @@ export default function ModernDashboardLayout({ children }: { children: React.Re
 
                 {children}
             </ContentArea>
+        </MainContainer>
+        </PullToRefresh>
 
-            {/* Mobile Bottom Navigation */}
+            {/* Mobile Bottom Navigation - Outside PullToRefresh for static positioning */}
             {isMobile && (
                 <Paper
                     sx={{
@@ -240,7 +243,6 @@ export default function ModernDashboardLayout({ children }: { children: React.Re
                     </BottomNavigation>
                 </Paper>
             )}
-        </MainContainer>
-        </PullToRefresh>
+        </>
     );
 }

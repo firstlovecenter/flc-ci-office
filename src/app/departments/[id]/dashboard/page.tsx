@@ -338,7 +338,7 @@ export default function DepartmentDashboardPage() {
                             }
                         }}
                     >
-                        <CardActionArea onClick={() => router.push(`/transactions?dept=${departmentId}&exact=true`)}>
+                        <CardActionArea onClick={() => router.push(`/transactions?dept=${departmentId}`)}>
                             <CardContent>
                                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
                                     <Box

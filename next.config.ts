@@ -27,11 +27,56 @@ const nextConfig: NextConfig = {
         hostname: '*.googleusercontent.com',
       },
     ],
+    // Image optimization
+    formats: ['image/avif', 'image/webp'],
+    minimumCacheTTL: 60 * 60 * 24, // 24 hours
   },
   // Performance optimizations
   compress: true,
   poweredByHeader: false,
   generateEtags: true,
+  // Experimental optimizations
+  experimental: {
+    optimizeCss: true,
+    optimizePackageImports: [
+      '@mui/material',
+      '@mui/icons-material',
+      'recharts',
+      'date-fns',
+    ],
+  },
+  // Headers for caching
+  async headers() {
+    return [
+      {
+        source: '/api/:path*',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'public, s-maxage=10, stale-while-revalidate=59',
+          },
+        ],
+      },
+      {
+        source: '/_next/static/:path*',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'public, max-age=31536000, immutable',
+          },
+        ],
+      },
+      {
+        source: '/icon-:size.png',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'public, max-age=31536000, immutable',
+          },
+        ],
+      },
+    ];
+  },
   // Optimize output
   outputFileTracingIncludes: {
     '/api/**/*': ['./prisma/schema.prisma'],
