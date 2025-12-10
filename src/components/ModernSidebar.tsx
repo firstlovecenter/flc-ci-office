@@ -197,7 +197,7 @@ export default function ModernSidebar({ userRole, userName, userImage, pendingCo
         { text: 'Transactions History', icon: <ReceiptIcon />, path: '/transactions' },
         { text: 'Approvals', icon: <PendingActionsIcon />, path: '/approvals', adminOnly: true },
         { text: 'Users', icon: <PeopleIcon />, path: '/users' },
-        { text: 'Reports', icon: <AssessmentIcon />, path: '/reports' },
+        { text: 'Trends', icon: <AssessmentIcon />, path: '/reports' },
         { text: 'Analytics', icon: <ShowChartIcon />, path: '/analytics', adminOnly: true },
     ];
 

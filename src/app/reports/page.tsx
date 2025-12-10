@@ -21,15 +21,18 @@ import {
     Tabs,
     Tab,
     Divider,
+    useTheme,
 } from '@mui/material';
 import { Download as DownloadIcon, Print as PrintIcon } from '@mui/icons-material';
 import { formatCurrency, formatNumber } from '@/lib/utils';
 import { useSession } from 'next-auth/react';
+import { BarChart, Bar, XAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, LabelList } from 'recharts';
 
 type ReportType = 'summary' | 'statement';
 
 export default function ReportsPage() {
     const { data: session } = useSession();
+    const theme = useTheme();
     const [departments, setDepartments] = useState<any[]>([]);
     const [selectedDepartment, setSelectedDepartment] = useState('');
     const [transactions, setTransactions] = useState<any[]>([]);
@@ -42,10 +45,13 @@ export default function ReportsPage() {
     const [closingBalance, setClosingBalance] = useState(0);
     const [baseCurrency, setBaseCurrency] = useState<{ id: string; code: string; symbol: string } | null>(null);
     const [includeSubDepartments, setIncludeSubDepartments] = useState(true);
+    const [chartData, setChartData] = useState<{ week: string; income: number }[]>([]);
+    const [chartLoading, setChartLoading] = useState(true);
 
     useEffect(() => {
         fetchDepartments();
         fetchBaseCurrency();
+        fetchChartData();
     }, []);
 
     const fetchBaseCurrency = async () => {
@@ -64,6 +70,23 @@ export default function ReportsPage() {
         if (response.ok) {
             const data = await response.json();
             setDepartments(data);
+        }
+    };
+
+    const fetchChartData = async () => {
+        setChartLoading(true);
+        try {
+            const response = await fetch('/api/dashboard/stats');
+            if (response.ok) {
+                const data = await response.json();
+                if (data.chartData) {
+                    setChartData(data.chartData);
+                }
+            }
+        } catch (error) {
+            console.error('Error fetching chart data:', error);
+        } finally {
+            setChartLoading(false);
         }
     };
 
@@ -235,7 +258,7 @@ export default function ReportsPage() {
             <TableContainer component={Paper} sx={{ mt: 3 }}>
                 <Box sx={{ p: 3, '@media print': { p: 2 } }}>
                     <Typography variant="h5" gutterBottom align="center">
-                        Bank Statement
+                        Full Report
                     </Typography>
                     <Typography variant="subtitle2" color="text.secondary" align="center" gutterBottom>
                         {selectedDepartment 
@@ -361,7 +384,7 @@ export default function ReportsPage() {
         <Box>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3, '@media print': { display: 'none' } }}>
                 <Typography variant="h4">
-                    Reports
+                    Trends
                 </Typography>
                 {transactions.length > 0 && (
                     <Box sx={{ display: 'flex', gap: 1 }}>
@@ -399,75 +422,149 @@ export default function ReportsPage() {
                     sx={{ borderBottom: 1, borderColor: 'divider' }}
                 >
                     <Tab label="Summary Report" value="summary" />
-                    <Tab label="Bank Statement" value="statement" />
+                    <Tab label="Full Report" value="statement" />
                 </Tabs>
                 
                 <Box sx={{ p: 3 }}>
-                    <Typography variant="h6" gutterBottom>
-                        {reportType === 'summary' ? 'Generate Financial Summary' : 'Generate Bank Statement'}
-                    </Typography>
-                    
-                    <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 2, mb: 2 }}>
-                        <TextField
-                            label="Start Date"
-                            type="date"
-                            value={startDate}
-                            onChange={(e) => setStartDate(e.target.value)}
-                            InputLabelProps={{ shrink: true }}
-                            fullWidth
-                        />
-                        <TextField
-                            label="End Date"
-                            type="date"
-                            value={endDate}
-                            onChange={(e) => setEndDate(e.target.value)}
-                            InputLabelProps={{ shrink: true }}
-                            fullWidth
-                        />
-                    </Box>
+                    {reportType === 'summary' ? (
+                        /* Summary Report - Show Weekly Income Chart */
+                        <>
+                            <Typography variant="h6" gutterBottom>
+                                Weekly Income Trends (Last 4 Weeks)
+                            </Typography>
+                            {chartLoading ? (
+                                <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
+                                    <CircularProgress />
+                                </Box>
+                            ) : chartData.length > 0 ? (
+                                <Box sx={{ width: '100%', height: { xs: 250, sm: 300, md: 350 } }}>
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <BarChart
+                                            data={chartData}
+                                            margin={{
+                                                top: 25,
+                                                right: 10,
+                                                left: 10,
+                                                bottom: 5,
+                                            }}
+                                        >
+                                            <XAxis 
+                                                dataKey="week" 
+                                                tick={{ fill: theme.palette.text.secondary, fontSize: 12 }}
+                                                axisLine={{ stroke: theme.palette.divider }}
+                                                tickLine={false}
+                                            />
+                                            <Tooltip 
+                                                formatter={(value: number) => [
+                                                    baseCurrency ? `${baseCurrency.symbol}${value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : value.toLocaleString(),
+                                                    'Income'
+                                                ]}
+                                                contentStyle={{
+                                                    backgroundColor: theme.palette.background.paper,
+                                                    border: `1px solid ${theme.palette.divider}`,
+                                                    borderRadius: 8,
+                                                }}
+                                                labelStyle={{ color: theme.palette.text.primary }}
+                                                cursor={{ fill: 'transparent' }}
+                                            />
+                                            <Bar 
+                                                dataKey="income" 
+                                                radius={[4, 4, 0, 0]}
+                                                barSize={40}
+                                            >
+                                                <LabelList 
+                                                    dataKey="income" 
+                                                    position="top" 
+                                                    fill={theme.palette.text.primary}
+                                                    fontSize={12}
+                                                    formatter={(value) => baseCurrency ? `${baseCurrency.symbol}${Number(value).toLocaleString()}` : Number(value).toLocaleString()}
+                                                />
+                                                {chartData.map((entry, index) => (
+                                                    <Cell 
+                                                        key={`cell-${index}`} 
+                                                        fill={index === chartData.length - 1 ? theme.palette.primary.main : theme.palette.success.main} 
+                                                    />
+                                                ))}
+                                            </Bar>
+                                        </BarChart>
+                                    </ResponsiveContainer>
+                                </Box>
+                            ) : (
+                                <Typography variant="body2" color="text.secondary" sx={{ py: 4, textAlign: 'center' }}>
+                                    No income data available for the last 4 weeks.
+                                </Typography>
+                            )}
+                        </>
+                    ) : (
+                        /* Full Report - Show Date Range Filters */
+                        <>
+                            <Typography variant="h6" gutterBottom>
+                                Generate Full Report
+                            </Typography>
+                            
+                            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 2, mb: 2 }}>
+                                <TextField
+                                    label="Start Date"
+                                    type="date"
+                                    value={startDate}
+                                    onChange={(e) => setStartDate(e.target.value)}
+                                    InputLabelProps={{ shrink: true }}
+                                    fullWidth
+                                />
+                                <TextField
+                                    label="End Date"
+                                    type="date"
+                                    value={endDate}
+                                    onChange={(e) => setEndDate(e.target.value)}
+                                    InputLabelProps={{ shrink: true }}
+                                    fullWidth
+                                />
+                            </Box>
 
-                    <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start', flexWrap: 'wrap' }}>
-                        <FormControl sx={{ minWidth: 300 }}>
-                            <InputLabel>Department (Optional)</InputLabel>
-                            <Select
-                                value={selectedDepartment}
-                                label="Department (Optional)"
-                                onChange={(e) => setSelectedDepartment(e.target.value)}
-                            >
-                                <MenuItem value="">All Departments</MenuItem>
-                                {departments.map((dept) => (
-                                    <MenuItem key={dept.id} value={dept.id}>
-                                        {dept.name}
-                                    </MenuItem>
-                                ))}
-                            </Select>
-                        </FormControl>
-                        {selectedDepartment && (
-                            <FormControl sx={{ minWidth: 250 }}>
-                                <InputLabel>Scope</InputLabel>
-                                <Select
-                                    value={includeSubDepartments ? 'include' : 'exact'}
-                                    label="Scope"
-                                    onChange={(e) => setIncludeSubDepartments(e.target.value === 'include')}
+                            <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+                                <FormControl sx={{ minWidth: 300 }}>
+                                    <InputLabel>Department (Optional)</InputLabel>
+                                    <Select
+                                        value={selectedDepartment}
+                                        label="Department (Optional)"
+                                        onChange={(e) => setSelectedDepartment(e.target.value)}
+                                    >
+                                        <MenuItem value="">All Departments</MenuItem>
+                                        {departments.map((dept) => (
+                                            <MenuItem key={dept.id} value={dept.id}>
+                                                {dept.name}
+                                            </MenuItem>
+                                        ))}
+                                    </Select>
+                                </FormControl>
+                                {selectedDepartment && (
+                                    <FormControl sx={{ minWidth: 250 }}>
+                                        <InputLabel>Scope</InputLabel>
+                                        <Select
+                                            value={includeSubDepartments ? 'include' : 'exact'}
+                                            label="Scope"
+                                            onChange={(e) => setIncludeSubDepartments(e.target.value === 'include')}
+                                        >
+                                            <MenuItem value="include">Include Lower Departments</MenuItem>
+                                            <MenuItem value="exact">Selected Department Only</MenuItem>
+                                        </Select>
+                                    </FormControl>
+                                )}
+                                <Button
+                                    variant="contained"
+                                    onClick={generateReport}
+                                    disabled={loading}
+                                    size="large"
                                 >
-                                    <MenuItem value="include">Include Lower Departments</MenuItem>
-                                    <MenuItem value="exact">Selected Department Only</MenuItem>
-                                </Select>
-                            </FormControl>
-                        )}
-                        <Button
-                            variant="contained"
-                            onClick={generateReport}
-                            disabled={loading}
-                            size="large"
-                        >
-                            {loading ? 'Generating...' : 'Generate Report'}
-                        </Button>
-                    </Box>
+                                    {loading ? 'Generating...' : 'Generate Report'}
+                                </Button>
+                            </Box>
+                        </>
+                    )}
                 </Box>
             </Paper>
 
-            {transactions.length > 0 && (
+            {reportType === 'statement' && transactions.length > 0 && (
                 <>
                     <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr 1fr' }, gap: 2, mb: 3, '@media print': { display: 'none' } }}>
                         <Paper 
@@ -558,7 +655,7 @@ export default function ReportsPage() {
                 </>
             )}
 
-            {!loading && transactions.length === 0 && (selectedDepartment || startDate || endDate) && (
+            {reportType === 'statement' && !loading && transactions.length === 0 && (selectedDepartment || startDate || endDate) && (
                 <Paper sx={{ p: 4, textAlign: 'center' }}>
                     <Typography variant="h6" color="text.secondary" gutterBottom>
                         No Transactions Found

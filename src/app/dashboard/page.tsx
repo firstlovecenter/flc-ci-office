@@ -369,7 +369,7 @@ export default function DashboardPage() {
                     {statCards.map((card, index) => {
                         const Icon = card.icon;
                         return (
-                            <Grid size={{ xs: 12, md: 6, lg: 4 }} key={index}>
+                            <Grid size={{ xs: 6, sm: 6, lg: isLeader ? 6 : 4 }} key={index}>
                                 <Box
                                     sx={{
                                         p: { xs: 1.5, sm: 3, md: 4 },
@@ -434,7 +434,76 @@ export default function DashboardPage() {
                 </Grid>
             )}
 
-            {/* Quick Links - Hidden for SuperAdmin and on mobile */}
+            {/* Weekly Income Chart - Hidden for SuperAdmin */}
+            {!isSuperAdmin && stats.chartData && stats.chartData.length > 0 && (
+            <Box
+                sx={{
+                    p: { xs: 1.5, sm: 3, md: 4 },
+                    borderRadius: { xs: 1.5, sm: 2 },
+                    bgcolor: 'background.paper',
+                    border: '1px solid',
+                    borderColor: 'divider',
+                }}
+            >
+                <Typography variant="h6" fontWeight="600" sx={{ mb: { xs: 2, sm: 3 }, fontSize: { xs: '0.875rem', sm: '1.25rem' } }}>
+                    Weekly Income (Last 4 Weeks)
+                </Typography>
+                <Box sx={{ width: '100%', height: { xs: 200, sm: 250, md: 300 } }}>
+                    <ResponsiveContainer width="100%" height="100%">
+                        <BarChart
+                            data={stats.chartData}
+                            margin={{
+                                top: 25,
+                                right: 10,
+                                left: 10,
+                                bottom: 5,
+                            }}
+                        >
+                            <XAxis 
+                                dataKey="week" 
+                                tick={{ fill: theme.palette.text.secondary, fontSize: 12 }}
+                                axisLine={{ stroke: theme.palette.divider }}
+                                tickLine={false}
+                            />
+                            <Tooltip 
+                                formatter={(value: number) => [
+                                    baseCurrency ? `${baseCurrency.symbol}${value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : value.toLocaleString(),
+                                    'Income'
+                                ]}
+                                contentStyle={{
+                                    backgroundColor: theme.palette.background.paper,
+                                    border: `1px solid ${theme.palette.divider}`,
+                                    borderRadius: 8,
+                                }}
+                                labelStyle={{ color: theme.palette.text.primary }}
+                                cursor={{ fill: 'transparent' }}
+                            />
+                            <Bar 
+                                dataKey="income" 
+                                radius={[4, 4, 0, 0]}
+                                barSize={30}
+                            >
+                                <LabelList 
+                                    dataKey="income" 
+                                    position="top" 
+                                    fill={theme.palette.text.primary}
+                                    fontSize={11}
+                                    formatter={(value) => baseCurrency ? `${baseCurrency.symbol}${Number(value).toLocaleString()}` : Number(value).toLocaleString()}
+                                />
+                                {stats.chartData.map((entry, index) => (
+                                    <Cell 
+                                        key={`cell-${index}`} 
+                                        fill={index === stats.chartData.length - 1 ? theme.palette.primary.main : theme.palette.success.main} 
+                                    />
+                                ))}
+                            </Bar>
+                        </BarChart>
+                    </ResponsiveContainer>
+                </Box>
+            </Box>
+            )}
+
+            {/* Quick Links - Hidden for SuperAdmin */}
             {!isSuperAdmin && (
             <Box
                 sx={{
@@ -443,8 +512,7 @@ export default function DashboardPage() {
                     bgcolor: 'background.paper',
                     border: '1px solid',
                     borderColor: 'divider',
-                    mb: { xs: 2, md: 4 },
-                    display: { xs: 'none', sm: 'block' }
+                    mt: { xs: 2, md: 4 }
                 }}
             >
                 <Typography variant="h6" fontWeight="600" sx={{ mb: { xs: 2, sm: 3 }, fontSize: { xs: '0.875rem', sm: '1.25rem' } }}>
@@ -510,74 +578,6 @@ export default function DashboardPage() {
                         );
                     })}
                 </Grid>
-            </Box>
-            )}
-
-            {/* Weekly Income Chart - Hidden for SuperAdmin */}
-            {!isSuperAdmin && stats.chartData && stats.chartData.length > 0 && (
-            <Box
-                sx={{
-                    p: { xs: 1.5, sm: 3, md: 4 },
-                    borderRadius: { xs: 1.5, sm: 2 },
-                    bgcolor: 'background.paper',
-                    border: '1px solid',
-                    borderColor: 'divider',
-                }}
-            >
-                <Typography variant="h6" fontWeight="600" sx={{ mb: { xs: 2, sm: 3 }, fontSize: { xs: '0.875rem', sm: '1.25rem' } }}>
-                    Weekly Income (Last 4 Weeks)
-                </Typography>
-                <Box sx={{ width: '100%', height: { xs: 200, sm: 250, md: 300 } }}>
-                    <ResponsiveContainer width="100%" height="100%">
-                        <BarChart
-                            data={stats.chartData}
-                            margin={{
-                                top: 25,
-                                right: 10,
-                                left: 10,
-                                bottom: 5,
-                            }}
-                        >
-                            <CartesianGrid strokeDasharray="3 3" stroke={theme.palette.divider} />
-                            <XAxis 
-                                dataKey="week" 
-                                tick={{ fill: theme.palette.text.secondary, fontSize: 12 }}
-                                axisLine={{ stroke: theme.palette.divider }}
-                            />
-                            <Tooltip 
-                                formatter={(value: number) => [
-                                    baseCurrency ? `${baseCurrency.symbol}${value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : value.toLocaleString(),
-                                    'Income'
-                                ]}
-                                contentStyle={{
-                                    backgroundColor: theme.palette.background.paper,
-                                    border: `1px solid ${theme.palette.divider}`,
-                                    borderRadius: 8,
-                                }}
-                                labelStyle={{ color: theme.palette.text.primary }}
-                            />
-                            <Bar 
-                                dataKey="income" 
-                                radius={[4, 4, 0, 0]}
-                                barSize={30}
-                            >
-                                <LabelList 
-                                    dataKey="income" 
-                                    position="top" 
-                                    fill={theme.palette.text.primary}
-                                    fontSize={11}
-                                    formatter={(value) => baseCurrency ? `${baseCurrency.symbol}${Number(value).toLocaleString()}` : Number(value).toLocaleString()}
-                                />
-                                {stats.chartData.map((entry, index) => (
-                                    <Cell 
-                                        key={`cell-${index}`} 
-                                        fill={index === stats.chartData.length - 1 ? theme.palette.primary.main : theme.palette.success.main} 
-                                    />
-                                ))}
-                            </Bar>
-                        </BarChart>
-                    </ResponsiveContainer>
-                </Box>
             </Box>
             )}
         </Box>
