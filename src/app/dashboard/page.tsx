@@ -17,7 +17,7 @@ import SmsIcon from '@mui/icons-material/Sms';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { Role } from '@prisma/client';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
+import { BarChart, Bar, XAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, LabelList } from 'recharts';
 
 export default function DashboardPage() {
     const [stats, setStats] = useState({ income: 0, expense: 0, balance: 0, weeklyIncome: 0, chartData: [] as { week: string; income: number }[] });
@@ -531,9 +531,9 @@ export default function DashboardPage() {
                         <BarChart
                             data={stats.chartData}
                             margin={{
-                                top: 5,
+                                top: 25,
                                 right: 10,
-                                left: 0,
+                                left: 10,
                                 bottom: 5,
                             }}
                         >
@@ -542,11 +542,6 @@ export default function DashboardPage() {
                                 dataKey="week" 
                                 tick={{ fill: theme.palette.text.secondary, fontSize: 12 }}
                                 axisLine={{ stroke: theme.palette.divider }}
-                            />
-                            <YAxis 
-                                tick={{ fill: theme.palette.text.secondary, fontSize: 12 }}
-                                axisLine={{ stroke: theme.palette.divider }}
-                                tickFormatter={(value) => baseCurrency ? `${baseCurrency.symbol}${value.toLocaleString()}` : value.toLocaleString()}
                             />
                             <Tooltip 
                                 formatter={(value: number) => [
@@ -563,7 +558,15 @@ export default function DashboardPage() {
                             <Bar 
                                 dataKey="income" 
                                 radius={[4, 4, 0, 0]}
+                                barSize={30}
                             >
+                                <LabelList 
+                                    dataKey="income" 
+                                    position="top" 
+                                    fill={theme.palette.text.primary}
+                                    fontSize={11}
+                                    formatter={(value) => baseCurrency ? `${baseCurrency.symbol}${Number(value).toLocaleString()}` : Number(value).toLocaleString()}
+                                />
                                 {stats.chartData.map((entry, index) => (
                                     <Cell 
                                         key={`cell-${index}`} 
