@@ -1,5 +1,36 @@
 import { prisma } from '@/lib/prisma';
-import { DepartmentLevel } from '@prisma/client';
+import { DepartmentLevel, Role } from '@prisma/client';
+
+/**
+ * Map department level to the corresponding leader role
+ */
+export function getLeaderRoleForLevel(level: DepartmentLevel): Role {
+    const levelToRole: Record<DepartmentLevel, Role> = {
+        GLOBAL: 'GLOBAL_LEADER',
+        INTERNATIONAL: 'INTERNATIONAL_LEADER',
+        NATIONAL: 'NATIONAL_LEADER',
+        REGIONAL: 'REGIONAL_LEADER',
+        CAMPUS: 'CAMPUS_LEADER',
+        STREAM: 'STREAM_LEADER',
+        COUNCIL: 'COUNCIL_LEADER',
+    };
+    return levelToRole[level];
+}
+
+/**
+ * Map department level to the corresponding admin role
+ */
+export function getAdminRoleForLevel(level: DepartmentLevel): Role | null {
+    const levelToRole: Partial<Record<DepartmentLevel, Role>> = {
+        GLOBAL: 'GLOBAL_ADMIN',
+        INTERNATIONAL: 'INTERNATIONAL_ADMIN',
+        NATIONAL: 'NATIONAL_ADMIN',
+        REGIONAL: 'REGIONAL_ADMIN',
+        CAMPUS: 'CAMPUS_ADMIN',
+        // STREAM and COUNCIL don't have admin roles
+    };
+    return levelToRole[level] || null;
+}
 
 /**
  * Recursively fetches all descendant department IDs for a given department ID.

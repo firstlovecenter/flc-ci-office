@@ -18,35 +18,36 @@ import {
     TableRow,
     CircularProgress,
     TextField,
-    Tabs,
-    Tab,
     Divider,
     useTheme,
 } from '@mui/material';
 import { Download as DownloadIcon, Print as PrintIcon } from '@mui/icons-material';
-import { formatCurrency, formatNumber } from '@/lib/utils';
+import { formatCurrency } from '@/lib/utils';
+import { BarChart, Bar, XAxis, Tooltip, ResponsiveContainer, Cell, LabelList } from 'recharts';
 import { useSession } from 'next-auth/react';
-import { BarChart, Bar, XAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, LabelList } from 'recharts';
-
-type ReportType = 'summary' | 'statement';
 
 export default function ReportsPage() {
-    const { data: session } = useSession();
     const theme = useTheme();
+    const { data: session } = useSession();
     const [departments, setDepartments] = useState<any[]>([]);
     const [selectedDepartment, setSelectedDepartment] = useState('');
     const [transactions, setTransactions] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
     const [stats, setStats] = useState({ income: 0, expense: 0, balance: 0 });
-    const [reportType, setReportType] = useState<ReportType>('summary');
     const [startDate, setStartDate] = useState('');
     const [endDate, setEndDate] = useState('');
     const [openingBalance, setOpeningBalance] = useState(0);
     const [closingBalance, setClosingBalance] = useState(0);
     const [baseCurrency, setBaseCurrency] = useState<{ id: string; code: string; symbol: string } | null>(null);
     const [includeSubDepartments, setIncludeSubDepartments] = useState(true);
-    const [chartData, setChartData] = useState<{ week: string; income: number }[]>([]);
+    const [chartData, setChartData] = useState<{ week: string; income: number; expense: number }[]>([]);
     const [chartLoading, setChartLoading] = useState(true);
+    const [userDepartmentId, setUserDepartmentId] = useState<string | null>(null);
+    const [userDepartmentName, setUserDepartmentName] = useState<string | null>(null);
+    const [isLeader, setIsLeader] = useState(false);
+    const [hasSubDepartments, setHasSubDepartments] = useState(false);
+
+    const leaderRoles = ['GLOBAL_LEADER', 'INTERNATIONAL_LEADER', 'NATIONAL_LEADER', 'REGIONAL_LEADER', 'CAMPUS_LEADER', 'STREAM_LEADER', 'COUNCIL_LEADER'];
 
     useEffect(() => {
         fetchDepartments();
@@ -54,14 +55,41 @@ export default function ReportsPage() {
         fetchChartData();
     }, []);
 
+    // Set default department when user data is loaded
+    useEffect(() => {
+        if (userDepartmentId && !selectedDepartment) {
+            setSelectedDepartment(userDepartmentId);
+        }
+    }, [userDepartmentId]);
+
     const fetchBaseCurrency = async () => {
         try {
             const response = await fetch('/api/users/me');
             if (response.ok) {
                 const data = await response.json();
                 setBaseCurrency(data.baseCurrency);
+                
+                // Get active role info - prefer activeUserRole, fallback to first userRole or user's direct values
+                const activeUserRole = data.activeUserRole || data.userRoles?.[0];
+                const activeRole = activeUserRole?.role || data.role;
+                const activeDepartmentId = activeUserRole?.departmentId || data.departmentId;
+                const activeDepartmentName = activeUserRole?.department?.name || data.department?.name;
+                
+                // Set user's department as default
+                if (activeDepartmentId) {
+                    setUserDepartmentId(activeDepartmentId);
+                }
+                // Set department name
+                if (activeDepartmentName) {
+                    setUserDepartmentName(activeDepartmentName);
+                }
+                // Check if user is a leader
+                if (activeRole && leaderRoles.includes(activeRole)) {
+                    setIsLeader(true);
+                }
             }
         } catch (error) {
+            console.error('Error fetching user data:', error);
         }
     };
 
@@ -70,6 +98,10 @@ export default function ReportsPage() {
         if (response.ok) {
             const data = await response.json();
             setDepartments(data);
+            // Check if there are sub-departments (more than one department means user has access to sub-depts)
+            if (data.length > 1) {
+                setHasSubDepartments(true);
+            }
         }
     };
 
@@ -167,6 +199,14 @@ export default function ReportsPage() {
     };
 
     const handleDownloadPDF = async () => {
+        // Check if we have necessary data for leaders
+        if (isLeader && !userDepartmentId) {
+            alert('Please wait for user data to load, then try again.');
+            return;
+        }
+        
+        const departmentToUse = isLeader ? userDepartmentId : selectedDepartment;
+        
         try {
             const response = await fetch('/api/reports/pdf', {
                 method: 'POST',
@@ -174,11 +214,11 @@ export default function ReportsPage() {
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({
-                    departmentId: selectedDepartment,
+                    departmentId: departmentToUse,
                     startDate,
                     endDate,
-                    reportType,
-                    includeSubDepartments,
+                    reportType: 'statement',
+                    includeSubDepartments: isLeader ? true : includeSubDepartments,
                 }),
             });
 
@@ -225,45 +265,39 @@ export default function ReportsPage() {
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `${reportType}-report-${new Date().toISOString().split('T')[0]}.csv`;
+        a.download = `full-report-${new Date().toISOString().split('T')[0]}.csv`;
         a.click();
         window.URL.revokeObjectURL(url);
     };
 
     const generateCSV = () => {
         const currencyCode = baseCurrency?.code || 'GHS';
-        if (reportType === 'summary') {
-            const headers = `Date,Department,Type,Description,Amount (${currencyCode})\n`;
-            const rows = transactions.map(tx => 
-                `${new Date(tx.createdAt).toLocaleDateString()},${tx.department.name},${tx.type},${tx.description},${formatNumber(Number(tx.amountInBase || tx.amount))}`
-            ).join('\n');
-            return headers + rows;
-        } else {
-            const headers = `Date,Description,Department,Debit (${currencyCode}),Credit (${currencyCode}),Balance (${currencyCode})\n`;
-            let balance = openingBalance;
-            const rows = transactions.map(tx => {
-                const debit = tx.type === 'EXPENSE' ? Number(tx.amountInBase || tx.amount) : 0;
-                const credit = tx.type === 'INCOME' ? Number(tx.amountInBase || tx.amount) : 0;
-                balance += credit - debit;
-                return `${new Date(tx.createdAt).toLocaleDateString()},${tx.description},${tx.department.name},${debit || ''},${credit || ''},${formatNumber(balance)}`;
-            }).join('\n');
-            return headers + rows;
-        }
+        const headers = `Date,Description,Department,Debit (${currencyCode}),Credit (${currencyCode}),Balance (${currencyCode})\n`;
+        let balance = openingBalance;
+        const rows = transactions.map(tx => {
+            const debit = tx.type === 'EXPENSE' ? Number(tx.amountInBase || tx.amount) : 0;
+            const credit = tx.type === 'INCOME' ? Number(tx.amountInBase || tx.amount) : 0;
+            balance += credit - debit;
+            return `${new Date(tx.createdAt).toLocaleDateString()},${tx.description},${tx.department.name},${debit || ''},${credit || ''},${balance}`;
+        }).join('\n');
+        return headers + rows;
     };
 
     const renderStatementView = () => {
         let runningBalance = openingBalance;
         
         return (
-            <TableContainer component={Paper} sx={{ mt: 3 }}>
+            <TableContainer component={Paper} sx={{ mt: 3 }} className="print-content">
                 <Box sx={{ p: 3, '@media print': { p: 2 } }}>
                     <Typography variant="h5" gutterBottom align="center">
                         Full Report
                     </Typography>
                     <Typography variant="subtitle2" color="text.secondary" align="center" gutterBottom>
-                        {selectedDepartment 
-                            ? departments.find(d => d.id === selectedDepartment)?.name || 'All Departments'
-                            : 'All Departments'}
+                        {isLeader 
+                            ? userDepartmentName || 'My Department'
+                            : selectedDepartment 
+                                ? departments.find(d => d.id === selectedDepartment)?.name || 'All Departments'
+                                : 'All Departments'}
                     </Typography>
                     {baseCurrency && (
                         <Typography variant="body2" color="text.secondary" align="center" gutterBottom>
@@ -386,121 +420,112 @@ export default function ReportsPage() {
                 <Typography variant="h4">
                     Trends
                 </Typography>
-                {transactions.length > 0 && (
-                    <Box sx={{ display: 'flex', gap: 1 }}>
-                        <Button
-                            variant="outlined"
-                            startIcon={<PrintIcon />}
-                            onClick={handlePrint}
-                        >
-                            Print
-                        </Button>
-                        <Button
-                            variant="outlined"
-                            startIcon={<DownloadIcon />}
-                            onClick={handleDownload}
-                        >
-                            Download CSV
-                        </Button>
-                        {reportType === 'statement' && (
-                            <Button
-                                variant="contained"
-                                startIcon={<DownloadIcon />}
-                                onClick={handleDownloadPDF}
-                            >
-                                Download PDF
-                            </Button>
-                        )}
-                    </Box>
-                )}
             </Box>
 
-            <Paper sx={{ mb: 3, '@media print': { display: 'none' } }}>
-                <Tabs 
-                    value={reportType} 
-                    onChange={(e, newValue) => setReportType(newValue)}
-                    sx={{ borderBottom: 1, borderColor: 'divider' }}
-                >
-                    <Tab label="Summary Report" value="summary" />
-                    <Tab label="Full Report" value="statement" />
-                </Tabs>
-                
+            <Paper
+                elevation={0}
+                sx={{
+                    mb: 3,
+                    backgroundColor: 'transparent',
+                    boxShadow: 'none',
+                    '@media print': { display: 'none' },
+                }}
+            >
                 <Box sx={{ p: 3 }}>
-                    {reportType === 'summary' ? (
-                        /* Summary Report - Show Weekly Income Chart */
-                        <>
-                            <Typography variant="h6" gutterBottom>
-                                Weekly Income Trends (Last 4 Weeks)
-                            </Typography>
-                            {chartLoading ? (
-                                <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
-                                    <CircularProgress />
-                                </Box>
-                            ) : chartData.length > 0 ? (
-                                <Box sx={{ width: '100%', height: { xs: 250, sm: 300, md: 350 } }}>
-                                    <ResponsiveContainer width="100%" height="100%">
-                                        <BarChart
-                                            data={chartData}
-                                            margin={{
-                                                top: 25,
-                                                right: 10,
-                                                left: 10,
-                                                bottom: 5,
-                                            }}
-                                        >
-                                            <XAxis 
-                                                dataKey="week" 
-                                                tick={{ fill: theme.palette.text.secondary, fontSize: 12 }}
-                                                axisLine={{ stroke: theme.palette.divider }}
-                                                tickLine={false}
+                    <Typography variant="h6" gutterBottom>
+                        Weekly Income & Expense Trends (Last 4 Weeks)
+                    </Typography>
+                    {chartLoading ? (
+                        <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
+                            <CircularProgress />
+                        </Box>
+                    ) : chartData.length > 0 ? (
+                        <Box sx={{ width: '100%', height: { xs: 250, sm: 300, md: 350 } }}>
+                            <ResponsiveContainer width="100%" height="100%">
+                                <BarChart
+                                    data={chartData}
+                                    margin={{
+                                        top: 25,
+                                        right: 10,
+                                        left: 10,
+                                        bottom: 5,
+                                    }}
+                                    style={{ backgroundColor: 'transparent' }}
+                                >
+                                    <XAxis 
+                                        dataKey="week" 
+                                        tick={{ fill: theme.palette.text.secondary, fontSize: 12 }}
+                                        axisLine={{ stroke: theme.palette.divider }}
+                                        tickLine={false}
+                                    />
+                                    <Tooltip 
+                                        formatter={(value: number, name: string) => {
+                                            const label = name === 'income' ? 'Income' : name === 'expense' ? 'Expense' : name;
+                                            const formatted = baseCurrency
+                                                ? `${baseCurrency.symbol}${value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                                                : value.toLocaleString();
+                                            return [formatted, label];
+                                        }}
+                                        contentStyle={{
+                                            backgroundColor: theme.palette.background.paper,
+                                            border: `1px solid ${theme.palette.divider}`,
+                                            borderRadius: 8,
+                                        }}
+                                        labelStyle={{ color: theme.palette.text.primary }}
+                                        cursor={{ fill: 'transparent' }}
+                                    />
+                                    <Bar 
+                                        dataKey="income" 
+                                        radius={[4, 4, 0, 0]}
+                                        barSize={35}
+                                    >
+                                        <LabelList 
+                                            dataKey="income" 
+                                            position="top" 
+                                            fill={theme.palette.text.primary}
+                                            fontSize={12}
+                                            formatter={(value) => baseCurrency ? `${baseCurrency.symbol}${Number(value).toLocaleString()}` : Number(value).toLocaleString()}
+                                        />
+                                        {chartData.map((entry, index) => (
+                                            <Cell 
+                                                key={`income-cell-${index}`} 
+                                                fill={index === chartData.length - 1 ? theme.palette.primary.main : theme.palette.success.main} 
                                             />
-                                            <Tooltip 
-                                                formatter={(value: number) => [
-                                                    baseCurrency ? `${baseCurrency.symbol}${value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : value.toLocaleString(),
-                                                    'Income'
-                                                ]}
-                                                contentStyle={{
-                                                    backgroundColor: theme.palette.background.paper,
-                                                    border: `1px solid ${theme.palette.divider}`,
-                                                    borderRadius: 8,
-                                                }}
-                                                labelStyle={{ color: theme.palette.text.primary }}
-                                                cursor={{ fill: 'transparent' }}
+                                        ))}
+                                    </Bar>
+                                    <Bar 
+                                        dataKey="expense" 
+                                        radius={[4, 4, 0, 0]}
+                                        barSize={35}
+                                    >
+                                        <LabelList 
+                                            dataKey="expense" 
+                                            position="top" 
+                                            fill={theme.palette.text.primary}
+                                            fontSize={12}
+                                            formatter={(value) => baseCurrency ? `${baseCurrency.symbol}${Number(value).toLocaleString()}` : Number(value).toLocaleString()}
+                                        />
+                                        {chartData.map((entry, index) => (
+                                            <Cell 
+                                                key={`expense-cell-${index}`} 
+                                                fill={theme.palette.error.main} 
                                             />
-                                            <Bar 
-                                                dataKey="income" 
-                                                radius={[4, 4, 0, 0]}
-                                                barSize={40}
-                                            >
-                                                <LabelList 
-                                                    dataKey="income" 
-                                                    position="top" 
-                                                    fill={theme.palette.text.primary}
-                                                    fontSize={12}
-                                                    formatter={(value) => baseCurrency ? `${baseCurrency.symbol}${Number(value).toLocaleString()}` : Number(value).toLocaleString()}
-                                                />
-                                                {chartData.map((entry, index) => (
-                                                    <Cell 
-                                                        key={`cell-${index}`} 
-                                                        fill={index === chartData.length - 1 ? theme.palette.primary.main : theme.palette.success.main} 
-                                                    />
-                                                ))}
-                                            </Bar>
-                                        </BarChart>
-                                    </ResponsiveContainer>
-                                </Box>
-                            ) : (
-                                <Typography variant="body2" color="text.secondary" sx={{ py: 4, textAlign: 'center' }}>
-                                    No income data available for the last 4 weeks.
-                                </Typography>
-                            )}
-                        </>
+                                        ))}
+                                    </Bar>
+                                </BarChart>
+                            </ResponsiveContainer>
+                        </Box>
                     ) : (
-                        /* Full Report - Show Date Range Filters */
-                        <>
-                            <Typography variant="h6" gutterBottom>
-                                Generate Full Report
-                            </Typography>
+                        <Typography variant="body2" color="text.secondary" sx={{ py: 4, textAlign: 'center' }}>
+                            No income data available for the last 4 weeks.
+                        </Typography>
+                    )}
+
+                    <Divider sx={{ my: 3 }} />
+
+                    <Typography variant="h6" gutterBottom>
+                        Generate Full Report
+                    </Typography>
                             
                             <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 2, mb: 2 }}>
                                 <TextField
@@ -522,33 +547,38 @@ export default function ReportsPage() {
                             </Box>
 
                             <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start', flexWrap: 'wrap' }}>
-                                <FormControl sx={{ minWidth: 300 }}>
-                                    <InputLabel>Department (Optional)</InputLabel>
-                                    <Select
-                                        value={selectedDepartment}
-                                        label="Department (Optional)"
-                                        onChange={(e) => setSelectedDepartment(e.target.value)}
-                                    >
-                                        <MenuItem value="">All Departments</MenuItem>
-                                        {departments.map((dept) => (
-                                            <MenuItem key={dept.id} value={dept.id}>
-                                                {dept.name}
-                                            </MenuItem>
-                                        ))}
-                                    </Select>
-                                </FormControl>
-                                {selectedDepartment && (
-                                    <FormControl sx={{ minWidth: 250 }}>
-                                        <InputLabel>Scope</InputLabel>
-                                        <Select
-                                            value={includeSubDepartments ? 'include' : 'exact'}
-                                            label="Scope"
-                                            onChange={(e) => setIncludeSubDepartments(e.target.value === 'include')}
-                                        >
-                                            <MenuItem value="include">Include Lower Departments</MenuItem>
-                                            <MenuItem value="exact">Selected Department Only</MenuItem>
-                                        </Select>
-                                    </FormControl>
+                                {/* Only show department selection for non-leaders with sub-departments */}
+                                {!isLeader && hasSubDepartments && (
+                                    <>
+                                        <FormControl sx={{ minWidth: 300 }}>
+                                            <InputLabel>Department (Optional)</InputLabel>
+                                            <Select
+                                                value={selectedDepartment}
+                                                label="Department (Optional)"
+                                                onChange={(e) => setSelectedDepartment(e.target.value)}
+                                            >
+                                                <MenuItem value="">All Departments</MenuItem>
+                                                {departments.map((dept) => (
+                                                    <MenuItem key={dept.id} value={dept.id}>
+                                                        {dept.name}
+                                                    </MenuItem>
+                                                ))}
+                                            </Select>
+                                        </FormControl>
+                                        {selectedDepartment && (
+                                            <FormControl sx={{ minWidth: 250 }}>
+                                                <InputLabel>Scope</InputLabel>
+                                                <Select
+                                                    value={includeSubDepartments ? 'include' : 'exact'}
+                                                    label="Scope"
+                                                    onChange={(e) => setIncludeSubDepartments(e.target.value === 'include')}
+                                                >
+                                                    <MenuItem value="include">Include Lower Departments</MenuItem>
+                                                    <MenuItem value="exact">Selected Department Only</MenuItem>
+                                                </Select>
+                                            </FormControl>
+                                        )}
+                                    </>
                                 )}
                                 <Button
                                     variant="contained"
@@ -559,12 +589,37 @@ export default function ReportsPage() {
                                     {loading ? 'Generating...' : 'Generate Report'}
                                 </Button>
                             </Box>
-                        </>
-                    )}
-                </Box>
+
+                            {/* Download options - shown after report is generated */}
+                            {transactions.length > 0 && (
+                                <Box sx={{ display: 'flex', gap: 2, mt: 3, flexWrap: 'wrap' }}>
+                                    <Button
+                                        variant="outlined"
+                                        startIcon={<PrintIcon />}
+                                        onClick={handlePrint}
+                                    >
+                                        Print
+                                    </Button>
+                                    <Button
+                                        variant="outlined"
+                                        startIcon={<DownloadIcon />}
+                                        onClick={handleDownload}
+                                    >
+                                        Download CSV
+                                    </Button>
+                                    <Button
+                                        variant="contained"
+                                        startIcon={<DownloadIcon />}
+                                        onClick={handleDownloadPDF}
+                                    >
+                                        Download PDF
+                                    </Button>
+                                </Box>
+                            )}
+                        </Box>
             </Paper>
 
-            {reportType === 'statement' && transactions.length > 0 && (
+            {transactions.length > 0 && (
                 <>
                     <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr 1fr' }, gap: 2, mb: 3, '@media print': { display: 'none' } }}>
                         <Paper 
@@ -605,57 +660,11 @@ export default function ReportsPage() {
                         </Paper>
                     </Box>
 
-                    {reportType === 'statement' ? renderStatementView() : (
-                        <TableContainer component={Paper}>
-                            <Table>
-                                <TableHead>
-                                    <TableRow>
-                                        <TableCell>Date</TableCell>
-                                        <TableCell>Department</TableCell>
-                                        <TableCell>Type</TableCell>
-                                        <TableCell>Description</TableCell>
-                                        <TableCell align="right">Amount</TableCell>
-                                    </TableRow>
-                                </TableHead>
-                                <TableBody>
-                                    {transactions.map((tx) => {
-                                        const amount = Number(tx.amountInBase || tx.amount);
-                                        return (
-                                            <TableRow key={tx.id}>
-                                                <TableCell>
-                                                    {new Date(tx.createdAt).toLocaleDateString()}
-                                                </TableCell>
-                                                <TableCell>{tx.department.name}</TableCell>
-                                                <TableCell>{tx.type}</TableCell>
-                                                <TableCell>
-                                                    {tx.description}
-                                                    {tx.currency && baseCurrency && tx.currency.code !== baseCurrency.code && (
-                                                        <Typography variant="caption" color="text.secondary" display="block">
-                                                            (Original: {tx.currency.symbol}{Number(tx.amount).toLocaleString()} {tx.currency.code})
-                                                        </Typography>
-                                                    )}
-                                                </TableCell>
-                                                <TableCell
-                                                    align="right"
-                                                    sx={{
-                                                        color: tx.type === 'INCOME' ? 'success.main' : 'error.main',
-                                                        fontWeight: 'bold',
-                                                    }}
-                                                >
-                                                    {tx.type === 'EXPENSE' ? '-' : '+'}
-                                                    {baseCurrency ? formatCurrency(amount, baseCurrency.code, baseCurrency.symbol) : formatCurrency(amount)}
-                                                </TableCell>
-                                            </TableRow>
-                                        );
-                                    })}
-                                </TableBody>
-                            </Table>
-                        </TableContainer>
-                    )}
+                    {renderStatementView()}
                 </>
             )}
 
-            {reportType === 'statement' && !loading && transactions.length === 0 && (selectedDepartment || startDate || endDate) && (
+            {!loading && transactions.length === 0 && (selectedDepartment || startDate || endDate) && (
                 <Paper sx={{ p: 4, textAlign: 'center' }}>
                     <Typography variant="h6" color="text.secondary" gutterBottom>
                         No Transactions Found

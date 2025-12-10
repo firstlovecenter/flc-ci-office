@@ -18,23 +18,47 @@ export async function GET(request: Request) {
 
     // Only admins can list users
     // TODO: Add more granular checks
-    if (!['SUPERADMIN', 'GLOBAL_ADMIN', 'NATIONAL_ADMIN', 'REGIONAL_ADMIN', 'CAMPUS_ADMIN'].includes(session.user.role)) {
+    if (!['SUPERADMIN', 'GLOBAL_ADMIN', 'INTERNATIONAL_ADMIN', 'NATIONAL_ADMIN', 'REGIONAL_ADMIN', 'CAMPUS_ADMIN'].includes(session.user.role)) {
         return new NextResponse('Forbidden', { status: 403 });
     }
 
     try {
+        const { searchParams } = new URL(request.url);
+        const availableOnly = searchParams.get('available') === 'true';
+        
         let whereClause: any = {
             archived: false, // Only show non-archived users by default
         };
 
-        // Filter users based on department hierarchy
-        if (session.user.role !== 'SUPERADMIN') {
-            if (session.user.departmentId) {
-                const allowedDepartmentIds = await getDescendantDepartmentIds(session.user.departmentId);
-                whereClause.departmentId = { in: allowedDepartmentIds };
-            } else {
-                // User has no department, can't see any users
-                return NextResponse.json([]);
+        // For available users (leader selection), we want all registered users
+        // that are not archived, regardless of their current department
+        if (availableOnly) {
+            // Get all non-archived users - they can be selected as leaders
+            // Admins can see users that don't have roles yet, or users within their hierarchy
+            if (session.user.role !== 'SUPERADMIN') {
+                // Get users that are either:
+                // 1. Have no department (unassigned users)
+                // 2. Are in the admin's department hierarchy
+                const allowedDepartmentIds = session.user.departmentId 
+                    ? await getDescendantDepartmentIds(session.user.departmentId)
+                    : [];
+                    
+                whereClause.OR = [
+                    { departmentId: null },
+                    { departmentId: { in: allowedDepartmentIds } },
+                ];
+            }
+            // SUPERADMIN can see all users
+        } else {
+            // Filter users based on department hierarchy (original behavior)
+            if (session.user.role !== 'SUPERADMIN') {
+                if (session.user.departmentId) {
+                    const allowedDepartmentIds = await getDescendantDepartmentIds(session.user.departmentId);
+                    whereClause.departmentId = { in: allowedDepartmentIds };
+                } else {
+                    // User has no department, can't see any users
+                    return NextResponse.json([]);
+                }
             }
         }
 

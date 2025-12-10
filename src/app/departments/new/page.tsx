@@ -47,10 +47,14 @@ function NewDepartmentForm() {
     const [availableParents, setAvailableParents] = useState<any[]>([]);
     const [currencies, setCurrencies] = useState<any[]>([]);
     const [currencyId, setCurrencyId] = useState('');
+    const [users, setUsers] = useState<any[]>([]);
+    const [leaderId, setLeaderId] = useState('');
+    const [usersLoading, setUsersLoading] = useState(false);
 
     useEffect(() => {
         fetchDepartments();
         fetchCurrencies();
+        fetchUsers();
     }, []);
 
     useEffect(() => {
@@ -181,10 +185,32 @@ function NewDepartmentForm() {
         }
     };
 
+    const fetchUsers = async () => {
+        setUsersLoading(true);
+        try {
+            const response = await fetch('/api/users?available=true');
+            if (response.ok) {
+                const data = await response.json();
+                setUsers(data);
+            }
+        } catch (err) {
+            console.error('Failed to fetch users:', err);
+        } finally {
+            setUsersLoading(false);
+        }
+    };
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setLoading(true);
         setError('');
+
+        // Validate leader selection
+        if (!leaderId) {
+            setError('A leader must be selected for the department');
+            setLoading(false);
+            return;
+        }
 
         try {
             const response = await fetch('/api/departments', {
@@ -197,6 +223,7 @@ function NewDepartmentForm() {
                     level,
                     parentId: parentId || null,
                     currencyId: level === 'NATIONAL' && currencyId ? currencyId : undefined,
+                    leaderId,
                 }),
             });
 
@@ -294,6 +321,28 @@ function NewDepartmentForm() {
                         </Select>
                     </FormControl>
 
+                    <FormControl fullWidth sx={{ mb: 3 }} required>
+                        <InputLabel>Department Leader *</InputLabel>
+                        <Select
+                            value={leaderId}
+                            label="Department Leader *"
+                            onChange={(e) => setLeaderId(e.target.value)}
+                            disabled={usersLoading || users.length === 0}
+                        >
+                            <MenuItem value="">Select a leader</MenuItem>
+                            {users.map((user) => (
+                                <MenuItem key={user.id} value={user.id}>
+                                    {user.name || user.email} {user.title ? `(${user.title})` : ''} - {user.phone}
+                                </MenuItem>
+                            ))}
+                        </Select>
+                        {users.length === 0 && !usersLoading && (
+                            <Typography variant="caption" color="text.secondary" sx={{ mt: 1 }}>
+                                No users available. Create users first before creating departments.
+                            </Typography>
+                        )}
+                    </FormControl>
+
                     {level === 'NATIONAL' && (
                         <FormControl fullWidth sx={{ mb: 3 }}>
                             <InputLabel>Base Currency *</InputLabel>
@@ -320,7 +369,7 @@ function NewDepartmentForm() {
                         <Button 
                             type="submit" 
                             variant="contained" 
-                            disabled={loading || allowedLevels.length === 0}
+                            disabled={loading || allowedLevels.length === 0 || !leaderId}
                         >
                             {loading ? 'Creating...' : 'Create Department'}
                         </Button>

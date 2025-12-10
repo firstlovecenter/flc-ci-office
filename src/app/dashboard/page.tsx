@@ -20,7 +20,7 @@ import { Role } from '@prisma/client';
 import { BarChart, Bar, XAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, LabelList } from 'recharts';
 
 export default function DashboardPage() {
-    const [stats, setStats] = useState({ income: 0, expense: 0, balance: 0, weeklyIncome: 0, chartData: [] as { week: string; income: number }[] });
+    const [stats, setStats] = useState({ income: 0, expense: 0, balance: 0, weeklyIncome: 0, chartData: [] as { week: string; income: number; expense: number }[] });
     const [baseCurrency, setBaseCurrency] = useState<{ code: string; symbol: string } | null>(null);
     const [departmentName, setDepartmentName] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
@@ -118,7 +118,7 @@ export default function DashboardPage() {
                 excludeForLeaders: true // Hide from leaders
             },
             {
-                title: 'Reports',
+                title: 'View Trends',
                 icon: AssessmentIcon,
                 href: '/reports',
                 color: theme.palette.secondary.main,
@@ -223,9 +223,9 @@ export default function DashboardPage() {
     ];
 
     return (
-        <Box sx={{ px: { xs: 1.5, sm: 3, md: 6, lg: 8 }, py: { xs: 1.5, sm: 3 }, maxWidth: '1600px', mx: 'auto' }}>
+        <Box sx={{ px: { xs: 1.5, sm: 3, md: 6, lg: 8 }, py: { xs: 1.5, sm: 2, md: 1.5 }, maxWidth: '1600px', mx: 'auto' }}>
             {/* Header */}
-            <Box sx={{ mb: { xs: 2, md: 5 } }}>
+            <Box sx={{ mb: { xs: 2, md: 2 } }}>
                 <Typography 
                     variant="h4" 
                     fontWeight="600" 
@@ -293,8 +293,8 @@ export default function DashboardPage() {
                             bgColor: theme.palette.success.main + '15',
                         },
                         {
-                            title: 'Reports & Analytics',
-                            description: 'View system-wide reports',
+                            title: 'View Trends',
+                            description: 'View system-wide trends',
                             icon: AssessmentIcon,
                             href: '/reports',
                             color: theme.palette.secondary.main,
@@ -372,7 +372,7 @@ export default function DashboardPage() {
                             <Grid size={{ xs: 6, sm: 6, lg: isLeader ? 6 : 4 }} key={index}>
                                 <Box
                                     sx={{
-                                        p: { xs: 1.5, sm: 3, md: 4 },
+                                        p: { xs: 1.5, sm: 2, md: 2 },
                                         borderRadius: { xs: 1.5, sm: 2 },
                                         bgcolor: card.bgColor,
                                         border: '2px solid',
@@ -421,7 +421,7 @@ export default function DashboardPage() {
                                             fontWeight="700" 
                                             sx={{ 
                                                 color: 'white',
-                                                fontSize: { xs: '1.25rem', sm: '1.75rem', md: '2.125rem' }
+                                                fontSize: { xs: '1.25rem', sm: '1.5rem', md: '1.75rem' }
                                             }}
                                         >
                                             {baseCurrency ? formatCurrency(card.amount, baseCurrency.code, baseCurrency.symbol) : formatCurrency(card.amount)}
@@ -438,17 +438,16 @@ export default function DashboardPage() {
             {!isSuperAdmin && stats.chartData && stats.chartData.length > 0 && (
             <Box
                 sx={{
-                    p: { xs: 1.5, sm: 3, md: 4 },
+                    p: { xs: 1.5, sm: 2, md: 2 },
                     borderRadius: { xs: 1.5, sm: 2 },
-                    bgcolor: 'background.paper',
-                    border: '1px solid',
-                    borderColor: 'divider',
+                    bgcolor: 'transparent',
+                    border: 'none',
                 }}
             >
-                <Typography variant="h6" fontWeight="600" sx={{ mb: { xs: 2, sm: 3 }, fontSize: { xs: '0.875rem', sm: '1.25rem' } }}>
+                <Typography variant="h6" fontWeight="600" sx={{ mb: { xs: 1, sm: 1.5 }, fontSize: { xs: '0.875rem', sm: '1rem' } }}>
                     Weekly Income (Last 4 Weeks)
                 </Typography>
-                <Box sx={{ width: '100%', height: { xs: 200, sm: 250, md: 300 } }}>
+                <Box sx={{ width: '100%', height: { xs: 180, sm: 200, md: 220 } }}>
                     <ResponsiveContainer width="100%" height="100%">
                         <BarChart
                             data={stats.chartData}
@@ -458,6 +457,7 @@ export default function DashboardPage() {
                                 left: 10,
                                 bottom: 5,
                             }}
+                            style={{ backgroundColor: 'transparent' }}
                         >
                             <XAxis 
                                 dataKey="week" 
@@ -466,10 +466,13 @@ export default function DashboardPage() {
                                 tickLine={false}
                             />
                             <Tooltip 
-                                formatter={(value: number) => [
-                                    baseCurrency ? `${baseCurrency.symbol}${value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : value.toLocaleString(),
-                                    'Income'
-                                ]}
+                                formatter={(value: number, name: string) => {
+                                    const label = name === 'income' ? 'Income' : name === 'expense' ? 'Expense' : name;
+                                    const formatted = baseCurrency
+                                        ? `${baseCurrency.symbol}${value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                                        : value.toLocaleString();
+                                    return [formatted, label];
+                                }}
                                 contentStyle={{
                                     backgroundColor: theme.palette.background.paper,
                                     border: `1px solid ${theme.palette.divider}`,
@@ -481,7 +484,7 @@ export default function DashboardPage() {
                             <Bar 
                                 dataKey="income" 
                                 radius={[4, 4, 0, 0]}
-                                barSize={30}
+                                barSize={35}
                             >
                                 <LabelList 
                                     dataKey="income" 
@@ -492,8 +495,27 @@ export default function DashboardPage() {
                                 />
                                 {stats.chartData.map((entry, index) => (
                                     <Cell 
-                                        key={`cell-${index}`} 
+                                        key={`income-cell-${index}`} 
                                         fill={index === stats.chartData.length - 1 ? theme.palette.primary.main : theme.palette.success.main} 
+                                    />
+                                ))}
+                            </Bar>
+                            <Bar 
+                                dataKey="expense" 
+                                radius={[4, 4, 0, 0]}
+                                barSize={35}
+                            >
+                                <LabelList 
+                                    dataKey="expense" 
+                                    position="top" 
+                                    fill={theme.palette.text.primary}
+                                    fontSize={11}
+                                    formatter={(value) => baseCurrency ? `${baseCurrency.symbol}${Number(value).toLocaleString()}` : Number(value).toLocaleString()}
+                                />
+                                {stats.chartData.map((entry, index) => (
+                                    <Cell 
+                                        key={`expense-cell-${index}`} 
+                                        fill={theme.palette.error.main}
                                     />
                                 ))}
                             </Bar>
@@ -507,77 +529,48 @@ export default function DashboardPage() {
             {!isSuperAdmin && (
             <Box
                 sx={{
-                    p: { xs: 1.5, sm: 3, md: 4 },
-                    borderRadius: { xs: 1.5, sm: 2 },
-                    bgcolor: 'background.paper',
-                    border: '1px solid',
-                    borderColor: 'divider',
-                    mt: { xs: 2, md: 4 }
+                    mt: { xs: 2, md: 4 },
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 1.5
                 }}
             >
-                <Typography variant="h6" fontWeight="600" sx={{ mb: { xs: 2, sm: 3 }, fontSize: { xs: '0.875rem', sm: '1.25rem' } }}>
-                    Quick Actions
-                </Typography>
-                <Grid container spacing={{ xs: 1.5, sm: 2.5 }}>
-                    {getQuickLinks().map((link) => {
-                        const Icon = link.icon;
-                        return (
-                            <Grid size={{ xs: 6, sm: 4, md: 3 }} key={link.title}>
-                                <Card
-                                    sx={{
-                                        height: '100%',
-                                        border: '1px solid',
-                                        borderColor: 'divider',
-                                        transition: 'all 0.2s ease-in-out',
-                                        '&:hover': {
-                                            borderColor: link.color,
-                                            transform: { xs: 'none', sm: 'translateY(-2px)' },
-                                            boxShadow: `0 4px 12px ${link.bgColor}`,
-                                        }
-                                    }}
-                                >
-                                    <CardActionArea
-                                        onClick={() => router.push(link.href)}
-                                        sx={{
-                                            height: '100%',
-                                            p: { xs: 1.5, sm: 2.5 },
-                                            display: 'flex',
-                                            flexDirection: 'column',
-                                            alignItems: 'center',
-                                            justifyContent: 'center',
-                                            gap: { xs: 1, sm: 2 }
-                                        }}
-                                    >
-                                        <Box
-                                            sx={{
-                                                width: { xs: 40, sm: 56 },
-                                                height: { xs: 40, sm: 56 },
-                                                borderRadius: { xs: 1.5, sm: 2 },
-                                                bgcolor: link.bgColor,
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                justifyContent: 'center'
-                                            }}
-                                        >
-                                            <Icon sx={{ fontSize: { xs: 20, sm: 28 }, color: link.color }} />
-                                        </Box>
-                                        <Typography
-                                            variant="body2"
-                                            fontWeight="600"
-                                            textAlign="center"
-                                            sx={{
-                                                fontSize: { xs: '0.7rem', sm: '0.875rem' },
-                                                color: 'text.primary'
-                                            }}
-                                        >
-                                            {link.title}
-                                        </Typography>
-                                    </CardActionArea>
-                                </Card>
-                            </Grid>
-                        );
-                    })}
-                </Grid>
+                {getQuickLinks().map((link) => (
+                    <Card
+                        key={link.title}
+                        sx={{
+                            bgcolor: theme.palette.mode === 'dark' ? 'rgba(255, 182, 193, 0.9)' : '#FFB6C1',
+                            border: 'none',
+                            boxShadow: 'none',
+                            borderRadius: 1,
+                            '&:hover': {
+                                bgcolor: theme.palette.mode === 'dark' ? 'rgba(255, 182, 193, 1)' : '#FFA0AB',
+                            }
+                        }}
+                    >
+                        <CardActionArea
+                            onClick={() => router.push(link.href)}
+                            sx={{
+                                py: 1.5,
+                                px: 2,
+                                display: 'flex',
+                                justifyContent: 'center',
+                                alignItems: 'center',
+                            }}
+                        >
+                            <Typography
+                                variant="body1"
+                                fontWeight="600"
+                                sx={{
+                                    color: 'rgba(0, 0, 0, 0.87)',
+                                    fontSize: { xs: '0.9rem', sm: '1rem' }
+                                }}
+                            >
+                                {link.title}
+                            </Typography>
+                        </CardActionArea>
+                    </Card>
+                ))}
             </Box>
             )}
         </Box>

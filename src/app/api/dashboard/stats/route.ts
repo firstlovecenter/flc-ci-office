@@ -54,7 +54,15 @@ export async function GET(request: Request) {
         }
 
         // Fetch all data in parallel for better performance
-        const [userBaseCurrency, exchangeRates, incomeTransactions, expenseTransactions, weeklyIncomeTransactions, last4WeeksTransactions] = await Promise.all([
+        const [
+            userBaseCurrency,
+            exchangeRates,
+            incomeTransactions,
+            expenseTransactions,
+            weeklyIncomeTransactions,
+            last4WeeksIncomeTransactions,
+            last4WeeksExpenseTransactions,
+        ] = await Promise.all([
             getUserBaseCurrency(session.user.id),
             prisma.exchangeRate.findMany({
                 include: {
@@ -100,10 +108,28 @@ export async function GET(request: Request) {
                 },
             }),
             // Get all income transactions from the last 4 weeks for the chart
+            // Get all income transactions from the last 4 weeks for the chart
             prisma.transaction.findMany({
                 where: {
                     ...whereClause,
                     type: 'INCOME',
+                    status: 'APPROVED',
+                    createdAt: {
+                        gte: weekRanges[3].start, // Oldest week start
+                        lt: weekRanges[0].end, // Current week end
+                    },
+                },
+                select: {
+                    amount: true,
+                    currencyId: true,
+                    createdAt: true,
+                },
+            }),
+            // Get all expense transactions from the last 4 weeks for the chart
+            prisma.transaction.findMany({
+                where: {
+                    ...whereClause,
+                    type: 'EXPENSE',
                     status: 'APPROVED',
                     createdAt: {
                         gte: weekRanges[3].start, // Oldest week start
@@ -159,11 +185,13 @@ export async function GET(request: Request) {
             weeklyIncome += converted;
         }
 
-        // Process weekly chart data - calculate income for each of the last 4 weeks
+        // Process weekly chart data - calculate income and expense for each of the last 4 weeks
         const weeklyChartData = await Promise.all(
             weekRanges.map(async (week) => {
-                let weekTotal = 0;
-                for (const tx of last4WeeksTransactions) {
+                let weekIncomeTotal = 0;
+                let weekExpenseTotal = 0;
+
+                for (const tx of last4WeeksIncomeTransactions) {
                     const txDate = new Date(tx.createdAt);
                     if (txDate >= week.start && txDate < week.end) {
                         const currencyId = tx.currencyId || userBaseCurrency.id;
@@ -173,12 +201,28 @@ export async function GET(request: Request) {
                             userBaseCurrency.id,
                             exchangeRates
                         );
-                        weekTotal += converted;
+                        weekIncomeTotal += converted;
                     }
                 }
+
+                for (const tx of last4WeeksExpenseTransactions) {
+                    const txDate = new Date(tx.createdAt);
+                    if (txDate >= week.start && txDate < week.end) {
+                        const currencyId = tx.currencyId || userBaseCurrency.id;
+                        const converted = await convertToUserBaseCurrency(
+                            Number(tx.amount),
+                            currencyId,
+                            userBaseCurrency.id,
+                            exchangeRates
+                        );
+                        weekExpenseTotal += converted;
+                    }
+                }
+
                 return {
                     week: `Week ${week.weekNumber}`,
-                    income: weekTotal,
+                    income: weekIncomeTotal,
+                    expense: weekExpenseTotal,
                 };
             })
         );

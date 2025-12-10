@@ -50,9 +50,10 @@ export const getDesignTokens = (mode: PaletteMode) => ({
     palette: {
         mode,
         primary: {
-            main: mode === 'dark' ? '#7F1D1D' : '#991B1B',
-            light: mode === 'dark' ? '#991B1B' : '#B91C1C',
-            dark: mode === 'dark' ? '#5A0F0F' : '#450A0A',
+            main: '#FFB6C1', // Light pink
+            light: '#FFC8D0',
+            dark: '#FF9AA8',
+            contrastText: 'rgba(0, 0, 0, 0.87)',
         },
         secondary: {
             main: mode === 'dark' ? '#F59E0B' : '#D97706',
@@ -109,12 +110,12 @@ export const getDesignTokens = (mode: PaletteMode) => ({
                 },
                 contained: {
                     boxShadow: mode === 'dark' 
-                        ? '0 4px 14px 0 rgba(220, 38, 38, 0.4)'
-                        : '0 2px 8px 0 rgba(185, 28, 28, 0.3)',
+                        ? '0 4px 14px 0 rgba(255, 182, 193, 0.4)'
+                        : '0 2px 8px 0 rgba(255, 182, 193, 0.5)',
                     '&:hover': {
                         boxShadow: mode === 'dark'
-                            ? '0 6px 20px 0 rgba(220, 38, 38, 0.5)'
-                            : '0 4px 12px 0 rgba(185, 28, 28, 0.4)',
+                            ? '0 6px 20px 0 rgba(255, 182, 193, 0.5)'
+                            : '0 4px 12px 0 rgba(255, 182, 193, 0.6)',
                     },
                 },
             },

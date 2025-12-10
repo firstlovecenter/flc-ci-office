@@ -74,3 +74,147 @@ select {
     color-scheme: dark;
   }
 }
+
+/* Print styles - only show report content */
+@media print {
+  /* Force light theme for printing */
+  html, body {
+    background-color: #ffffff !important;
+    color: #000000 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    color-scheme: light !important;
+  }
+  
+  /* Reset all color variables for print */
+  :root {
+    --background: #ffffff !important;
+    --foreground: #000000 !important;
+  }
+  
+  /* Hide everything by default */
+  body > * {
+    visibility: hidden;
+  }
+  
+  /* Show only the printable report area */
+  .print-content,
+  .print-content * {
+    visibility: visible !important;
+    color: #000000 !important;
+    background-color: #ffffff !important;
+  }
+  
+  .print-content {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    padding: 20px;
+  }
+  
+  /* Hide specific elements */
+  .no-print,
+  nav,
+  header,
+  aside,
+  footer,
+  [data-no-print],
+  .MuiBottomNavigation-root,
+  .MuiDrawer-root,
+  button,
+  .MuiIconButton-root {
+    display: none !important;
+  }
+  
+  /* Force proper table styling for print */
+  .print-content table {
+    border-collapse: collapse !important;
+    width: 100% !important;
+  }
+  
+  .print-content th,
+  .print-content td,
+  .print-content .MuiTableCell-root {
+    color: #000000 !important;
+    background-color: #ffffff !important;
+    border: 1px solid #333333 !important;
+    padding: 8px !important;
+  }
+  
+  /* Table header styling */
+  .print-content thead tr,
+  .print-content .MuiTableHead-root .MuiTableRow-root {
+    background-color: #333333 !important;
+  }
+  
+  .print-content thead th,
+  .print-content .MuiTableHead-root .MuiTableCell-root {
+    color: #ffffff !important;
+    background-color: #333333 !important;
+    font-weight: bold !important;
+  }
+  
+  /* Alternating row colors */
+  .print-content tbody tr:nth-of-type(even),
+  .print-content .MuiTableBody-root .MuiTableRow-root:nth-of-type(even) {
+    background-color: #f5f5f5 !important;
+  }
+  
+  .print-content tbody tr:nth-of-type(even) td,
+  .print-content .MuiTableBody-root .MuiTableRow-root:nth-of-type(even) .MuiTableCell-root {
+    background-color: #f5f5f5 !important;
+  }
+  
+  /* Typography in print */
+  .print-content h1,
+  .print-content h2,
+  .print-content h3,
+  .print-content h4,
+  .print-content h5,
+  .print-content h6,
+  .print-content p,
+  .print-content span,
+  .print-content .MuiTypography-root {
+    color: #000000 !important;
+  }
+  
+  /* Success/error colors for balances - keep them visible */
+  .print-content [class*="success"],
+  .print-content .MuiTypography-colorSuccess {
+    color: #2e7d32 !important;
+  }
+  
+  .print-content [class*="error"],
+  .print-content .MuiTypography-colorError {
+    color: #d32f2f !important;
+  }
+  
+  /* Ensure tables print properly with page breaks */
+  table {
+    page-break-inside: auto;
+  }
+  
+  tr {
+    page-break-inside: avoid;
+    page-break-after: auto;
+  }
+  
+  thead {
+    display: table-header-group;
+  }
+  
+  /* Remove shadows and adjust paper */
+  .print-content .MuiPaper-root {
+    box-shadow: none !important;
+    border: none !important;
+    background-color: #ffffff !important;
+  }
+  
+  /* Dividers */
+  .print-content .MuiDivider-root,
+  .print-content hr {
+    border-color: #cccccc !important;
+    background-color: #cccccc !important;
+  }
+}

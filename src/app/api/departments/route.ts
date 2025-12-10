@@ -3,7 +3,9 @@ import { prisma } from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 
-import { getDescendantDepartmentIds, canCreateDepartmentLevel } from '@/lib/departments';
+import { getDescendantDepartmentIds, canCreateDepartmentLevel, getLeaderRoleForLevel } from '@/lib/departments';
+import { sendSms, formatGhanaPhone } from '@/lib/sms';
+import crypto from 'crypto';
 
 export const revalidate = 60; // Revalidate every 60 seconds
 
@@ -108,7 +110,28 @@ export async function POST(request: Request) {
 
     try {
         const body = await request.json();
-        const { name, level, parentId, currencyId } = body;
+        const { name, level, parentId, currencyId, leaderId } = body;
+
+        // Validate required leader
+        if (!leaderId) {
+            return NextResponse.json(
+                { error: 'A leader must be selected for the department' },
+                { status: 400 }
+            );
+        }
+
+        // Verify the leader exists
+        const leader = await prisma.user.findUnique({
+            where: { id: leaderId },
+            include: { userRoles: true },
+        });
+
+        if (!leader) {
+            return NextResponse.json(
+                { error: 'Selected leader not found' },
+                { status: 400 }
+            );
+        }
 
         // Get user's department to check level
         let userDepartmentLevel;
@@ -152,6 +175,7 @@ export async function POST(request: Request) {
             );
         }
 
+        // Create the department
         const department = await prisma.department.create({
             data: {
                 name,
@@ -171,6 +195,63 @@ export async function POST(request: Request) {
             });
         }
 
+        // Get the appropriate leader role for this department level
+        const leaderRole = getLeaderRoleForLevel(level);
+
+        // Create UserRole for the leader
+        const userRole = await prisma.userRole.create({
+            data: {
+                userId: leaderId,
+                role: leaderRole,
+                departmentId: department.id,
+            },
+        });
+
+        // Update the leader's departmentId and activeRole if this is their first role
+        const isFirstRole = leader.userRoles.length === 0;
+        await prisma.user.update({
+            where: { id: leaderId },
+            data: {
+                departmentId: isFirstRole ? department.id : leader.departmentId,
+                activeRole: isFirstRole ? leaderRole : leader.activeRole,
+                activeUserRoleId: isFirstRole ? userRole.id : leader.activeUserRoleId,
+                roles: isFirstRole ? [leaderRole] : { push: leaderRole },
+            },
+        });
+
+        // Check if the leader needs a password reset (first time assignment)
+        const needsPasswordSetup = !leader.password || leader.password === '';
+        
+        if (isFirstRole || needsPasswordSetup) {
+            // Create a password reset token
+            const resetToken = crypto.randomBytes(32).toString('hex');
+            const resetTokenExpiry = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+
+            await prisma.passwordReset.create({
+                data: {
+                    userId: leaderId,
+                    token: resetToken,
+                    expiresAt: resetTokenExpiry,
+                },
+            });
+
+            // Send SMS with password setup link
+            const baseUrl = process.env.NEXTAUTH_URL || 'https://your-app.com';
+            const resetLink = `${baseUrl}/auth/reset-password?token=${resetToken}`;
+            
+            const smsMessage = `Welcome to FLC Accounts! You have been assigned as ${leaderRole.replace('_', ' ')} for ${name}. Please set up your password: ${resetLink}`;
+            
+            try {
+                await sendSms({
+                    to: formatGhanaPhone(leader.phone),
+                    message: smsMessage,
+                });
+            } catch (smsError) {
+                console.error('Failed to send SMS to leader:', smsError);
+                // Don't fail the request if SMS fails
+            }
+        }
+
         // Create audit log
         await prisma.auditLog.create({
             data: {
@@ -178,12 +259,14 @@ export async function POST(request: Request) {
                 actionType: 'CREATE',
                 entityType: 'Department',
                 entityId: department.id,
-                afterData: { name, level, parentId, currencyId },
+                afterData: { name, level, parentId, currencyId, leaderId, leaderRole },
+                description: `Created department ${name} with ${leader.name || leader.email} as ${leaderRole}`,
             },
         });
 
         return NextResponse.json(department);
     } catch (error) {
+        console.error('Failed to create department:', error);
         return new NextResponse('Internal Error', { status: 500 });
     }
 }

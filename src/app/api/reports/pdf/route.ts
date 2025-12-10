@@ -43,7 +43,9 @@ export async function POST(request: NextRequest) {
         });
 
         // Fetch transactions
-        const whereClause: any = {};
+        const whereClause: any = {
+            status: 'APPROVED',
+        };
         
         if (departmentId) {
             // Handle exact vs hierarchical department filtering
@@ -83,7 +85,10 @@ export async function POST(request: NextRequest) {
         if (startDate) {
             const priorTransactions = await prisma.transaction.findMany({
                 where: {
-                    ...whereClause,
+                    status: 'APPROVED',
+                    ...(departmentId && includeSubDepartments 
+                        ? { departmentId: { in: await getDescendantDepartmentIds(departmentId) } }
+                        : departmentId ? { departmentId } : {}),
                     createdAt: { lt: new Date(startDate) },
                 },
                 include: {
@@ -127,8 +132,28 @@ export async function POST(request: NextRequest) {
             return symbol.replace(/₵/g, 'GHS');
         };
 
+        // Sanitize text to remove/replace characters not supported by WinAnsi encoding
         const sanitizeText = (text: string) => {
-            return text.replace(/₵/g, 'GHS');
+            if (!text) return '';
+            return text
+                .replace(/₵/g, 'GHS')
+                .replace(/→/g, '->')
+                .replace(/←/g, '<-')
+                .replace(/↑/g, '^')
+                .replace(/↓/g, 'v')
+                .replace(/•/g, '-')
+                .replace(/…/g, '...')
+                .replace(/–/g, '-')
+                .replace(/—/g, '-')
+                .replace(/'/g, "'")
+                .replace(/'/g, "'")
+                .replace(/"/g, '"')
+                .replace(/"/g, '"')
+                .replace(/€/g, 'EUR')
+                .replace(/£/g, 'GBP')
+                .replace(/¥/g, 'JPY')
+                .replace(/₹/g, 'INR')
+                .replace(/[^\x00-\xFF]/g, ''); // Remove any other non-WinAnsi characters
         };
 
         const safeCurrencySymbol = getSafeSymbol(userBaseCurrency.symbol, userBaseCurrency.code);
@@ -141,8 +166,9 @@ export async function POST(request: NextRequest) {
 
         // Helper to draw centered text
         const drawCenteredText = (text: string, yPos: number, size: number, useFont: any) => {
-            const textWidth = useFont.widthOfTextAtSize(text, size);
-            page.drawText(text, {
+            const safeText = sanitizeText(text);
+            const textWidth = useFont.widthOfTextAtSize(safeText, size);
+            page.drawText(safeText, {
                 x: (width - textWidth) / 2,
                 y: yPos,
                 size,
@@ -153,8 +179,9 @@ export async function POST(request: NextRequest) {
 
         // Helper to draw right-aligned text
         const drawRightText = (text: string, x: number, yPos: number, size: number) => {
-            const textWidth = font.widthOfTextAtSize(text, size);
-            page.drawText(text, {
+            const safeText = sanitizeText(text);
+            const textWidth = font.widthOfTextAtSize(safeText, size);
+            page.drawText(safeText, {
                 x: x - textWidth,
                 y: yPos,
                 size,
@@ -167,9 +194,11 @@ export async function POST(request: NextRequest) {
         const wrapText = (text: string, maxWidth: number, fontSize: number) => {
             if (!text) return [''];
             
-            const words = text.split(' ');
+            // Sanitize the text first
+            const safeText = sanitizeText(text);
+            const words = safeText.split(' ');
             const lines: string[] = [];
-            let currentLine = words[0];
+            let currentLine = words[0] || '';
 
             for (let i = 1; i < words.length; i++) {
                 const word = words[i];

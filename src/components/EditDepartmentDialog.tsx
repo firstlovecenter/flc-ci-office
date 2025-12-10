@@ -13,6 +13,8 @@ import {
     InputLabel,
     Select,
     Alert,
+    Typography,
+    Box,
 } from '@mui/material';
 
 type DepartmentLevel = 'GLOBAL' | 'INTERNATIONAL' | 'NATIONAL' | 'REGIONAL' | 'CAMPUS' | 'STREAM' | 'COUNCIL';
@@ -61,9 +63,14 @@ export default function EditDepartmentDialog({
     const [currencyId, setCurrencyId] = useState('');
     const [loading, setLoading] = useState(false);
     const [availableParents, setAvailableParents] = useState<any[]>([]);
+    const [users, setUsers] = useState<any[]>([]);
+    const [leaderId, setLeaderId] = useState('');
+    const [currentLeader, setCurrentLeader] = useState<any>(null);
+    const [usersLoading, setUsersLoading] = useState(false);
 
     useEffect(() => {
         fetchCurrencies();
+        fetchUsers();
     }, []);
 
     useEffect(() => {
@@ -71,6 +78,16 @@ export default function EditDepartmentDialog({
             setName(department.name);
             setLevel(department.level);
             setParentId(department.parentId || '');
+            
+            // Get current leader from department's userRoles
+            const leaderRole = department.userRoles?.[0];
+            if (leaderRole) {
+                setLeaderId(leaderRole.user?.id || leaderRole.userId || '');
+                setCurrentLeader(leaderRole.user);
+            } else {
+                setLeaderId('');
+                setCurrentLeader(null);
+            }
             
             // Fetch current base currency if NATIONAL department
             if (department.level === 'NATIONAL') {
@@ -133,6 +150,21 @@ export default function EditDepartmentDialog({
         }
     };
 
+    const fetchUsers = async () => {
+        setUsersLoading(true);
+        try {
+            const response = await fetch('/api/users?available=true');
+            if (response.ok) {
+                const data = await response.json();
+                setUsers(data);
+            }
+        } catch (err) {
+            console.error('Failed to fetch users:', err);
+        } finally {
+            setUsersLoading(false);
+        }
+    };
+
     const handleSave = async () => {
         if (!name.trim()) {
             setError('Department name is required');
@@ -153,6 +185,7 @@ export default function EditDepartmentDialog({
                     level,
                     parentId: parentId || null,
                     currencyId: level === 'NATIONAL' && currencyId ? currencyId : undefined,
+                    leaderId: leaderId || undefined,
                 }),
             });
 
@@ -223,6 +256,34 @@ export default function EditDepartmentDialog({
                             </MenuItem>
                         ))}
                     </Select>
+                </FormControl>
+
+                <FormControl fullWidth sx={{ mb: 2 }}>
+                    <InputLabel>Department Leader</InputLabel>
+                    <Select
+                        value={leaderId}
+                        label="Department Leader"
+                        onChange={(e) => setLeaderId(e.target.value)}
+                        disabled={usersLoading}
+                    >
+                        {currentLeader && (
+                            <MenuItem value={currentLeader.id}>
+                                {currentLeader.name || currentLeader.email} (Current Leader)
+                            </MenuItem>
+                        )}
+                        {users
+                            .filter(user => user.id !== currentLeader?.id)
+                            .map((user) => (
+                                <MenuItem key={user.id} value={user.id}>
+                                    {user.name || user.email} {user.title ? `(${user.title})` : ''} - {user.phone}
+                                </MenuItem>
+                            ))}
+                    </Select>
+                    {currentLeader && leaderId !== currentLeader.id && leaderId && (
+                        <Typography variant="caption" color="warning.main" sx={{ mt: 1 }}>
+                            Warning: Changing the leader will revoke the current leader&apos;s access to this department.
+                        </Typography>
+                    )}
                 </FormControl>
 
                 {level === 'NATIONAL' && (
