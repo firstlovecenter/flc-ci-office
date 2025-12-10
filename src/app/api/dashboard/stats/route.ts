@@ -25,8 +25,16 @@ export async function GET(request: Request) {
             whereClause.departmentId = { in: allowedIds };
         }
 
+        // Get current week date range
+        const now = new Date();
+        const startOfWeek = new Date(now);
+        startOfWeek.setDate(now.getDate() - now.getDay()); // Sunday
+        startOfWeek.setHours(0, 0, 0, 0);
+        const endOfWeek = new Date(startOfWeek);
+        endOfWeek.setDate(startOfWeek.getDate() + 7);
+
         // Fetch all data in parallel for better performance
-        const [userBaseCurrency, exchangeRates, incomeTransactions, expenseTransactions] = await Promise.all([
+        const [userBaseCurrency, exchangeRates, incomeTransactions, expenseTransactions, weeklyIncomeTransactions] = await Promise.all([
             getUserBaseCurrency(session.user.id),
             prisma.exchangeRate.findMany({
                 include: {
@@ -50,6 +58,21 @@ export async function GET(request: Request) {
                     ...whereClause,
                     type: 'EXPENSE',
                     status: 'APPROVED',
+                },
+                select: {
+                    amount: true,
+                    currencyId: true,
+                },
+            }),
+            prisma.transaction.findMany({
+                where: {
+                    ...whereClause,
+                    type: 'INCOME',
+                    status: 'APPROVED',
+                    createdAt: {
+                        gte: startOfWeek,
+                        lt: endOfWeek,
+                    },
                 },
                 select: {
                     amount: true,
@@ -87,6 +110,18 @@ export async function GET(request: Request) {
             totalExpense += converted;
         }
 
+        let weeklyIncome = 0;
+        for (const tx of weeklyIncomeTransactions) {
+            const currencyId = tx.currencyId || userBaseCurrency.id;
+            const converted = await convertToUserBaseCurrency(
+                Number(tx.amount),
+                currencyId,
+                userBaseCurrency.id,
+                exchangeRates
+            );
+            weeklyIncome += converted;
+        }
+
         const netBalance = totalIncome - totalExpense;
 
         return NextResponse.json(
@@ -94,6 +129,7 @@ export async function GET(request: Request) {
                 income: totalIncome,
                 expense: totalExpense,
                 balance: netBalance,
+                weeklyIncome: weeklyIncome,
             },
             {
                 headers: {

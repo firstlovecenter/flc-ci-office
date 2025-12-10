@@ -574,9 +574,9 @@ export default function SMSManagementPage() {
                                 <Paper
                                     sx={{
                                         p: 2,
-                                        bgcolor: 'grey.100',
+                                        bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.05)' : 'grey.100',
                                         border: '1px dashed',
-                                        borderColor: 'grey.400',
+                                        borderColor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.2)' : 'grey.400',
                                     }}
                                 >
                                     <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
@@ -708,7 +708,12 @@ export default function SMSManagementPage() {
                                         </Box>
                                     </>
                                 ) : (
-                                    <Paper sx={{ p: 2, bgcolor: 'grey.50' }}>
+                                    <Paper sx={{ 
+                                        p: 2, 
+                                        bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.05)' : 'grey.50',
+                                        border: '1px solid',
+                                        borderColor: 'divider'
+                                    }}>
                                         <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', fontFamily: 'monospace' }}>
                                             {template.template}
                                         </Typography>

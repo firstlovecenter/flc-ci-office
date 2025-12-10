@@ -19,7 +19,7 @@ import { useRouter } from 'next/navigation';
 import { Role } from '@prisma/client';
 
 export default function DashboardPage() {
-    const [stats, setStats] = useState({ income: 0, expense: 0, balance: 0 });
+    const [stats, setStats] = useState({ income: 0, expense: 0, balance: 0, weeklyIncome: 0 });
     const [baseCurrency, setBaseCurrency] = useState<{ code: string; symbol: string } | null>(null);
     const [departmentName, setDepartmentName] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
@@ -163,6 +163,11 @@ export default function DashboardPage() {
         );
     }
 
+    // Check if user is a leader
+    const userRole = session?.user?.role as Role;
+    const leaderRoles = [Role.GLOBAL_LEADER, Role.INTERNATIONAL_LEADER, Role.NATIONAL_LEADER, Role.REGIONAL_LEADER, Role.CAMPUS_LEADER, Role.STREAM_LEADER, Role.COUNCIL_LEADER] as Role[];
+    const isLeader = userRole && leaderRoles.includes(userRole);
+
     // Calculate color for Account Balance based on value
     const getBalanceColor = (balance: number) => {
         if (balance < 0) return theme.palette.error.main;
@@ -176,7 +181,25 @@ export default function DashboardPage() {
         return theme.palette.success.main;
     };
 
-    const statCards = [
+    // Different stat cards for leaders vs admins
+    const statCards = isLeader ? [
+        {
+            title: 'Account Balance',
+            amount: stats.balance,
+            icon: AccountBalanceWalletIcon,
+            color: 'white',
+            bgColor: getBalanceColor(stats.balance),
+            trend: stats.balance >= 0 ? '+4.3%' : '-4.3%'
+        },
+        {
+            title: "This Week's Income",
+            amount: stats.weeklyIncome,
+            icon: TrendingUpIcon,
+            color: 'white',
+            bgColor: theme.palette.success.main,
+            trend: '+12.5%'
+        }
+    ] : [
         {
             title: 'Account Balance',
             amount: stats.balance,
