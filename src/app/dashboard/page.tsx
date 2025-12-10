@@ -447,7 +447,7 @@ export default function DashboardPage() {
                 <Typography variant="h6" fontWeight="600" sx={{ mb: { xs: 1, sm: 1.5 }, fontSize: { xs: '0.875rem', sm: '1rem' } }}>
                     Weekly Income (Last 4 Weeks)
                 </Typography>
-                <Box sx={{ width: '100%', height: { xs: 180, sm: 200, md: 220 } }}>
+                <Box sx={{ width: '100%', height: { xs: 280, sm: 320, md: 350 } }}>
                     <ResponsiveContainer width="100%" height="100%">
                         <BarChart
                             data={stats.chartData}

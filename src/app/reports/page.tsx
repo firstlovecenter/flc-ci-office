@@ -440,7 +440,7 @@ export default function ReportsPage() {
                             <CircularProgress />
                         </Box>
                     ) : chartData.length > 0 ? (
-                        <Box sx={{ width: '100%', height: { xs: 250, sm: 300, md: 350 } }}>
+                        <Box sx={{ width: '100%', height: { xs: 320, sm: 380, md: 420 } }}>
                             <ResponsiveContainer width="100%" height="100%">
                                 <BarChart
                                     data={chartData}
