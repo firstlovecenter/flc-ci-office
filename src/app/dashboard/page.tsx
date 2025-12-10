@@ -434,7 +434,7 @@ export default function DashboardPage() {
                 </Grid>
             )}
 
-            {/* Quick Links - Hidden for SuperAdmin */}
+            {/* Quick Links - Hidden for SuperAdmin and on mobile */}
             {!isSuperAdmin && (
             <Box
                 sx={{
@@ -443,7 +443,8 @@ export default function DashboardPage() {
                     bgcolor: 'background.paper',
                     border: '1px solid',
                     borderColor: 'divider',
-                    mb: { xs: 2, md: 4 }
+                    mb: { xs: 2, md: 4 },
+                    display: { xs: 'none', sm: 'block' }
                 }}
             >
                 <Typography variant="h6" fontWeight="600" sx={{ mb: { xs: 2, sm: 3 }, fontSize: { xs: '0.875rem', sm: '1.25rem' } }}>
