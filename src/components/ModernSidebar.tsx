@@ -5,7 +5,7 @@ import { Box, List, ListItem, ListItemButton, ListItemIcon, ListItemText, Typogr
 import { styled } from '@mui/material/styles';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import DashboardIcon from '@mui/icons-material/Dashboard';
+import HomeIcon from '@mui/icons-material/Home';
 import BarChartIcon from '@mui/icons-material/BarChart';
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
 import ReceiptIcon from '@mui/icons-material/Receipt';
@@ -192,7 +192,7 @@ export default function ModernSidebar({ userRole, userName, userImage, pendingCo
     };
 
     const menuItems: MenuItem[] = [
-        { text: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard' },
+        { text: 'Home', icon: <HomeIcon />, path: '/dashboard' },
         { text: 'Departments', icon: <BusinessIcon />, path: '/departments' },
         { text: 'Transactions History', icon: <ReceiptIcon />, path: '/transactions' },
         { text: 'Approvals', icon: <PendingActionsIcon />, path: '/approvals', adminOnly: true },

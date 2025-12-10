@@ -5,7 +5,7 @@ import { Box, Typography, Avatar, IconButton, TextField, InputAdornment, Paper, 
 import { styled } from '@mui/material/styles';
 import { useSession, signOut } from 'next-auth/react';
 import { usePathname, useRouter } from 'next/navigation';
-import DashboardIcon from '@mui/icons-material/Dashboard';
+import HomeIcon from '@mui/icons-material/Home';
 import ReceiptIcon from '@mui/icons-material/Receipt';
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
 import BusinessIcon from '@mui/icons-material/Business';
@@ -86,7 +86,7 @@ export default function ModernDashboardLayout({ children }: { children: React.Re
     };
 
     const mobileNavItems = [
-        { text: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard' },
+        { text: 'Home', icon: <HomeIcon />, path: '/dashboard' },
         { text: 'Request', icon: <AddCircleOutlineIcon />, path: '/transactions/new' },
         { text: 'History', icon: <ReceiptIcon />, path: '/transactions', badge: pendingCounts.transactions },
         { text: 'Users', icon: <PeopleIcon />, path: '/users' },
