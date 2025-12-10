@@ -17,6 +17,7 @@ import PeopleIcon from '@mui/icons-material/People';
 import ModernSidebar from './ModernSidebar';
 import { useColorMode } from '@/app/providers';
 import RoleSwitcher from './RoleSwitcher';
+import PullToRefresh from './PullToRefresh';
 
 const MainContainer = styled(Box)(({ theme }) => ({
     display: 'flex',
@@ -104,6 +105,7 @@ export default function ModernDashboardLayout({ children }: { children: React.Re
     });
 
     return (
+        <PullToRefresh>
         <MainContainer>
             {!isMobile && (
                 <ModernSidebar
@@ -239,5 +241,6 @@ export default function ModernDashboardLayout({ children }: { children: React.Re
                 </Paper>
             )}
         </MainContainer>
+        </PullToRefresh>
     );
 }
