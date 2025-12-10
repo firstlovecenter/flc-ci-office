@@ -47,6 +47,9 @@ const DEPARTMENT_HIERARCHY: Record<DepartmentLevel, number> = {
     COUNCIL: 7,
 };
 
+// Levels that support admin roles
+const ADMIN_SUPPORTED_LEVELS: DepartmentLevel[] = ['GLOBAL', 'INTERNATIONAL', 'NATIONAL', 'REGIONAL', 'CAMPUS'];
+
 export default function EditDepartmentDialog({
     open,
     onClose,
@@ -65,7 +68,9 @@ export default function EditDepartmentDialog({
     const [availableParents, setAvailableParents] = useState<any[]>([]);
     const [users, setUsers] = useState<any[]>([]);
     const [leaderId, setLeaderId] = useState('');
+    const [adminId, setAdminId] = useState('');
     const [currentLeader, setCurrentLeader] = useState<any>(null);
+    const [currentAdmin, setCurrentAdmin] = useState<any>(null);
     const [usersLoading, setUsersLoading] = useState(false);
 
     useEffect(() => {
@@ -80,13 +85,28 @@ export default function EditDepartmentDialog({
             setParentId(department.parentId || '');
             
             // Get current leader from department's userRoles
-            const leaderRole = department.userRoles?.[0];
+            const leaderRoles = ['GLOBAL_LEADER', 'INTERNATIONAL_LEADER', 'NATIONAL_LEADER', 
+                                 'REGIONAL_LEADER', 'CAMPUS_LEADER', 'STREAM_LEADER', 'COUNCIL_LEADER'];
+            const adminRoles = ['GLOBAL_ADMIN', 'INTERNATIONAL_ADMIN', 'NATIONAL_ADMIN', 
+                               'REGIONAL_ADMIN', 'CAMPUS_ADMIN'];
+            
+            const leaderRole = department.userRoles?.find((ur: any) => leaderRoles.includes(ur.role));
+            const adminRole = department.userRoles?.find((ur: any) => adminRoles.includes(ur.role));
+            
             if (leaderRole) {
                 setLeaderId(leaderRole.user?.id || leaderRole.userId || '');
                 setCurrentLeader(leaderRole.user);
             } else {
                 setLeaderId('');
                 setCurrentLeader(null);
+            }
+            
+            if (adminRole) {
+                setAdminId(adminRole.user?.id || adminRole.userId || '');
+                setCurrentAdmin(adminRole.user);
+            } else {
+                setAdminId('');
+                setCurrentAdmin(null);
             }
             
             // Fetch current base currency if NATIONAL department
@@ -186,6 +206,7 @@ export default function EditDepartmentDialog({
                     parentId: parentId || null,
                     currencyId: level === 'NATIONAL' && currencyId ? currencyId : undefined,
                     leaderId: leaderId || undefined,
+                    adminId: ADMIN_SUPPORTED_LEVELS.includes(level) ? (adminId || null) : undefined,
                 }),
             });
 
@@ -285,6 +306,42 @@ export default function EditDepartmentDialog({
                         </Typography>
                     )}
                 </FormControl>
+
+                {ADMIN_SUPPORTED_LEVELS.includes(level) && (
+                    <FormControl fullWidth sx={{ mb: 2 }}>
+                        <InputLabel>Department Admin (Optional)</InputLabel>
+                        <Select
+                            value={adminId}
+                            label="Department Admin (Optional)"
+                            onChange={(e) => setAdminId(e.target.value)}
+                            disabled={usersLoading}
+                        >
+                            <MenuItem value="">No admin</MenuItem>
+                            {currentAdmin && (
+                                <MenuItem value={currentAdmin.id}>
+                                    {currentAdmin.name || currentAdmin.email} (Current Admin)
+                                </MenuItem>
+                            )}
+                            {users
+                                .filter(user => user.id !== currentAdmin?.id && user.id !== leaderId)
+                                .map((user) => (
+                                    <MenuItem key={user.id} value={user.id}>
+                                        {user.name || user.email} {user.title ? `(${user.title})` : ''} - {user.phone}
+                                    </MenuItem>
+                                ))}
+                        </Select>
+                        {currentAdmin && adminId !== currentAdmin.id && adminId && (
+                            <Typography variant="caption" color="warning.main" sx={{ mt: 1 }}>
+                                Warning: Changing the admin will revoke the current admin&apos;s access to this department.
+                            </Typography>
+                        )}
+                        {currentAdmin && adminId === '' && (
+                            <Typography variant="caption" color="warning.main" sx={{ mt: 1 }}>
+                                Warning: Removing the admin will revoke their access to this department.
+                            </Typography>
+                        )}
+                    </FormControl>
+                )}
 
                 {level === 'NATIONAL' && (
                     <FormControl fullWidth sx={{ mb: 2 }}>

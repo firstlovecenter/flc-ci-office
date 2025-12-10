@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 
-import { getDescendantDepartmentIds, canCreateDepartmentLevel, getLeaderRoleForLevel } from '@/lib/departments';
+import { getDescendantDepartmentIds, canCreateDepartmentLevel, getLeaderRoleForLevel, getAdminRoleForLevel } from '@/lib/departments';
 import { sendSms, formatGhanaPhone } from '@/lib/sms';
 import crypto from 'crypto';
 
@@ -110,7 +110,7 @@ export async function POST(request: Request) {
 
     try {
         const body = await request.json();
-        const { name, level, parentId, currencyId, leaderId } = body;
+        const { name, level, parentId, currencyId, leaderId, adminId } = body;
 
         // Validate required leader
         if (!leaderId) {
@@ -131,6 +131,30 @@ export async function POST(request: Request) {
                 { error: 'Selected leader not found' },
                 { status: 400 }
             );
+        }
+
+        // Verify the admin exists if provided
+        let admin = null;
+        if (adminId) {
+            admin = await prisma.user.findUnique({
+                where: { id: adminId },
+                include: { userRoles: true },
+            });
+
+            if (!admin) {
+                return NextResponse.json(
+                    { error: 'Selected admin not found' },
+                    { status: 400 }
+                );
+            }
+
+            // Ensure admin is different from leader
+            if (adminId === leaderId) {
+                return NextResponse.json(
+                    { error: 'Admin must be different from leader' },
+                    { status: 400 }
+                );
+            }
         }
 
         // Get user's department to check level
@@ -252,6 +276,65 @@ export async function POST(request: Request) {
             }
         }
 
+        // Handle admin assignment if provided
+        let adminRole = null;
+        if (adminId && admin) {
+            adminRole = getAdminRoleForLevel(level);
+            
+            if (adminRole) {
+                // Create UserRole for the admin
+                const adminUserRole = await prisma.userRole.create({
+                    data: {
+                        userId: adminId,
+                        role: adminRole,
+                        departmentId: department.id,
+                    },
+                });
+
+                // Update the admin's user record
+                const isAdminFirstRole = admin.userRoles.length === 0;
+                await prisma.user.update({
+                    where: { id: adminId },
+                    data: {
+                        departmentId: isAdminFirstRole ? department.id : admin.departmentId,
+                        activeRole: isAdminFirstRole ? adminRole : admin.activeRole,
+                        activeUserRoleId: isAdminFirstRole ? adminUserRole.id : admin.activeUserRoleId,
+                        roles: isAdminFirstRole ? [adminRole] : { push: adminRole },
+                    },
+                });
+
+                // Send SMS to admin if they need password setup
+                const adminNeedsPasswordSetup = !admin.password || admin.password === '';
+                
+                if (isAdminFirstRole || adminNeedsPasswordSetup) {
+                    const resetToken = crypto.randomBytes(32).toString('hex');
+                    const resetTokenExpiry = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+
+                    await prisma.passwordReset.create({
+                        data: {
+                            userId: adminId,
+                            token: resetToken,
+                            expiresAt: resetTokenExpiry,
+                        },
+                    });
+
+                    const baseUrl = process.env.NEXTAUTH_URL || 'https://your-app.com';
+                    const resetLink = `${baseUrl}/auth/reset-password?token=${resetToken}`;
+                    
+                    const smsMessage = `Welcome to FLC Accounts! You have been assigned as ${adminRole.replace('_', ' ')} for ${name}. Please set up your password: ${resetLink}`;
+                    
+                    try {
+                        await sendSms({
+                            to: formatGhanaPhone(admin.phone),
+                            message: smsMessage,
+                        });
+                    } catch (smsError) {
+                        console.error('Failed to send SMS to admin:', smsError);
+                    }
+                }
+            }
+        }
+
         // Create audit log
         await prisma.auditLog.create({
             data: {
@@ -259,8 +342,8 @@ export async function POST(request: Request) {
                 actionType: 'CREATE',
                 entityType: 'Department',
                 entityId: department.id,
-                afterData: { name, level, parentId, currencyId, leaderId, leaderRole },
-                description: `Created department ${name} with ${leader.name || leader.email} as ${leaderRole}`,
+                afterData: { name, level, parentId, currencyId, leaderId, leaderRole, adminId, adminRole },
+                description: `Created department ${name} with ${leader.name || leader.email} as ${leaderRole}${admin ? ` and ${admin.name || admin.email} as ${adminRole}` : ''}`,
             },
         });
 

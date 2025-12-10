@@ -49,7 +49,11 @@ function NewDepartmentForm() {
     const [currencyId, setCurrencyId] = useState('');
     const [users, setUsers] = useState<any[]>([]);
     const [leaderId, setLeaderId] = useState('');
+    const [adminId, setAdminId] = useState('');
     const [usersLoading, setUsersLoading] = useState(false);
+
+    // Levels that support admin roles
+    const ADMIN_SUPPORTED_LEVELS: DepartmentLevel[] = ['GLOBAL', 'INTERNATIONAL', 'NATIONAL', 'REGIONAL', 'CAMPUS'];
 
     useEffect(() => {
         fetchDepartments();
@@ -224,6 +228,7 @@ function NewDepartmentForm() {
                     parentId: parentId || null,
                     currencyId: level === 'NATIONAL' && currencyId ? currencyId : undefined,
                     leaderId,
+                    adminId: ADMIN_SUPPORTED_LEVELS.includes(level) && adminId ? adminId : undefined,
                 }),
             });
 
@@ -342,6 +347,30 @@ function NewDepartmentForm() {
                             </Typography>
                         )}
                     </FormControl>
+
+                    {ADMIN_SUPPORTED_LEVELS.includes(level) && (
+                        <FormControl fullWidth sx={{ mb: 3 }}>
+                            <InputLabel>Department Admin (Optional)</InputLabel>
+                            <Select
+                                value={adminId}
+                                label="Department Admin (Optional)"
+                                onChange={(e) => setAdminId(e.target.value)}
+                                disabled={usersLoading || users.length === 0}
+                            >
+                                <MenuItem value="">No admin</MenuItem>
+                                {users
+                                    .filter(user => user.id !== leaderId)
+                                    .map((user) => (
+                                        <MenuItem key={user.id} value={user.id}>
+                                            {user.name || user.email} {user.title ? `(${user.title})` : ''} - {user.phone}
+                                        </MenuItem>
+                                    ))}
+                            </Select>
+                            <Typography variant="caption" color="text.secondary" sx={{ mt: 1 }}>
+                                Admin can manage users and approve transactions in this department.
+                            </Typography>
+                        </FormControl>
+                    )}
 
                     {level === 'NATIONAL' && (
                         <FormControl fullWidth sx={{ mb: 3 }}>

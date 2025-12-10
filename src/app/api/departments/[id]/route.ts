@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { hasDepartmentAccess, getLeaderRoleForLevel } from '@/lib/departments';
+import { hasDepartmentAccess, getLeaderRoleForLevel, getAdminRoleForLevel } from '@/lib/departments';
 import { sendSms, formatGhanaPhone } from '@/lib/sms';
 import crypto from 'crypto';
 
@@ -51,7 +51,7 @@ export async function PUT(
     try {
         const params = await context.params;
         const body = await request.json();
-        const { name, level, parentId, currencyId, leaderId } = body;
+        const { name, level, parentId, currencyId, leaderId, adminId } = body;
         const departmentId = params.id;
 
         // Check if user has access to this department
@@ -67,7 +67,7 @@ export async function PUT(
             );
         }
 
-        // Get current department with its leader
+        // Get current department with its leader and admin
         const currentDepartment = await prisma.department.findUnique({
             where: { id: departmentId },
             include: {
@@ -75,11 +75,12 @@ export async function PUT(
                     where: {
                         role: {
                             in: ['GLOBAL_LEADER', 'INTERNATIONAL_LEADER', 'NATIONAL_LEADER', 
-                                 'REGIONAL_LEADER', 'CAMPUS_LEADER', 'STREAM_LEADER', 'COUNCIL_LEADER']
+                                 'REGIONAL_LEADER', 'CAMPUS_LEADER', 'STREAM_LEADER', 'COUNCIL_LEADER',
+                                 'GLOBAL_ADMIN', 'INTERNATIONAL_ADMIN', 'NATIONAL_ADMIN',
+                                 'REGIONAL_ADMIN', 'CAMPUS_ADMIN']
                         }
                     },
                     include: { user: true },
-                    take: 1,
                 },
             },
         });
@@ -87,6 +88,15 @@ export async function PUT(
         if (!currentDepartment) {
             return NextResponse.json({ error: 'Department not found' }, { status: 404 });
         }
+
+        // Separate leader and admin roles
+        const leaderRoles = ['GLOBAL_LEADER', 'INTERNATIONAL_LEADER', 'NATIONAL_LEADER', 
+                            'REGIONAL_LEADER', 'CAMPUS_LEADER', 'STREAM_LEADER', 'COUNCIL_LEADER'];
+        const adminRoles = ['GLOBAL_ADMIN', 'INTERNATIONAL_ADMIN', 'NATIONAL_ADMIN',
+                           'REGIONAL_ADMIN', 'CAMPUS_ADMIN'];
+        
+        const currentLeaderRole = currentDepartment.userRoles.find(ur => leaderRoles.includes(ur.role));
+        const currentAdminRole = currentDepartment.userRoles.find(ur => adminRoles.includes(ur.role));
 
         // Validate currency for NATIONAL departments
         if (level === 'NATIONAL' && !currencyId) {
@@ -124,7 +134,6 @@ export async function PUT(
 
         // Handle leader change if leaderId is provided
         if (leaderId) {
-            const currentLeaderRole = currentDepartment.userRoles[0];
             const currentLeaderId = currentLeaderRole?.userId;
             
             // Only process if leader is changing
@@ -240,6 +249,141 @@ export async function PUT(
                         description: `Changed leader of ${name} from ${currentLeaderRole?.user?.name || 'none'} to ${newLeader.name}`,
                     },
                 });
+            }
+        }
+
+        // Handle admin change if adminId is provided
+        const adminRole = getAdminRoleForLevel(level);
+        if (adminRole && adminId !== undefined) {
+            const currentAdminId = currentAdminRole?.userId;
+            
+            // Only process if admin is changing
+            if (currentAdminId !== adminId) {
+                // Remove old admin's role for this department
+                if (currentAdminRole) {
+                    await prisma.userRole.delete({
+                        where: { id: currentAdminRole.id },
+                    });
+
+                    // Check if old admin has any other roles
+                    const oldAdminRemainingRoles = await prisma.userRole.findMany({
+                        where: { userId: currentAdminId },
+                    });
+
+                    if (oldAdminRemainingRoles.length === 0) {
+                        // Old admin has no more roles - clear their access
+                        await prisma.user.update({
+                            where: { id: currentAdminId },
+                            data: {
+                                activeUserRoleId: null,
+                                activeRole: null,
+                                departmentId: null,
+                                roles: [],
+                            },
+                        });
+                    } else {
+                        // Set the first remaining role as active
+                        const newActiveRole = oldAdminRemainingRoles[0];
+                        await prisma.user.update({
+                            where: { id: currentAdminId },
+                            data: {
+                                activeUserRoleId: newActiveRole.id,
+                                activeRole: newActiveRole.role,
+                                departmentId: newActiveRole.departmentId,
+                            },
+                        });
+                    }
+                }
+
+                // If a new admin is assigned
+                if (adminId) {
+                    // Get new admin info
+                    const newAdmin = await prisma.user.findUnique({
+                        where: { id: adminId },
+                        include: { userRoles: true },
+                    });
+
+                    if (!newAdmin) {
+                        return NextResponse.json({ error: 'New admin not found' }, { status: 400 });
+                    }
+
+                    // Create new admin's role
+                    const newUserRole = await prisma.userRole.create({
+                        data: {
+                            userId: adminId,
+                            role: adminRole,
+                            departmentId: departmentId,
+                        },
+                    });
+
+                    // Update new admin's user record
+                    const isFirstRole = newAdmin.userRoles.length === 0;
+                    await prisma.user.update({
+                        where: { id: adminId },
+                        data: {
+                            departmentId: isFirstRole ? departmentId : newAdmin.departmentId,
+                            activeRole: isFirstRole ? adminRole : newAdmin.activeRole,
+                            activeUserRoleId: isFirstRole ? newUserRole.id : newAdmin.activeUserRoleId,
+                            roles: isFirstRole ? [adminRole] : { push: adminRole },
+                        },
+                    });
+
+                    // Send SMS to new admin if they need password setup
+                    const needsPasswordSetup = !newAdmin.password || newAdmin.password === '';
+                    
+                    if (isFirstRole || needsPasswordSetup) {
+                        const resetToken = crypto.randomBytes(32).toString('hex');
+                        const resetTokenExpiry = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+
+                        await prisma.passwordReset.create({
+                            data: {
+                                userId: adminId,
+                                token: resetToken,
+                                expiresAt: resetTokenExpiry,
+                            },
+                        });
+
+                        const baseUrl = process.env.NEXTAUTH_URL || 'https://your-app.com';
+                        const resetLink = `${baseUrl}/auth/reset-password?token=${resetToken}`;
+                        
+                        const smsMessage = `Welcome to FLC Accounts! You have been assigned as ${adminRole.replace('_', ' ')} for ${name}. Please set up your password: ${resetLink}`;
+                        
+                        try {
+                            await sendSms({
+                                to: formatGhanaPhone(newAdmin.phone),
+                                message: smsMessage,
+                            });
+                        } catch (smsError) {
+                            console.error('Failed to send SMS to new admin:', smsError);
+                        }
+                    }
+
+                    // Audit the admin change
+                    await prisma.auditLog.create({
+                        data: {
+                            userId: session.user.id,
+                            actionType: 'UPDATE',
+                            entityType: 'Department',
+                            entityId: departmentId,
+                            beforeData: { adminId: currentAdminId, adminName: currentAdminRole?.user?.name },
+                            afterData: { adminId, adminName: newAdmin.name, adminRole },
+                            description: `Changed admin of ${name} from ${currentAdminRole?.user?.name || 'none'} to ${newAdmin.name}`,
+                        },
+                    });
+                } else if (currentAdminRole) {
+                    // Admin was removed but not replaced
+                    await prisma.auditLog.create({
+                        data: {
+                            userId: session.user.id,
+                            actionType: 'UPDATE',
+                            entityType: 'Department',
+                            entityId: departmentId,
+                            beforeData: { adminId: currentAdminId, adminName: currentAdminRole?.user?.name },
+                            afterData: { adminId: null, adminName: null },
+                            description: `Removed admin ${currentAdminRole?.user?.name} from ${name}`,
+                        },
+                    });
+                }
             }
         }
 
