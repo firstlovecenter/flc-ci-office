@@ -126,10 +126,10 @@ export default function ReportsPage() {
     const generateReport = async () => {
         setLoading(true);
         try {
-            // Fetch opening balance (transactions before start date)
+            // Fetch opening balance (transactions before start date) - only APPROVED transactions
             let opening = 0;
             if (startDate) {
-                let openingUrl = '/api/transactions?';
+                let openingUrl = '/api/transactions?status=APPROVED&';
                 if (selectedDepartment) {
                     openingUrl += `departmentId=${selectedDepartment}&`;
                     if (!includeSubDepartments) {
@@ -151,8 +151,8 @@ export default function ReportsPage() {
             }
             setOpeningBalance(opening);
 
-            // Fetch transactions for the period
-            let url = '/api/transactions?';
+            // Fetch transactions for the period - only APPROVED transactions
+            let url = '/api/transactions?status=APPROVED&';
             if (selectedDepartment) {
                 url += `departmentId=${selectedDepartment}&`;
                 if (!includeSubDepartments) {

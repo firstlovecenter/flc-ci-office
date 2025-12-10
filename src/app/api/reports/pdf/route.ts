@@ -243,8 +243,7 @@ export async function POST(request: NextRequest) {
         });
         y -= 30;
 
-        // Table Header
-        const tableTop = y;
+        // Column positions
         const colX = {
             date: 50,
             description: 120,
@@ -254,22 +253,28 @@ export async function POST(request: NextRequest) {
             balance: 510,
         };
 
-        page.drawText('Date', { x: colX.date, y: tableTop, size: 9, font: boldFont, color: rgb(0, 0, 0) });
-        page.drawText('Description', { x: colX.description, y: tableTop, size: 9, font: boldFont, color: rgb(0, 0, 0) });
-        page.drawText('Department', { x: colX.department, y: tableTop, size: 9, font: boldFont, color: rgb(0, 0, 0) });
-        drawRightText('Debit', colX.debit + 70, tableTop, 9);
-        drawRightText('Credit', colX.credit + 70, tableTop, 9);
-        drawRightText('Balance', colX.balance + 70, tableTop, 9);
+        // Helper to draw table header on current page
+        const drawTableHeader = (yPos: number) => {
+            page.drawText('Date', { x: colX.date, y: yPos, size: 9, font: boldFont, color: rgb(0, 0, 0) });
+            page.drawText('Description', { x: colX.description, y: yPos, size: 9, font: boldFont, color: rgb(0, 0, 0) });
+            page.drawText('Department', { x: colX.department, y: yPos, size: 9, font: boldFont, color: rgb(0, 0, 0) });
+            drawRightText('Debit', colX.debit + 70, yPos, 9);
+            drawRightText('Credit', colX.credit + 70, yPos, 9);
+            drawRightText('Balance', colX.balance + 70, yPos, 9);
 
-        // Draw line under header
-        page.drawLine({
-            start: { x: 50, y: tableTop - 5 },
-            end: { x: 545, y: tableTop - 5 },
-            thickness: 1,
-            color: rgb(0, 0, 0),
-        });
-        
-        y = tableTop - 20;
+            // Draw line under header
+            page.drawLine({
+                start: { x: 50, y: yPos - 5 },
+                end: { x: 545, y: yPos - 5 },
+                thickness: 1,
+                color: rgb(0, 0, 0),
+            });
+            
+            return yPos - 20; // Return new y position after header
+        };
+
+        // Draw initial table header
+        y = drawTableHeader(y);
         let runningBalance = openingBalance;
 
         // Table Rows
@@ -294,6 +299,8 @@ export async function POST(request: NextRequest) {
             if (y < 50 + rowHeight) {
                 page = pdfDoc.addPage([595, 842]);
                 y = height - 50;
+                // Redraw table header on new page
+                y = drawTableHeader(y);
             }
 
             // Convert amount to user's base currency
