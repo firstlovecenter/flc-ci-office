@@ -1,10 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { writeFile, mkdir } from 'fs/promises';
-import { join } from 'path';
-import { existsSync } from 'fs';
 import { prisma } from '@/lib/prisma';
+import { v2 as cloudinary } from 'cloudinary';
+
+// Configure Cloudinary
+cloudinary.config({
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+    api_key: process.env.CLOUDINARY_API_KEY,
+    api_secret: process.env.CLOUDINARY_API_SECRET,
+});
 
 // Configure route to handle file uploads
 export const runtime = 'nodejs';
@@ -16,6 +21,12 @@ export async function POST(req: NextRequest) {
 
         if (!session?.user?.id) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
+        // Check if Cloudinary is configured
+        if (!process.env.CLOUDINARY_CLOUD_NAME || !process.env.CLOUDINARY_API_KEY || !process.env.CLOUDINARY_API_SECRET) {
+            console.error('Cloudinary not configured');
+            return NextResponse.json({ error: 'Image upload service not configured' }, { status: 500 });
         }
 
         let formData;
@@ -46,25 +57,28 @@ export async function POST(req: NextRequest) {
         const bytes = await file.arrayBuffer();
         const buffer = Buffer.from(bytes);
 
-        // Create uploads directory if it doesn't exist
-        const uploadsDir = join(process.cwd(), 'public', 'uploads', 'avatars');
-        if (!existsSync(uploadsDir)) {
-            await mkdir(uploadsDir, { recursive: true });
-        }
+        // Upload to Cloudinary
+        const uploadResult = await new Promise<any>((resolve, reject) => {
+            cloudinary.uploader.upload_stream(
+                {
+                    folder: 'flc-accounts/avatars',
+                    public_id: `${session.user.id}-${Date.now()}`,
+                    resource_type: 'image',
+                    transformation: [
+                        { width: 200, height: 200, crop: 'fill', gravity: 'face' },
+                        { quality: 'auto', fetch_format: 'auto' }
+                    ]
+                },
+                (error, result) => {
+                    if (error) reject(error);
+                    else resolve(result);
+                }
+            ).end(buffer);
+        });
 
-        // Generate unique filename
-        const timestamp = Date.now();
-        const fileExt = file.name.split('.').pop()?.toLowerCase() || 'jpg';
-        const filename = `${session.user.id}-${timestamp}.${fileExt}`;
-        const filepath = join(uploadsDir, filename);
+        const imageUrl = uploadResult.secure_url;
 
-        // Save file
-        await writeFile(filepath, buffer);
-
-        // Return the URL path
-        const imageUrl = `/uploads/avatars/${filename}`;
-
-        // Also update the user's image in the database directly
+        // Update the user's image in the database
         await prisma.user.update({
             where: { id: session.user.id },
             data: { image: imageUrl },
