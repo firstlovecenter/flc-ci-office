@@ -199,7 +199,6 @@ function NewDepartmentForm() {
                 setUsers(data);
             }
         } catch (err) {
-            console.error('Failed to fetch users:', err);
         } finally {
             setUsersLoading(false);
         }

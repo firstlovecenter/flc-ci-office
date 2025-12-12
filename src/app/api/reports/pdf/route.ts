@@ -19,7 +19,6 @@ export async function POST(request: NextRequest) {
         try {
             body = await request.json();
         } catch (parseError) {
-            console.error('Failed to parse request body:', parseError);
             return NextResponse.json({ 
                 error: 'Invalid request body',
                 details: 'Request body must be valid JSON'
@@ -402,9 +401,6 @@ export async function POST(request: NextRequest) {
             },
         });
     } catch (error) {
-        console.error('PDF generation error:', error);
-        console.error('Error stack:', error instanceof Error ? error.stack : 'No stack trace');
-        console.error('Error details:', JSON.stringify(error, Object.getOwnPropertyNames(error)));
         return NextResponse.json({ 
             error: 'Failed to generate PDF', 
             details: error instanceof Error ? error.message : String(error),

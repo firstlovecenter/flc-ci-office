@@ -5,13 +5,6 @@ import { useSearchParams } from 'next/navigation';
 import {
     Box,
     Typography,
-    Paper,
-    Table,
-    TableBody,
-    TableCell,
-    TableContainer,
-    TableHead,
-    TableRow,
     Button,
     Chip,
     Dialog,
@@ -19,26 +12,20 @@ import {
     DialogContent,
     DialogActions,
     TextField,
-    FormControl,
-    InputLabel,
-    Select,
-    MenuItem,
     Alert,
     Avatar,
     CircularProgress,
+    Card,
+    CardActionArea,
+    InputAdornment,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
-import EditIcon from '@mui/icons-material/Edit';
-import DeleteIcon from '@mui/icons-material/Delete';
-import ArchiveIcon from '@mui/icons-material/Archive';
-import UnarchiveIcon from '@mui/icons-material/Unarchive';
+import SearchIcon from '@mui/icons-material/Search';
 import PhotoCameraIcon from '@mui/icons-material/PhotoCamera';
 import IconButton from '@mui/material/IconButton';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import EditUserDialog from '@/components/EditUserDialog';
-import { getAssignableRoles, getDepartmentLevelForRole } from '@/lib/roles';
-import { formatRole, formatDepartmentLevel } from '@/lib/utils';
 
 function UsersPageContent() {
     const { data: session } = useSession();
@@ -54,7 +41,7 @@ function UsersPageContent() {
     const [loading, setLoading] = useState(false);
     const [uploading, setUploading] = useState(false);
     const [error, setError] = useState('');
-    const [assignableRoles, setAssignableRoles] = useState<string[]>([]);
+    const [searchQuery, setSearchQuery] = useState('');
     const [formData, setFormData] = useState({
         title: '',
         name: '',
@@ -62,9 +49,6 @@ function UsersPageContent() {
         phone: '',
         image: '',
     });
-    const [roleDepartmentPairs, setRoleDepartmentPairs] = useState<Array<{ role: string; departmentId: string }>>([]);
-    const [newRole, setNewRole] = useState('');
-    const [newDepartment, setNewDepartment] = useState('');
 
     // Redirect leaders to dashboard - they shouldn't access user management
     useEffect(() => {
@@ -79,12 +63,6 @@ function UsersPageContent() {
     useEffect(() => {
         fetchUsers();
         fetchDepartments();
-        
-        // Get roles that current admin can assign
-        if (session?.user?.role) {
-            const roles = getAssignableRoles(session.user.role);
-            setAssignableRoles(roles);
-        }
     }, [session, deptParam]);
 
     const fetchUsers = async () => {
@@ -114,50 +92,34 @@ function UsersPageContent() {
         setEditDialogOpen(true);
     };
 
-    const handleDelete = async (id: string) => {
-        if (!confirm('Are you sure you want to permanently delete this user? This action cannot be undone.')) {
-            return;
-        }
+    const handleDelete = async (id: string): Promise<void> => {
+        const response = await fetch(`/api/users/${id}`, {
+            method: 'DELETE',
+        });
 
-        try {
-            const response = await fetch(`/api/users/${id}`, {
-                method: 'DELETE',
-            });
-
-            if (response.ok) {
-                fetchUsers();
-            } else {
-                const data = await response.json();
-                alert(data.error || 'Failed to delete user');
-            }
-        } catch (error) {
-            alert('Error deleting user');
+        if (response.ok) {
+            fetchUsers();
+        } else {
+            const data = await response.json();
+            throw new Error(data.error || 'Failed to delete user');
         }
     };
 
-    const handleArchive = async (user: any) => {
-        const action = user.archived ? 'unarchive' : 'archive';
-        if (!confirm(`Are you sure you want to ${action} this user?`)) {
-            return;
-        }
+    const handleArchive = async (user: any): Promise<void> => {
+        const response = await fetch(`/api/users/${user.id}`, {
+            method: 'PATCH',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ archived: !user.archived }),
+        });
 
-        try {
-            const response = await fetch(`/api/users/${user.id}`, {
-                method: 'PATCH',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ archived: !user.archived }),
-            });
-
-            if (response.ok) {
-                fetchUsers();
-            } else {
-                const data = await response.json();
-                alert(data.error || `Failed to ${action} user`);
-            }
-        } catch (error) {
-            alert(`Error ${action}ing user`);
+        if (response.ok) {
+            fetchUsers();
+        } else {
+            const data = await response.json();
+            const action = user.archived ? 'unarchive' : 'archive';
+            throw new Error(data.error || `Failed to ${action} user`);
         }
     };
 
@@ -190,36 +152,6 @@ function UsersPageContent() {
         (window as any).__pendingUserImage = file;
     };
 
-    const handleAddRoleDepartment = () => {
-        if (!newRole) {
-            setError('Please select a role');
-            return;
-        }
-        if (!newDepartment) {
-            setError('Please select a department');
-            return;
-        }
-        
-        // Check if this combination already exists
-        const exists = roleDepartmentPairs.some(
-            pair => pair.role === newRole && pair.departmentId === newDepartment
-        );
-        
-        if (exists) {
-            setError('This role-department combination already exists');
-            return;
-        }
-        
-        setRoleDepartmentPairs([...roleDepartmentPairs, { role: newRole, departmentId: newDepartment }]);
-        setNewRole('');
-        setNewDepartment('');
-        setError('');
-    };
-
-    const handleRemoveRoleDepartment = (index: number) => {
-        setRoleDepartmentPairs(roleDepartmentPairs.filter((_, i) => i !== index));
-    };
-
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setLoading(true);
@@ -237,7 +169,6 @@ function UsersPageContent() {
                     name: formData.name,
                     email: formData.email,
                     phone: formData.phone,
-                    roleDepartmentPairs,
                 }),
             });
 
@@ -261,7 +192,6 @@ function UsersPageContent() {
                         body: imageFormData,
                     });
                 } catch (imgErr) {
-                    console.error('Failed to upload image:', imgErr);
                 }
                 delete (window as any).__pendingUserImage;
             }
@@ -274,7 +204,6 @@ function UsersPageContent() {
                 phone: '',
                 image: '',
             });
-            setRoleDepartmentPairs([]);
             fetchUsers();
         } catch (err: any) {
             setError(err.message);
@@ -287,6 +216,16 @@ function UsersPageContent() {
     const adminRoles = ['SUPERADMIN', 'GLOBAL_ADMIN', 'INTERNATIONAL_ADMIN', 'NATIONAL_ADMIN', 'REGIONAL_ADMIN', 'CAMPUS_ADMIN'];
     const canCreateUsers = session?.user?.role && adminRoles.includes(session.user.role);
 
+    // Filter users based on search query
+    const filteredUsers = users.filter((user) => {
+        if (!searchQuery.trim()) return true;
+        const query = searchQuery.toLowerCase();
+        return (
+            user.name?.toLowerCase().includes(query) ||
+            user.email?.toLowerCase().includes(query)
+        );
+    });
+
     return (
         <Box>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
@@ -298,108 +237,113 @@ function UsersPageContent() {
                         onClick={() => setOpen(true)}
                         size="small"
                     >
-                        New User
+                        Add New
                     </Button>
                 )}
             </Box>
 
-            <TableContainer component={Paper} sx={{ boxShadow: 1 }}>
-                <Table size="small">
-                    <TableHead>
-                        <TableRow>
-                            <TableCell sx={{ fontWeight: 600 }}>Name</TableCell>
-                            <TableCell sx={{ fontWeight: 600 }}>Email</TableCell>
-                            <TableCell sx={{ fontWeight: 600 }}>Role</TableCell>
-                            <TableCell align="right" sx={{ fontWeight: 600 }}>Actions</TableCell>
-                        </TableRow>
-                    </TableHead>
-                    <TableBody>
-                        {users.map((user) => (
-                            <TableRow 
-                                key={user.id}
-                                sx={{ 
-                                    cursor: 'pointer',
-                                    '&:hover': {
-                                        backgroundColor: 'action.hover',
-                                    },
-                                }}
-                                onClick={() => router.push(`/users/${user.id}`)}
-                            >
-                                <TableCell>
-                                    <Typography variant="body2" fontWeight={500}>
-                                        {user.name || '-'}
-                                    </Typography>
-                                </TableCell>
-                                <TableCell>
-                                    <Typography variant="body2" color="text.secondary">
-                                        {user.email}
-                                    </Typography>
-                                </TableCell>
-                                <TableCell>
-                                    <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
-                                        {(user.roles || [user.role]).slice(0, 2).map((role: string) => (
+            <Typography variant="body2" color="primary" sx={{ mb: 2 }}>
+                {users.length} Users
+            </Typography>
+
+            {/* Search Bar */}
+            <TextField
+                fullWidth
+                placeholder="Search Users"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                InputProps={{
+                    startAdornment: (
+                        <InputAdornment position="start">
+                            <SearchIcon color="action" />
+                        </InputAdornment>
+                    ),
+                }}
+                sx={{ 
+                    mb: 3,
+                    '& .MuiOutlinedInput-root': {
+                        borderRadius: 3,
+                        bgcolor: 'background.paper',
+                    }
+                }}
+                size="small"
+            />
+
+            {/* User Cards Grid */}
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+                {filteredUsers.map((user) => (
+                    <Card 
+                        key={user.id}
+                        sx={{ 
+                            borderRadius: 2,
+                            boxShadow: 1,
+                            opacity: user.archived ? 0.6 : 1,
+                            '&:hover': {
+                                boxShadow: 3,
+                            },
+                        }}
+                    >
+                        <CardActionArea 
+                            onClick={() => handleEdit(user)}
+                            sx={{ py: 1.5, px: 2 }}
+                        >
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                                <Avatar
+                                    src={user.image || undefined}
+                                    sx={{
+                                        width: 50,
+                                        height: 50,
+                                        bgcolor: 'primary.main',
+                                        fontSize: '1.25rem',
+                                    }}
+                                >
+                                    {user.name?.[0]?.toUpperCase() || 'U'}
+                                </Avatar>
+                                <Box sx={{ flex: 1, minWidth: 0 }}>
+                                    <Typography 
+                                        variant="subtitle1" 
+                                        fontWeight={600}
+                                        sx={{ 
+                                            overflow: 'hidden',
+                                            textOverflow: 'ellipsis',
+                                            whiteSpace: 'nowrap',
+                                        }}
+                                    >
+                                        {user.title ? `${user.title} ` : ''}{user.name || 'Unnamed User'}
+                                        {user.archived && (
                                             <Chip 
-                                                key={role} 
-                                                label={formatRole(role)} 
+                                                label="Archived" 
                                                 size="small" 
-                                                color={role === 'SUPERADMIN' ? 'error' : 'default'}
-                                                sx={{ height: 20, fontSize: '0.688rem' }}
-                                            />
-                                        ))}
-                                        {(user.roles || [user.role]).length > 2 && (
-                                            <Chip 
-                                                label={`+${(user.roles || [user.role]).length - 2}`}
-                                                size="small"
-                                                sx={{ height: 20, fontSize: '0.688rem' }}
+                                                color="warning"
+                                                sx={{ ml: 1, height: 20, fontSize: '0.688rem' }}
                                             />
                                         )}
-                                    </Box>
-                                </TableCell>
-                                <TableCell align="right" onClick={(e) => e.stopPropagation()}>
-                                    {!user.archived && (
-                                        <IconButton 
-                                            size="small" 
-                                            color="primary"
-                                            onClick={() => handleEdit(user)}
-                                        >
-                                            <EditIcon fontSize="small" />
-                                        </IconButton>
-                                    )}
-                                    {user.id !== session?.user.id && (
-                                        <IconButton 
-                                            size="small" 
-                                            color={user.archived ? 'success' : 'warning'}
-                                            onClick={() => handleArchive(user)}
-                                            title={user.archived ? 'Unarchive user' : 'Archive user'}
-                                        >
-                                            {user.archived ? <UnarchiveIcon fontSize="small" /> : <ArchiveIcon fontSize="small" />}
-                                        </IconButton>
-                                    )}
-                                    {session?.user.role === 'SUPERADMIN' && user.id !== session.user.id && (
-                                        <IconButton 
-                                            size="small" 
-                                            color="error"
-                                            onClick={() => handleDelete(user.id)}
-                                            title="Permanently delete user (SUPERADMIN only)"
-                                        >
-                                            <DeleteIcon fontSize="small" />
-                                        </IconButton>
-                                    )}
-                                </TableCell>
-                            </TableRow>
-                        ))}
-                        {users.length === 0 && (
-                            <TableRow>
-                                <TableCell colSpan={4} align="center">
-                                    <Typography variant="body2" color="text.secondary" sx={{ py: 2 }}>
-                                        No users found
                                     </Typography>
-                                </TableCell>
-                            </TableRow>
-                        )}
-                    </TableBody>
-                </Table>
-            </TableContainer>
+                                    <Typography 
+                                        variant="body2" 
+                                        color="text.secondary"
+                                        sx={{ 
+                                            overflow: 'hidden',
+                                            textOverflow: 'ellipsis',
+                                            whiteSpace: 'nowrap',
+                                        }}
+                                    >
+                                        {user.userRoles?.[0]?.department?.name || user.department?.name || 'No department'}
+                                        {user.userRoles?.length > 1 && ` (+${user.userRoles.length - 1} more)`}
+                                    </Typography>
+                                </Box>
+                            </Box>
+                        </CardActionArea>
+                    </Card>
+                ))}
+                {filteredUsers.length === 0 && (
+                    <Box sx={{ textAlign: 'center', py: 4 }}>
+                        <Typography variant="body2" color="text.secondary">
+                            {searchQuery ? 'No users match your search' : 'No users found'}
+                        </Typography>
+                    </Box>
+                )}
+            </Box>
 
             <Dialog open={open} onClose={() => setOpen(false)} maxWidth="sm" fullWidth>
                 <form onSubmit={handleSubmit}>
@@ -493,75 +437,6 @@ function UsersPageContent() {
                             required
                             helperText="Required for SMS notifications (password reset, role assignments)"
                         />
-
-                        <Typography variant="subtitle2" sx={{ mt: 2, mb: 1 }}>
-                            Role-Department Assignments
-                        </Typography>
-                        
-                        {roleDepartmentPairs.length > 0 && (
-                            <Box sx={{ mb: 2 }}>
-                                {roleDepartmentPairs.map((pair, index) => {
-                                    const dept = departments.find(d => d.id === pair.departmentId);
-                                    return (
-                                        <Chip
-                                            key={index}
-                                            label={`${formatRole(pair.role)} - ${dept?.name || 'Unknown'}`}
-                                            onDelete={() => handleRemoveRoleDepartment(index)}
-                                            color="primary"
-                                            sx={{ mr: 1, mb: 1 }}
-                                        />
-                                    );
-                                })}
-                            </Box>
-                        )}
-
-                        <Box sx={{ display: 'flex', gap: 1, mb: 2 }}>
-                            <FormControl sx={{ flex: 1 }}>
-                                <InputLabel>Role</InputLabel>
-                                <Select
-                                    value={newRole}
-                                    label="Role"
-                                    onChange={(e) => {
-                                        setNewRole(e.target.value);
-                                        setNewDepartment(''); // Reset department when role changes
-                                    }}
-                                >
-                                    {assignableRoles.map((role) => (
-                                        <MenuItem key={role} value={role}>
-                                            {formatRole(role)}
-                                        </MenuItem>
-                                    ))}
-                                </Select>
-                            </FormControl>
-                            <FormControl sx={{ flex: 1 }}>
-                                <InputLabel>Department</InputLabel>
-                                <Select
-                                    value={newDepartment}
-                                    label="Department"
-                                    onChange={(e) => setNewDepartment(e.target.value)}
-                                    disabled={!newRole}
-                                >
-                                    {departments
-                                        .filter((dept) => {
-                                            if (!newRole) return false;
-                                            const requiredLevel = getDepartmentLevelForRole(newRole);
-                                            return requiredLevel ? dept.level === requiredLevel : true;
-                                        })
-                                        .map((dept) => (
-                                            <MenuItem key={dept.id} value={dept.id}>
-                                                {dept.name}
-                                            </MenuItem>
-                                        ))}
-                                </Select>
-                            </FormControl>
-                            <Button
-                                onClick={handleAddRoleDepartment}
-                                variant="outlined"
-                                sx={{ minWidth: 'auto', px: 2 }}
-                            >
-                                <AddIcon />
-                            </Button>
-                        </Box>
                     </DialogContent>
                     <DialogActions>
                         <Button onClick={() => setOpen(false)}>Cancel</Button>
@@ -578,6 +453,10 @@ function UsersPageContent() {
                 user={selectedUser}
                 departments={departments}
                 onSave={handleSaveEdit}
+                onDelete={handleDelete}
+                onArchive={handleArchive}
+                currentUserId={session?.user?.id}
+                currentUserRole={session?.user?.role}
             />
         </Box>
     );

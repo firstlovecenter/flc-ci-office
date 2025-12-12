@@ -4,6 +4,26 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { getDescendantDepartmentIds } from '@/lib/departments';
 
+// Helper function to get week number
+function getWeekNumber(date: Date): number {
+    const startOfYear = new Date(date.getFullYear(), 0, 1);
+    const pastDaysOfYear = (date.getTime() - startOfYear.getTime()) / 86400000;
+    return Math.ceil((pastDaysOfYear + startOfYear.getDay() + 1) / 7);
+}
+
+// Helper function to get start and end of current week (Sunday to Saturday)
+function getCurrentWeekRange(): { start: Date; end: Date } {
+    const now = new Date();
+    const dayOfWeek = now.getDay(); // 0 = Sunday, 6 = Saturday
+    const start = new Date(now);
+    start.setDate(now.getDate() - dayOfWeek);
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(start);
+    end.setDate(start.getDate() + 6);
+    end.setHours(23, 59, 59, 999);
+    return { start, end };
+}
+
 export async function GET(
     request: Request,
     { params }: { params: Promise<{ id: string }> }
@@ -104,6 +124,18 @@ export async function GET(
         // Calculate stats by converting each transaction to the department's base currency
         let income = 0;
         let expense = 0;
+        let weeklyIncome = 0;
+        const currentWeek = getCurrentWeekRange();
+
+        // Initialize weekly chart data (last 4 weeks)
+        const chartData: { week: string; income: number; expense: number }[] = [];
+        const now = new Date();
+        for (let i = 3; i >= 0; i--) {
+            const weekStart = new Date(now);
+            weekStart.setDate(now.getDate() - now.getDay() - (i * 7));
+            const weekNum = getWeekNumber(weekStart);
+            chartData.push({ week: `Week ${weekNum}`, income: 0, expense: 0 });
+        }
 
         for (const t of transactions) {
             let convertedAmount = Number(t.amount);
@@ -130,8 +162,33 @@ export async function GET(
 
             if (t.type === 'INCOME') {
                 income += convertedAmount;
+                // Check if this week
+                const txDate = new Date(t.createdAt);
+                if (txDate >= currentWeek.start && txDate <= currentWeek.end) {
+                    weeklyIncome += convertedAmount;
+                }
             } else if (t.type === 'EXPENSE') {
                 expense += convertedAmount;
+            }
+
+            // Add to chart data
+            const txDate = new Date(t.createdAt);
+            for (let i = 0; i < 4; i++) {
+                const weekStart = new Date(now);
+                weekStart.setDate(now.getDate() - now.getDay() - ((3 - i) * 7));
+                weekStart.setHours(0, 0, 0, 0);
+                const weekEnd = new Date(weekStart);
+                weekEnd.setDate(weekStart.getDate() + 6);
+                weekEnd.setHours(23, 59, 59, 999);
+
+                if (txDate >= weekStart && txDate <= weekEnd) {
+                    if (t.type === 'INCOME') {
+                        chartData[i].income += convertedAmount;
+                    } else if (t.type === 'EXPENSE') {
+                        chartData[i].expense += convertedAmount;
+                    }
+                    break;
+                }
             }
         }
 
@@ -141,6 +198,8 @@ export async function GET(
             income,
             expense,
             balance,
+            weeklyIncome,
+            chartData,
             currency: baseCurrency ? {
                 code: baseCurrency.code,
                 symbol: baseCurrency.symbol,

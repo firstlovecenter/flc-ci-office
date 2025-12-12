@@ -182,15 +182,12 @@ export default function SMSManagementPage() {
                 if (allUsers.length > 0) {
                     setUsers(allUsers);
                 } else {
-                    console.warn('No users returned from API');
                     setUsers([]);
                 }
             } else {
-                console.error('Failed to fetch users:', response.status, await response.text());
                 setUsers([]);
             }
         } catch (error) {
-            console.error('Error fetching users:', error);
             setUsers([]);
         }
     };
@@ -203,7 +200,6 @@ export default function SMSManagementPage() {
                 setDbTemplates(data);
             }
         } catch (error) {
-            console.error('Error fetching templates:', error);
         }
     };
 

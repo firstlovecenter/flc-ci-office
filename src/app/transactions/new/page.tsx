@@ -118,7 +118,6 @@ function NewTransactionForm() {
                 setBalanceCurrency(data.currency);
             }
         } catch (error) {
-            console.error('Failed to fetch department balance:', error);
         } finally {
             setBalanceLoading(false);
         }

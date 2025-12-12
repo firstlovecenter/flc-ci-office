@@ -5,23 +5,18 @@ import { useSearchParams } from 'next/navigation';
 import {
     Box,
     Typography,
-    Paper,
     Button,
-    IconButton,
-    Chip,
     TextField,
-    MenuItem,
-    Stack,
     Card,
-    CardContent,
     CardActionArea,
-    Grid,
+    Avatar,
+    InputAdornment,
+    IconButton,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
-import EditIcon from '@mui/icons-material/Edit';
-import DeleteIcon from '@mui/icons-material/Delete';
-import FilterListIcon from '@mui/icons-material/FilterList';
-import PersonIcon from '@mui/icons-material/Person';
+import SearchIcon from '@mui/icons-material/Search';
+import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+import RefreshIcon from '@mui/icons-material/Refresh';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import EditDepartmentDialog from '@/components/EditDepartmentDialog';
@@ -44,21 +39,42 @@ function DepartmentsPageContent() {
     const parentParam = searchParams?.get('parent');
     const [departments, setDepartments] = useState<Department[]>([]);
     const [allDepartments, setAllDepartments] = useState<any[]>([]);
+    const [parentDepartment, setParentDepartment] = useState<any>(null);
     const [loading, setLoading] = useState(true);
     const [editDialogOpen, setEditDialogOpen] = useState(false);
     const [selectedDepartment, setSelectedDepartment] = useState<any>(null);
     
-    // Filter states
+    // Filter state
     const [searchQuery, setSearchQuery] = useState('');
-    const [levelFilter, setLevelFilter] = useState('');
-    const [parentFilter, setParentFilter] = useState('');
 
     useEffect(() => {
-        fetchDepartments();
-        fetchAllDepartments();
-    }, [parentParam]);
+        if (session) {
+            fetchDepartments(parentParam);
+            fetchAllDepartments();
+        }
+        if (parentParam) {
+            fetchParentDepartment();
+        } else {
+            setParentDepartment(null);
+        }
+    }, [parentParam, session]);
 
-    const fetchDepartments = async () => {
+    const fetchParentDepartment = async () => {
+        if (!parentParam) return;
+        try {
+            const response = await fetch(`/api/departments/${parentParam}?t=${Date.now()}`, {
+                cache: 'no-store',
+            });
+            if (response.ok) {
+                const data = await response.json();
+                setParentDepartment(data);
+            }
+        } catch (error) {
+        }
+    };
+
+    const fetchDepartments = async (currentParentParam: string | null) => {
+        setLoading(true);
         try {
             const response = await fetch(`/api/departments?t=${Date.now()}`, {
                 cache: 'no-store',
@@ -69,11 +85,23 @@ function DepartmentsPageContent() {
             if (response.ok) {
                 const data = await response.json();
                 // Filter by parent if parentParam is present
-                if (parentParam) {
-                    const filtered = data.filter((dept: any) => dept.parentId === parentParam);
+                if (currentParentParam) {
+                    const filtered = data.filter((dept: any) => dept.parentId === currentParentParam);
                     setDepartments(filtered);
                 } else {
-                    setDepartments(data);
+                    // No parent param - show direct children only
+                    const userDeptId = session?.user?.departmentId;
+                    const userRole = session?.user?.role;
+                    
+                    if (userRole === 'SUPERADMIN' || !userDeptId) {
+                        // SUPERADMIN sees only top-level departments (no parent)
+                        const filtered = data.filter((dept: any) => dept.parentId === null);
+                        setDepartments(filtered);
+                    } else {
+                        // Regular users - show direct children of their department
+                        const filtered = data.filter((dept: any) => dept.parentId === userDeptId);
+                        setDepartments(filtered);
+                    }
                 }
             }
         } catch (error) {
@@ -114,7 +142,7 @@ function DepartmentsPageContent() {
             });
 
             if (response.ok) {
-                fetchDepartments();
+                fetchDepartments(parentParam);
             } else {
                 const data = await response.json();
                 alert(data.error || 'Failed to delete department');
@@ -125,7 +153,7 @@ function DepartmentsPageContent() {
     };
 
     const handleSaveEdit = () => {
-        fetchDepartments();
+        fetchDepartments(parentParam);
         fetchAllDepartments();
     };
 
@@ -136,175 +164,254 @@ function DepartmentsPageContent() {
             router.push('/departments');
         } else {
             // Just refresh the current list
-            fetchDepartments();
+            fetchDepartments(parentParam);
             fetchAllDepartments();
         }
     };
 
-    // Filter departments based on search and filters
+    // Filter departments based on search
     const filteredDepartments = departments.filter((dept: any) => {
-        const matchesSearch = searchQuery === '' || 
-            dept.name.toLowerCase().includes(searchQuery.toLowerCase());
+        if (!searchQuery.trim()) return true;
+        const query = searchQuery.toLowerCase();
         
-        const matchesLevel = levelFilter === '' || dept.level === levelFilter;
+        // Search by name or leader name
+        const leaderName = dept.userRoles?.find((ur: any) => ur.role?.includes('LEADER'))?.user?.name || '';
+        const adminName = dept.userRoles?.find((ur: any) => ur.role?.includes('ADMIN'))?.user?.name || '';
         
-        const matchesParent = parentFilter === '' || 
-            (parentFilter === 'none' ? dept.parentId === null : dept.parentId === parentFilter);
-        
-        return matchesSearch && matchesLevel && matchesParent;
+        return dept.name.toLowerCase().includes(query) ||
+            leaderName.toLowerCase().includes(query) ||
+            adminName.toLowerCase().includes(query);
+    }).sort((a: any, b: any) => {
+        // Sort by most active (transaction count) descending
+        const aTransactions = a._count?.transactions || 0;
+        const bTransactions = b._count?.transactions || 0;
+        return bTransactions - aTransactions;
     });
 
-    const handleClearFilters = () => {
-        setSearchQuery('');
-        setLevelFilter('');
-        setParentFilter('');
+    // Get sub-department level name for display
+    const getSubLevelName = (level: string) => {
+        const levelMap: Record<string, string> = {
+            'GLOBAL': 'Internationals',
+            'INTERNATIONAL': 'Nationals',
+            'NATIONAL': 'Regionals',
+            'REGIONAL': 'Campuses',
+            'CAMPUS': 'Streams',
+            'STREAM': 'Councils',
+            'COUNCIL': 'Councils',
+        };
+        return levelMap[level] || 'Sub-churches';
     };
+
+    // Get parent leader and admin
+    const getParentLeader = () => {
+        if (!parentDepartment?.userRoles) return null;
+        const leaderRole = parentDepartment.userRoles.find((ur: any) => ur.role?.includes('LEADER'));
+        return leaderRole?.user;
+    };
+
+    const getParentAdmin = () => {
+        if (!parentDepartment?.userRoles) return null;
+        const adminRole = parentDepartment.userRoles.find((ur: any) => ur.role?.includes('ADMIN'));
+        return adminRole?.user;
+    };
+
+    const parentLeader = getParentLeader();
+    const parentAdmin = getParentAdmin();
 
     const levels = ['GLOBAL', 'INTERNATIONAL', 'NATIONAL', 'REGIONAL', 'CAMPUS', 'STREAM', 'COUNCIL'];
 
+    const isLeader = session?.user?.role?.includes('LEADER');
+    const canCreateDepartment = !isLeader; // Only admins and superadmin can create
+
+    const handleRefresh = () => {
+        fetchDepartments(parentParam);
+        if (parentParam) fetchParentDepartment();
+        fetchAllDepartments();
+    };
+
     return (
         <Box>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 3 }}>
-                <Typography variant="h4">Departments</Typography>
-                <Link href={parentParam ? `/departments/new?parent=${parentParam}` : '/departments/new'}>
-                    <Button variant="contained" startIcon={<AddIcon />}>
-                        Add Department
-                    </Button>
-                </Link>
+            {/* Back and Refresh Buttons - show when viewing sub-churches */}
+            {parentParam && (
+                <Box sx={{ display: 'flex', gap: 1, mb: 2 }}>
+                    <IconButton 
+                        onClick={() => router.back()}
+                        sx={{ 
+                            color: 'text.secondary',
+                            '&:hover': { color: 'text.primary' }
+                        }}
+                    >
+                        <ArrowBackIcon />
+                    </IconButton>
+                    <IconButton 
+                        onClick={handleRefresh}
+                        sx={{ 
+                            color: 'text.secondary',
+                            '&:hover': { color: 'text.primary' }
+                        }}
+                    >
+                        <RefreshIcon />
+                    </IconButton>
+                </Box>
+            )}
+
+            {/* Header Section */}
+            <Box sx={{ mb: 3 }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1 }}>
+                    <Box>
+                        <Typography variant="h5" fontWeight="700">
+                            {parentDepartment ? `${parentDepartment.name} ${getSubLevelName(parentDepartment.level)}` : 'Churches'}
+                        </Typography>
+                        {parentLeader && (
+                            <Typography variant="body2" color="text.secondary">
+                                <Box component="span" sx={{ color: 'warning.main' }}>Overseer:</Box>{' '}
+                                <Box component="span" sx={{ color: 'text.primary' }}>{parentLeader.name || parentLeader.email}</Box>
+                            </Typography>
+                        )}
+                        {parentAdmin && (
+                            <Typography variant="body2" color="text.secondary">
+                                <Box component="span" sx={{ color: 'warning.main' }}>Admin:</Box>{' '}
+                                <Box component="span" sx={{ color: 'text.primary' }}>{parentAdmin.name || parentAdmin.email}</Box>
+                            </Typography>
+                        )}
+                    </Box>
+                    {canCreateDepartment && (
+                        <Link href={parentParam ? `/departments/new?parent=${parentParam}` : '/departments/new'}>
+                            <Button variant="contained" startIcon={<AddIcon />} size="small">
+                                Add New
+                            </Button>
+                        </Link>
+                    )}
+                </Box>
             </Box>
 
-            {/* Filter Section */}
-            <Paper sx={{ p: 2, mb: 3 }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                    <FilterListIcon sx={{ mr: 1 }} />
-                    <Typography variant="h6">Filters</Typography>
-                </Box>
-                <Stack spacing={2}>
-                    <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
-                        <TextField
-                            label="Search by name"
-                            variant="outlined"
-                            size="small"
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            placeholder="Enter department name..."
-                            sx={{ minWidth: 200, flex: 1 }}
-                        />
-                        <TextField
-                            select
-                            label="Level"
-                            variant="outlined"
-                            size="small"
-                            value={levelFilter}
-                            onChange={(e) => setLevelFilter(e.target.value)}
-                            sx={{ minWidth: 150, flex: 1 }}
-                        >
-                            <MenuItem value="">All Levels</MenuItem>
-                            {levels.map((level) => (
-                                <MenuItem key={level} value={level}>
-                                    {formatDepartmentLevel(level)}
-                                </MenuItem>
-                            ))}
-                        </TextField>
-                        <TextField
-                            select
-                            label="Parent Department"
-                            variant="outlined"
-                            size="small"
-                            value={parentFilter}
-                            onChange={(e) => setParentFilter(e.target.value)}
-                            sx={{ minWidth: 200, flex: 1 }}
-                        >
-                            <MenuItem value="">All Parents</MenuItem>
-                            <MenuItem value="none">No Parent (Top Level)</MenuItem>
-                            {allDepartments.map((dept) => (
-                                <MenuItem key={dept.id} value={dept.id}>
-                                    {dept.name}
-                                </MenuItem>
-                            ))}
-                        </TextField>
-                        <Button
-                            variant="outlined"
-                            onClick={handleClearFilters}
-                            sx={{ height: '40px' }}
-                        >
-                            Clear Filters
-                        </Button>
-                    </Box>
-                </Stack>
-                <Box sx={{ mt: 2 }}>
-                    <Typography variant="body2" color="text.secondary">
-                        Showing {filteredDepartments.length} of {departments.length} departments
+            {/* Stats Cards */}
+            <Box sx={{ display: 'flex', gap: 3, mb: 3 }}>
+                <Box>
+                    <Typography variant="caption" color="text.secondary">
+                        {parentDepartment ? getSubLevelName(parentDepartment.level) : 'Churches'}
+                    </Typography>
+                    <Typography variant="h4" fontWeight="700" color="primary.main">
+                        {departments.length}
                     </Typography>
                 </Box>
-            </Paper>
+            </Box>
 
-            <Grid container spacing={3}>
+            {/* Search Bar */}
+            <TextField
+                fullWidth
+                placeholder={parentDepartment 
+                    ? `Search ${getSubLevelName(parentDepartment.level)} or Leader` 
+                    : 'Search Churches or Leader'
+                }
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                InputProps={{
+                    startAdornment: (
+                        <InputAdornment position="start">
+                            <SearchIcon color="action" />
+                        </InputAdornment>
+                    ),
+                }}
+                sx={{ 
+                    mb: 3,
+                    '& .MuiOutlinedInput-root': {
+                        borderRadius: 3,
+                        bgcolor: 'background.paper',
+                    }
+                }}
+                size="small"
+            />
+
+            {/* Church Cards List */}
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
                 {filteredDepartments.map((dept: any) => {
-                    const leader = dept.userRoles?.[0]?.user;
+                    const leader = dept.userRoles?.find((ur: any) => ur.role?.includes('LEADER'))?.user;
+                    const admin = dept.userRoles?.find((ur: any) => ur.role?.includes('ADMIN'))?.user;
+                    const subDeptCount = dept._count?.children || 0;
+                    
                     return (
-                        <Grid key={dept.id} size={{ xs: 12, sm: 6, md: 4 }}>
-                            <Card 
-                                sx={{ 
-                                    height: '100%',
-                                    border: '1px solid',
-                                    borderColor: 'divider',
-                                    transition: 'all 0.2s',
-                                    '&:hover': {
-                                        borderColor: 'primary.main',
-                                        boxShadow: 3,
-                                    }
-                                }}
+                        <Card 
+                            key={dept.id}
+                            sx={{ 
+                                borderRadius: 2,
+                                boxShadow: 1,
+                                '&:hover': {
+                                    boxShadow: 3,
+                                },
+                            }}
+                        >
+                            <CardActionArea 
+                                onClick={() => router.push(`/departments/${dept.id}/dashboard`)}
+                                sx={{ py: 1.5, px: 2 }}
                             >
-                                <CardActionArea 
-                                    onClick={() => router.push(`/departments/${dept.id}/dashboard`)}
-                                    sx={{ height: '100%' }}
-                                >
-                                    <CardContent>
-                                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
-                                            <Typography variant="h6" fontWeight="600" sx={{ flex: 1 }}>
-                                                {dept.name}
-                                            </Typography>
-                                        </Box>
-                                        
-                                        <Chip 
-                                            label={formatDepartmentLevel(dept.level)} 
-                                            size="small" 
-                                            color="primary" 
-                                            variant="outlined"
-                                            sx={{ mb: 2 }}
-                                        />
-                                        
-                                        {dept.parent && (
-                                            <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                                                Parent: {dept.parent.name}
-                                            </Typography>
-                                        )}
-                                        
-                                        {leader && (
-                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 2 }}>
-                                                <PersonIcon fontSize="small" color="action" />
-                                                <Typography variant="body2" color="text.secondary">
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                                    <Avatar
+                                        src={leader?.image || undefined}
+                                        sx={{
+                                            width: 50,
+                                            height: 50,
+                                            bgcolor: 'primary.main',
+                                            fontSize: '1.25rem',
+                                        }}
+                                    >
+                                        {leader?.name?.[0]?.toUpperCase() || dept.name[0]?.toUpperCase() || 'D'}
+                                    </Avatar>
+                                    <Box sx={{ flex: 1, minWidth: 0 }}>
+                                        <Typography 
+                                            variant="subtitle1" 
+                                            fontWeight={600}
+                                            sx={{ 
+                                                overflow: 'hidden',
+                                                textOverflow: 'ellipsis',
+                                                whiteSpace: 'nowrap',
+                                            }}
+                                        >
+                                            {dept.name}
+                                        </Typography>
+                                        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, alignItems: 'center' }}>
+                                            {leader && (
+                                                <Typography 
+                                                    variant="body2" 
+                                                    sx={{ color: 'success.main' }}
+                                                >
                                                     {leader.name || leader.email}
                                                 </Typography>
-                                            </Box>
+                                            )}
+                                            {admin && (
+                                                <Typography 
+                                                    variant="body2" 
+                                                    color="text.secondary"
+                                                >
+                                                    {leader ? ' | ' : ''}<Box component="span" sx={{ color: 'warning.main' }}>Admin:</Box> {admin.name || admin.email}
+                                                </Typography>
+                                            )}
+                                        </Box>
+                                        {subDeptCount > 0 && (
+                                            <Typography 
+                                                variant="caption" 
+                                                color="text.secondary"
+                                            >
+                                                {subDeptCount} {getSubLevelName(dept.level)}
+                                            </Typography>
                                         )}
-                                    </CardContent>
-                                </CardActionArea>
-                            </Card>
-                        </Grid>
+                                    </Box>
+                                </Box>
+                            </CardActionArea>
+                        </Card>
                     );
                 })}
                 {filteredDepartments.length === 0 && !loading && (
-                    <Grid size={12}>
-                        <Paper sx={{ p: 4, textAlign: 'center' }}>
-                            <Typography color="text.secondary">
-                                {departments.length === 0 ? 'No departments found' : 'No departments match the current filters'}
-                            </Typography>
-                        </Paper>
-                    </Grid>
+                    <Box sx={{ textAlign: 'center', py: 4 }}>
+                        <Typography variant="body2" color="text.secondary">
+                            {departments.length === 0 
+                                ? 'No churches found' 
+                                : 'No churches match your search'
+                            }
+                        </Typography>
+                    </Box>
                 )}
-            </Grid>
+            </Box>
 
             <EditDepartmentDialog
                 open={editDialogOpen}

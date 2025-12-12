@@ -228,7 +228,6 @@ async function handleSMSRequest(body: any) {
       total: recipients.length,
     });
   } catch (error: any) {
-    console.error('SMS Error:', error);
     return NextResponse.json({ 
       error: 'Failed to send SMS: ' + error.message 
     }, { status: 500 });

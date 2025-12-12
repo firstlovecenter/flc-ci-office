@@ -47,7 +47,6 @@ export async function GET(request: NextRequest) {
             }
         );
     } catch (error) {
-        console.error('Error fetching pending counts:', error);
         return NextResponse.json(
             { error: 'Failed to fetch pending counts' },
             { status: 500 }

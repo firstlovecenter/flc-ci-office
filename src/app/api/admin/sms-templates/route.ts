@@ -32,7 +32,6 @@ export async function GET(request: NextRequest) {
 
         return NextResponse.json(templates);
     } catch (error) {
-        console.error('Error fetching SMS templates:', error);
         return NextResponse.json(
             { error: 'Failed to fetch SMS templates' },
             { status: 500 }
@@ -69,7 +68,6 @@ export async function PUT(request: NextRequest) {
 
         return NextResponse.json(updated);
     } catch (error) {
-        console.error('Error updating SMS template:', error);
         return NextResponse.json(
             { error: 'Failed to update SMS template' },
             { status: 500 }

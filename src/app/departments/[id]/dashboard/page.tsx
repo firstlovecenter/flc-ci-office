@@ -1,18 +1,20 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { Typography, Box, CircularProgress, Grid, Stack, Paper, Chip, Card, CardContent, CardActionArea, IconButton, useTheme } from '@mui/material';
-import { formatCurrency, formatDepartmentLevel } from '@/lib/utils';
+import { useEffect, useState, useMemo } from 'react';
+import { Typography, Box, CircularProgress, Grid, Stack, Card, CardActionArea, IconButton, useTheme } from '@mui/material';
+import { formatCurrency } from '@/lib/utils';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
-import TrendingDownIcon from '@mui/icons-material/TrendingDown';
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
-import PeopleIcon from '@mui/icons-material/People';
-import AccountTreeIcon from '@mui/icons-material/AccountTree';
 import ReceiptIcon from '@mui/icons-material/Receipt';
+import AssessmentIcon from '@mui/icons-material/Assessment';
+import PendingActionsIcon from '@mui/icons-material/PendingActions';
 import EditIcon from '@mui/icons-material/Edit';
+import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+import RefreshIcon from '@mui/icons-material/Refresh';
 import { useParams, useRouter } from 'next/navigation';
 import EditDepartmentDialog from '@/components/EditDepartmentDialog';
 import { useSession } from 'next-auth/react';
+import { BarChart, Bar, XAxis, Tooltip, ResponsiveContainer, Cell, LabelList } from 'recharts';
 
 export default function DepartmentDashboardPage() {
     const params = useParams();
@@ -27,13 +29,9 @@ export default function DepartmentDashboardPage() {
         income: 0, 
         expense: 0, 
         balance: 0,
+        weeklyIncome: 0,
+        chartData: [] as { week: string; income: number; expense: number }[],
         currency: { code: 'GHS', symbol: '₵' }
-    });
-    const [detailStats, setDetailStats] = useState({ 
-        users: 0, 
-        subDepartments: 0, 
-        transactions: 0, 
-        recentTransactions: [] as any[] 
     });
     const [loading, setLoading] = useState(true);
 
@@ -41,7 +39,6 @@ export default function DepartmentDashboardPage() {
         if (departmentId) {
             fetchDepartment();
             fetchStats();
-            fetchDetailStats();
             fetchAllDepartments();
         }
     }, [departmentId]);
@@ -70,17 +67,6 @@ export default function DepartmentDashboardPage() {
         }
     };
 
-    const fetchDetailStats = async () => {
-        try {
-            const response = await fetch(`/api/departments/${departmentId}/details`);
-            if (response.ok) {
-                const data = await response.json();
-                setDetailStats(data);
-            }
-        } catch (error) {
-        }
-    };
-
     const fetchAllDepartments = async () => {
         try {
             const response = await fetch('/api/departments?all=true');
@@ -103,6 +89,22 @@ export default function DepartmentDashboardPage() {
         router.push('/departments');
     };
 
+    // Quick links for church dashboard
+    const quickLinks = useMemo(() => [
+        {
+            title: 'View Churches',
+            href: `/departments?parent=${departmentId}`,
+        },
+        {
+            title: 'Transactions History',
+            href: `/transactions?dept=${departmentId}`,
+        },
+        {
+            title: 'View Trends',
+            href: `/reports?dept=${departmentId}`,
+        },
+    ], [departmentId]);
+
     if (loading) {
         return (
             <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '60vh' }}>
@@ -111,19 +113,22 @@ export default function DepartmentDashboardPage() {
         );
     }
 
+    // Check if user is a leader (leaders can't edit)
+    const isLeader = session?.user?.role?.includes('LEADER');
+    const canEdit = !isLeader;
+
     // Calculate color for Account Balance based on value
     const getBalanceColor = (balance: number) => {
         if (balance < 0) return theme.palette.error.main;
         if (balance === 0) return theme.palette.warning.main;
         if (balance < 5000) {
-            // Transition from green to yellow as balance approaches 0
-            const ratio = balance / 5000; // 0 to 1
-            // Mix success.main with warning.main based on ratio
-            return `rgba(76, 175, 80, ${ratio})`; // Green with decreasing opacity
+            const ratio = balance / 5000;
+            return `rgba(76, 175, 80, ${ratio})`;
         }
         return theme.palette.success.main;
     };
 
+    // Leader-style stat cards: Account Balance + This Week's Income
     const statCards = [
         {
             title: 'Account Balance',
@@ -133,25 +138,45 @@ export default function DepartmentDashboardPage() {
             bgColor: getBalanceColor(stats.balance)
         },
         {
-            title: 'Total Inflows',
-            amount: stats.income,
+            title: "This Week's Income",
+            amount: stats.weeklyIncome,
             icon: TrendingUpIcon,
             color: 'white',
             bgColor: theme.palette.success.main
-        },
-        {
-            title: 'Total Expenses',
-            amount: stats.expense,
-            icon: TrendingDownIcon,
-            color: 'white',
-            bgColor: theme.palette.error.light
         }
     ];
 
+    const handleRefresh = () => {
+        fetchDepartment();
+        fetchStats();
+    };
+
     return (
-        <Box sx={{ px: { xs: 2, sm: 3, md: 6, lg: 8 }, py: { xs: 2, sm: 3 }, maxWidth: '1600px', mx: 'auto' }}>
+        <Box sx={{ px: { xs: 1.5, sm: 3, md: 6, lg: 8 }, py: { xs: 1.5, sm: 2, md: 1.5 }, maxWidth: '1600px', mx: 'auto' }}>
+            {/* Back and Refresh Buttons */}
+            <Box sx={{ display: 'flex', gap: 1, mb: 2 }}>
+                <IconButton 
+                    onClick={() => router.back()}
+                    sx={{ 
+                        color: 'text.secondary',
+                        '&:hover': { color: 'text.primary' }
+                    }}
+                >
+                    <ArrowBackIcon />
+                </IconButton>
+                <IconButton 
+                    onClick={handleRefresh}
+                    sx={{ 
+                        color: 'text.secondary',
+                        '&:hover': { color: 'text.primary' }
+                    }}
+                >
+                    <RefreshIcon />
+                </IconButton>
+            </Box>
+
             {/* Header */}
-            <Box sx={{ mb: { xs: 3, md: 5 }, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <Box sx={{ mb: { xs: 2, md: 2 }, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                 <Box sx={{ flex: 1 }}>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                         <Typography 
@@ -160,38 +185,36 @@ export default function DepartmentDashboardPage() {
                             sx={{ 
                                 mb: 0.5,
                                 color: 'text.primary',
-                                fontSize: { xs: '1.5rem', sm: '2rem', md: '2.125rem' }
+                                fontSize: { xs: '1.25rem', sm: '2rem', md: '2.125rem' }
                             }}
                         >
-                            {department?.name && department?.level 
-                                ? `${department.name} ${formatDepartmentLevel(department.level)} Dashboard` 
-                                : department?.name 
-                                    ? `${department.name} Dashboard`
-                                    : 'Department Dashboard'}
+                            {department?.name || 'Church Dashboard'}
                         </Typography>
-                        <IconButton 
-                            onClick={() => setEditDialogOpen(true)}
-                            color="primary"
-                            sx={{ ml: 1 }}
-                        >
-                            <EditIcon />
-                        </IconButton>
+                        {canEdit && (
+                            <IconButton 
+                                onClick={() => setEditDialogOpen(true)}
+                                color="primary"
+                                sx={{ ml: 1 }}
+                            >
+                                <EditIcon />
+                            </IconButton>
+                        )}
                     </Box>
-                    <Typography variant="body2" color="text.secondary" sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>
-                        Financial overview for this department
+                    <Typography variant="body2" color="text.secondary" sx={{ fontSize: { xs: '0.75rem', sm: '1rem' } }}>
+                        Here's what's happening with this church's finances
                     </Typography>
                 </Box>
             </Box>
 
-            {/* Stats Grid */}
-            <Grid container spacing={{ xs: 2, sm: 3 }} sx={{ mb: { xs: 3, md: 4 } }}>
+            {/* Stats Grid - 2 cards like leader view */}
+            <Grid container spacing={{ xs: 1.5, sm: 3 }} sx={{ mb: { xs: 2, md: 4 } }}>
                 {statCards.map((card, index) => {
                     const Icon = card.icon;
                     return (
-                        <Grid size={{ xs: 12, md: 6, lg: 4 }} key={index}>
+                        <Grid size={{ xs: 6, md: 6 }} key={index}>
                             <Box
                                 sx={{
-                                    p: { xs: 2.5, sm: 3, md: 4 },
+                                    p: { xs: 2, sm: 2.5, md: 3 },
                                     borderRadius: 2,
                                     bgcolor: card.bgColor,
                                     border: '2px solid',
@@ -252,162 +275,144 @@ export default function DepartmentDashboardPage() {
                 })}
             </Grid>
 
-            {/* Department Details Cards */}
-            <Grid container spacing={{ xs: 2, sm: 3 }} sx={{ mb: { xs: 3, md: 4 } }}>
-                <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-                    <Card 
-                        sx={{ 
-                            height: '100%',
-                            transition: 'all 0.2s ease-in-out',
-                            '&:hover': {
-                                transform: 'translateY(-4px)',
-                                boxShadow: 3,
-                            }
-                        }}
-                    >
-                        <CardActionArea onClick={() => router.push(`/users?dept=${departmentId}`)}>
-                            <CardContent>
-                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
-                                    <Box
-                                        sx={{
-                                            width: 48,
-                                            height: 48,
-                                            borderRadius: 2,
-                                            bgcolor: `${theme.palette.primary.dark}1A`, // 10% opacity
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'center'
-                                        }}
-                                    >
-                                        <PeopleIcon sx={{ fontSize: 24, color: theme.palette.primary.dark }} />
-                                    </Box>
-                                </Box>
-                                <Typography variant="h4" fontWeight="700" sx={{ mb: 0.5 }}>
-                                    {detailStats.users}
-                                </Typography>
-                                <Typography variant="body2" color="text.secondary">
-                                    Users
-                                </Typography>
-                            </CardContent>
-                        </CardActionArea>
-                    </Card>
-                </Grid>
+            {/* Weekly Income Chart */}
+            {stats.chartData && stats.chartData.length > 0 && (
+            <Box
+                sx={{
+                    p: { xs: 1.5, sm: 2, md: 2 },
+                    borderRadius: { xs: 1.5, sm: 2 },
+                    bgcolor: 'transparent',
+                    border: 'none',
+                }}
+            >
+                <Typography variant="h6" fontWeight="600" sx={{ mb: { xs: 1, sm: 1.5 }, fontSize: { xs: '0.875rem', sm: '1rem' } }}>
+                    Weekly Income (Last 4 Weeks)
+                </Typography>
+                <Box sx={{ width: '100%', height: { xs: 280, sm: 320, md: 350 } }}>
+                    <ResponsiveContainer width="100%" height="100%">
+                        <BarChart
+                            data={stats.chartData}
+                            margin={{
+                                top: 25,
+                                right: 10,
+                                left: 10,
+                                bottom: 5,
+                            }}
+                            style={{ backgroundColor: 'transparent' }}
+                        >
+                            <XAxis 
+                                dataKey="week" 
+                                tick={{ fill: theme.palette.text.secondary, fontSize: 12 }}
+                                axisLine={{ stroke: theme.palette.divider }}
+                                tickLine={false}
+                            />
+                            <Tooltip 
+                                formatter={(value: any, name: any) => {
+                                    const numValue = Number(value);
+                                    const label = name === 'income' ? 'Income' : name === 'expense' ? 'Expense' : name;
+                                    const formatted = stats.currency
+                                        ? `${stats.currency.symbol}${numValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                                        : numValue.toLocaleString();
+                                    return [formatted, label];
+                                }}
+                                contentStyle={{
+                                    backgroundColor: theme.palette.background.paper,
+                                    border: `1px solid ${theme.palette.divider}`,
+                                    borderRadius: 8,
+                                }}
+                                labelStyle={{ color: theme.palette.text.primary }}
+                                cursor={{ fill: 'transparent' }}
+                            />
+                            <Bar 
+                                dataKey="income" 
+                                radius={[4, 4, 0, 0]}
+                                barSize={35}
+                            >
+                                <LabelList 
+                                    dataKey="income" 
+                                    position="top"
+                                    fill={theme.palette.text.primary}
+                                    fontSize={11}
+                                    formatter={(value: any) => stats.currency ? `${stats.currency.symbol}${Number(value).toLocaleString()}` : Number(value).toLocaleString()}
+                                />
+                                {stats.chartData.map((entry, index) => (
+                                    <Cell 
+                                        key={`income-cell-${index}`} 
+                                        fill={index === stats.chartData.length - 1 ? theme.palette.primary.main : theme.palette.success.main} 
+                                    />
+                                ))}
+                            </Bar>
+                            <Bar 
+                                dataKey="expense" 
+                                radius={[4, 4, 0, 0]}
+                                barSize={35}
+                            >
+                                <LabelList 
+                                    dataKey="expense" 
+                                    position="top" 
+                                    fill={theme.palette.text.primary}
+                                    fontSize={11}
+                                    formatter={(value: any) => stats.currency ? `${stats.currency.symbol}${Number(value).toLocaleString()}` : Number(value).toLocaleString()}
+                                />
+                                {stats.chartData.map((entry, index) => (
+                                    <Cell 
+                                        key={`expense-cell-${index}`} 
+                                        fill={theme.palette.error.main}
+                                    />
+                                ))}
+                            </Bar>
+                        </BarChart>
+                    </ResponsiveContainer>
+                </Box>
+            </Box>
+            )}
 
-                <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-                    <Card 
-                        sx={{ 
-                            height: '100%',
-                            transition: 'all 0.2s ease-in-out',
+            {/* Quick Links */}
+            <Box
+                sx={{
+                    mt: { xs: 2, md: 4 },
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 1.5
+                }}
+            >
+                {quickLinks.map((link) => (
+                    <Card
+                        key={link.title}
+                        sx={{
+                            bgcolor: theme.palette.mode === 'dark' ? 'rgba(255, 182, 193, 0.9)' : '#FFB6C1',
+                            border: 'none',
+                            boxShadow: 'none',
+                            borderRadius: 1,
                             '&:hover': {
-                                transform: 'translateY(-4px)',
-                                boxShadow: 3,
+                                bgcolor: theme.palette.mode === 'dark' ? 'rgba(255, 182, 193, 1)' : '#FFA0AB',
                             }
                         }}
                     >
-                        <CardActionArea onClick={() => router.push(`/departments?parent=${departmentId}`)}>
-                            <CardContent>
-                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
-                                    <Box
-                                        sx={{
-                                            width: 48,
-                                            height: 48,
-                                            borderRadius: 2,
-                                            bgcolor: `${theme.palette.success.dark}1A`, // 10% opacity
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'center'
-                                        }}
-                                    >
-                                        <AccountTreeIcon sx={{ fontSize: 24, color: theme.palette.success.dark }} />
-                                    </Box>
-                                </Box>
-                                <Typography variant="h4" fontWeight="700" sx={{ mb: 0.5 }}>
-                                    {detailStats.subDepartments}
-                                </Typography>
-                                <Typography variant="body2" color="text.secondary">
-                                    Sub-Departments
-                                </Typography>
-                            </CardContent>
-                        </CardActionArea>
-                    </Card>
-                </Grid>
-
-                <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-                    <Card 
-                        sx={{ 
-                            height: '100%',
-                            transition: 'all 0.2s ease-in-out',
-                            '&:hover': {
-                                transform: 'translateY(-4px)',
-                                boxShadow: 3,
-                            }
-                        }}
-                    >
-                        <CardActionArea onClick={() => router.push(`/transactions?dept=${departmentId}`)}>
-                            <CardContent>
-                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
-                                    <Box
-                                        sx={{
-                                            width: 48,
-                                            height: 48,
-                                            borderRadius: 2,
-                                            bgcolor: `${theme.palette.warning.dark}1A`, // 10% opacity
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'center'
-                                        }}
-                                    >
-                                        <ReceiptIcon sx={{ fontSize: 24, color: theme.palette.warning.dark }} />
-                                    </Box>
-                                </Box>
-                                <Typography variant="h4" fontWeight="700" sx={{ mb: 0.5 }}>
-                                    {detailStats.transactions}
-                                </Typography>
-                                <Typography variant="body2" color="text.secondary">
-                                    Transactions
-                                </Typography>
-                            </CardContent>
-                        </CardActionArea>
-                    </Card>
-                </Grid>
-
-                <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-                    <Card 
-                        sx={{ 
-                            height: '100%',
-                            transition: 'all 0.2s ease-in-out',
-                            '&:hover': {
-                                transform: 'translateY(-4px)',
-                                boxShadow: 3,
-                            }
-                        }}
-                    >
-                        <CardContent>
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
-                                <Box
-                                    sx={{
-                                        width: 48,
-                                        height: 48,
-                                        borderRadius: 2,
-                                        bgcolor: `${theme.palette.secondary.dark}1A`, // 10% opacity
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center'
-                                    }}
-                                >
-                                    <AccountBalanceWalletIcon sx={{ fontSize: 24, color: theme.palette.secondary.dark }} />
-                                </Box>
-                            </Box>
-                            <Typography variant="h4" fontWeight="700" sx={{ mb: 0.5 }}>
-                                {formatCurrency(stats.balance, stats.currency.code, stats.currency.symbol)}
+                        <CardActionArea
+                            onClick={() => router.push(link.href)}
+                            sx={{
+                                py: 1.5,
+                                px: 2,
+                                display: 'flex',
+                                justifyContent: 'center',
+                                alignItems: 'center',
+                            }}
+                        >
+                            <Typography
+                                variant="body1"
+                                fontWeight="600"
+                                sx={{
+                                    color: 'rgba(0, 0, 0, 0.87)',
+                                    fontSize: { xs: '0.9rem', sm: '1rem' }
+                                }}
+                            >
+                                {link.title}
                             </Typography>
-                            <Typography variant="body2" color="text.secondary">
-                                Current Balance
-                            </Typography>
-                        </CardContent>
+                        </CardActionArea>
                     </Card>
-                </Grid>
-            </Grid>
+                ))}
+            </Box>
 
             <EditDepartmentDialog
                 open={editDialogOpen}

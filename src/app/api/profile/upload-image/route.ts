@@ -25,7 +25,6 @@ export async function POST(req: NextRequest) {
 
         // Check if Cloudinary is configured
         if (!process.env.CLOUDINARY_CLOUD_NAME || !process.env.CLOUDINARY_API_KEY || !process.env.CLOUDINARY_API_SECRET) {
-            console.error('Cloudinary not configured');
             return NextResponse.json({ error: 'Image upload service not configured' }, { status: 500 });
         }
 
@@ -33,7 +32,6 @@ export async function POST(req: NextRequest) {
         try {
             formData = await req.formData();
         } catch (formError) {
-            console.error('FormData parse error:', formError);
             return NextResponse.json({ error: 'Failed to parse form data' }, { status: 400 });
         }
 
@@ -89,7 +87,6 @@ export async function POST(req: NextRequest) {
             url: imageUrl 
         });
     } catch (error) {
-        console.error('Image upload error:', error);
         return NextResponse.json({ 
             error: 'Internal Server Error',
             details: error instanceof Error ? error.message : 'Unknown error'

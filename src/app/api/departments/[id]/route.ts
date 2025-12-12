@@ -25,6 +25,40 @@ export async function GET(
             where: { id: departmentId },
             include: {
                 parent: true,
+                userRoles: {
+                    where: {
+                        OR: [
+                            { role: 'COUNCIL_LEADER' },
+                            { role: 'STREAM_LEADER' },
+                            { role: 'CAMPUS_LEADER' },
+                            { role: 'REGIONAL_LEADER' },
+                            { role: 'NATIONAL_LEADER' },
+                            { role: 'INTERNATIONAL_LEADER' },
+                            { role: 'GLOBAL_LEADER' },
+                            { role: 'CAMPUS_ADMIN' },
+                            { role: 'REGIONAL_ADMIN' },
+                            { role: 'NATIONAL_ADMIN' },
+                            { role: 'INTERNATIONAL_ADMIN' },
+                            { role: 'GLOBAL_ADMIN' },
+                        ],
+                    },
+                    include: {
+                        user: {
+                            select: {
+                                id: true,
+                                name: true,
+                                email: true,
+                                image: true,
+                            },
+                        },
+                    },
+                },
+                _count: {
+                    select: {
+                        children: true,
+                        userRoles: true,
+                    },
+                },
             },
         });
 
@@ -34,7 +68,6 @@ export async function GET(
 
         return NextResponse.json(department);
     } catch (error) {
-        console.error('Error fetching department:', error);
         return new NextResponse('Internal Error', { status: 500 });
     }
 }
@@ -131,6 +164,50 @@ export async function PUT(
                     setBy: session.user.id,
                 },
             });
+        }
+
+        // If level changed, update existing leader and admin roles to match new level
+        if (level !== currentDepartment.level) {
+            const newLeaderRole = getLeaderRoleForLevel(level);
+            const newAdminRole = getAdminRoleForLevel(level);
+
+            // Update existing leader's role if they exist
+            if (currentLeaderRole) {
+                await prisma.userRole.update({
+                    where: { id: currentLeaderRole.id },
+                    data: { role: newLeaderRole },
+                });
+
+                // Update the user's activeRole if this is their active role
+                const leaderUser = await prisma.user.findUnique({
+                    where: { id: currentLeaderRole.userId },
+                });
+                if (leaderUser?.activeUserRoleId === currentLeaderRole.id) {
+                    await prisma.user.update({
+                        where: { id: currentLeaderRole.userId },
+                        data: { activeRole: newLeaderRole },
+                    });
+                }
+            }
+
+            // Update existing admin's role if they exist and new level has admin role
+            if (currentAdminRole && newAdminRole) {
+                await prisma.userRole.update({
+                    where: { id: currentAdminRole.id },
+                    data: { role: newAdminRole },
+                });
+
+                // Update the user's activeRole if this is their active role
+                const adminUser = await prisma.user.findUnique({
+                    where: { id: currentAdminRole.userId },
+                });
+                if (adminUser?.activeUserRoleId === currentAdminRole.id) {
+                    await prisma.user.update({
+                        where: { id: currentAdminRole.userId },
+                        data: { activeRole: newAdminRole },
+                    });
+                }
+            }
         }
 
         // Handle leader change if leaderId is provided
@@ -239,7 +316,6 @@ export async function PUT(
                             message: smsMessage,
                         });
                     } catch (smsError) {
-                        console.error('Failed to send SMS to new leader:', smsError);
                     }
                 }
 
@@ -365,7 +441,6 @@ export async function PUT(
                                 message: smsMessage,
                             });
                         } catch (smsError) {
-                            console.error('Failed to send SMS to new admin:', smsError);
                         }
                     }
 
@@ -411,7 +486,6 @@ export async function PUT(
 
         return NextResponse.json(updatedDepartment);
     } catch (error) {
-        console.error('Failed to update department:', error);
         return new NextResponse('Internal Error', { status: 500 });
     }
 }
@@ -460,6 +534,19 @@ export async function DELETE(
                 { error: 'Cannot delete department with assigned users' },
                 { status: 400 }
             );
+        }
+
+        // Get the department to check its level
+        const department = await prisma.department.findUnique({
+            where: { id: departmentId },
+            select: { level: true },
+        });
+
+        // If it's a NATIONAL level department, delete its base currency first
+        if (department?.level === 'NATIONAL') {
+            await prisma.departmentBaseCurrency.deleteMany({
+                where: { departmentId },
+            });
         }
 
         // Delete the department

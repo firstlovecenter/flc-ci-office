@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, Suspense } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
 import {
     Box,
     Typography,
@@ -21,18 +22,24 @@ import {
     Divider,
     useTheme,
     Skeleton,
+    IconButton,
 } from '@mui/material';
-import { Download as DownloadIcon, Print as PrintIcon } from '@mui/icons-material';
+import { Download as DownloadIcon, Print as PrintIcon, ArrowBack as ArrowBackIcon, Refresh as RefreshIcon } from '@mui/icons-material';
 import { formatDepartmentLevel } from '@/lib/utils';
 import { formatCurrency } from '@/lib/utils';
 import { BarChart, Bar, XAxis, Tooltip, ResponsiveContainer, Cell, LabelList } from 'recharts';
 import { useSession } from 'next-auth/react';
 
-export default function ReportsPage() {
+function ReportsPageContent() {
     const theme = useTheme();
+    const router = useRouter();
     const { data: session } = useSession();
+    const searchParams = useSearchParams();
+    const deptParam = searchParams?.get('dept');
+    
     const [departments, setDepartments] = useState<any[]>([]);
     const [selectedDepartment, setSelectedDepartment] = useState('');
+    const [fixedDepartment, setFixedDepartment] = useState<any>(null); // For when coming from church dashboard
     const [transactions, setTransactions] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
     const [stats, setStats] = useState({ income: 0, expense: 0, balance: 0 });
@@ -54,8 +61,54 @@ export default function ReportsPage() {
     useEffect(() => {
         fetchDepartments();
         fetchBaseCurrency();
-        fetchChartData();
-    }, []);
+        if (deptParam) {
+            fetchFixedDepartment();
+            fetchChartDataForDept(deptParam);
+        } else {
+            fetchChartData();
+        }
+    }, [deptParam]);
+
+    // Set default department when user data is loaded
+    useEffect(() => {
+        if (deptParam) {
+            setSelectedDepartment(deptParam);
+        } else if (userDepartmentId && !selectedDepartment) {
+            setSelectedDepartment(userDepartmentId);
+        }
+    }, [userDepartmentId, deptParam]);
+
+    const fetchFixedDepartment = async () => {
+        if (!deptParam) return;
+        try {
+            const response = await fetch(`/api/departments/${deptParam}`);
+            if (response.ok) {
+                const data = await response.json();
+                setFixedDepartment(data);
+            }
+        } catch (error) {
+        }
+    };
+
+    const fetchChartDataForDept = async (deptId: string) => {
+        setChartLoading(true);
+        try {
+            const response = await fetch(`/api/departments/${deptId}/stats`);
+            if (response.ok) {
+                const data = await response.json();
+                if (data.chartData) {
+                    setChartData(data.chartData);
+                }
+                if (data.currency) {
+                    setBaseCurrency({ id: '', code: data.currency.code, symbol: data.currency.symbol });
+                }
+            }
+        } catch (error) {
+            console.error('Error fetching chart data:', error);
+        } finally {
+            setChartLoading(false);
+        }
+    };
 
     // Set default department when user data is loaded
     useEffect(() => {
@@ -91,7 +144,6 @@ export default function ReportsPage() {
                 }
             }
         } catch (error) {
-            console.error('Error fetching user data:', error);
         }
     };
 
@@ -229,10 +281,8 @@ export default function ReportsPage() {
                 try {
                     const errorData = await response.json();
                     errorMessage = errorData.error || errorData.details || 'Unknown error';
-                    console.error('PDF generation failed:', errorData);
                 } catch (parseError) {
                     errorMessage = `Server error: ${response.status} ${response.statusText}`;
-                    console.error('PDF generation failed with status:', response.status, response.statusText);
                 }
                 alert(`Failed to generate PDF: ${errorMessage}`);
                 return;
@@ -242,7 +292,6 @@ export default function ReportsPage() {
             
             // Check if the blob is actually a PDF
             if (blob.type !== 'application/pdf') {
-                console.error('Unexpected response type:', blob.type);
                 alert('Failed to generate PDF: Invalid response format');
                 return;
             }
@@ -256,7 +305,6 @@ export default function ReportsPage() {
             document.body.removeChild(a);
             window.URL.revokeObjectURL(url);
         } catch (error) {
-            console.error('Error downloading PDF:', error);
             alert(`Failed to download PDF: ${error instanceof Error ? error.message : 'Please try again.'}`);
         }
     };
@@ -295,11 +343,13 @@ export default function ReportsPage() {
                         Full Report
                     </Typography>
                     <Typography variant="subtitle2" color="text.secondary" align="center" gutterBottom>
-                        {isLeader 
-                            ? userDepartmentName || 'My Department'
-                            : selectedDepartment 
-                                ? departments.find(d => d.id === selectedDepartment)?.name || 'All Departments'
-                                : 'All Departments'}
+                        {fixedDepartment
+                            ? `${fixedDepartment.name} (${formatDepartmentLevel(fixedDepartment.level)})`
+                            : isLeader 
+                                ? userDepartmentName || 'My Department'
+                                : selectedDepartment 
+                                    ? departments.find(d => d.id === selectedDepartment)?.name || 'All Departments'
+                                    : 'All Departments'}
                     </Typography>
                     {baseCurrency && (
                         <Typography variant="body2" color="text.secondary" align="center" gutterBottom>
@@ -416,12 +466,54 @@ export default function ReportsPage() {
         );
     };
 
+    const handleRefresh = () => {
+        if (deptParam) {
+            fetchFixedDepartment();
+            fetchChartDataForDept(deptParam);
+        } else {
+            fetchChartData();
+        }
+    };
+
     return (
         <Box>
+            {/* Back and Refresh Buttons - show when viewing specific department */}
+            {fixedDepartment && (
+                <Box sx={{ display: 'flex', gap: 1, mb: 2, '@media print': { display: 'none' } }}>
+                    <IconButton 
+                        onClick={() => router.back()}
+                        sx={{ 
+                            color: 'text.secondary',
+                            '&:hover': { color: 'text.primary' }
+                        }}
+                    >
+                        <ArrowBackIcon />
+                    </IconButton>
+                    <IconButton 
+                        onClick={handleRefresh}
+                        sx={{ 
+                            color: 'text.secondary',
+                            '&:hover': { color: 'text.primary' }
+                        }}
+                    >
+                        <RefreshIcon />
+                    </IconButton>
+                </Box>
+            )}
+
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3, '@media print': { display: 'none' } }}>
-                <Typography variant="h4">
-                    Trends
-                </Typography>
+                <Box>
+                    <Typography variant="h4">
+                        {fixedDepartment 
+                            ? `${fixedDepartment.name} ${formatDepartmentLevel(fixedDepartment.level)} Trends`
+                            : 'Trends'}
+                    </Typography>
+                    {fixedDepartment && (
+                        <Typography variant="body2" color="text.secondary">
+                            Financial trends and reports for this church (including sub-churches)
+                        </Typography>
+                    )}
+                </Box>
             </Box>
 
             <Paper
@@ -550,8 +642,8 @@ export default function ReportsPage() {
                             </Box>
 
                             <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start', flexWrap: 'wrap' }}>
-                                {/* Only show department selection for non-leaders with sub-departments */}
-                                {!isLeader && hasSubDepartments && (
+                                {/* Only show department selection when not coming from a specific church and for non-leaders with sub-departments */}
+                                {!fixedDepartment && !isLeader && hasSubDepartments && (
                                     <>
                                         <FormControl sx={{ minWidth: 300 }}>
                                             <InputLabel>Department (Optional)</InputLabel>
@@ -684,5 +776,13 @@ export default function ReportsPage() {
                 </Box>
             )}
         </Box>
+    );
+}
+
+export default function ReportsPage() {
+    return (
+        <Suspense fallback={<Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}><CircularProgress /></Box>}>
+            <ReportsPageContent />
+        </Suspense>
     );
 }

@@ -346,17 +346,12 @@ export async function POST(request: Request) {
                                     to: admin.phone,
                                     message: smsMessage
                                 });
-                                console.log(`SMS sent to campus admin: ${admin.name} (${admin.phone})`);
                             } catch (err) {
-                                console.error(`Failed to send SMS to ${admin.name}:`, err);
                             }
                         }
                     }
-                } else {
-                    console.warn('No campus admins found for department hierarchy:', departmentHierarchy);
                 }
             } catch (smsError) {
-                console.error('Failed to send SMS to campus admin:', smsError);
                 // Don't fail the request if SMS fails
             }
         }
@@ -431,17 +426,12 @@ export async function POST(request: Request) {
                                     to: leader.phone,
                                     message: smsMessage
                                 });
-                                console.log(`Credit alert SMS sent to leader: ${leader.name} (${leader.phone})`);
                             } catch (err) {
-                                console.error(`Failed to send credit alert SMS to ${leader.name}:`, err);
                             }
                         }
                     }
-                } else {
-                    console.warn('No department leaders found for credit alert notification');
                 }
             } catch (smsError) {
-                console.error('Failed to send credit alert SMS to leader:', smsError);
                 // Don't fail the request if SMS fails
             }
         }

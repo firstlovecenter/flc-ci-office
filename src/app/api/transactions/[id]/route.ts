@@ -304,17 +304,12 @@ export async function PATCH(
                                     to: leader.phone,
                                     message: smsMessage
                                 });
-                                console.log(`Transaction charge SMS sent to leader: ${leader.name} (${leader.phone})`);
                             } catch (err) {
-                                console.error(`Failed to send transaction charge SMS to ${leader.name}:`, err);
                             }
                         }
                     }
-                } else {
-                    console.warn('No department leaders found for transaction charge notification');
                 }
             } catch (smsError) {
-                console.error('Failed to send transaction charge SMS to leader:', smsError);
                 // Don't fail the request if SMS fails
             }
         }
@@ -388,7 +383,6 @@ export async function PATCH(
                     message: smsMessage
                 });
             } catch (smsError) {
-                console.error('Failed to send SMS notification:', smsError);
                 // Don't fail the request if SMS fails
             }
         }

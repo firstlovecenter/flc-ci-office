@@ -14,9 +14,13 @@ import {
   Chip,
   CircularProgress,
   Alert,
+  IconButton,
+  Tooltip,
 } from '@mui/material';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import InfoIcon from '@mui/icons-material/Info';
+import DeleteIcon from '@mui/icons-material/Delete';
+import { useSession } from 'next-auth/react';
 
 interface Currency {
   id: string;
@@ -38,10 +42,12 @@ interface NationalDepartment {
 }
 
 export default function BaseCurrenciesAdminPage() {
+  const { data: session, status } = useSession();
   const [departments, setDepartments] = useState<NationalDepartment[]>([]);
   const [systemBase, setSystemBase] = useState<Currency | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchBaseCurrencies();
@@ -64,6 +70,32 @@ export default function BaseCurrenciesAdminPage() {
       setError(err.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDeleteBaseCurrency = async (departmentId: string, departmentName: string) => {
+    if (!confirm(`Are you sure you want to delete the custom base currency for ${departmentName}?\n\nThe department will revert to using the system default currency.`)) {
+      return;
+    }
+
+    try {
+      setDeletingId(departmentId);
+      const response = await fetch(`/api/admin/base-currencies?departmentId=${departmentId}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Failed to delete base currency');
+      }
+
+      // Refresh the list
+      await fetchBaseCurrencies();
+      alert('Base currency deleted successfully');
+    } catch (err: any) {
+      alert(`Error: ${err.message}`);
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -132,6 +164,7 @@ export default function BaseCurrenciesAdminPage() {
               <TableCell>Status</TableCell>
               <TableCell>Set By</TableCell>
               <TableCell>Last Updated</TableCell>
+              <TableCell align="center">Actions</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
@@ -195,6 +228,28 @@ export default function BaseCurrenciesAdminPage() {
                       {new Date(dept.setAt).toLocaleDateString()} at{' '}
                       {new Date(dept.setAt).toLocaleTimeString()}
                     </Typography>
+                  ) : (
+                    <Typography variant="body2" color="text.secondary">
+                      -
+                    </Typography>
+                  )}
+                </TableCell>
+                <TableCell align="center">
+                  {session?.user?.roles?.includes('SUPERADMIN') && dept.isCustom ? (
+                    <Tooltip title="Delete custom base currency (revert to system default)">
+                      <IconButton
+                        size="small"
+                        color="error"
+                        onClick={() => handleDeleteBaseCurrency(dept.departmentId, dept.departmentName)}
+                        disabled={deletingId === dept.departmentId}
+                      >
+                        {deletingId === dept.departmentId ? (
+                          <CircularProgress size={20} />
+                        ) : (
+                          <DeleteIcon fontSize="small" />
+                        )}
+                      </IconButton>
+                    </Tooltip>
                   ) : (
                     <Typography variant="body2" color="text.secondary">
                       -

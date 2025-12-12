@@ -171,3 +171,61 @@ export async function POST(req: NextRequest) {
     );
   }
 }
+
+// DELETE /api/admin/base-currencies - Delete a custom base currency for a national department
+export async function DELETE(req: NextRequest) {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    // Only SUPERADMIN can delete base currencies
+    if (session.user.role !== 'SUPERADMIN') {
+      return NextResponse.json(
+        { error: 'Only super admins can delete base currencies' },
+        { status: 403 }
+      );
+    }
+
+    const { searchParams } = new URL(req.url);
+    const departmentId = searchParams.get('departmentId');
+
+    if (!departmentId) {
+      return NextResponse.json(
+        { error: 'departmentId is required' },
+        { status: 400 }
+      );
+    }
+
+    // Verify department exists and is NATIONAL level
+    const department = await prisma.department.findUnique({
+      where: { id: departmentId },
+    });
+
+    if (!department) {
+      return NextResponse.json({ error: 'Department not found' }, { status: 404 });
+    }
+
+    if (department.level !== 'NATIONAL') {
+      return NextResponse.json(
+        { error: 'Only NATIONAL-level departments can have base currencies' },
+        { status: 400 }
+      );
+    }
+
+    // Delete the department base currency (will revert to system default)
+    await prisma.departmentBaseCurrency.deleteMany({
+      where: { departmentId },
+    });
+
+    return NextResponse.json({
+      message: 'Base currency deleted successfully. Department will now use system default.',
+    });
+  } catch (error) {
+    return NextResponse.json(
+      { error: 'Failed to delete base currency' },
+      { status: 500 }
+    );
+  }
+}

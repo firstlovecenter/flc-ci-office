@@ -125,7 +125,6 @@ export default function ApprovalsPage() {
                 setHistoricalTransactions(history);
             }
         } catch (error) {
-            console.error('Failed to fetch historical transactions');
         } finally {
             setHistoryLoading(false);
         }

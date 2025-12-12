@@ -170,7 +170,6 @@ export default function EditDepartmentDialog({
                 setCurrencies(data);
             }
         } catch (err) {
-            console.error('Failed to fetch currencies:', err);
         } finally {
             setLoading(false);
         }
@@ -186,7 +185,6 @@ export default function EditDepartmentDialog({
                 }
             }
         } catch (err) {
-            console.error('Failed to fetch department currency:', err);
         }
     };
 
@@ -199,7 +197,6 @@ export default function EditDepartmentDialog({
                 setUsers(data);
             }
         } catch (err) {
-            console.error('Failed to fetch users:', err);
         } finally {
             setUsersLoading(false);
         }

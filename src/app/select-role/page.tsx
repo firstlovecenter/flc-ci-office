@@ -95,7 +95,6 @@ export default function SelectRolePage() {
                     }
                 }
             } catch (error) {
-                console.error('Failed to fetch detailed roles', error);
                 // Fallback to session roles
                 if (session.user.roles) {
                     setDetailedRoles(session.user.roles.map(role => ({

@@ -31,22 +31,27 @@ const SidebarContainer = styled(Box, {
 })<{ collapsed?: boolean }>(({ theme, collapsed }) => ({
     width: collapsed ? 80 : 260,
     height: '100vh',
+    // iOS 26 Liquid Glass effect
     background: theme.palette.mode === 'dark'
-        ? 'linear-gradient(180deg, #450A0A 0%, #5A0F0F 50%, #2D0505 100%)'
-        : 'linear-gradient(180deg, #7F1D1D 0%, #991B1B 50%, #5A0F0F 100%)',
+        ? 'linear-gradient(180deg, rgba(69, 10, 10, 0.85) 0%, rgba(90, 15, 15, 0.8) 50%, rgba(45, 5, 5, 0.9) 100%)'
+        : 'linear-gradient(180deg, rgba(127, 29, 29, 0.9) 0%, rgba(153, 27, 27, 0.85) 50%, rgba(90, 15, 15, 0.9) 100%)',
+    backdropFilter: 'blur(40px) saturate(200%)',
+    WebkitBackdropFilter: 'blur(40px) saturate(200%)',
     padding: theme.spacing(2),
     display: 'flex',
     flexDirection: 'column',
     position: 'fixed',
     left: 0,
     top: 0,
-    borderTopRightRadius: 24,
-    borderBottomRightRadius: 24,
+    borderTopRightRadius: 32,
+    borderBottomRightRadius: 32,
     overflow: 'hidden',
+    border: '1px solid rgba(255, 255, 255, 0.1)',
+    borderLeft: 'none',
     boxShadow: theme.palette.mode === 'dark'
-        ? '4px 0 24px rgba(0, 0, 0, 0.5)'
-        : '4px 0 24px rgba(185, 28, 28, 0.15)',
-    transition: 'width 0.3s ease, padding 0.3s ease',
+        ? '4px 0 40px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.1)'
+        : '4px 0 40px rgba(185, 28, 28, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.15)',
+    transition: 'width 0.3s cubic-bezier(0.4, 0, 0.2, 1), padding 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
     [theme.breakpoints.down('md')]: {
         width: collapsed ? 70 : 240,
         padding: theme.spacing(2),
@@ -85,9 +90,18 @@ const MenuLabel = styled(Typography, {
 
 const ToggleButton = styled(IconButton)(({ theme }) => ({
     color: '#FFFFFF',
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    backdropFilter: 'blur(10px)',
+    WebkitBackdropFilter: 'blur(10px)',
+    border: '1px solid rgba(255, 255, 255, 0.1)',
+    boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.1)',
+    transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
     '&:hover': {
-        backgroundColor: 'rgba(255, 255, 255, 0.2)',
+        backgroundColor: 'rgba(255, 255, 255, 0.25)',
+        transform: 'scale(1.05)',
+    },
+    '&:active': {
+        transform: 'scale(0.95)',
     },
     width: 40,
     height: 40,
@@ -97,13 +111,22 @@ const ToggleButton = styled(IconButton)(({ theme }) => ({
 const StyledListItemButton = styled(ListItemButton, {
     shouldForwardProp: (prop) => prop !== 'active',
 })<{ active?: boolean }>(({ theme, active }) => ({
-    borderRadius: 12,
+    borderRadius: 16,
     marginBottom: theme.spacing(0.5),
     padding: theme.spacing(1.25),
     color: active ? '#FFFFFF' : 'rgba(255, 255, 255, 0.7)',
-    backgroundColor: active ? 'rgba(255, 255, 255, 0.15)' : 'transparent',
+    backgroundColor: active ? 'rgba(255, 255, 255, 0.2)' : 'transparent',
+    backdropFilter: active ? 'blur(10px)' : 'none',
+    WebkitBackdropFilter: active ? 'blur(10px)' : 'none',
+    border: active ? '1px solid rgba(255, 255, 255, 0.15)' : '1px solid transparent',
+    boxShadow: active ? 'inset 0 1px 0 rgba(255, 255, 255, 0.1)' : 'none',
+    transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
     '&:hover': {
-        backgroundColor: active ? 'rgba(255, 255, 255, 0.2)' : 'rgba(255, 255, 255, 0.1)',
+        backgroundColor: active ? 'rgba(255, 255, 255, 0.25)' : 'rgba(255, 255, 255, 0.1)',
+        transform: 'translateX(4px)',
+    },
+    '&:active': {
+        transform: 'scale(0.98)',
     },
     '& .MuiListItemIcon-root': {
         color: active ? '#FFFFFF' : 'rgba(255, 255, 255, 0.7)',
@@ -156,7 +179,6 @@ export default function ModernSidebar({ userRole, userName, userImage, pendingCo
                 setCurrencies(data);
             }
         } catch (err) {
-            console.error('Error fetching currencies:', err);
         }
     };
 
@@ -193,7 +215,7 @@ export default function ModernSidebar({ userRole, userName, userImage, pendingCo
 
     const menuItems: MenuItem[] = [
         { text: 'Home', icon: <HomeIcon />, path: '/dashboard' },
-        { text: 'Departments', icon: <BusinessIcon />, path: '/departments' },
+        { text: 'Churches', icon: <BusinessIcon />, path: '/departments' },
         { text: 'Transactions History', icon: <ReceiptIcon />, path: '/transactions' },
         { text: 'Approvals', icon: <PendingActionsIcon />, path: '/approvals', adminOnly: true },
         { text: 'Users', icon: <PeopleIcon />, path: '/users' },

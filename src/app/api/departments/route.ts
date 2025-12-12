@@ -81,6 +81,11 @@ export async function GET(request: Request) {
                             { role: 'NATIONAL_LEADER' },
                             { role: 'INTERNATIONAL_LEADER' },
                             { role: 'GLOBAL_LEADER' },
+                            { role: 'CAMPUS_ADMIN' },
+                            { role: 'REGIONAL_ADMIN' },
+                            { role: 'NATIONAL_ADMIN' },
+                            { role: 'INTERNATIONAL_ADMIN' },
+                            { role: 'GLOBAL_ADMIN' },
                         ],
                     },
                     include: {
@@ -89,10 +94,17 @@ export async function GET(request: Request) {
                                 id: true,
                                 name: true,
                                 email: true,
+                                image: true,
                             },
                         },
                     },
-                    take: 1,
+                },
+                _count: {
+                    select: {
+                        children: true,
+                        userRoles: true,
+                        transactions: true,
+                    },
                 },
             },
         });
@@ -284,7 +296,6 @@ export async function POST(request: Request) {
                     message: smsMessage,
                 });
             } catch (smsError) {
-                console.error('Failed to send SMS to leader:', smsError);
                 // Don't fail the request if SMS fails
             }
         }
@@ -347,7 +358,6 @@ export async function POST(request: Request) {
                             message: smsMessage,
                         });
                     } catch (smsError) {
-                        console.error('Failed to send SMS to admin:', smsError);
                     }
                 }
             }
@@ -367,7 +377,6 @@ export async function POST(request: Request) {
 
         return NextResponse.json(department);
     } catch (error) {
-        console.error('Failed to create department:', error);
         return new NextResponse('Internal Error', { status: 500 });
     }
 }

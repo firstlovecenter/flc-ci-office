@@ -174,7 +174,6 @@ export default function ProfilePage() {
             
             setSuccess('Profile picture updated successfully!');
         } catch (err: any) {
-            console.error('Upload error:', err);
             setError(err.message || 'Failed to upload image');
         } finally {
             setUploading(false);

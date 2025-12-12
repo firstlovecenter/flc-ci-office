@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, Suspense, useCallback, useMemo } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import {
     Box,
     Typography,
@@ -33,6 +33,8 @@ import AttachFileIcon from '@mui/icons-material/AttachFile';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import CancelIcon from '@mui/icons-material/Cancel';
 import EditNoteIcon from '@mui/icons-material/EditNote';
+import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+import RefreshIcon from '@mui/icons-material/Refresh';
 import Link from 'next/link';
 import { formatCurrency, formatDepartmentLevel } from '@/lib/utils';
 import { useSession } from 'next-auth/react';
@@ -84,6 +86,7 @@ type TransactionWithDetails = Transaction & {
 };
 
 function TransactionsPageContent() {
+    const router = useRouter();
     const [transactions, setTransactions] = useState<TransactionWithDetails[]>([]);
     const [filteredTransactions, setFilteredTransactions] = useState<TransactionWithDetails[]>([]);
     const [baseCurrency, setBaseCurrency] = useState<{ id: string; code: string; symbol: string } | null>(null);
@@ -138,7 +141,6 @@ function TransactionsPageContent() {
                 setCurrencies(data);
             }
         } catch (error) {
-            console.error('Error fetching currencies:', error);
         }
     };
 
@@ -179,7 +181,6 @@ function TransactionsPageContent() {
                 }
             }
         } catch (error) {
-            console.error('Error fetching base currency:', error);
         }
     };
 
@@ -200,7 +201,6 @@ function TransactionsPageContent() {
                 await fetchTransactions();
             }
         } catch (error) {
-            console.error('Error updating base currency:', error);
         }
     };
 
@@ -213,7 +213,6 @@ function TransactionsPageContent() {
                 setDepartment(data);
             }
         } catch (error) {
-            console.error('Error fetching department:', error);
         }
     };
 
@@ -237,7 +236,6 @@ function TransactionsPageContent() {
                 setTransactions(data);
             }
         } catch (error) {
-            console.error('Error fetching transactions:', error);
         } finally {
             setLoading(false);
         }
@@ -313,8 +311,37 @@ function TransactionsPageContent() {
         .filter((tx) => tx.type === 'EXPENSE' && tx.status === 'APPROVED')
         .reduce((sum, tx) => sum + Number(tx.amountInBase || tx.amount), 0);
 
+    const handleRefresh = () => {
+        fetchTransactions();
+        if (deptParam) fetchDepartment();
+    };
+
     return (
         <Box>
+            {/* Back and Refresh Buttons - show when viewing specific department */}
+            {deptParam && (
+                <Box sx={{ display: 'flex', gap: 1, mb: 2 }}>
+                    <IconButton 
+                        onClick={() => router.back()}
+                        sx={{ 
+                            color: 'text.secondary',
+                            '&:hover': { color: 'text.primary' }
+                        }}
+                    >
+                        <ArrowBackIcon />
+                    </IconButton>
+                    <IconButton 
+                        onClick={handleRefresh}
+                        sx={{ 
+                            color: 'text.secondary',
+                            '&:hover': { color: 'text.primary' }
+                        }}
+                    >
+                        <RefreshIcon />
+                    </IconButton>
+                </Box>
+            )}
+
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4 }}>
                 <Box>
                     <Typography variant="h4" fontWeight="700">

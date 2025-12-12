@@ -195,7 +195,6 @@ export async function POST(
             affectedUsers: affectedUsers.length,
         });
     } catch (error) {
-        console.error('Error closing department:', error);
         return NextResponse.json(
             { error: 'Failed to close department' },
             { status: 500 }
@@ -283,7 +282,6 @@ export async function GET(
             blockers,
         });
     } catch (error) {
-        console.error('Error checking department closure:', error);
         return NextResponse.json(
             { error: 'Failed to check department' },
             { status: 500 }

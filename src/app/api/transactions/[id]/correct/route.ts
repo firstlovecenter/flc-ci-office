@@ -186,7 +186,6 @@ export async function POST(
                 });
             }
         } catch (smsError) {
-            console.error('Failed to send SMS notification:', smsError);
             // Don't fail the request if SMS fails
         }
 
@@ -197,7 +196,6 @@ export async function POST(
             message: `Correction transaction created successfully. ${correctionType === 'INCOME' ? 'Credited' : 'Debited'} ${formatCurrency(absoluteCorrectionAmount, originalTransaction.currency?.code, originalTransaction.currency?.symbol)}`,
         });
     } catch (error) {
-        console.error('Error creating correction transaction:', error);
         return NextResponse.json(
             { error: 'Failed to create correction transaction' },
             { status: 500 }

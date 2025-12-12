@@ -105,48 +105,77 @@ export const getDesignTokens = (mode: PaletteMode) => ({
             styleOverrides: {
                 root: {
                     textTransform: 'none',
-                    borderRadius: 8,
+                    borderRadius: 14,
                     fontWeight: 600,
+                    transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                    '&:active': {
+                        transform: 'scale(0.97)',
+                    },
                 },
                 contained: {
+                    backdropFilter: 'blur(10px)',
+                    WebkitBackdropFilter: 'blur(10px)',
                     boxShadow: mode === 'dark' 
-                        ? '0 4px 14px 0 rgba(255, 182, 193, 0.4)'
-                        : '0 2px 8px 0 rgba(255, 182, 193, 0.5)',
+                        ? '0 4px 14px 0 rgba(255, 182, 193, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.2)'
+                        : '0 4px 14px 0 rgba(255, 182, 193, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.4)',
                     '&:hover': {
+                        transform: 'translateY(-1px)',
                         boxShadow: mode === 'dark'
-                            ? '0 6px 20px 0 rgba(255, 182, 193, 0.5)'
-                            : '0 4px 12px 0 rgba(255, 182, 193, 0.6)',
+                            ? '0 6px 20px 0 rgba(255, 182, 193, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.25)'
+                            : '0 6px 20px 0 rgba(255, 182, 193, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.5)',
                     },
+                },
+                outlined: {
+                    backdropFilter: 'blur(10px)',
+                    WebkitBackdropFilter: 'blur(10px)',
+                    backgroundColor: mode === 'dark' 
+                        ? 'rgba(255, 255, 255, 0.05)' 
+                        : 'rgba(255, 255, 255, 0.4)',
                 },
             },
         },
         MuiPaper: {
             styleOverrides: {
                 root: {
-                    borderRadius: 12,
+                    borderRadius: 20,
                     backgroundImage: 'none',
-                    backgroundColor: mode === 'dark' ? '#334155' : '#ffffff', // Slate-700 : White
+                    backgroundColor: mode === 'dark' 
+                        ? 'rgba(51, 65, 85, 0.7)' 
+                        : 'rgba(255, 255, 255, 0.7)',
+                    backdropFilter: 'blur(20px) saturate(180%)',
+                    WebkitBackdropFilter: 'blur(20px) saturate(180%)',
                     border: mode === 'dark'
-                        ? '1px solid rgba(255, 255, 255, 0.1)'
-                        : '1px solid rgba(0, 0, 0, 0.06)',
+                        ? '1px solid rgba(255, 255, 255, 0.15)'
+                        : '1px solid rgba(255, 255, 255, 0.5)',
                     boxShadow: mode === 'dark'
-                        ? '0 2px 4px -1px rgba(0, 0, 0, 0.3)'
-                        : '0 1px 3px 0 rgba(0, 0, 0, 0.1)',
+                        ? '0 8px 32px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.1)'
+                        : '0 8px 32px rgba(0, 0, 0, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.8)',
                 },
             },
         },
         MuiCard: {
             styleOverrides: {
                 root: {
-                    borderRadius: 12,
+                    borderRadius: 20,
                     backgroundImage: 'none',
-                    backgroundColor: mode === 'dark' ? '#334155' : '#ffffff', // Slate-700 : White
+                    backgroundColor: mode === 'dark' 
+                        ? 'rgba(51, 65, 85, 0.6)' 
+                        : 'rgba(255, 255, 255, 0.6)',
+                    backdropFilter: 'blur(20px) saturate(180%)',
+                    WebkitBackdropFilter: 'blur(20px) saturate(180%)',
                     border: mode === 'dark'
-                        ? '1px solid rgba(255, 255, 255, 0.1)'
-                        : '1px solid rgba(0, 0, 0, 0.06)',
+                        ? '1px solid rgba(255, 255, 255, 0.12)'
+                        : '1px solid rgba(255, 255, 255, 0.5)',
                     boxShadow: mode === 'dark'
-                        ? '0 2px 4px -1px rgba(0, 0, 0, 0.3)'
-                        : '0 1px 3px 0 rgba(0, 0, 0, 0.1)',
+                        ? '0 8px 32px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.08)'
+                        : '0 8px 32px rgba(0, 0, 0, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.8)',
+                    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                    '&:hover': {
+                        transform: 'translateY(-2px)',
+                        boxShadow: mode === 'dark'
+                            ? '0 12px 40px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.1)'
+                            : '0 12px 40px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.9)',
+                    },
                 },
             },
         },
@@ -154,13 +183,28 @@ export const getDesignTokens = (mode: PaletteMode) => ({
             styleOverrides: {
                 root: {
                     '& .MuiOutlinedInput-root': {
-                        borderRadius: 8,
-                        backgroundColor: mode === 'dark' ? 'rgba(255, 255, 255, 0.05)' : '#f8fafc',
+                        borderRadius: 14,
+                        backgroundColor: mode === 'dark' 
+                            ? 'rgba(255, 255, 255, 0.08)' 
+                            : 'rgba(255, 255, 255, 0.6)',
+                        backdropFilter: 'blur(10px)',
+                        WebkitBackdropFilter: 'blur(10px)',
+                        transition: 'all 0.2s ease',
                         '& fieldset': {
-                            borderColor: mode === 'dark' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)',
+                            borderColor: mode === 'dark' 
+                                ? 'rgba(255, 255, 255, 0.12)' 
+                                : 'rgba(0, 0, 0, 0.08)',
+                            borderWidth: 1,
                         },
                         '&:hover fieldset': {
-                            borderColor: mode === 'dark' ? 'rgba(255, 255, 255, 0.2)' : 'rgba(0, 0, 0, 0.2)',
+                            borderColor: mode === 'dark' 
+                                ? 'rgba(255, 255, 255, 0.25)' 
+                                : 'rgba(0, 0, 0, 0.15)',
+                        },
+                        '&.Mui-focused': {
+                            backgroundColor: mode === 'dark' 
+                                ? 'rgba(255, 255, 255, 0.12)' 
+                                : 'rgba(255, 255, 255, 0.8)',
                         },
                     },
                 },
@@ -196,8 +240,19 @@ export const getDesignTokens = (mode: PaletteMode) => ({
         MuiDialog: {
             styleOverrides: {
                 paper: {
-                    backgroundColor: mode === 'dark' ? '#334155' : '#ffffff',
+                    backgroundColor: mode === 'dark' 
+                        ? 'rgba(51, 65, 85, 0.85)' 
+                        : 'rgba(255, 255, 255, 0.85)',
                     backgroundImage: 'none',
+                    backdropFilter: 'blur(40px) saturate(200%)',
+                    WebkitBackdropFilter: 'blur(40px) saturate(200%)',
+                    borderRadius: 24,
+                    border: mode === 'dark'
+                        ? '1px solid rgba(255, 255, 255, 0.15)'
+                        : '1px solid rgba(255, 255, 255, 0.6)',
+                    boxShadow: mode === 'dark'
+                        ? '0 24px 80px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.1)'
+                        : '0 24px 80px rgba(0, 0, 0, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.9)',
                 },
             },
         },

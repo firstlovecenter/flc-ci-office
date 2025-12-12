@@ -82,13 +82,16 @@ export default function ModernDashboardLayout({ children }: { children: React.Re
                 setPendingCounts(data);
             }
         } catch (error) {
-            console.error('Error fetching pending counts:', error);
         }
     };
 
+    const isSuperAdmin = session?.user?.role === 'SUPERADMIN';
+    
     const mobileNavItems = [
         { text: 'Home', icon: <HomeIcon />, path: '/dashboard' },
-        { text: 'Request', icon: <AddCircleOutlineIcon />, path: '/transactions/new' },
+        isSuperAdmin 
+            ? { text: 'Churches', icon: <BusinessIcon />, path: '/departments' }
+            : { text: 'Request', icon: <AddCircleOutlineIcon />, path: '/transactions/new' },
         { text: 'History', icon: <ReceiptIcon />, path: '/transactions', badge: pendingCounts.transactions },
         { text: 'Users', icon: <PeopleIcon />, path: '/users' },
         { text: 'Logout', icon: <LogoutIcon />, path: '/logout', isAction: true },
@@ -184,10 +187,15 @@ export default function ModernDashboardLayout({ children }: { children: React.Re
                         left: 0,
                         right: 0,
                         zIndex: theme.zIndex.appBar,
-                        borderTop: '1px solid',
-                        borderColor: 'divider',
+                        // iOS 26 Liquid Glass effect
+                        background: 'rgba(30, 41, 59, 0.7)',
+                        backdropFilter: 'blur(40px) saturate(180%)',
+                        WebkitBackdropFilter: 'blur(40px) saturate(180%)',
+                        borderTop: '1px solid rgba(255, 255, 255, 0.1)',
+                        borderRadius: '24px 24px 0 0',
+                        boxShadow: '0 -8px 32px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.08)',
                     }}
-                    elevation={3}
+                    elevation={0}
                 >
                     <BottomNavigation
                         value={pathname}
@@ -201,10 +209,20 @@ export default function ModernDashboardLayout({ children }: { children: React.Re
                         showLabels
                         sx={{
                             height: 80,
+                            backgroundColor: 'transparent',
                             '& .MuiBottomNavigationAction-root': {
                                 minWidth: 'auto',
                                 px: 1,
                                 py: 1.5,
+                                transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                                '&:active': {
+                                    transform: 'scale(0.95)',
+                                },
+                                '&.Mui-selected': {
+                                    '& .MuiSvgIcon-root': {
+                                        filter: 'drop-shadow(0 0 8px rgba(255, 182, 193, 0.5))',
+                                    },
+                                },
                             },
                             '& .MuiBottomNavigationAction-label': {
                                 fontSize: '0.875rem',

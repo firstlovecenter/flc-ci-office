@@ -8,42 +8,15 @@ import {
     DialogActions,
     Button,
     TextField,
-    MenuItem,
-    FormControl,
-    InputLabel,
-    Select,
     Alert,
-    Chip,
     Box,
-    IconButton,
     Stack,
     Typography,
     Avatar,
     CircularProgress,
 } from '@mui/material';
-import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
-import PhotoCameraIcon from '@mui/icons-material/PhotoCamera';
 import { useSession } from 'next-auth/react';
-import { getAssignableRoles, getDepartmentLevelForRole } from '@/lib/roles';
-import { formatRole, formatDepartmentLevel } from '@/lib/utils';
-
-type UserRole = 
-    | 'SUPERADMIN'
-    | 'GLOBAL_ADMIN'
-    | 'INTERNATIONAL_ADMIN'
-    | 'NATIONAL_ADMIN'
-    | 'REGIONAL_ADMIN'
-    | 'CAMPUS_ADMIN'
-    | 'STREAM_ADMIN'
-    | 'COUNCIL_ADMIN'
-    | 'GLOBAL_LEADER'
-    | 'INTERNATIONAL_LEADER'
-    | 'NATIONAL_LEADER'
-    | 'REGIONAL_LEADER'
-    | 'CAMPUS_LEADER'
-    | 'STREAM_LEADER'
-    | 'COUNCIL_LEADER';
 
 interface EditUserDialogProps {
     open: boolean;
@@ -52,18 +25,11 @@ interface EditUserDialogProps {
     departments?: any[];
     onSave?: () => void;
     onSuccess?: () => void;
+    onDelete?: (id: string) => Promise<void>;
+    onArchive?: (user: any) => Promise<void>;
+    currentUserId?: string;
+    currentUserRole?: string;
 }
-
-const USER_ROLES: UserRole[] = [
-    'SUPERADMIN',
-    'GLOBAL_ADMIN',
-    'INTERNATIONAL_ADMIN',
-    'NATIONAL_ADMIN',
-    'REGIONAL_ADMIN',
-    'CAMPUS_ADMIN',
-    'STREAM_LEADER',
-    'COUNCIL_LEADER',
-];
 
 export default function EditUserDialog({
     open,
@@ -72,6 +38,10 @@ export default function EditUserDialog({
     departments: departmentsProp,
     onSave,
     onSuccess,
+    onDelete,
+    onArchive,
+    currentUserId,
+    currentUserRole,
 }: EditUserDialogProps) {
     const { data: session } = useSession();
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -81,13 +51,10 @@ export default function EditUserDialog({
     const [phone, setPhone] = useState('');
     const [image, setImage] = useState('');
     const [uploading, setUploading] = useState(false);
-    const [roleDepartmentPairs, setRoleDepartmentPairs] = useState<Array<{ role: string; departmentId: string }>>([]);
-    const [newRole, setNewRole] = useState('');
-    const [newDepartment, setNewDepartment] = useState('');
+    const [deleting, setDeleting] = useState(false);
+    const [archiving, setArchiving] = useState(false);
     const [error, setError] = useState('');
     const [saving, setSaving] = useState(false);
-    const [assignableRoles, setAssignableRoles] = useState<string[]>([]);
-    const [departments, setDepartments] = useState<any[]>(departmentsProp || []);
 
     useEffect(() => {
         if (user) {
@@ -96,90 +63,49 @@ export default function EditUserDialog({
             setEmail(user.email);
             setPhone(user.phone || '');
             setImage(user.image || '');
-            
-            // Load existing role-department pairs from userRoles relation
-            if (user.userRoles && user.userRoles.length > 0) {
-                setRoleDepartmentPairs(
-                    user.userRoles.map((ur: any) => ({
-                        role: ur.role,
-                        departmentId: ur.departmentId
-                    }))
-                );
-            } else if (user.departmentId && user.roles && user.roles.length > 0) {
-                // Fallback: convert old format to role-department pairs
-                setRoleDepartmentPairs(
-                    user.roles.map((role: string) => ({
-                        role,
-                        departmentId: user.departmentId
-                    }))
-                );
-            } else {
-                setRoleDepartmentPairs([]);
-            }
         }
     }, [user]);
 
-    useEffect(() => {
-        // Get roles that current admin can assign
-        if (session?.user?.role) {
-            const roles = getAssignableRoles(session.user.role);
-            setAssignableRoles(roles);
-        }
-    }, [session]);
 
-    useEffect(() => {
-        // Update departments when prop changes or fetch if not provided
-        if (departmentsProp) {
-            setDepartments(departmentsProp);
-        } else if (open) {
-            const fetchDepartments = async () => {
-                try {
-                    const response = await fetch('/api/departments?all=true');
-                    if (response.ok) {
-                        const data = await response.json();
-                        setDepartments(data);
-                    }
-                } catch (err) {
-                    console.error('Failed to fetch departments:', err);
-                }
-            };
-            fetchDepartments();
-        }
-    }, [departmentsProp, open]);
 
-    const handleAddRoleDepartment = () => {
-        if (!newRole) {
-            setError('Please select a role');
+    const handleDeleteUser = async () => {
+        if (!user?.id || !onDelete) return;
+        
+        if (!confirm('Are you sure you want to permanently delete this user? This action cannot be undone.')) {
             return;
         }
-        if (!newDepartment) {
-            setError('Please select a department');
-            return;
+
+        setDeleting(true);
+        try {
+            await onDelete(user.id);
+            onClose();
+        } catch (error: any) {
+            setError(error.message || 'Failed to delete user');
+        } finally {
+            setDeleting(false);
         }
-        
-        // Check if this combination already exists
-        const exists = roleDepartmentPairs.some(
-            pair => pair.role === newRole && pair.departmentId === newDepartment
-        );
-        
-        if (exists) {
-            setError('This role-department combination already exists');
-            return;
-        }
-        
-        setRoleDepartmentPairs([...roleDepartmentPairs, { role: newRole, departmentId: newDepartment }]);
-        setNewRole('');
-        setNewDepartment('');
-        setError('');
     };
 
-    const handleRemoveRoleDepartment = (index: number) => {
-        if (roleDepartmentPairs.length > 1) {
-            setRoleDepartmentPairs(roleDepartmentPairs.filter((_, i) => i !== index));
-        } else {
-            setError('User must have at least one role-department assignment');
+    const handleArchiveUser = async () => {
+        if (!user || !onArchive) return;
+        
+        const action = user.archived ? 'unarchive' : 'archive';
+        if (!confirm(`Are you sure you want to ${action} this user?`)) {
+            return;
+        }
+
+        setArchiving(true);
+        try {
+            await onArchive(user);
+            onClose();
+        } catch (error: any) {
+            setError(error.message || `Failed to ${action} user`);
+        } finally {
+            setArchiving(false);
         }
     };
+
+
 
     const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -242,11 +168,6 @@ export default function EditUserDialog({
             return;
         }
 
-        if (roleDepartmentPairs.length === 0) {
-            setError('At least one role-department assignment is required');
-            return;
-        }
-
         setSaving(true);
         setError('');
 
@@ -257,7 +178,6 @@ export default function EditUserDialog({
                 email,
                 phone: phone.trim(),
                 image: image || null,
-                roleDepartmentPairs,
             };
 
             const response = await fetch(`/api/users/${user.id}`, {
@@ -290,9 +210,14 @@ export default function EditUserDialog({
         }
     };
 
+    const userId = currentUserId || session?.user?.id;
+    const userRole = currentUserRole || session?.user?.role;
+    const canDelete = userRole === 'SUPERADMIN' && user?.id !== userId;
+    const canArchive = user?.id !== userId;
+
     return (
         <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
-            <DialogTitle>Edit User</DialogTitle>
+            <DialogTitle sx={{ textAlign: 'center', color: 'primary.main' }}>Edit User Details</DialogTitle>
             <DialogContent>
                 {error && (
                     <Alert severity="error" sx={{ mb: 2 }}>
@@ -301,15 +226,17 @@ export default function EditUserDialog({
                 )}
 
                 {/* Profile Picture Upload */}
-                <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2, mb: 3 }}>
-                    <Box sx={{ position: 'relative' }}>
+                <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', mt: 2, mb: 3 }}>
+                    <Box sx={{ position: 'relative', mb: 2 }}>
                         <Avatar
                             src={image || undefined}
                             sx={{
-                                width: 100,
-                                height: 100,
+                                width: 140,
+                                height: 140,
                                 bgcolor: 'primary.main',
-                                fontSize: '2.5rem',
+                                fontSize: '3.5rem',
+                                border: '4px solid',
+                                borderColor: 'divider',
                             }}
                         >
                             {name?.[0]?.toUpperCase() || 'U'}
@@ -321,27 +248,54 @@ export default function EditUserDialog({
                             accept="image/*"
                             style={{ display: 'none' }}
                         />
-                        <IconButton
-                            sx={{
-                                position: 'absolute',
-                                bottom: 0,
-                                right: 0,
-                                bgcolor: 'background.paper',
-                                boxShadow: 1,
-                                '&:hover': { bgcolor: 'background.paper' },
-                            }}
-                            size="small"
-                            onClick={() => fileInputRef.current?.click()}
-                            disabled={uploading}
-                        >
-                            {uploading ? (
-                                <CircularProgress size={20} />
-                            ) : (
-                                <PhotoCameraIcon fontSize="small" />
-                            )}
-                        </IconButton>
                     </Box>
+                    <Button
+                        variant="contained"
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={uploading}
+                        startIcon={uploading ? <CircularProgress size={16} color="inherit" /> : null}
+                        sx={{ borderRadius: 2 }}
+                    >
+                        {uploading ? 'Uploading...' : 'Upload New Picture'}
+                    </Button>
                 </Box>
+
+                {/* Action Buttons - Delete and Archive */}
+                {(canDelete || canArchive) && (
+                    <Stack spacing={1} sx={{ mb: 3 }}>
+                        {canArchive && onArchive && (
+                            <Button
+                                fullWidth
+                                variant="outlined"
+                                color={user?.archived ? 'success' : 'warning'}
+                                onClick={handleArchiveUser}
+                                disabled={archiving || saving || deleting}
+                                startIcon={archiving ? <CircularProgress size={16} /> : null}
+                            >
+                                {archiving 
+                                    ? (user?.archived ? 'Unarchiving...' : 'Archiving...') 
+                                    : (user?.archived ? 'Unarchive User' : 'Archive User')
+                                }
+                            </Button>
+                        )}
+                        {canDelete && onDelete && (
+                            <Button
+                                fullWidth
+                                variant="contained"
+                                color="error"
+                                onClick={handleDeleteUser}
+                                disabled={deleting || saving || archiving}
+                                startIcon={deleting ? <CircularProgress size={16} color="inherit" /> : <DeleteIcon />}
+                            >
+                                {deleting ? 'Deleting...' : 'Delete User'}
+                            </Button>
+                        )}
+                    </Stack>
+                )}
+
+                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', textAlign: 'center', mb: 2 }}>
+                    Please note that * are required to submit the form
+                </Typography>
 
                 <TextField
                     fullWidth
@@ -354,7 +308,7 @@ export default function EditUserDialog({
 
                 <TextField
                     fullWidth
-                    label="Name"
+                    label="Name *"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     sx={{ mb: 2 }}
@@ -362,7 +316,7 @@ export default function EditUserDialog({
 
                 <TextField
                     fullWidth
-                    label="Email"
+                    label="Email *"
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
@@ -373,7 +327,7 @@ export default function EditUserDialog({
 
                 <TextField
                     fullWidth
-                    label="Phone Number"
+                    label="Phone Number *"
                     placeholder="e.g., 0241234567 or 233241234567"
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
@@ -381,77 +335,6 @@ export default function EditUserDialog({
                     required
                     helperText="Required for SMS notifications (password reset, role assignments)"
                 />
-
-                <Box sx={{ mb: 2, mt: 2 }}>
-                    <Typography variant="subtitle2" gutterBottom>
-                        Role-Department Assignments
-                    </Typography>
-                    
-                    {roleDepartmentPairs.length > 0 && (
-                        <Stack direction="row" spacing={1} flexWrap="wrap" sx={{ mb: 2 }}>
-                            {roleDepartmentPairs.map((pair, index) => {
-                                const dept = departments.find(d => d.id === pair.departmentId);
-                                return (
-                                    <Chip
-                                        key={index}
-                                        label={`${formatRole(pair.role)} - ${dept?.name || 'Unknown'}`}
-                                        onDelete={() => handleRemoveRoleDepartment(index)}
-                                        color="primary"
-                                        sx={{ mb: 1 }}
-                                    />
-                                );
-                            })}
-                        </Stack>
-                    )}
-                    
-                    <Stack direction="row" spacing={1} alignItems="center">
-                        <FormControl size="small" sx={{ flex: 1 }}>
-                            <InputLabel>Role</InputLabel>
-                            <Select
-                                value={newRole}
-                                label="Role"
-                                onChange={(e) => {
-                                    setNewRole(e.target.value);
-                                    setNewDepartment(''); // Reset department when role changes
-                                }}
-                            >
-                                {assignableRoles.map((r) => (
-                                    <MenuItem key={r} value={r}>
-                                        {formatRole(r)}
-                                    </MenuItem>
-                                ))}
-                            </Select>
-                        </FormControl>
-                        <FormControl size="small" sx={{ flex: 1 }}>
-                            <InputLabel>Department</InputLabel>
-                            <Select
-                                value={newDepartment}
-                                label="Department"
-                                onChange={(e) => setNewDepartment(e.target.value)}
-                                disabled={!newRole}
-                            >
-                                {departments
-                                    .filter((dept) => {
-                                        if (!newRole) return false;
-                                        const requiredLevel = getDepartmentLevelForRole(newRole);
-                                        return requiredLevel ? dept.level === requiredLevel : true;
-                                    })
-                                    .map((dept) => (
-                                        <MenuItem key={dept.id} value={dept.id}>
-                                            {dept.name} ({formatDepartmentLevel(dept.level)})
-                                        </MenuItem>
-                                    ))}
-                            </Select>
-                        </FormControl>
-                        <IconButton
-                            onClick={handleAddRoleDepartment}
-                            color="primary"
-                            disabled={!newRole || !newDepartment}
-                        >
-                            <AddIcon />
-                        </IconButton>
-                    </Stack>
-                </Box>
             </DialogContent>
             <DialogActions>
                 <Button onClick={onClose} disabled={saving}>
