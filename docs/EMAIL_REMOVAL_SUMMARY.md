@@ -57,15 +57,16 @@ No email API keys in `.env`:
 - ❌ No MAILJET_*
 - ❌ No RESEND_*
 - ❌ No MAILERSEND_*
-- ✅ Only `MNOTIFY_API_KEY` and `MNOTIFY_SENDER_ID`
+- ✅ Only `SMSOPTICS_API_KEY` and `SMSOPTICS_SENDER_ID`
 
 ## Current SMS Configuration
 
-**Provider**: mNotify (Ghana SMS Gateway)
+**Provider**: SMSOptics (Ghana SMS Gateway)
+**API Documentation**: https://bms.codeslaw.dev/docs/
 **Environment Variables**:
 ```env
-MNOTIFY_API_KEY="IzlIz2VcSl1EcYwNSarKbmhKc"
-MNOTIFY_SENDER_ID="CODESLAW"
+SMSOPTICS_API_KEY="your_api_key_here"
+SMSOPTICS_SENDER_ID="CI-OFFICE"
 ```
 
 **SMS Templates** (in `src/lib/sms-templates.ts`):
@@ -87,7 +88,7 @@ All users MUST have a phone number (made compulsory in previous update):
 
 ## Important Notes
 
-⚠️ **SMS-Only System**: No fallback to email if SMS fails. Make sure mNotify API key is valid and account has sufficient credits.
+⚠️ **SMS-Only System**: No fallback to email if SMS fails. Make sure SMSOptics API key is valid and account has sufficient credits.
 
 ⚠️ **Placeholder Phone Numbers**: 6 existing users have placeholder phones (233000xxxxxx). These users need to update their phone numbers to receive notifications.
 
@@ -111,7 +112,7 @@ All users MUST have a phone number (made compulsory in previous update):
 3. Department alerts (configurable SMS alerts)
 4. Weekly/monthly financial summaries (SMS digest)
 
-**Cost Consideration**: SMS has per-message costs. Monitor mNotify usage and implement:
+**Cost Consideration**: SMS has per-message costs. Monitor SMSOptics usage and implement:
 - Message batching
 - Rate limiting
 - User notification preferences

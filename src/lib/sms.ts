@@ -1,88 +1,156 @@
-import axios from 'axios';
+/**
+ * SMSOptics SMS Service
+ * API Documentation: https://bms.codeslaw.dev/docs/
+ */
+
+const SMSOPTICS_BASE_URL = 'https://bms.codeslaw.dev/api/v1';
 
 /**
  * Check if SMS service is properly configured
  */
 export function isSmsConfigured(): boolean {
-  return !!process.env.MNOTIFY_API_KEY;
+  return !!process.env.SMSOPTICS_API_KEY;
 }
 
 export interface SmsOptions {
-  to: string; // Phone number in format: 233XXXXXXXXX
+  to: string; // Phone number in format: 0XXXXXXXXX or 233XXXXXXXXX
   message: string;
 }
 
+export interface SmsResponse {
+  success: boolean;
+  data?: {
+    messageId: string;
+    recipientsSent: number;
+    invalidRecipients: string[];
+    creditsUsed: number;
+    remainingCredits: number;
+  };
+  error?: string;
+}
+
 /**
- * Send SMS using mNotify
+ * Send SMS using SMSOptics
  */
 export async function sendSms(options: SmsOptions): Promise<boolean> {
   try {
     if (!isSmsConfigured()) {
+      console.error('SMSOptics API key not configured');
       return false;
     }
 
-    const apiKey = process.env.MNOTIFY_API_KEY;
-    const senderId = process.env.MNOTIFY_SENDER_ID;
+    const apiKey = process.env.SMSOPTICS_API_KEY;
+    const senderId = process.env.SMSOPTICS_SENDER_ID || 'SMSOptics';
 
-    // Build request body EXACTLY as docs show - recipient array, sender, message, schedule fields
-    const requestBody = {
-      recipient: Array.isArray(options.to) ? options.to : [options.to],
-      sender: senderId,
-      message: options.message,
-      is_schedule: false,
-      schedule_date: ''
-    };
+    const response = await fetch(`${SMSOPTICS_BASE_URL}/sms/send`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        recipients: [formatGhanaPhone(options.to)],
+        message: options.message,
+        senderId: senderId,
+      }),
+    });
 
-    // mNotify API endpoint - key as URL parameter as shown in docs
-    const response = await axios.post(
-      `https://api.mnotify.com/api/sms/quick?key=${apiKey}`,
-      requestBody,
-      {
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      }
-    );
+    const data: SmsResponse = await response.json();
 
-    if (response.data.code === '2000' || response.data.status === 'success') {
+    if (data.success && data.data && data.data.recipientsSent > 0) {
       return true;
     } else {
+      console.error('SMSOptics send failed:', data.error || 'Unknown error');
       return false;
     }
   } catch (error: any) {
+    console.error('SMSOptics error:', error.message);
     return false;
   }
 }
 
 /**
- * Send bulk SMS to multiple recipients
+ * Send bulk SMS to multiple recipients (more efficient - single API call)
  */
 export async function sendBulkSms(
   recipients: string[],
   message: string
 ): Promise<{ sent: number; failed: number }> {
-  let sent = 0;
-  let failed = 0;
+  try {
+    if (!isSmsConfigured()) {
+      console.error('SMSOptics API key not configured');
+      return { sent: 0, failed: recipients.length };
+    }
 
-  for (const recipient of recipients) {
-    const success = await sendSms({
-      to: recipient,
-      message,
+    const apiKey = process.env.SMSOPTICS_API_KEY;
+    const senderId = process.env.SMSOPTICS_SENDER_ID || 'SMSOptics';
+
+    // Format all phone numbers
+    const formattedRecipients = recipients.map(formatGhanaPhone);
+
+    const response = await fetch(`${SMSOPTICS_BASE_URL}/sms/send`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        recipients: formattedRecipients,
+        message: message,
+        senderId: senderId,
+      }),
     });
 
-    if (success) {
-      sent++;
-    } else {
-      failed++;
-    }
-  }
+    const data: SmsResponse = await response.json();
 
-  return { sent, failed };
+    if (data.success && data.data) {
+      return {
+        sent: data.data.recipientsSent,
+        failed: data.data.invalidRecipients.length,
+      };
+    } else {
+      console.error('SMSOptics bulk send failed:', data.error || 'Unknown error');
+      return { sent: 0, failed: recipients.length };
+    }
+  } catch (error: any) {
+    console.error('SMSOptics bulk error:', error.message);
+    return { sent: 0, failed: recipients.length };
+  }
 }
 
 /**
- * Format phone number for Ghana (add country code if missing)
- * mNotify docs show local format: 0241234567 (with leading 0)
+ * Check SMS credit balance
+ */
+export async function checkSmsBalance(): Promise<number | null> {
+  try {
+    if (!isSmsConfigured()) {
+      return null;
+    }
+
+    const apiKey = process.env.SMSOPTICS_API_KEY;
+
+    const response = await fetch(`${SMSOPTICS_BASE_URL}/balance`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+      },
+    });
+
+    const data = await response.json();
+
+    if (data.success && data.data) {
+      return data.data.balance;
+    }
+    return null;
+  } catch (error: any) {
+    console.error('SMSOptics balance check error:', error.message);
+    return null;
+  }
+}
+
+/**
+ * Format phone number for Ghana
+ * SMSOptics accepts: 0XXXXXXXXX, +233XXXXXXXXX, 233XXXXXXXXX
  */
 export function formatGhanaPhone(phone: string): string {
   // Remove all non-digit characters
@@ -98,6 +166,6 @@ export function formatGhanaPhone(phone: string): string {
     cleaned = '0' + cleaned;
   }
 
-  // Return local format with leading 0 (as shown in docs: "0241234567")
+  // Return local format with leading 0 (e.g., "0241234567")
   return cleaned;
 }

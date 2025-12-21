@@ -1,5 +1,5 @@
 /**
- * SMS notification templates for mNotify
+ * SMS notification templates for SMSOptics
  * Note: SMS has 160 character limit for single message, 153 per segment for multi-part
  */
 
