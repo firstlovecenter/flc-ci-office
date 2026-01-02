@@ -226,8 +226,9 @@ export async function GET(request: Request) {
             })
         );
 
-        // Reverse to show oldest first (left to right on chart)
-        const chartData = weeklyChartData.reverse();
+        // Chart data is already in chronological order (oldest to newest, left to right)
+        // Latest week appears on the right side of the chart
+        const chartData = weeklyChartData;
 
         const netBalance = totalIncome - totalExpense;
 
