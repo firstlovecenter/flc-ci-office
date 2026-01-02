@@ -86,26 +86,21 @@ export default function ModernDashboardLayout({ children }: { children: React.Re
     };
 
     const isSuperAdmin = session?.user?.role === 'SUPERADMIN';
+    const userRole = session?.user?.role;
+    const leaderRoles = ['GLOBAL_LEADER', 'INTERNATIONAL_LEADER', 'NATIONAL_LEADER', 'REGIONAL_LEADER', 'CAMPUS_LEADER', 'STREAM_LEADER', 'COUNCIL_LEADER'];
+    const isLeader = userRole && leaderRoles.includes(userRole);
     
     const mobileNavItems = [
         { text: 'Home', icon: <HomeIcon />, path: '/dashboard' },
-        isSuperAdmin 
-            ? { text: 'Churches', icon: <BusinessIcon />, path: '/departments' }
-            : { text: 'Request', icon: <AddCircleOutlineIcon />, path: '/transactions/new' },
+        // Leaders and SuperAdmin see Churches
+        ...(isSuperAdmin || isLeader ? [{ text: 'Churches', icon: <BusinessIcon />, path: '/departments' }] : []),
+        // Non-SuperAdmin users see Request
+        ...(!isSuperAdmin ? [{ text: 'Request', icon: <AddCircleOutlineIcon />, path: '/transactions/new' }] : []),
         { text: 'History', icon: <ReceiptIcon />, path: '/transactions', badge: pendingCounts.transactions },
-        { text: 'Users', icon: <PeopleIcon />, path: '/users' },
+        // Only SuperAdmin sees Users
+        ...(isSuperAdmin ? [{ text: 'Users', icon: <PeopleIcon />, path: '/users' }] : []),
         { text: 'Logout', icon: <LogoutIcon />, path: '/logout', isAction: true },
-    ].filter(item => {
-        // Hide Users from leaders
-        if (item.text === 'Users') {
-            const userRole = session?.user?.role;
-            const leaderRoles = ['GLOBAL_LEADER', 'INTERNATIONAL_LEADER', 'NATIONAL_LEADER', 'REGIONAL_LEADER', 'CAMPUS_LEADER', 'STREAM_LEADER', 'COUNCIL_LEADER'];
-            if (userRole && leaderRoles.includes(userRole)) {
-                return false;
-            }
-        }
-        return true;
-    });
+    ];
 
     return (
         <>
