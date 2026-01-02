@@ -312,3 +312,23 @@ export async function generateCreditAlertSms(params: CreditAlertSmsParams): Prom
 
     return replaceVariables(template.template, params);
 }
+
+interface DebitAlertSmsParams {
+    currency: string;
+    amount: string;
+    departmentName: string;
+    description: string;
+    balance: string;
+}
+
+export async function generateDebitAlertSms(params: DebitAlertSmsParams): Promise<string> {
+    const template = await prisma.smsTemplate.findUnique({
+        where: { key: 'DEBIT_ALERT' },
+    });
+
+    if (!template) {
+        throw new Error('Debit alert SMS template not found in database');
+    }
+
+    return replaceVariables(template.template, params);
+}

@@ -4,7 +4,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { hasDepartmentAccess } from '@/lib/departments';
 import { sendSms } from '@/lib/sms';
-import { generateTransactionApprovedSms, generateTransactionDeclinedSms, generateTransactionChargeSms } from '@/lib/sms-templates';
+import { generateTransactionApprovedSms, generateTransactionDeclinedSms, generateTransactionChargeSms, generateCreditAlertSms, generateDebitAlertSms } from '@/lib/sms-templates';
 import { formatNumber } from '@/lib/utils';
 
 export async function PUT(
@@ -387,6 +387,101 @@ export async function PATCH(
             } catch (smsError) {
                 // Don't fail the request if SMS fails
                 console.error('[SMS] Error sending approval/decline notification:', smsError);
+            }
+        }
+
+        // Send credit/debit alert SMS to the department leader when approved
+        if (status === 'APPROVED') {
+            try {
+                // Determine the leader role based on department level
+                const leaderRole = updatedTransaction.department.level === 'GLOBAL' ? 'GLOBAL_LEADER' :
+                                  updatedTransaction.department.level === 'INTERNATIONAL' ? 'INTERNATIONAL_LEADER' :
+                                  updatedTransaction.department.level === 'NATIONAL' ? 'NATIONAL_LEADER' :
+                                  updatedTransaction.department.level === 'REGIONAL' ? 'REGIONAL_LEADER' :
+                                  updatedTransaction.department.level === 'CAMPUS' ? 'CAMPUS_LEADER' :
+                                  updatedTransaction.department.level === 'STREAM' ? 'STREAM_LEADER' :
+                                  'COUNCIL_LEADER';
+
+                // Find all users with the leader role for this department
+                const departmentLeaderRoles = await prisma.userRole.findMany({
+                    where: {
+                        role: leaderRole,
+                        departmentId: updatedTransaction.department.id,
+                    },
+                    include: {
+                        user: {
+                            select: {
+                                phone: true,
+                                name: true,
+                                archived: true,
+                            },
+                        },
+                    },
+                });
+
+                // Filter active users with phone numbers
+                const leaders = departmentLeaderRoles
+                    .filter(ur => ur.user.phone && !ur.user.archived)
+                    .map(ur => ({ phone: ur.user.phone!, name: ur.user.name }));
+
+                if (leaders.length > 0) {
+                    // Calculate the department balance
+                    const departmentTransactions = await prisma.transaction.findMany({
+                        where: {
+                            departmentId: updatedTransaction.department.id,
+                            status: 'APPROVED',
+                        },
+                        select: {
+                            type: true,
+                            amountInBase: true,
+                            amount: true,
+                        },
+                    });
+
+                    const balance = departmentTransactions.reduce((sum, tx) => {
+                        const txAmount = Number(tx.amountInBase || tx.amount);
+                        return sum + (tx.type === 'INCOME' ? txAmount : -txAmount);
+                    }, 0);
+
+                    const currencySymbol = updatedTransaction.currency?.symbol || '$';
+                    const transactionDescription = updatedTransaction.description || (updatedTransaction.type === 'INCOME' ? 'Income' : 'Expense');
+
+                    // Generate credit or debit alert based on transaction type
+                    let alertMessage: string;
+                    if (updatedTransaction.type === 'INCOME') {
+                        alertMessage = await generateCreditAlertSms({
+                            currency: currencySymbol,
+                            amount: formatNumber(Number(updatedTransaction.amount)),
+                            description: transactionDescription.substring(0, 30) + (transactionDescription.length > 30 ? '...' : ''),
+                            departmentName: updatedTransaction.department.name,
+                            balance: formatNumber(balance),
+                        });
+                    } else {
+                        alertMessage = await generateDebitAlertSms({
+                            currency: currencySymbol,
+                            amount: formatNumber(Number(updatedTransaction.amount)),
+                            description: transactionDescription.substring(0, 30) + (transactionDescription.length > 30 ? '...' : ''),
+                            departmentName: updatedTransaction.department.name,
+                            balance: formatNumber(balance),
+                        });
+                    }
+
+                    // Send to all leaders
+                    for (const leader of leaders) {
+                        try {
+                            console.log(`[SMS] Sending ${updatedTransaction.type === 'INCOME' ? 'credit' : 'debit'} alert to leader: ${leader.phone}`);
+                            await sendSms({
+                                to: leader.phone,
+                                message: alertMessage
+                            });
+                        } catch (err) {
+                            console.error(`[SMS] Failed to send alert to leader ${leader.phone}:`, err);
+                        }
+                    }
+                }
+            } catch (smsError) {
+                // Don't fail the request if SMS fails
+                console.error('[SMS] Error sending credit/debit alert to leader:', smsError);
             }
         }
 

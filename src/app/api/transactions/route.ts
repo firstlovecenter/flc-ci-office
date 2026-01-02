@@ -4,7 +4,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { getCurrentWeek, formatNumber } from '@/lib/utils';
 import { sendSms } from '@/lib/sms';
-import { generatePendingApprovalRequestSms, generateCreditAlertSms } from '@/lib/sms-templates';
+import { generatePendingApprovalRequestSms, generateCreditAlertSms, generateDebitAlertSms } from '@/lib/sms-templates';
 import { getDescendantDepartmentIds, hasDepartmentAccess } from '@/lib/departments';
 import { getUserBaseCurrency, convertToUserBaseCurrency } from '@/lib/currency-conversion';
 
@@ -363,9 +363,13 @@ export async function POST(request: Request) {
             }
         }
 
-        // Send CREDIT ALERT to department leaders when admin creates income transaction
-        if (!isLeader && type === 'INCOME' && transaction.status === 'APPROVED') {
+        // Send CREDIT/DEBIT ALERT to department leaders when approved transaction is created
+        // Always send to leader regardless of who created the transaction
+        if (transaction.status === 'APPROVED') {
             try {
+                const alertType = type === 'INCOME' ? 'CREDIT' : 'DEBIT';
+                console.log(`[SMS] Processing ${alertType} alert for ${type.toLowerCase()} transaction in ${transaction.department.name}`);
+                
                 // Find the department leader based on department level
                 const leaderRole = transaction.department.level === 'GLOBAL' ? 'GLOBAL_LEADER' :
                                   transaction.department.level === 'INTERNATIONAL' ? 'INTERNATIONAL_LEADER' :
@@ -375,6 +379,9 @@ export async function POST(request: Request) {
                                   transaction.department.level === 'STREAM' ? 'STREAM_LEADER' :
                                   'COUNCIL_LEADER';
 
+                console.log(`[SMS] Looking for ${leaderRole} in department ${transaction.departmentId}`);
+
+                // Get department leaders - this will find users with leader role even if they have other roles
                 const departmentLeaderRoles = await prisma.userRole.findMany({
                     where: {
                         role: leaderRole,
@@ -394,10 +401,15 @@ export async function POST(request: Request) {
                 // Filter active users with phone numbers
                 const leaders = departmentLeaderRoles
                     .filter(ur => ur.user.phone && !ur.user.archived)
-                    .map(ur => ({ phone: ur.user.phone!, name: ur.user.name }));
+                    .map(ur => ({ phone: ur.user.phone!, name: ur.user.name }))
+                    .filter((leader, index, self) => 
+                        index === self.findIndex(l => l.phone === leader.phone)
+                    );
+
+                console.log(`[SMS] Found ${leaders.length} leader(s) for ${alertType} alert`);
 
                 if (leaders.length > 0) {
-                    // Calculate department balance after this income
+                    // Calculate department balance after this transaction
                     const departmentTransactions = await prisma.transaction.findMany({
                         where: {
                             departmentId: transaction.departmentId,
@@ -415,18 +427,30 @@ export async function POST(request: Request) {
                         return sum + (tx.type === 'INCOME' ? txAmount : -txAmount);
                     }, 0);
 
-                    const currencySymbol = transaction.currency?.symbol || '$';
+                    const currencySymbol = transaction.currency?.symbol || '₵';
+                    const descText = description || (type === 'INCOME' ? 'Income' : 'Expense');
                     
-                    // Generate credit alert message using template
-                    const smsMessage = await generateCreditAlertSms({
-                        currency: currencySymbol,
-                        amount: formatNumber(amount),
-                        departmentName: transaction.department.name,
-                        description: description.substring(0, 40) + (description.length > 40 ? '...' : ''),
-                        balance: formatNumber(balance),
-                    });
+                    // Generate appropriate alert message based on transaction type
+                    let smsMessage: string;
+                    if (type === 'INCOME') {
+                        smsMessage = await generateCreditAlertSms({
+                            currency: currencySymbol,
+                            amount: formatNumber(amount),
+                            departmentName: transaction.department.name,
+                            description: descText.substring(0, 40) + (descText.length > 40 ? '...' : ''),
+                            balance: formatNumber(balance),
+                        });
+                    } else {
+                        smsMessage = await generateDebitAlertSms({
+                            currency: currencySymbol,
+                            amount: formatNumber(amount),
+                            departmentName: transaction.department.name,
+                            description: descText.substring(0, 40) + (descText.length > 40 ? '...' : ''),
+                            balance: formatNumber(balance),
+                        });
+                    }
                     
-                    console.log(`[SMS] Sending credit alert to ${leaders.length} leader(s)`);
+                    console.log(`[SMS] Sending ${alertType} alert to ${leaders.length} leader(s): ${smsMessage}`);
                     
                     for (const leader of leaders) {
                         if (leader.phone) {
@@ -435,18 +459,18 @@ export async function POST(request: Request) {
                                     to: leader.phone,
                                     message: smsMessage
                                 });
-                                console.log(`[SMS] Credit alert to ${leader.phone}: ${sent ? 'SUCCESS' : 'FAILED'}`);
+                                console.log(`[SMS] ${alertType} alert to ${leader.phone}: ${sent ? 'SUCCESS' : 'FAILED'}`);
                             } catch (err) {
-                                console.error(`[SMS] Error sending credit alert to ${leader.phone}:`, err);
+                                console.error(`[SMS] Error sending ${alertType} alert to ${leader.phone}:`, err);
                             }
                         }
                     }
                 } else {
-                    console.log('[SMS] No department leaders with phone numbers found for credit alert');
+                    console.log(`[SMS] No leaders with phone numbers found for ${alertType} alert`);
                 }
             } catch (smsError) {
                 // Don't fail the request if SMS fails
-                console.error('[SMS] Error in credit alert block:', smsError);
+                console.error('[SMS] Error in transaction alert block:', smsError);
             }
         }
 
