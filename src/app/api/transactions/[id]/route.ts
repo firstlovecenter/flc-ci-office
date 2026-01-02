@@ -414,12 +414,12 @@ export async function PATCH(
             // Get currency from department's base currency
             const dept = await prisma.department.findUnique({
                 where: { id: updatedTransaction.department.id },
-                include: { baseCurrency: true },
+                include: { departmentBaseCurrency: { include: { currency: true } } },
             });
-            if (dept?.baseCurrency) {
+            if (dept?.departmentBaseCurrency?.currency) {
                 balanceCurrency = {
-                    code: dept.baseCurrency.code,
-                    symbol: dept.baseCurrency.symbol,
+                    code: dept.departmentBaseCurrency.currency.code,
+                    symbol: dept.departmentBaseCurrency.currency.symbol,
                 };
             } else if (updatedTransaction.currency) {
                 balanceCurrency = {

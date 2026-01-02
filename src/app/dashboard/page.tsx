@@ -17,7 +17,7 @@ import SmsIcon from '@mui/icons-material/Sms';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { Role } from '@prisma/client';
-import { BarChart, Bar, XAxis, Tooltip, ResponsiveContainer, Cell, LabelList, defs, linearGradient } from 'recharts';
+import { BarChart, Bar, XAxis, Tooltip, ResponsiveContainer, Cell, LabelList } from 'recharts';
 import { AnimatedCounter, StatCardSkeleton, ChartSkeleton, GlassCard } from '@/components/ui';
 
 // Dashboard-specific stat card with gradient
@@ -706,7 +706,7 @@ export default function DashboardPage() {
                                     position="top"
                                     fill={theme.palette.text.primary}
                                     fontSize={11}
-                                    formatter={(value: number) => baseCurrency ? `${baseCurrency.symbol}${Number(value).toLocaleString()}` : Number(value).toLocaleString()}
+                                    formatter={(value) => baseCurrency ? `${baseCurrency.symbol}${Number(value).toLocaleString()}` : Number(value).toLocaleString()}
                                 />
                                 {stats.chartData.map((entry, index) => (
                                     <Cell 
@@ -725,7 +725,7 @@ export default function DashboardPage() {
                                     position="top" 
                                     fill={theme.palette.text.primary}
                                     fontSize={11}
-                                    formatter={(value: number) => baseCurrency ? `${baseCurrency.symbol}${Number(value).toLocaleString()}` : Number(value).toLocaleString()}
+                                    formatter={(value) => baseCurrency ? `${baseCurrency.symbol}${Number(value).toLocaleString()}` : Number(value).toLocaleString()}
                                 />
                                 {stats.chartData.map((entry, index) => (
                                     <Cell 

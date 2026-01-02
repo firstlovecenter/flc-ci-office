@@ -361,7 +361,7 @@ function DepartmentsPageContent() {
                                                 whiteSpace: 'nowrap',
                                             }}
                                         >
-                                            {dept.name}
+                                            {dept.name} <Box component="span" sx={{ color: 'text.secondary', fontWeight: 400 }}>{formatDepartmentLevel(dept.level)}</Box>
                                         </Typography>
                                         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, alignItems: 'center' }}>
                                             {leader && (
