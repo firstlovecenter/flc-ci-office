@@ -1,9 +1,10 @@
 /**
- * SMS notification templates for SMSOptics
+ * SMS notification templates for CodeslawBMS
  * Note: SMS has 160 character limit for single message, 153 per segment for multi-part
+ * 
+ * These templates are hardcoded for system notifications.
+ * Database templates (SmsTemplate model) are for manual superadmin-initiated SMS only.
  */
-
-import { prisma } from '@/lib/prisma';
 
 interface PasswordResetSmsParams {
     resetCode: string;
@@ -11,33 +12,10 @@ interface PasswordResetSmsParams {
     resetUrl?: string;
 }
 
-// Helper to replace variables in template (supports both {{var}} and {var} formats)
-function replaceVariables(template: string, params: Record<string, any>): string {
-    let result = template;
-    for (const [key, value] of Object.entries(params)) {
-        // Replace double braces {{variable}} format
-        result = result.replace(new RegExp(`{{${key}}}`, 'g'), String(value));
-        // Replace single braces {variable} format
-        result = result.replace(new RegExp(`{${key}}`, 'g'), String(value));
-    }
-    return result;
-}
-
-export async function generatePasswordResetSms(params: PasswordResetSmsParams): Promise<string> {
+export function generatePasswordResetSms(params: PasswordResetSmsParams): string {
     const { resetCode, expirationMinutes = 30 } = params;
-    
-    const template = await prisma.smsTemplate.findUnique({
-        where: { key: 'password_reset' },
-    });
-
-    if (!template) {
-        throw new Error('Password reset SMS template not found in database');
-    }
-
-    return replaceVariables(template.template, {
-        resetCode,
-        expirationHours: expirationMinutes / 60,
-    });
+    const hours = Math.round(expirationMinutes / 60);
+    return `Your password reset code is ${resetCode}. Valid for ${hours} hours. Go to the reset page and enter this code.`;
 }
 
 interface FirstRoleAssignmentSmsParams {
@@ -47,24 +25,9 @@ interface FirstRoleAssignmentSmsParams {
     resetLink: string;
 }
 
-export async function generateFirstRoleAssignmentSms(params: FirstRoleAssignmentSmsParams): Promise<string> {
-    const { userName, role, department, resetLink } = params;
-    const roleDisplay = role.replace(/_/g, ' ');
-    
-    const template = await prisma.smsTemplate.findUnique({
-        where: { key: 'first_role_assignment' },
-    });
-
-    if (!template) {
-        throw new Error('First role assignment SMS template not found in database');
-    }
-
-    return replaceVariables(template.template, {
-        userName,
-        role: roleDisplay,
-        department,
-        resetLink,
-    });
+export function generateFirstRoleAssignmentSms(params: FirstRoleAssignmentSmsParams): string {
+    const { userName, resetLink } = params;
+    return `Welcome ${userName}! You've been given access to CI OFFICE. Set your password here: ${resetLink}`;
 }
 
 interface RoleAssignmentSmsParams {
@@ -73,23 +36,10 @@ interface RoleAssignmentSmsParams {
     department: string;
 }
 
-export async function generateRoleAssignmentSms(params: RoleAssignmentSmsParams): Promise<string> {
+export function generateRoleAssignmentSms(params: RoleAssignmentSmsParams): string {
     const { userName, role, department } = params;
     const roleDisplay = role.replace(/_/g, ' ');
-    
-    const template = await prisma.smsTemplate.findUnique({
-        where: { key: 'role_assignment' },
-    });
-
-    if (!template) {
-        throw new Error('Role assignment SMS template not found in database');
-    }
-
-    return replaceVariables(template.template, {
-        userName,
-        role: roleDisplay,
-        department,
-    });
+    return `Hello ${userName}, your role has been updated to ${roleDisplay} for ${department}.`;
 }
 
 interface TransactionNotificationSmsParams {
@@ -99,24 +49,10 @@ interface TransactionNotificationSmsParams {
     status: string;
 }
 
-export async function generateTransactionNotificationSms(params: TransactionNotificationSmsParams): Promise<string> {
+export function generateTransactionNotificationSms(params: TransactionNotificationSmsParams): string {
     const { userName, type, amount, status } = params;
     const action = type === 'INCOME' ? 'Income' : 'Expense';
-    
-    const template = await prisma.smsTemplate.findUnique({
-        where: { key: 'transaction_notification' },
-    });
-
-    if (!template) {
-        throw new Error('Transaction notification SMS template not found in database');
-    }
-
-    return replaceVariables(template.template, {
-        userName,
-        type: action,
-        amount,
-        status,
-    });
+    return `${userName}, your ${action} transaction of ${amount} is now ${status}.`;
 }
 
 interface DepartmentAlertSmsParams {
@@ -124,25 +60,13 @@ interface DepartmentAlertSmsParams {
     message: string;
 }
 
-export async function generateDepartmentAlertSms(params: DepartmentAlertSmsParams): Promise<string> {
+export function generateDepartmentAlertSms(params: DepartmentAlertSmsParams): string {
     const { departmentName, message } = params;
     const maxMessageLength = 130;
     const truncatedMessage = message.length > maxMessageLength 
         ? message.substring(0, maxMessageLength) + '...' 
         : message;
-    
-    const template = await prisma.smsTemplate.findUnique({
-        where: { key: 'department_alert' },
-    });
-
-    if (!template) {
-        throw new Error('Department alert SMS template not found in database');
-    }
-
-    return replaceVariables(template.template, {
-        departmentName,
-        message: truncatedMessage,
-    });
+    return `${departmentName}: ${truncatedMessage}`;
 }
 
 interface WeekLockNotificationSmsParams {
@@ -150,21 +74,9 @@ interface WeekLockNotificationSmsParams {
     weekNumber: number;
 }
 
-export async function generateWeekLockNotificationSms(params: WeekLockNotificationSmsParams): Promise<string> {
+export function generateWeekLockNotificationSms(params: WeekLockNotificationSmsParams): string {
     const { userName, weekNumber } = params;
-    
-    const template = await prisma.smsTemplate.findUnique({
-        where: { key: 'week_lock_notification' },
-    });
-
-    if (!template) {
-        throw new Error('Week lock notification SMS template not found in database');
-    }
-
-    return replaceVariables(template.template, {
-        userName,
-        weekNumber,
-    });
+    return `Hello ${userName}, Week ${weekNumber} has been locked.`;
 }
 
 interface ApprovalReminderSmsParams {
@@ -172,22 +84,9 @@ interface ApprovalReminderSmsParams {
     pendingCount: number;
 }
 
-export async function generateApprovalReminderSms(params: ApprovalReminderSmsParams): Promise<string> {
+export function generateApprovalReminderSms(params: ApprovalReminderSmsParams): string {
     const { userName, pendingCount } = params;
-    
-    const template = await prisma.smsTemplate.findUnique({
-        where: { key: 'approval_reminder' },
-    });
-
-    if (!template) {
-        throw new Error('Approval reminder SMS template not found in database');
-    }
-
-    return replaceVariables(template.template, {
-        userName,
-        pendingCount,
-        dashboardLink: '',
-    });
+    return `Hello ${userName}, you have ${pendingCount} transaction(s) pending approval. Please review.`;
 }
 
 interface TransactionApprovedSmsParams {
@@ -199,16 +98,9 @@ interface TransactionApprovedSmsParams {
     balance: string;
 }
 
-export async function generateTransactionApprovedSms(params: TransactionApprovedSmsParams): Promise<string> {
-    const template = await prisma.smsTemplate.findUnique({
-        where: { key: 'TRANSACTION_APPROVED' },
-    });
-
-    if (!template) {
-        throw new Error('Transaction approved SMS template not found in database');
-    }
-
-    return replaceVariables(template.template, params);
+export function generateTransactionApprovedSms(params: TransactionApprovedSmsParams): string {
+    const { transactionType, currency, amount, chargeText, departmentName, balance } = params;
+    return `APPROVED: Your ${transactionType} request of ${currency}${amount} has been approved.${chargeText} ${departmentName} Balance: ${currency}${balance}.`;
 }
 
 interface TransactionDeclinedSmsParams {
@@ -218,16 +110,9 @@ interface TransactionDeclinedSmsParams {
     reasonText: string;
 }
 
-export async function generateTransactionDeclinedSms(params: TransactionDeclinedSmsParams): Promise<string> {
-    const template = await prisma.smsTemplate.findUnique({
-        where: { key: 'TRANSACTION_DECLINED' },
-    });
-
-    if (!template) {
-        throw new Error('Transaction declined SMS template not found in database');
-    }
-
-    return replaceVariables(template.template, params);
+export function generateTransactionDeclinedSms(params: TransactionDeclinedSmsParams): string {
+    const { transactionType, currency, amount, reasonText } = params;
+    return `DECLINED: Your ${transactionType} request of ${currency}${amount} has been declined.${reasonText}`;
 }
 
 interface TransactionChargeSmsParams {
@@ -238,16 +123,9 @@ interface TransactionChargeSmsParams {
     description: string;
 }
 
-export async function generateTransactionChargeSms(params: TransactionChargeSmsParams): Promise<string> {
-    const template = await prisma.smsTemplate.findUnique({
-        where: { key: 'TRANSACTION_CHARGE' },
-    });
-
-    if (!template) {
-        throw new Error('Transaction charge SMS template not found in database');
-    }
-
-    return replaceVariables(template.template, params);
+export function generateTransactionChargeSms(params: TransactionChargeSmsParams): string {
+    const { currency, chargeAmount, departmentName, transactionRef, description } = params;
+    return `DEBIT ALERT: Transaction charge of ${currency}${chargeAmount} has been applied to ${departmentName}. Ref: ${transactionRef}. Original: ${description}.`;
 }
 
 interface PendingApprovalRequestSmsParams {
@@ -258,16 +136,9 @@ interface PendingApprovalRequestSmsParams {
     description: string;
 }
 
-export async function generatePendingApprovalRequestSms(params: PendingApprovalRequestSmsParams): Promise<string> {
-    const template = await prisma.smsTemplate.findUnique({
-        where: { key: 'PENDING_APPROVAL_REQUEST' },
-    });
-
-    if (!template) {
-        throw new Error('Pending approval request SMS template not found in database');
-    }
-
-    return replaceVariables(template.template, params);
+export function generatePendingApprovalRequestSms(params: PendingApprovalRequestSmsParams): string {
+    const { userName, transactionType, currency, amount, description } = params;
+    return `NEW APPROVAL REQUEST: ${userName} submitted a ${transactionType} request of ${currency}${amount}. Description: ${description}. Please review.`;
 }
 
 interface CorrectionNotificationSmsParams {
@@ -281,16 +152,9 @@ interface CorrectionNotificationSmsParams {
     reason: string;
 }
 
-export async function generateCorrectionNotificationSms(params: CorrectionNotificationSmsParams): Promise<string> {
-    const template = await prisma.smsTemplate.findUnique({
-        where: { key: 'CORRECTION_NOTIFICATION' },
-    });
-
-    if (!template) {
-        throw new Error('Correction notification SMS template not found in database');
-    }
-
-    return replaceVariables(template.template, params);
+export function generateCorrectionNotificationSms(params: CorrectionNotificationSmsParams): string {
+    const { transactionType, departmentName, currency, originalAmount, newAmount, correctionType, adjustmentAmount, reason } = params;
+    return `TRANSACTION CORRECTION: A ${transactionType} in ${departmentName} of ${currency}${originalAmount} has been corrected to ${currency}${newAmount}. ${correctionType} adjustment: ${currency}${adjustmentAmount}. Reason: ${reason}.`;
 }
 
 interface CreditAlertSmsParams {
@@ -301,16 +165,9 @@ interface CreditAlertSmsParams {
     balance: string;
 }
 
-export async function generateCreditAlertSms(params: CreditAlertSmsParams): Promise<string> {
-    const template = await prisma.smsTemplate.findUnique({
-        where: { key: 'CREDIT_ALERT' },
-    });
-
-    if (!template) {
-        throw new Error('Credit alert SMS template not found in database');
-    }
-
-    return replaceVariables(template.template, params);
+export function generateCreditAlertSms(params: CreditAlertSmsParams): string {
+    const { currency, amount, departmentName, description, balance } = params;
+    return `CREDIT ALERT: ${currency}${amount} credited to your ${departmentName} account. Description: ${description}. Your new balance is ${currency}${balance}.`;
 }
 
 interface DebitAlertSmsParams {
@@ -321,14 +178,7 @@ interface DebitAlertSmsParams {
     balance: string;
 }
 
-export async function generateDebitAlertSms(params: DebitAlertSmsParams): Promise<string> {
-    const template = await prisma.smsTemplate.findUnique({
-        where: { key: 'DEBIT_ALERT' },
-    });
-
-    if (!template) {
-        throw new Error('Debit alert SMS template not found in database');
-    }
-
-    return replaceVariables(template.template, params);
+export function generateDebitAlertSms(params: DebitAlertSmsParams): string {
+    const { currency, amount, departmentName, description, balance } = params;
+    return `DEBIT ALERT: ${currency}${amount} debited from your ${departmentName} account. Description: ${description}. Your new balance is ${currency}${balance}.`;
 }
