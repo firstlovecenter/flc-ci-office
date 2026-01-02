@@ -10,9 +10,9 @@ import ReceiptIcon from '@mui/icons-material/Receipt';
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
 import BusinessIcon from '@mui/icons-material/Business';
 import AccountCircleIcon from '@mui/icons-material/AccountCircle';
-import Brightness4Icon from '@mui/icons-material/Brightness4';
-import Brightness7Icon from '@mui/icons-material/Brightness7';
-import LogoutIcon from '@mui/icons-material/Logout';
+import LightModeIcon from '@mui/icons-material/LightMode';
+import DarkModeIcon from '@mui/icons-material/DarkMode';
+import LogoutIcon from '@mui/icons-material/LogoutRounded';
 import PeopleIcon from '@mui/icons-material/People';
 import ModernSidebar from './ModernSidebar';
 import { useColorMode } from '@/app/providers';
@@ -127,22 +127,108 @@ export default function ModernDashboardLayout({ children }: { children: React.Re
                     <UserSection>
                         <RoleSwitcher />
                         
-                        <IconButton
+                        <Box
                             onClick={colorMode.toggleColorMode}
                             sx={{
-                                backgroundColor: theme.palette.background.paper,
-                                '&:hover': { 
-                                    backgroundColor: theme.palette.mode === 'dark' ? '#2A2A2A' : '#F3F4F6' 
-                                },
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                width: 44,
+                                height: 44,
+                                borderRadius: '12px',
+                                cursor: 'pointer',
+                                position: 'relative',
+                                overflow: 'hidden',
+                                background: theme.palette.mode === 'dark'
+                                    ? 'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)'
+                                    : 'linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%)',
                                 boxShadow: theme.palette.mode === 'dark'
-                                    ? '0 2px 8px rgba(0,0,0,0.3)'
-                                    : '0 1px 3px rgba(0,0,0,0.1)',
-                                border: `1px solid ${theme.palette.divider}`,
+                                    ? '0 4px 15px rgba(30, 64, 175, 0.3), inset 0 1px 0 rgba(255,255,255,0.1)'
+                                    : '0 4px 15px rgba(251, 146, 60, 0.3), inset 0 1px 0 rgba(255,255,255,0.5)',
+                                transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
+                                '&:hover': {
+                                    transform: 'scale(1.05)',
+                                    boxShadow: theme.palette.mode === 'dark'
+                                        ? '0 6px 20px rgba(30, 64, 175, 0.4)'
+                                        : '0 6px 20px rgba(251, 146, 60, 0.4)',
+                                },
+                                '&:active': {
+                                    transform: 'scale(0.95)',
+                                },
                             }}
                             title={`Switch to ${theme.palette.mode === 'dark' ? 'light' : 'dark'} mode`}
                         >
-                            {theme.palette.mode === 'dark' ? <Brightness7Icon /> : <Brightness4Icon />}
-                        </IconButton>
+                            {/* Stars for dark mode */}
+                            {theme.palette.mode === 'dark' && (
+                                <>
+                                    <Box sx={{
+                                        position: 'absolute',
+                                        width: 3,
+                                        height: 3,
+                                        borderRadius: '50%',
+                                        backgroundColor: '#fff',
+                                        top: 8,
+                                        left: 10,
+                                        opacity: 0.8,
+                                        animation: 'twinkle 1.5s ease-in-out infinite',
+                                        '@keyframes twinkle': {
+                                            '0%, 100%': { opacity: 0.3 },
+                                            '50%': { opacity: 1 },
+                                        },
+                                    }} />
+                                    <Box sx={{
+                                        position: 'absolute',
+                                        width: 2,
+                                        height: 2,
+                                        borderRadius: '50%',
+                                        backgroundColor: '#fff',
+                                        top: 14,
+                                        right: 8,
+                                        opacity: 0.6,
+                                        animation: 'twinkle 2s ease-in-out infinite 0.5s',
+                                    }} />
+                                    <Box sx={{
+                                        position: 'absolute',
+                                        width: 2,
+                                        height: 2,
+                                        borderRadius: '50%',
+                                        backgroundColor: '#fff',
+                                        bottom: 10,
+                                        left: 8,
+                                        opacity: 0.5,
+                                        animation: 'twinkle 1.8s ease-in-out infinite 1s',
+                                    }} />
+                                </>
+                            )}
+                            <Box
+                                sx={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    transition: 'transform 0.5s cubic-bezier(0.4, 0, 0.2, 1)',
+                                    transform: theme.palette.mode === 'dark' ? 'rotate(-15deg)' : 'rotate(0deg)',
+                                }}
+                            >
+                                {theme.palette.mode === 'dark' ? (
+                                    <DarkModeIcon sx={{ 
+                                        fontSize: 22, 
+                                        color: '#fbbf24',
+                                        filter: 'drop-shadow(0 0 6px rgba(251, 191, 36, 0.5))',
+                                    }} />
+                                ) : (
+                                    <LightModeIcon sx={{ 
+                                        fontSize: 22, 
+                                        color: '#f97316',
+                                        filter: 'drop-shadow(0 0 6px rgba(249, 115, 22, 0.5))',
+                                        animation: 'pulse 2s ease-in-out infinite',
+                                        '@keyframes pulse': {
+                                            '0%, 100%': { transform: 'scale(1)' },
+                                            '50%': { transform: 'scale(1.1)' },
+                                        },
+                                    }} />
+                                )}
+                            </Box>
+                        </Box>
                         
                         <Typography 
                             variant="body2" 
