@@ -339,20 +339,27 @@ export async function POST(request: Request) {
                         description: description,
                     });
                     
+                    console.log(`[SMS] Sending pending approval SMS to ${campusAdmins.length} campus admin(s)`);
+                    
                     for (const admin of campusAdmins) {
                         if (admin.phone) {
                             try {
-                                await sendSms({
+                                const sent = await sendSms({
                                     to: admin.phone,
                                     message: smsMessage
                                 });
+                                console.log(`[SMS] Sent to ${admin.phone}: ${sent ? 'SUCCESS' : 'FAILED'}`);
                             } catch (err) {
+                                console.error(`[SMS] Error sending to ${admin.phone}:`, err);
                             }
                         }
                     }
+                } else {
+                    console.log('[SMS] No campus admins with phone numbers found for approval notification');
                 }
             } catch (smsError) {
                 // Don't fail the request if SMS fails
+                console.error('[SMS] Error in approval notification block:', smsError);
             }
         }
 
@@ -419,24 +426,82 @@ export async function POST(request: Request) {
                         balance: formatNumber(balance),
                     });
                     
+                    console.log(`[SMS] Sending credit alert to ${leaders.length} leader(s)`);
+                    
                     for (const leader of leaders) {
                         if (leader.phone) {
                             try {
-                                await sendSms({
+                                const sent = await sendSms({
                                     to: leader.phone,
                                     message: smsMessage
                                 });
+                                console.log(`[SMS] Credit alert to ${leader.phone}: ${sent ? 'SUCCESS' : 'FAILED'}`);
                             } catch (err) {
+                                console.error(`[SMS] Error sending credit alert to ${leader.phone}:`, err);
                             }
                         }
                     }
+                } else {
+                    console.log('[SMS] No department leaders with phone numbers found for credit alert');
                 }
             } catch (smsError) {
                 // Don't fail the request if SMS fails
+                console.error('[SMS] Error in credit alert block:', smsError);
             }
         }
 
-        return NextResponse.json(transaction);
+        // Calculate new balance for the department
+        let newBalance: number | null = null;
+        let balanceCurrency: { code: string; symbol: string } | null = null;
+        
+        try {
+            // Get all approved transactions for this department
+            const allTransactions = await prisma.transaction.findMany({
+                where: {
+                    departmentId: transaction.departmentId,
+                    status: 'APPROVED',
+                },
+                select: {
+                    type: true,
+                    amount: true,
+                },
+            });
+            
+            let income = 0;
+            let expense = 0;
+            for (const tx of allTransactions) {
+                if (tx.type === 'INCOME') {
+                    income += Number(tx.amount);
+                } else if (tx.type === 'EXPENSE') {
+                    expense += Number(tx.amount);
+                }
+            }
+            newBalance = income - expense;
+            
+            // Get currency from department's base currency
+            const dept = await prisma.department.findUnique({
+                where: { id: transaction.departmentId },
+                include: { 
+                    departmentBaseCurrency: {
+                        include: { currency: true }
+                    }
+                },
+            });
+            if (dept?.departmentBaseCurrency?.currency) {
+                balanceCurrency = {
+                    code: dept.departmentBaseCurrency.currency.code,
+                    symbol: dept.departmentBaseCurrency.currency.symbol,
+                };
+            }
+        } catch (balanceError) {
+            console.error('[Balance] Error calculating new balance:', balanceError);
+        }
+
+        return NextResponse.json({
+            ...transaction,
+            newBalance,
+            currency: balanceCurrency,
+        });
     } catch (error) {
         return new NextResponse('Internal Error', { status: 500 });
     }

@@ -18,6 +18,7 @@ import {
 } from '@mui/material';
 import { useSession } from 'next-auth/react';
 import { formatNumber, formatDepartmentLevel } from '@/lib/utils';
+import { useToast } from '@/components/ToastProvider';
 
 type TransactionType = 'INCOME' | 'EXPENSE';
 
@@ -28,6 +29,7 @@ function NewTransactionForm() {
     const typeParam = searchParams?.get('type');
     const exactDepartment = searchParams?.get('exact') === 'true';
     const { data: session } = useSession();
+    const { showSuccess, showError } = useToast();
     const [type, setType] = useState<TransactionType>('INCOME');
     const [amount, setAmount] = useState('');
     const [description, setDescription] = useState('');
@@ -280,6 +282,16 @@ function NewTransactionForm() {
                 throw new Error(errorMessage);
             }
 
+            const result = await response.json();
+            
+            // Show success toast with balance update if available
+            if (result.newBalance !== undefined) {
+                const symbol = result.currency?.symbol || balanceCurrency?.symbol || '₵';
+                showSuccess(`Transaction created! New balance: ${symbol}${formatNumber(result.newBalance)}`);
+            } else {
+                showSuccess(type === 'EXPENSE' ? 'Expense request submitted for approval' : 'Transaction created successfully');
+            }
+
             // Redirect back to department context if it exists
             if (deptParam) {
                 router.push(`/transactions?dept=${deptParam}${exactDepartment ? '&exact=true' : ''}`);
@@ -288,7 +300,9 @@ function NewTransactionForm() {
             }
             router.refresh();
         } catch (err) {
-            setError(err instanceof Error ? err.message : 'Error creating transaction');
+            const errorMsg = err instanceof Error ? err.message : 'Error creating transaction';
+            setError(errorMsg);
+            showError(errorMsg);
         } finally {
             setLoading(false);
         }

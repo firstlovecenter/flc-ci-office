@@ -6,6 +6,7 @@ import { ThemeProvider, createTheme, PaletteMode } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 import { SessionProvider } from 'next-auth/react';
 import { getDesignTokens } from '@/theme';
+import { ToastProvider } from '@/components/ToastProvider';
 
 interface ColorModeContextType {
     toggleColorMode: () => void;
@@ -52,7 +53,9 @@ export function Providers({ children }: { children: React.ReactNode }) {
                 <AppRouterCacheProvider>
                     <ThemeProvider theme={theme}>
                         <CssBaseline />
-                        {children}
+                        <ToastProvider>
+                            {children}
+                        </ToastProvider>
                     </ThemeProvider>
                 </AppRouterCacheProvider>
             </ColorModeContext.Provider>

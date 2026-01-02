@@ -24,6 +24,9 @@ import {
     Tooltip,
     Card,
     CardContent,
+    alpha,
+    Skeleton,
+    useTheme,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
@@ -35,10 +38,13 @@ import CancelIcon from '@mui/icons-material/Cancel';
 import EditNoteIcon from '@mui/icons-material/EditNote';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import RefreshIcon from '@mui/icons-material/Refresh';
+import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
 import Link from 'next/link';
 import { formatCurrency, formatDepartmentLevel } from '@/lib/utils';
 import { useSession } from 'next-auth/react';
 import CorrectTransactionDialog from '@/components/CorrectTransactionDialog';
+import { useToast } from '@/components/ToastProvider';
+import { AnimatedCounter, GlassCard, StatusChip, TableRowSkeleton } from '@/components/ui';
 
 type Transaction = {
     id: string;
@@ -87,6 +93,7 @@ type TransactionWithDetails = Transaction & {
 
 function TransactionsPageContent() {
     const router = useRouter();
+    const { showSuccess, showError } = useToast();
     const [transactions, setTransactions] = useState<TransactionWithDetails[]>([]);
     const [filteredTransactions, setFilteredTransactions] = useState<TransactionWithDetails[]>([]);
     const [baseCurrency, setBaseCurrency] = useState<{ id: string; code: string; symbol: string } | null>(null);
@@ -279,6 +286,7 @@ function TransactionsPageContent() {
     };
 
     const handleSaveCorrect = () => {
+        showSuccess('Transaction corrected successfully');
         fetchTransactions();
     };
 
@@ -293,13 +301,14 @@ function TransactionsPageContent() {
             });
 
             if (response.ok) {
+                showSuccess('Transaction deleted successfully');
                 fetchTransactions();
             } else {
                 const data = await response.json();
-                alert(data.error || 'Failed to delete transaction');
+                showError(data.error || 'Failed to delete transaction');
             }
         } catch (error) {
-            alert('Error deleting transaction');
+            showError('Error deleting transaction');
         }
     };
 
@@ -325,7 +334,8 @@ function TransactionsPageContent() {
                         onClick={() => router.back()}
                         sx={{ 
                             color: 'text.secondary',
-                            '&:hover': { color: 'text.primary' }
+                            '&:hover': { color: 'text.primary', bgcolor: 'action.hover' },
+                            transition: 'all 0.2s ease',
                         }}
                     >
                         <ArrowBackIcon />
@@ -334,7 +344,8 @@ function TransactionsPageContent() {
                         onClick={handleRefresh}
                         sx={{ 
                             color: 'text.secondary',
-                            '&:hover': { color: 'text.primary' }
+                            '&:hover': { color: 'text.primary', bgcolor: 'action.hover' },
+                            transition: 'all 0.2s ease',
                         }}
                     >
                         <RefreshIcon />
@@ -342,18 +353,44 @@ function TransactionsPageContent() {
                 </Box>
             )}
 
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4 }}>
-                <Box>
-                    <Typography variant="h4" fontWeight="700">
-                        {department?.name && department?.level 
-                            ? `${department.name} ${formatDepartmentLevel(department.level)} Transactions History` 
-                            : department?.name
-                                ? `${department.name} Transactions History`
-                                : 'Transactions History'}
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                        {department ? 'Including sub-departments' : 'Manage and track all financial transactions'}
-                    </Typography>
+            {/* Page Header */}
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 4 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                    <Box
+                        sx={{
+                            width: 56,
+                            height: 56,
+                            borderRadius: 3,
+                            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            boxShadow: '0 4px 14px rgba(102, 126, 234, 0.4)',
+                        }}
+                    >
+                        <ReceiptLongIcon sx={{ fontSize: 28, color: 'white' }} />
+                    </Box>
+                    <Box>
+                        <Typography 
+                            variant="h4" 
+                            fontWeight="700"
+                            sx={{
+                                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                                backgroundClip: 'text',
+                                WebkitBackgroundClip: 'text',
+                                WebkitTextFillColor: 'transparent',
+                            }}
+                        >
+                            {department?.name && department?.level 
+                                ? `${department.name} ${formatDepartmentLevel(department.level)}` 
+                                : department?.name
+                                    ? department.name
+                                    : 'Transactions History'}
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary">
+                            {department ? 'Including sub-departments' : 'Manage and track all financial transactions'}
+                        </Typography>
+                    </Box>
                 </Box>
                 <Link href={deptParam ? `/transactions/new?dept=${deptParam}` : '/transactions/new'} style={{ textDecoration: 'none' }}>
                     <Button 
@@ -365,7 +402,13 @@ function TransactionsPageContent() {
                             py: 1.5,
                             textTransform: 'none',
                             fontWeight: 600,
-                            boxShadow: 3,
+                            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                            boxShadow: '0 4px 14px rgba(102, 126, 234, 0.4)',
+                            transition: 'all 0.3s ease',
+                            '&:hover': {
+                                transform: 'translateY(-2px)',
+                                boxShadow: '0 6px 20px rgba(102, 126, 234, 0.5)',
+                            },
                         }}
                     >
                         {isLeader ? 'Request Expense' : 'New Transaction'}
@@ -374,75 +417,160 @@ function TransactionsPageContent() {
             </Box>
 
             {/* Summary Cards */}
-            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr 1fr' }, gap: 2, mb: 4 }}>
-                <Card 
-                    elevation={0} 
-                    sx={{ 
-                        border: '2px solid', 
-                        borderColor: (() => {
+            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr 1fr' }, gap: 2, mb: 4 }}>
+                {/* Balance Card */}
+                <Box
+                    sx={{
+                        position: 'relative',
+                        p: 2.5,
+                        borderRadius: 3,
+                        background: (() => {
                             const balance = totalIncome - totalExpense;
-                            if (balance < 0) return 'error.main';
-                            if (balance === 0) return 'warning.main';
-                            if (balance < 5000) return `rgba(76, 175, 80, ${balance / 5000})`;
-                            return 'success.main';
+                            if (balance < 0) return 'linear-gradient(135deg, #ef5350 0%, #c62828 100%)';
+                            if (balance === 0) return 'linear-gradient(135deg, #ff9800 0%, #f57c00 100%)';
+                            if (balance < 5000) return 'linear-gradient(135deg, #ffc107 0%, #ff9800 100%)';
+                            return 'linear-gradient(135deg, #66bb6a 0%, #43a047 100%)';
                         })(),
-                        bgcolor: (() => {
-                            const balance = totalIncome - totalExpense;
-                            if (balance < 0) return 'error.main';
-                            if (balance === 0) return 'warning.main';
-                            if (balance < 5000) return `rgba(76, 175, 80, ${balance / 5000})`;
-                            return 'success.main';
-                        })(),
+                        overflow: 'hidden',
+                        boxShadow: '0 8px 32px rgba(0, 0, 0, 0.12)',
                         '@keyframes blink': {
                             '0%, 100%': { opacity: 1 },
-                            '50%': { opacity: 0.3 }
+                            '50%': { opacity: 0.6 }
                         },
-                        animation: totalIncome - totalExpense < 5000 ? 'blink 1s ease-in-out infinite' : 'none'
+                        animation: totalIncome - totalExpense < 5000 ? 'blink 1.5s ease-in-out infinite' : 'none',
+                        '&::before': {
+                            content: '""',
+                            position: 'absolute',
+                            top: -20,
+                            right: -20,
+                            width: 100,
+                            height: 100,
+                            borderRadius: '50%',
+                            background: 'rgba(255, 255, 255, 0.1)',
+                        },
                     }}
                 >
-                    <CardContent>
-                        <Typography variant="body2" color="white" gutterBottom sx={{ opacity: 0.9 }}>
-                            Account Balance
-                        </Typography>
-                        <Typography variant="h5" fontWeight="700" color="white">
-                            {baseCurrency ? formatCurrency(totalIncome - totalExpense, baseCurrency.code, baseCurrency.symbol) : formatCurrency(totalIncome - totalExpense)}
-                        </Typography>
-                    </CardContent>
-                </Card>
-                <Card elevation={0} sx={{ border: '2px solid', borderColor: 'success.main', bgcolor: 'success.main' }}>
-                    <CardContent>
-                        <Typography variant="body2" color="white" gutterBottom sx={{ opacity: 0.9 }}>
-                            Total Inflows
-                        </Typography>
-                        <Typography variant="h5" fontWeight="700" color="white">
-                            {baseCurrency ? formatCurrency(totalIncome, baseCurrency.code, baseCurrency.symbol) : formatCurrency(totalIncome)}
-                        </Typography>
-                    </CardContent>
-                </Card>
-                <Card elevation={0} sx={{ border: '2px solid', borderColor: 'error.light', bgcolor: 'error.light' }}>
-                    <CardContent>
-                        <Typography variant="body2" color="white" gutterBottom sx={{ opacity: 0.9 }}>
-                            Total Expense
-                        </Typography>
-                        <Typography variant="h5" fontWeight="700" color="white">
-                            {baseCurrency ? formatCurrency(totalExpense, baseCurrency.code, baseCurrency.symbol) : formatCurrency(totalExpense)}
-                        </Typography>
-                    </CardContent>
-                </Card>
+                    <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.9)', mb: 1 }}>
+                        Account Balance
+                    </Typography>
+                    <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.5 }}>
+                        {baseCurrency && (
+                            <Typography component="span" sx={{ color: 'white', fontSize: '1.1rem', fontWeight: 600 }}>
+                                {baseCurrency.symbol}
+                            </Typography>
+                        )}
+                        <AnimatedCounter
+                            value={totalIncome - totalExpense}
+                            duration={1000}
+                            formatter={(val) => val.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            sx={{ color: 'white', fontSize: '1.75rem', fontWeight: 700 }}
+                        />
+                    </Box>
+                </Box>
+
+                {/* Income Card */}
+                <Box
+                    sx={{
+                        position: 'relative',
+                        p: 2.5,
+                        borderRadius: 3,
+                        background: 'linear-gradient(135deg, #4caf50 0%, #2e7d32 100%)',
+                        overflow: 'hidden',
+                        boxShadow: '0 8px 32px rgba(0, 0, 0, 0.12)',
+                        '&::before': {
+                            content: '""',
+                            position: 'absolute',
+                            top: -20,
+                            right: -20,
+                            width: 100,
+                            height: 100,
+                            borderRadius: '50%',
+                            background: 'rgba(255, 255, 255, 0.1)',
+                        },
+                    }}
+                >
+                    <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.9)', mb: 1 }}>
+                        Total Inflows
+                    </Typography>
+                    <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.5 }}>
+                        {baseCurrency && (
+                            <Typography component="span" sx={{ color: 'white', fontSize: '1.1rem', fontWeight: 600 }}>
+                                {baseCurrency.symbol}
+                            </Typography>
+                        )}
+                        <AnimatedCounter
+                            value={totalIncome}
+                            duration={1000}
+                            formatter={(val) => val.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            sx={{ color: 'white', fontSize: '1.75rem', fontWeight: 700 }}
+                        />
+                    </Box>
+                </Box>
+
+                {/* Expense Card */}
+                <Box
+                    sx={{
+                        position: 'relative',
+                        p: 2.5,
+                        borderRadius: 3,
+                        background: 'linear-gradient(135deg, #ef5350 0%, #c62828 100%)',
+                        overflow: 'hidden',
+                        boxShadow: '0 8px 32px rgba(0, 0, 0, 0.12)',
+                        '&::before': {
+                            content: '""',
+                            position: 'absolute',
+                            top: -20,
+                            right: -20,
+                            width: 100,
+                            height: 100,
+                            borderRadius: '50%',
+                            background: 'rgba(255, 255, 255, 0.1)',
+                        },
+                    }}
+                >
+                    <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.9)', mb: 1 }}>
+                        Total Expense
+                    </Typography>
+                    <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.5 }}>
+                        {baseCurrency && (
+                            <Typography component="span" sx={{ color: 'white', fontSize: '1.1rem', fontWeight: 600 }}>
+                                {baseCurrency.symbol}
+                            </Typography>
+                        )}
+                        <AnimatedCounter
+                            value={totalExpense}
+                            duration={1000}
+                            formatter={(val) => val.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            sx={{ color: 'white', fontSize: '1.75rem', fontWeight: 700 }}
+                        />
+                    </Box>
+                </Box>
             </Box>
 
             {/* Filters */}
-            <Paper elevation={0} sx={{ p: 3, mb: 3, border: '1px solid', borderColor: 'divider' }}>
+            <GlassCard sx={{ p: 3, mb: 3 }}>
                 <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center' }}>
                     <TextField
                         placeholder="Search transactions..."
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
-                        sx={{ flexGrow: 1, minWidth: 250 }}
+                        sx={{ 
+                            flexGrow: 1, 
+                            minWidth: 250,
+                            '& .MuiOutlinedInput-root': {
+                                transition: 'all 0.2s ease',
+                                '&:hover': {
+                                    boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+                                },
+                                '&.Mui-focused': {
+                                    boxShadow: '0 4px 12px rgba(102, 126, 234, 0.15)',
+                                },
+                            },
+                        }}
                         InputProps={{
                             startAdornment: (
                                 <InputAdornment position="start">
-                                    <SearchIcon />
+                                    <SearchIcon color="action" />
                                 </InputAdornment>
                             ),
                         }}
@@ -489,9 +617,10 @@ function TransactionsPageContent() {
                         </Select>
                     </FormControl>
                 </Box>
-            </Paper>
+            </GlassCard>
 
-            <TableContainer component={Paper} elevation={0} sx={{ border: '1px solid', borderColor: 'divider' }}>
+            <GlassCard sx={{ overflow: 'hidden' }}>
+                <TableContainer>
                 <Table size="small">
                     <TableHead sx={{ bgcolor: 'action.hover' }}>
                         <TableRow>
@@ -648,6 +777,7 @@ function TransactionsPageContent() {
                     </TableBody>
                 </Table>
             </TableContainer>
+            </GlassCard>
 
             <CorrectTransactionDialog
                 open={correctDialog.open}

@@ -26,6 +26,7 @@ import IconButton from '@mui/material/IconButton';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import EditUserDialog from '@/components/EditUserDialog';
+import { useToast } from '@/components/ToastProvider';
 
 function UsersPageContent() {
     const { data: session } = useSession();
@@ -33,6 +34,7 @@ function UsersPageContent() {
     const searchParams = useSearchParams();
     const deptParam = searchParams?.get('dept');
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const { showSuccess, showError } = useToast();
     const [users, setUsers] = useState<any[]>([]);
     const [departments, setDepartments] = useState<any[]>([]);
     const [open, setOpen] = useState(false);
@@ -98,9 +100,11 @@ function UsersPageContent() {
         });
 
         if (response.ok) {
+            showSuccess('User deleted successfully');
             fetchUsers();
         } else {
             const data = await response.json();
+            showError(data.error || 'Failed to delete user');
             throw new Error(data.error || 'Failed to delete user');
         }
     };
@@ -115,15 +119,19 @@ function UsersPageContent() {
         });
 
         if (response.ok) {
+            const action = user.archived ? 'restored' : 'archived';
+            showSuccess(`User ${action} successfully`);
             fetchUsers();
         } else {
             const data = await response.json();
             const action = user.archived ? 'unarchive' : 'archive';
+            showError(data.error || `Failed to ${action} user`);
             throw new Error(data.error || `Failed to ${action} user`);
         }
     };
 
     const handleSaveEdit = () => {
+        showSuccess('User updated successfully');
         fetchUsers();
     };
 
@@ -204,9 +212,11 @@ function UsersPageContent() {
                 phone: '',
                 image: '',
             });
+            showSuccess('User created successfully');
             fetchUsers();
         } catch (err: any) {
             setError(err.message);
+            showError(err.message);
         } finally {
             setLoading(false);
         }

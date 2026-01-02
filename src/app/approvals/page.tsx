@@ -28,12 +28,16 @@ import {
     CardContent,
     Grid,
     CircularProgress,
+    alpha,
+    Skeleton,
 } from '@mui/material';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import CancelIcon from '@mui/icons-material/Cancel';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import PendingActionsIcon from '@mui/icons-material/PendingActions';
 import { formatDepartmentLevel } from '@/lib/utils';
+import { useToast } from '@/components/ToastProvider';
+import { GlassCard, StatusChip, AnimatedCounter, TableRowSkeleton } from '@/components/ui';
 
 interface Transaction {
     id: string;
@@ -60,6 +64,7 @@ interface Transaction {
 export default function ApprovalsPage() {
     const { data: session } = useSession();
     const router = useRouter();
+    const { showSuccess, showError: showErrorToast } = useToast();
     const [transactions, setTransactions] = useState<Transaction[]>([]);
     const [historicalTransactions, setHistoricalTransactions] = useState<Transaction[]>([]);
     const [loading, setLoading] = useState(true);
@@ -168,16 +173,25 @@ export default function ApprovalsPage() {
             });
 
             if (response.ok) {
-                setSuccess(`Transaction ${actionType === 'approve' ? 'approved' : 'declined'} successfully`);
+                const result = await response.json();
+                const message = actionType === 'approve' 
+                    ? `Transaction approved! New balance: ${result.currency?.symbol || '₵'}${parseFloat(result.newBalance || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}`
+                    : 'Transaction declined';
+                setSuccess(message);
+                showSuccess(message);
                 setApprovalDialogOpen(false);
                 fetchPendingTransactions();
                 fetchHistoricalTransactions();
             } else {
                 const errorText = await response.text();
-                setError(errorText || `Failed to ${actionType} transaction`);
+                const errorMsg = errorText || `Failed to ${actionType} transaction`;
+                setError(errorMsg);
+                showErrorToast(errorMsg);
             }
         } catch (error) {
-            setError(`Failed to ${actionType} transaction`);
+            const errorMsg = `Failed to ${actionType} transaction`;
+            setError(errorMsg);
+            showErrorToast(errorMsg);
         } finally {
             setProcessing(false);
         }
@@ -213,117 +227,215 @@ export default function ApprovalsPage() {
 
     return (
         <Box>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }}>
-                <PendingActionsIcon sx={{ fontSize: 40 }} />
-                <Typography variant="h4" fontWeight={700}>
-                    Expense Approvals
-                </Typography>
+            {/* Page Header */}
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 4 }}>
+                <Box
+                    sx={{
+                        width: 56,
+                        height: 56,
+                        borderRadius: 3,
+                        background: 'linear-gradient(135deg, #ff9800 0%, #f57c00 100%)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        boxShadow: '0 4px 14px rgba(255, 152, 0, 0.4)',
+                    }}
+                >
+                    <PendingActionsIcon sx={{ fontSize: 28, color: 'white' }} />
+                </Box>
+                <Box>
+                    <Typography 
+                        variant="h4" 
+                        fontWeight="700"
+                        sx={{
+                            background: 'linear-gradient(135deg, #ff9800 0%, #f57c00 100%)',
+                            backgroundClip: 'text',
+                            WebkitBackgroundClip: 'text',
+                            WebkitTextFillColor: 'transparent',
+                        }}
+                    >
+                        Expense Approvals
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                        Review and manage pending transactions
+                    </Typography>
+                </Box>
             </Box>
 
             {error && (
-                <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError('')}>
+                <Alert severity="error" sx={{ mb: 3, borderRadius: 2 }} onClose={() => setError('')}>
                     {error}
                 </Alert>
             )}
 
             {success && (
-                <Alert severity="success" sx={{ mb: 3 }} onClose={() => setSuccess('')}>
+                <Alert severity="success" sx={{ mb: 3, borderRadius: 2 }} onClose={() => setSuccess('')}>
                     {success}
                 </Alert>
             )}
 
             {/* Summary Cards */}
-            <Grid container spacing={3} sx={{ mb: 3 }}>
+            <Grid container spacing={3} sx={{ mb: 4 }}>
                 <Grid size={{ xs: 12, sm: 6 }}>
-                    <Card>
-                        <CardContent>
-                            <Typography variant="body2" color="text.secondary" gutterBottom>
-                                Pending Approvals
-                            </Typography>
-                            <Typography variant="h4" fontWeight={700}>
-                                {transactions.length}
-                            </Typography>
-                        </CardContent>
-                    </Card>
+                    <Box
+                        sx={{
+                            position: 'relative',
+                            p: 2.5,
+                            borderRadius: 3,
+                            background: 'linear-gradient(135deg, #ff9800 0%, #f57c00 100%)',
+                            overflow: 'hidden',
+                            boxShadow: '0 8px 32px rgba(255, 152, 0, 0.25)',
+                            '&::before': {
+                                content: '""',
+                                position: 'absolute',
+                                top: -20,
+                                right: -20,
+                                width: 100,
+                                height: 100,
+                                borderRadius: '50%',
+                                background: 'rgba(255, 255, 255, 0.1)',
+                            },
+                        }}
+                    >
+                        <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.9)', mb: 1 }}>
+                            Pending Approvals
+                        </Typography>
+                        <AnimatedCounter
+                            value={transactions.length}
+                            duration={800}
+                            sx={{ color: 'white', fontSize: '2rem', fontWeight: 700 }}
+                        />
+                    </Box>
                 </Grid>
                 <Grid size={{ xs: 12, sm: 6 }}>
-                    <Card>
-                        <CardContent>
-                            <Typography variant="body2" color="text.secondary" gutterBottom>
-                                Total Amount
-                            </Typography>
-                            <Typography variant="h4" fontWeight={700} color="error.main">
-                                {transactions
-                                    .reduce((sum, t) => sum + parseFloat(t.amount), 0)
-                                    .toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                            </Typography>
-                        </CardContent>
-                    </Card>
+                    <Box
+                        sx={{
+                            position: 'relative',
+                            p: 2.5,
+                            borderRadius: 3,
+                            background: 'linear-gradient(135deg, #ef5350 0%, #c62828 100%)',
+                            overflow: 'hidden',
+                            boxShadow: '0 8px 32px rgba(239, 83, 80, 0.25)',
+                            '&::before': {
+                                content: '""',
+                                position: 'absolute',
+                                top: -20,
+                                right: -20,
+                                width: 100,
+                                height: 100,
+                                borderRadius: '50%',
+                                background: 'rgba(255, 255, 255, 0.1)',
+                            },
+                        }}
+                    >
+                        <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.9)', mb: 1 }}>
+                            Total Amount
+                        </Typography>
+                        <AnimatedCounter
+                            value={transactions.reduce((sum, t) => sum + parseFloat(t.amount), 0)}
+                            duration={1000}
+                            formatter={(val) => val.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            sx={{ color: 'white', fontSize: '2rem', fontWeight: 700 }}
+                        />
+                    </Box>
                 </Grid>
             </Grid>
 
             {/* Pending Approvals Section */}
-            <Typography variant="h5" fontWeight={600} sx={{ mb: 2 }}>
-                Pending Approvals
-            </Typography>
-            <TableContainer component={Paper} sx={{ mb: 6 }}>
-                <Table>
-                    <TableHead>
-                        <TableRow>
-                            <TableCell>Date</TableCell>
-                            <TableCell>Description</TableCell>
-                            <TableCell>Department</TableCell>
-                            <TableCell>Submitted By</TableCell>
-                            <TableCell>Type</TableCell>
-                            <TableCell align="right">Amount</TableCell>
-                            <TableCell>Status</TableCell>
-                            <TableCell align="center">Actions</TableCell>
-                        </TableRow>
-                    </TableHead>
-                    <TableBody>
-                        {loading ? (
-                            <TableRow>
-                                <TableCell colSpan={8} align="center">
-                                    Loading...
-                                </TableCell>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+                <Box 
+                    component="span" 
+                    sx={{ 
+                        width: 4, 
+                        height: 24, 
+                        bgcolor: 'warning.main', 
+                        borderRadius: 1,
+                    }} 
+                />
+                <Typography variant="h5" fontWeight={600}>
+                    Pending Approvals
+                </Typography>
+            </Box>
+            <GlassCard sx={{ mb: 6, overflow: 'hidden' }}>
+                <TableContainer>
+                    <Table>
+                        <TableHead>
+                            <TableRow sx={{ bgcolor: 'action.hover' }}>
+                                <TableCell sx={{ fontWeight: 700 }}>Date</TableCell>
+                                <TableCell sx={{ fontWeight: 700 }}>Description</TableCell>
+                                <TableCell sx={{ fontWeight: 700 }}>Department</TableCell>
+                                <TableCell sx={{ fontWeight: 700 }}>Submitted By</TableCell>
+                                <TableCell sx={{ fontWeight: 700 }}>Type</TableCell>
+                                <TableCell align="right" sx={{ fontWeight: 700 }}>Amount</TableCell>
+                                <TableCell sx={{ fontWeight: 700 }}>Status</TableCell>
+                                <TableCell align="center" sx={{ fontWeight: 700 }}>Actions</TableCell>
                             </TableRow>
-                        ) : transactions.length === 0 ? (
-                            <TableRow>
-                                <TableCell colSpan={8} align="center">
-                                    No pending transactions found
-                                </TableCell>
-                            </TableRow>
-                        ) : (
-                            transactions.map((transaction) => (
-                                <TableRow key={transaction.id}>
-                                    <TableCell>{formatDate(transaction.createdAt)}</TableCell>
-                                    <TableCell>{transaction.description}</TableCell>
-                                    <TableCell>
-                                        <Typography variant="body2">{transaction.department.name}</Typography>
-                                        <Typography variant="caption" color="text.secondary">
-                                            {formatDepartmentLevel(transaction.department.level)}
+                        </TableHead>
+                        <TableBody>
+                            {loading ? (
+                                [1, 2, 3].map((i) => (
+                                    <TableRow key={i}>
+                                        <TableCell><Skeleton width={80} /></TableCell>
+                                        <TableCell><Skeleton width={150} /></TableCell>
+                                        <TableCell><Skeleton width={100} /></TableCell>
+                                        <TableCell><Skeleton width={100} /></TableCell>
+                                        <TableCell><Skeleton width={60} /></TableCell>
+                                        <TableCell><Skeleton width={80} /></TableCell>
+                                        <TableCell><Skeleton width={70} /></TableCell>
+                                        <TableCell><Skeleton width={100} /></TableCell>
+                                    </TableRow>
+                                ))
+                            ) : transactions.length === 0 ? (
+                                <TableRow>
+                                    <TableCell colSpan={8} align="center" sx={{ py: 6 }}>
+                                        <Typography variant="body1" color="text.secondary">
+                                            No pending transactions found
                                         </Typography>
                                     </TableCell>
-                                    <TableCell>
-                                        <Typography variant="body2">{transaction.user.name}</Typography>
-                                    </TableCell>
-                                    <TableCell>
-                                        <Chip 
-                                            label={transaction.type} 
-                                            color={getTypeColor(transaction.type)}
-                                            size="small"
-                                        />
-                                    </TableCell>
-                                    <TableCell align="right">
-                                        {formatCurrency(transaction.amount, transaction.currency.symbol)}
-                                    </TableCell>
-                                    <TableCell>
-                                        <Chip 
-                                            label={transaction.status} 
-                                            color={getStatusColor(transaction.status)}
-                                            size="small"
-                                        />
-                                    </TableCell>
+                                </TableRow>
+                            ) : (
+                                transactions.map((transaction) => (
+                                    <TableRow 
+                                        key={transaction.id}
+                                        sx={{
+                                            transition: 'all 0.2s ease',
+                                            '&:hover': {
+                                                bgcolor: 'action.hover',
+                                            },
+                                        }}
+                                    >
+                                        <TableCell>{formatDate(transaction.createdAt)}</TableCell>
+                                        <TableCell>
+                                            <Typography variant="body2" fontWeight={500}>
+                                                {transaction.description}
+                                            </Typography>
+                                        </TableCell>
+                                        <TableCell>
+                                            <Typography variant="body2">{transaction.department.name}</Typography>
+                                            <Typography variant="caption" color="text.secondary">
+                                                {formatDepartmentLevel(transaction.department.level)}
+                                            </Typography>
+                                        </TableCell>
+                                        <TableCell>
+                                            <Typography variant="body2">{transaction.user.name}</Typography>
+                                        </TableCell>
+                                        <TableCell>
+                                            <StatusChip 
+                                                label={transaction.type} 
+                                                status={transaction.type === 'INCOME' ? 'success' : 'error'}
+                                            />
+                                        </TableCell>
+                                        <TableCell align="right">
+                                            <Typography fontWeight={600}>
+                                                {formatCurrency(transaction.amount, transaction.currency.symbol)}
+                                            </Typography>
+                                        </TableCell>
+                                        <TableCell>
+                                            <StatusChip 
+                                                label={transaction.status} 
+                                                status={getStatusColor(transaction.status) as any}
+                                            />
+                                        </TableCell>
                                     <TableCell align="center">
                                         <Stack direction="row" spacing={1} justifyContent="center">
                                             <Tooltip title="View Details">
@@ -360,6 +472,7 @@ export default function ApprovalsPage() {
                     </TableBody>
                 </Table>
             </TableContainer>
+            </GlassCard>
 
             {/* Transaction Details Dialog */}
             <Dialog open={detailsOpen} onClose={() => setDetailsOpen(false)} maxWidth="sm" fullWidth>
@@ -497,70 +610,126 @@ export default function ApprovalsPage() {
 
             {/* Request History Section */}
             <Box sx={{ mt: 6 }}>
-                <Typography variant="h5" sx={{ mb: 3, fontWeight: 600 }}>
-                    Request History
-                </Typography>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+                    <Box 
+                        component="span" 
+                        sx={{ 
+                            width: 4, 
+                            height: 24, 
+                            bgcolor: 'success.main', 
+                            borderRadius: 1,
+                        }} 
+                    />
+                    <Typography variant="h5" fontWeight={600}>
+                        Request History
+                    </Typography>
+                </Box>
 
                 {historyLoading ? (
-                    <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
-                        <CircularProgress />
-                    </Box>
+                    <GlassCard sx={{ overflow: 'hidden' }}>
+                        <TableContainer>
+                            <Table>
+                                <TableHead>
+                                    <TableRow sx={{ bgcolor: 'action.hover' }}>
+                                        <TableCell sx={{ fontWeight: 700 }}>Date</TableCell>
+                                        <TableCell sx={{ fontWeight: 700 }}>Description</TableCell>
+                                        <TableCell sx={{ fontWeight: 700 }}>Submitted By</TableCell>
+                                        <TableCell sx={{ fontWeight: 700 }}>Status</TableCell>
+                                        <TableCell align="right" sx={{ fontWeight: 700 }}>Amount</TableCell>
+                                        <TableCell sx={{ fontWeight: 700 }}>Action</TableCell>
+                                    </TableRow>
+                                </TableHead>
+                                <TableBody>
+                                    {[1, 2, 3].map((i) => (
+                                        <TableRow key={i}>
+                                            <TableCell><Skeleton width={80} /></TableCell>
+                                            <TableCell><Skeleton width={150} /></TableCell>
+                                            <TableCell><Skeleton width={100} /></TableCell>
+                                            <TableCell><Skeleton width={70} /></TableCell>
+                                            <TableCell><Skeleton width={80} /></TableCell>
+                                            <TableCell><Skeleton width={80} /></TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                        </TableContainer>
+                    </GlassCard>
                 ) : historicalTransactions.length === 0 ? (
-                    <Alert severity="info">
+                    <Alert severity="info" sx={{ borderRadius: 2 }}>
                         No historical requests found.
                     </Alert>
                 ) : (
-                    <TableContainer component={Paper}>
-                        <Table>
-                            <TableHead>
-                                <TableRow>
-                                    <TableCell>Date</TableCell>
-                                    <TableCell>Description</TableCell>
-                                    <TableCell>Submitted By</TableCell>
-                                    <TableCell>Status</TableCell>
-                                    <TableCell align="right">Amount</TableCell>
-                                    <TableCell>Action</TableCell>
-                                </TableRow>
-                            </TableHead>
-                            <TableBody>
-                                {historicalTransactions.map((transaction) => (
-                                    <TableRow key={transaction.id}>
-                                        <TableCell>{formatDate(transaction.createdAt)}</TableCell>
-                                        <TableCell>{transaction.description}</TableCell>
-                                        <TableCell>
-                                            <Box>
-                                                <Typography variant="body2">{transaction.user.name}</Typography>
-                                                <Typography variant="caption" color="text.secondary">
-                                                    {transaction.department.name}
-                                                </Typography>
-                                            </Box>
-                                        </TableCell>
-                                        <TableCell>
-                                            <Chip 
-                                                label={transaction.status}
-                                                color={transaction.status === 'APPROVED' ? 'success' : 'error'}
-                                                size="small"
-                                            />
-                                        </TableCell>
-                                        <TableCell align="right">
-                                            {formatCurrency(transaction.amount, transaction.currency.code)}
-                                        </TableCell>
-                                        <TableCell>
-                                            <Button
-                                                size="small"
-                                                onClick={() => {
-                                                    setSelectedTransaction(transaction);
-                                                    setDetailsOpen(true);
-                                                }}
-                                            >
-                                                View Details
-                                            </Button>
-                                        </TableCell>
+                    <GlassCard sx={{ overflow: 'hidden' }}>
+                        <TableContainer>
+                            <Table>
+                                <TableHead>
+                                    <TableRow sx={{ bgcolor: 'action.hover' }}>
+                                        <TableCell sx={{ fontWeight: 700 }}>Date</TableCell>
+                                        <TableCell sx={{ fontWeight: 700 }}>Description</TableCell>
+                                        <TableCell sx={{ fontWeight: 700 }}>Submitted By</TableCell>
+                                        <TableCell sx={{ fontWeight: 700 }}>Status</TableCell>
+                                        <TableCell align="right" sx={{ fontWeight: 700 }}>Amount</TableCell>
+                                        <TableCell sx={{ fontWeight: 700 }}>Action</TableCell>
                                     </TableRow>
-                                ))}
-                            </TableBody>
-                        </Table>
-                    </TableContainer>
+                                </TableHead>
+                                <TableBody>
+                                    {historicalTransactions.map((transaction) => (
+                                        <TableRow 
+                                            key={transaction.id}
+                                            sx={{
+                                                transition: 'all 0.2s ease',
+                                                '&:hover': {
+                                                    bgcolor: 'action.hover',
+                                                },
+                                            }}
+                                        >
+                                            <TableCell>{formatDate(transaction.createdAt)}</TableCell>
+                                            <TableCell>
+                                                <Typography variant="body2" fontWeight={500}>
+                                                    {transaction.description}
+                                                </Typography>
+                                            </TableCell>
+                                            <TableCell>
+                                                <Box>
+                                                    <Typography variant="body2">{transaction.user.name}</Typography>
+                                                    <Typography variant="caption" color="text.secondary">
+                                                        {transaction.department.name}
+                                                    </Typography>
+                                                </Box>
+                                            </TableCell>
+                                            <TableCell>
+                                                <StatusChip 
+                                                    label={transaction.status}
+                                                    status={transaction.status === 'APPROVED' ? 'success' : 'error'}
+                                                />
+                                            </TableCell>
+                                            <TableCell align="right">
+                                                <Typography fontWeight={600}>
+                                                    {formatCurrency(transaction.amount, transaction.currency.code)}
+                                                </Typography>
+                                            </TableCell>
+                                            <TableCell>
+                                                <Button
+                                                    size="small"
+                                                    variant="outlined"
+                                                    sx={{ 
+                                                        borderRadius: 2,
+                                                        textTransform: 'none',
+                                                    }}
+                                                    onClick={() => {
+                                                        setSelectedTransaction(transaction);
+                                                        setDetailsOpen(true);
+                                                    }}
+                                                >
+                                                    View Details
+                                                </Button>
+                                            </TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                        </TableContainer>
+                    </GlassCard>
                 )}
             </Box>
         </Box>

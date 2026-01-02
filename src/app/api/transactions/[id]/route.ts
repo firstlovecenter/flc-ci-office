@@ -378,16 +378,64 @@ export async function PATCH(
                     });
                 }
                 
-                await sendSms({
+                console.log(`[SMS] Sending ${status} notification to transaction creator: ${updatedTransaction.user.phone}`);
+                const sent = await sendSms({
                     to: updatedTransaction.user.phone,
                     message: smsMessage
                 });
+                console.log(`[SMS] Transaction ${status} notification: ${sent ? 'SUCCESS' : 'FAILED'}`);
             } catch (smsError) {
                 // Don't fail the request if SMS fails
+                console.error('[SMS] Error sending approval/decline notification:', smsError);
             }
         }
 
-        return NextResponse.json(updatedTransaction);
+        // Calculate final balance for response
+        let newBalance: number | null = null;
+        let balanceCurrency: { code: string; symbol: string } | null = null;
+        
+        try {
+            const departmentTransactions = await prisma.transaction.findMany({
+                where: {
+                    departmentId: updatedTransaction.department.id,
+                    status: 'APPROVED',
+                },
+                select: {
+                    type: true,
+                    amount: true,
+                },
+            });
+
+            newBalance = departmentTransactions.reduce((sum, tx) => {
+                const txAmount = Number(tx.amount);
+                return sum + (tx.type === 'INCOME' ? txAmount : -txAmount);
+            }, 0);
+
+            // Get currency from department's base currency
+            const dept = await prisma.department.findUnique({
+                where: { id: updatedTransaction.department.id },
+                include: { baseCurrency: true },
+            });
+            if (dept?.baseCurrency) {
+                balanceCurrency = {
+                    code: dept.baseCurrency.code,
+                    symbol: dept.baseCurrency.symbol,
+                };
+            } else if (updatedTransaction.currency) {
+                balanceCurrency = {
+                    code: updatedTransaction.currency.code,
+                    symbol: updatedTransaction.currency.symbol,
+                };
+            }
+        } catch (balanceError) {
+            console.error('[Balance] Error calculating new balance:', balanceError);
+        }
+
+        return NextResponse.json({
+            ...updatedTransaction,
+            newBalance,
+            currency: balanceCurrency,
+        });
     } catch (error) {
         return new NextResponse('Internal Error', { status: 500 });
     }

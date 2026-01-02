@@ -21,6 +21,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import EditDepartmentDialog from '@/components/EditDepartmentDialog';
 import { formatDepartmentLevel } from '@/lib/utils';
+import { useToast } from '@/components/ToastProvider';
 
 type Department = {
     id: string;
@@ -37,6 +38,7 @@ function DepartmentsPageContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const parentParam = searchParams?.get('parent');
+    const { showSuccess, showError } = useToast();
     const [departments, setDepartments] = useState<Department[]>([]);
     const [allDepartments, setAllDepartments] = useState<any[]>([]);
     const [parentDepartment, setParentDepartment] = useState<any>(null);
@@ -132,17 +134,19 @@ function DepartmentsPageContent() {
             });
 
             if (response.ok) {
+                showSuccess('Department deleted successfully');
                 fetchDepartments(parentParam);
             } else {
                 const data = await response.json();
-                alert(data.error || 'Failed to delete department');
+                showError(data.error || 'Failed to delete department');
             }
         } catch (error) {
-            alert('Error deleting department');
+            showError('Error deleting department');
         }
     };
 
     const handleSaveEdit = () => {
+        showSuccess('Department updated successfully');
         fetchDepartments(parentParam);
         fetchAllDepartments();
     };
