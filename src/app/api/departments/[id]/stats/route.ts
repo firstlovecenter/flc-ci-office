@@ -3,13 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { getDescendantDepartmentIds } from '@/lib/departments';
-
-// Helper function to get week number
-function getWeekNumber(date: Date): number {
-    const startOfYear = new Date(date.getFullYear(), 0, 1);
-    const pastDaysOfYear = (date.getTime() - startOfYear.getTime()) / 86400000;
-    return Math.ceil((pastDaysOfYear + startOfYear.getDay() + 1) / 7);
-}
+import { getISOWeek, getISOWeekYear, subWeeks } from 'date-fns';
 
 // Helper function to get start and end of current week (Sunday to Saturday)
 function getCurrentWeekRange(): { start: Date; end: Date } {
@@ -127,14 +121,23 @@ export async function GET(
         let weeklyIncome = 0;
         const currentWeek = getCurrentWeekRange();
 
-        // Initialize weekly chart data (last 4 weeks)
-        const chartData: { week: string; income: number; expense: number }[] = [];
+        // Initialize weekly chart data (last 4 weeks) using date-fns for proper week calculation
+        const chartData: { week: string; weekNum: number; year: number; income: number; expense: number }[] = [];
         const now = new Date();
+        
+        // Use subWeeks to properly calculate weeks going back (handles year boundaries correctly)
         for (let i = 3; i >= 0; i--) {
-            const weekStart = new Date(now);
-            weekStart.setDate(now.getDate() - now.getDay() - (i * 7));
-            const weekNum = getWeekNumber(weekStart);
-            chartData.push({ week: `Week ${weekNum}`, income: 0, expense: 0 });
+            const weekDate = subWeeks(now, i);
+            const weekNum = getISOWeek(weekDate);
+            const weekYear = getISOWeekYear(weekDate);
+            
+            chartData.push({ 
+                week: `W${weekNum} '${String(weekYear).slice(-2)}`, 
+                weekNum: weekNum,
+                year: weekYear,
+                income: 0, 
+                expense: 0 
+            });
         }
 
         for (const t of transactions) {
@@ -171,17 +174,14 @@ export async function GET(
                 expense += convertedAmount;
             }
 
-            // Add to chart data
+            // Add to chart data using ISO week numbers from date-fns
             const txDate = new Date(t.createdAt);
+            const txWeek = getISOWeek(txDate);
+            const txYear = getISOWeekYear(txDate);
+            
+            // Find matching chart bucket
             for (let i = 0; i < 4; i++) {
-                const weekStart = new Date(now);
-                weekStart.setDate(now.getDate() - now.getDay() - ((3 - i) * 7));
-                weekStart.setHours(0, 0, 0, 0);
-                const weekEnd = new Date(weekStart);
-                weekEnd.setDate(weekStart.getDate() + 6);
-                weekEnd.setHours(23, 59, 59, 999);
-
-                if (txDate >= weekStart && txDate <= weekEnd) {
+                if (chartData[i].weekNum === txWeek && chartData[i].year === txYear) {
                     if (t.type === 'INCOME') {
                         chartData[i].income += convertedAmount;
                     } else if (t.type === 'EXPENSE') {
@@ -194,12 +194,15 @@ export async function GET(
 
         const balance = income - expense;
 
+        // Return chart data without internal weekNum/year fields
+        const cleanChartData = chartData.map(({ week, income, expense }) => ({ week, income, expense }));
+
         return NextResponse.json({
             income,
             expense,
             balance,
             weeklyIncome,
-            chartData,
+            chartData: cleanChartData,
             currency: baseCurrency ? {
                 code: baseCurrency.code,
                 symbol: baseCurrency.symbol,

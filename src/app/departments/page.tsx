@@ -89,19 +89,9 @@ function DepartmentsPageContent() {
                     const filtered = data.filter((dept: any) => dept.parentId === currentParentParam);
                     setDepartments(filtered);
                 } else {
-                    // No parent param - show direct children only
-                    const userDeptId = session?.user?.departmentId;
-                    const userRole = session?.user?.role;
-                    
-                    if (userRole === 'SUPERADMIN' || !userDeptId) {
-                        // SUPERADMIN sees only top-level departments (no parent)
-                        const filtered = data.filter((dept: any) => dept.parentId === null);
-                        setDepartments(filtered);
-                    } else {
-                        // Regular users - show direct children of their department
-                        const filtered = data.filter((dept: any) => dept.parentId === userDeptId);
-                        setDepartments(filtered);
-                    }
+                    // No parent param - show all departments the user has access to
+                    // The API already filters by user's permissions, so just show all
+                    setDepartments(data);
                 }
             }
         } catch (error) {

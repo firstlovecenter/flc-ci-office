@@ -4,6 +4,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { getDescendantDepartmentIds } from '@/lib/departments';
 import { getUserBaseCurrency, convertToUserBaseCurrency } from '@/lib/currency-conversion';
+import { getISOWeek, getISOWeekYear, subWeeks } from 'date-fns';
 
 // Force dynamic rendering - data is user/role specific
 export const dynamic = 'force-dynamic';
@@ -34,23 +35,13 @@ export async function GET(request: Request) {
         const endOfWeek = new Date(startOfWeek);
         endOfWeek.setDate(startOfWeek.getDate() + 7);
 
-        // Calculate week numbers and date ranges for the last 4 weeks
-        const getWeekNumber = (date: Date) => {
-            const startOfYear = new Date(date.getFullYear(), 0, 1);
-            const pastDaysOfYear = (date.getTime() - startOfYear.getTime()) / 86400000;
-            return Math.ceil((pastDaysOfYear + startOfYear.getDay() + 1) / 7);
-        };
-
-        const weekRanges = [];
-        for (let i = 0; i < 4; i++) {
-            const weekStart = new Date(startOfWeek);
-            weekStart.setDate(startOfWeek.getDate() - (i * 7));
-            const weekEnd = new Date(weekStart);
-            weekEnd.setDate(weekStart.getDate() + 7);
+        // Calculate the last 4 ISO weeks using date-fns subWeeks for proper handling
+        const weekRanges: { weekNumber: number; year: number }[] = [];
+        for (let i = 3; i >= 0; i--) {
+            const weekDate = subWeeks(now, i);
             weekRanges.push({
-                weekNumber: getWeekNumber(weekStart),
-                start: weekStart,
-                end: weekEnd,
+                weekNumber: getISOWeek(weekDate),
+                year: getISOWeekYear(weekDate),
             });
         }
 
@@ -108,16 +99,15 @@ export async function GET(request: Request) {
                     currencyId: true,
                 },
             }),
-            // Get all income transactions from the last 4 weeks for the chart
-            // Get all income transactions from the last 4 weeks for the chart
+            // Get all income transactions from the last ~5 weeks for the chart
+            // (5 weeks to ensure we capture all transactions in the 4 ISO weeks we display)
             prisma.transaction.findMany({
                 where: {
                     ...whereClause,
                     type: 'INCOME',
                     status: 'APPROVED',
                     createdAt: {
-                        gte: weekRanges[3].start, // Oldest week start
-                        lt: weekRanges[0].end, // Current week end
+                        gte: new Date(now.getTime() - 35 * 24 * 60 * 60 * 1000), // ~5 weeks ago
                     },
                 },
                 select: {
@@ -126,15 +116,14 @@ export async function GET(request: Request) {
                     createdAt: true,
                 },
             }),
-            // Get all expense transactions from the last 4 weeks for the chart
+            // Get all expense transactions from the last ~5 weeks for the chart
             prisma.transaction.findMany({
                 where: {
                     ...whereClause,
                     type: 'EXPENSE',
                     status: 'APPROVED',
                     createdAt: {
-                        gte: weekRanges[3].start, // Oldest week start
-                        lt: weekRanges[0].end, // Current week end
+                        gte: new Date(now.getTime() - 35 * 24 * 60 * 60 * 1000), // ~5 weeks ago
                     },
                 },
                 select: {
@@ -187,6 +176,7 @@ export async function GET(request: Request) {
         }
 
         // Process weekly chart data - calculate income and expense for each of the last 4 weeks
+        // Match transactions by ISO week number instead of date ranges
         const weeklyChartData = await Promise.all(
             weekRanges.map(async (week) => {
                 let weekIncomeTotal = 0;
@@ -194,7 +184,11 @@ export async function GET(request: Request) {
 
                 for (const tx of last4WeeksIncomeTransactions) {
                     const txDate = new Date(tx.createdAt);
-                    if (txDate >= week.start && txDate < week.end) {
+                    const txWeek = getISOWeek(txDate);
+                    const txYear = getISOWeekYear(txDate);
+                    
+                    // Match by ISO week number and year
+                    if (txWeek === week.weekNumber && txYear === week.year) {
                         const currencyId = tx.currencyId || userBaseCurrency.id;
                         const converted = await convertToUserBaseCurrency(
                             Number(tx.amount),
@@ -208,7 +202,11 @@ export async function GET(request: Request) {
 
                 for (const tx of last4WeeksExpenseTransactions) {
                     const txDate = new Date(tx.createdAt);
-                    if (txDate >= week.start && txDate < week.end) {
+                    const txWeek = getISOWeek(txDate);
+                    const txYear = getISOWeekYear(txDate);
+                    
+                    // Match by ISO week number and year
+                    if (txWeek === week.weekNumber && txYear === week.year) {
                         const currencyId = tx.currencyId || userBaseCurrency.id;
                         const converted = await convertToUserBaseCurrency(
                             Number(tx.amount),
@@ -221,7 +219,7 @@ export async function GET(request: Request) {
                 }
 
                 return {
-                    week: `Week ${week.weekNumber}`,
+                    week: `W${week.weekNumber} '${String(week.year).slice(-2)}`,
                     income: weekIncomeTotal,
                     expense: weekExpenseTotal,
                 };

@@ -1,10 +1,10 @@
-import { getISOWeek, getYear } from 'date-fns';
+import { getISOWeek, getISOWeekYear } from 'date-fns';
 
 export function getCurrentWeek() {
     const now = new Date();
     return {
         weekNumber: getISOWeek(now),
-        year: getYear(now),
+        year: getISOWeekYear(now),
     };
 }
 
