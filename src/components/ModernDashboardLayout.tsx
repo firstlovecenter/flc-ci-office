@@ -87,13 +87,20 @@ export default function ModernDashboardLayout({ children }: { children: React.Re
 
     const isSuperAdmin = session?.user?.role === 'SUPERADMIN';
     const userRole = session?.user?.role;
-    const leaderRoles = ['GLOBAL_LEADER', 'INTERNATIONAL_LEADER', 'NATIONAL_LEADER', 'REGIONAL_LEADER', 'CAMPUS_LEADER', 'STREAM_LEADER', 'COUNCIL_LEADER'];
-    const isLeader = userRole && leaderRoles.includes(userRole);
+    const leaderAndAdminRoles = [
+        'GLOBAL_ADMIN', 'GLOBAL_LEADER',
+        'INTERNATIONAL_ADMIN', 'INTERNATIONAL_LEADER',
+        'NATIONAL_ADMIN', 'NATIONAL_LEADER',
+        'REGIONAL_ADMIN', 'REGIONAL_LEADER',
+        'CAMPUS_ADMIN', 'CAMPUS_LEADER',
+        'STREAM_LEADER', 'COUNCIL_LEADER'
+    ];
+    const isLeaderOrAdmin = userRole && leaderAndAdminRoles.includes(userRole);
     
     const mobileNavItems = [
         { text: 'Home', icon: <HomeIcon />, path: '/dashboard' },
-        // Leaders and SuperAdmin see Churches
-        ...(isSuperAdmin || isLeader ? [{ text: 'Churches', icon: <BusinessIcon />, path: '/departments' }] : []),
+        // Leaders, Admins and SuperAdmin see Churches
+        ...(isSuperAdmin || isLeaderOrAdmin ? [{ text: 'Churches', icon: <BusinessIcon />, path: '/departments' }] : []),
         // Non-SuperAdmin users see Request
         ...(!isSuperAdmin ? [{ text: 'Request', icon: <AddCircleOutlineIcon />, path: '/transactions/new' }] : []),
         { text: 'History', icon: <ReceiptIcon />, path: '/transactions', badge: pendingCounts.transactions },
