@@ -397,7 +397,10 @@ function NewTransactionForm() {
                             <Select
                                 value={type}
                                 label="Type"
-                                onChange={(e) => setType(e.target.value as TransactionType)}
+                                onChange={(e) => {
+                                    setType(e.target.value as TransactionType);
+                                    setDescriptionPreset(''); // Clear preset when type changes
+                                }}
                             >
                                 <MenuItem value="INCOME">Income</MenuItem>
                                 <MenuItem value="EXPENSE">Expense</MenuItem>
@@ -454,21 +457,36 @@ function NewTransactionForm() {
                             onChange={(e) => setDescriptionPreset(e.target.value)}
                         >
                             <MenuItem value="">Custom</MenuItem>
-                            <MenuItem value="HR">HR</MenuItem>
-                            <MenuItem value="Ministry expense">Ministry expense</MenuItem>
+                            {type === 'EXPENSE' ? (
+                                // Expense description presets
+                                <>
+                                    <MenuItem value="HR">HR</MenuItem>
+                                    <MenuItem value="Ministry expense">Ministry expense</MenuItem>
+                                </>
+                            ) : (
+                                // Income description presets
+                                <>
+                                    <MenuItem value="Tithe">Tithe</MenuItem>
+                                    <MenuItem value="Offering">Offering</MenuItem>
+                                    <MenuItem value="Donation">Donation</MenuItem>
+                                    <MenuItem value="Pledge">Pledge</MenuItem>
+                                    <MenuItem value="Seed">Seed</MenuItem>
+                                    <MenuItem value="Special Offering">Special Offering</MenuItem>
+                                </>
+                            )}
                         </Select>
                     </FormControl>
 
                     <TextField
                         fullWidth
-                        label={descriptionPreset ? "Additional Details (Optional)" : "Description"}
+                        label={descriptionPreset ? "Additional Details (Optional)" : (type === 'INCOME' ? "Description (Optional)" : "Description")}
                         value={description}
                         onChange={(e) => setDescription(e.target.value)}
-                        required={!descriptionPreset}
+                        required={type === 'EXPENSE' && !descriptionPreset}
                         multiline
                         rows={3}
                         sx={{ mb: 3 }}
-                        placeholder={isLeader ? "What is this expense for?" : "Transaction description"}
+                        placeholder={type === 'EXPENSE' ? "What is this expense for?" : "Additional details about this income (optional)"}
                     />
 
                     {!isLeader && (
