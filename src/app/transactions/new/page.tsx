@@ -491,16 +491,16 @@ function NewTransactionForm() {
 
                     {!isLeader && (
                         <FormControl fullWidth sx={{ mb: 3 }}>
-                            <InputLabel>Department</InputLabel>
+                            <InputLabel>Church</InputLabel>
                             <Select
                                 value={departmentId}
-                                label="Department"
+                                label="Church"
                                 onChange={(e) => setDepartmentId(e.target.value)}
                                 required
                             >
                                 {departments.map((dept) => (
                                     <MenuItem key={dept.id} value={dept.id}>
-                                        {dept.name} ({formatDepartmentLevel(dept.level)})
+                                        {dept.name} - {formatDepartmentLevel(dept.level)}
                                     </MenuItem>
                                 ))}
                             </Select>
