@@ -500,7 +500,7 @@ function NewTransactionForm() {
                             >
                                 {departments.map((dept) => (
                                     <MenuItem key={dept.id} value={dept.id}>
-                                        {dept.name} - {formatDepartmentLevel(dept.level)}
+                                        {dept.name} {formatDepartmentLevel(dept.level)}
                                     </MenuItem>
                                 ))}
                             </Select>
