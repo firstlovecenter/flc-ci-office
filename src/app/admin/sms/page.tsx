@@ -105,7 +105,7 @@ export default function SMSManagementPage() {
                 { key: 'userName', label: 'User Name', type: 'text', required: true },
                 { key: 'type', label: 'Transaction Type', type: 'select', options: ['INCOME', 'EXPENSE'], required: true },
                 { key: 'amount', label: 'Amount (e.g., GHS 500.00)', type: 'text', required: true },
-                { key: 'status', label: 'Status', type: 'select', options: ['PENDING', 'APPROVED', 'DECLINED'], required: true },
+                { key: 'status', label: 'Status', type: 'select', options: ['PENDING', 'APPROVED', 'REJECTED'], required: true },
             ],
         },
         department_alert: {

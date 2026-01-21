@@ -56,7 +56,7 @@ type Transaction = {
     departmentId: string;
     createdBy: string;
     weekLocked: boolean;
-    status: 'PENDING' | 'APPROVED' | 'DECLINED';
+    status: 'PENDING' | 'APPROVED' | 'REJECTED';
     approvedBy: string | null;
     approvedAt: Date | null;
     declineReason: string | null;
@@ -613,7 +613,7 @@ function TransactionsPageContent() {
                             <MenuItem value="ALL">All</MenuItem>
                             <MenuItem value="PENDING">Pending</MenuItem>
                             <MenuItem value="APPROVED">Approved</MenuItem>
-                            <MenuItem value="DECLINED">Declined</MenuItem>
+                            <MenuItem value="REJECTED">Declined</MenuItem>
                         </Select>
                     </FormControl>
                 </Box>
@@ -651,7 +651,7 @@ function TransactionsPageContent() {
                                     '&:hover': { bgcolor: 'action.hover' },
                                     transition: 'background-color 0.2s',
                                     '& td': { py: 0.5 },
-                                    bgcolor: tx.status === 'PENDING' ? 'warning.light' : tx.status === 'DECLINED' ? 'error.light' : 'inherit',
+                                    bgcolor: tx.status === 'PENDING' ? 'warning.light' : tx.status === 'REJECTED' ? 'error.light' : 'inherit',
                                     opacity: tx.status !== 'APPROVED' ? 0.7 : 1
                                 }}
                             >
@@ -728,8 +728,8 @@ function TransactionsPageContent() {
                                 {isAdmin && (
                                 <TableCell align="center">
                                     <Box sx={{ display: 'flex', gap: 1, justifyContent: 'center' }}>
-                                        {/* Correct button for approved/declined transactions (admins only) */}
-                                        {(tx.status === 'APPROVED' || tx.status === 'DECLINED') && isAdmin && (
+                                        {/* Correct button for approved/rejected transactions (admins only) */}
+                                        {(tx.status === 'APPROVED' || tx.status === 'REJECTED') && isAdmin && (
                                             <Tooltip title="Create Correction">
                                                 <IconButton
                                                     size="small"

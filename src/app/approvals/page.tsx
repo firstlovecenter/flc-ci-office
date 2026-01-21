@@ -44,7 +44,7 @@ interface Transaction {
     description: string;
     amount: string;
     type: 'INCOME' | 'EXPENSE';
-    status: 'PENDING' | 'APPROVED' | 'DECLINED';
+    status: 'PENDING' | 'APPROVED' | 'REJECTED';
     createdAt: string;
     user: {
         name: string;
@@ -121,10 +121,10 @@ export default function ApprovalsPage() {
             const response = await fetch('/api/transactions');
             if (response.ok) {
                 const data = await response.json();
-                // Filter for approved or declined EXPENSE transactions only, excluding corrections
+                // Filter for approved or rejected EXPENSE transactions only, excluding corrections
                 const history = data.filter((t: Transaction) => 
                     t.type === 'EXPENSE' && 
-                    (t.status === 'APPROVED' || t.status === 'DECLINED') &&
+                    (t.status === 'APPROVED' || t.status === 'REJECTED') &&
                     !t.description.startsWith('CORRECTION:')
                 );
                 setHistoricalTransactions(history);
@@ -165,7 +165,7 @@ export default function ApprovalsPage() {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    status: actionType === 'approve' ? 'APPROVED' : 'DECLINED',
+                    status: actionType === 'approve' ? 'APPROVED' : 'REJECTED',
                     rejectionReason: actionType === 'reject' ? rejectionReason : undefined,
                     approvedAmount: actionType === 'approve' ? parseFloat(approvedAmount) : undefined,
                     charges: actionType === 'approve' ? parseFloat(charges || '0') : undefined,
@@ -216,7 +216,7 @@ export default function ApprovalsPage() {
         switch (status) {
             case 'PENDING': return 'warning';
             case 'APPROVED': return 'success';
-            case 'DECLINED': return 'error';
+            case 'REJECTED': return 'error';
             default: return 'default';
         }
     };

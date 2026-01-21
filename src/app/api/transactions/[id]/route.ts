@@ -141,7 +141,7 @@ export async function PATCH(
         const transactionId = params.id;
 
         // Validate status
-        if (!['APPROVED', 'DECLINED'].includes(status)) {
+        if (!['APPROVED', 'REJECTED'].includes(status)) {
             return new NextResponse('Invalid status', { status: 400 });
         }
 
@@ -195,9 +195,9 @@ export async function PATCH(
                 amount: status === 'APPROVED' && approvedAmount !== undefined ? approvedAmount : transaction.amount,
                 approvedBy: status === 'APPROVED' ? session.user.id : undefined,
                 approvedAt: status === 'APPROVED' ? new Date() : undefined,
-                rejectedBy: status === 'DECLINED' ? session.user.id : undefined,
-                rejectedAt: status === 'DECLINED' ? new Date() : undefined,
-                rejectionReason: status === 'DECLINED' ? rejectionReason : undefined,
+                rejectedBy: status === 'REJECTED' ? session.user.id : undefined,
+                rejectedAt: status === 'REJECTED' ? new Date() : undefined,
+                rejectionReason: status === 'REJECTED' ? rejectionReason : undefined,
             },
             include: {
                 department: {
@@ -324,8 +324,8 @@ export async function PATCH(
                 afterData: { 
                     status, 
                     approvedBy: status === 'APPROVED' ? session.user.id : undefined,
-                    rejectedBy: status === 'DECLINED' ? session.user.id : undefined,
-                    rejectionReason: status === 'DECLINED' ? rejectionReason : undefined,
+                    rejectedBy: status === 'REJECTED' ? session.user.id : undefined,
+                    rejectionReason: status === 'REJECTED' ? rejectionReason : undefined,
                 },
             },
         });
