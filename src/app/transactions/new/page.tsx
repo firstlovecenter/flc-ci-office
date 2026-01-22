@@ -470,11 +470,14 @@ function NewTransactionForm() {
                     />
 
                     <FormControl fullWidth sx={{ mb: 3 }}>
-                        <InputLabel>Description Type</InputLabel>
+                        <InputLabel id="description-type-label">Description Type</InputLabel>
                         <Select
+                            labelId="description-type-label"
+                            id="description-type-select"
                             value={descriptionPreset}
                             label="Description Type"
                             onChange={(e) => setDescriptionPreset(e.target.value)}
+                            disabled={loading}
                         >
                             <MenuItem value="">Custom</MenuItem>
                             {type === 'EXPENSE' ? (
