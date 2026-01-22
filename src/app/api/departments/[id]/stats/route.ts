@@ -98,6 +98,7 @@ export async function GET(
                 departmentId: {
                     in: descendantIds,
                 },
+                status: 'APPROVED',
             },
             include: {
                 currency: true,
