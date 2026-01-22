@@ -657,20 +657,6 @@ export default function DashboardPage() {
                             }}
                             style={{ backgroundColor: 'transparent' }}
                         >
-                            <defs>
-                                <linearGradient id="incomeGradient" x1="0" y1="0" x2="0" y2="1">
-                                    <stop offset="0%" stopColor="#4caf50" stopOpacity={1}/>
-                                    <stop offset="100%" stopColor="#2e7d32" stopOpacity={0.8}/>
-                                </linearGradient>
-                                <linearGradient id="incomeCurrentGradient" x1="0" y1="0" x2="0" y2="1">
-                                    <stop offset="0%" stopColor="#42a5f5" stopOpacity={1}/>
-                                    <stop offset="100%" stopColor="#1976d2" stopOpacity={0.8}/>
-                                </linearGradient>
-                                <linearGradient id="expenseGradient" x1="0" y1="0" x2="0" y2="1">
-                                    <stop offset="0%" stopColor="#ef5350" stopOpacity={1}/>
-                                    <stop offset="100%" stopColor="#c62828" stopOpacity={0.8}/>
-                                </linearGradient>
-                            </defs>
                             <XAxis 
                                 dataKey="week" 
                                 tick={{ fill: theme.palette.text.secondary, fontSize: 12 }}
@@ -700,6 +686,7 @@ export default function DashboardPage() {
                                 dataKey="income" 
                                 radius={[6, 6, 0, 0]}
                                 barSize={35}
+                                fill={theme.palette.success.main}
                             >
                                 <LabelList 
                                     dataKey="income" 
@@ -708,17 +695,12 @@ export default function DashboardPage() {
                                     fontSize={11}
                                     formatter={(value) => baseCurrency ? `${baseCurrency.symbol}${Number(value).toLocaleString()}` : Number(value).toLocaleString()}
                                 />
-                                {stats.chartData.map((entry, index) => (
-                                    <Cell 
-                                        key={`income-cell-${index}`} 
-                                        fill={index === stats.chartData.length - 1 ? 'url(#incomeCurrentGradient)' : 'url(#incomeGradient)'} 
-                                    />
-                                ))}
                             </Bar>
                             <Bar 
                                 dataKey="expense" 
                                 radius={[6, 6, 0, 0]}
                                 barSize={35}
+                                fill={theme.palette.error.main}
                             >
                                 <LabelList 
                                     dataKey="expense" 
@@ -727,12 +709,6 @@ export default function DashboardPage() {
                                     fontSize={11}
                                     formatter={(value) => baseCurrency ? `${baseCurrency.symbol}${Number(value).toLocaleString()}` : Number(value).toLocaleString()}
                                 />
-                                {stats.chartData.map((entry, index) => (
-                                    <Cell 
-                                        key={`expense-cell-${index}`} 
-                                        fill="url(#expenseGradient)"
-                                    />
-                                ))}
                             </Bar>
                         </BarChart>
                     </ResponsiveContainer>

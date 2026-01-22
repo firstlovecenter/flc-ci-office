@@ -327,6 +327,7 @@ export default function DepartmentDashboardPage() {
                                 dataKey="income" 
                                 radius={[4, 4, 0, 0]}
                                 barSize={35}
+                                fill={theme.palette.success.main}
                             >
                                 <LabelList 
                                     dataKey="income" 
@@ -335,17 +336,12 @@ export default function DepartmentDashboardPage() {
                                     fontSize={11}
                                     formatter={(value: any) => stats.currency ? `${stats.currency.symbol}${Number(value).toLocaleString()}` : Number(value).toLocaleString()}
                                 />
-                                {stats.chartData.map((entry, index) => (
-                                    <Cell 
-                                        key={`income-cell-${index}`} 
-                                        fill={index === stats.chartData.length - 1 ? theme.palette.primary.main : theme.palette.success.main} 
-                                    />
-                                ))}
                             </Bar>
                             <Bar 
                                 dataKey="expense" 
                                 radius={[4, 4, 0, 0]}
                                 barSize={35}
+                                fill={theme.palette.error.main}
                             >
                                 <LabelList 
                                     dataKey="expense" 
@@ -354,12 +350,6 @@ export default function DepartmentDashboardPage() {
                                     fontSize={11}
                                     formatter={(value: any) => stats.currency ? `${stats.currency.symbol}${Number(value).toLocaleString()}` : Number(value).toLocaleString()}
                                 />
-                                {stats.chartData.map((entry, index) => (
-                                    <Cell 
-                                        key={`expense-cell-${index}`} 
-                                        fill={theme.palette.error.main}
-                                    />
-                                ))}
                             </Bar>
                         </BarChart>
                     </ResponsiveContainer>

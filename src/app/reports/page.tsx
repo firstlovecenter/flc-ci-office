@@ -573,6 +573,7 @@ function ReportsPageContent() {
                                         dataKey="income" 
                                         radius={[4, 4, 0, 0]}
                                         barSize={35}
+                                        fill={theme.palette.success.main}
                                     >
                                         <LabelList 
                                             dataKey="income" 
@@ -581,12 +582,6 @@ function ReportsPageContent() {
                                             fontSize={12}
                                             formatter={(value) => baseCurrency ? `${baseCurrency.symbol}${Number(value).toLocaleString()}` : Number(value).toLocaleString()}
                                         />
-                                        {chartData.map((entry, index) => (
-                                            <Cell 
-                                                key={`income-cell-${index}`} 
-                                                fill={index === chartData.length - 1 ? theme.palette.primary.main : theme.palette.success.main} 
-                                            />
-                                        ))}
                                     </Bar>
                                     <Bar 
                                         dataKey="expense" 
