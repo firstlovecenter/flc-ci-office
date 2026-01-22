@@ -28,9 +28,21 @@ function NewTransactionForm() {
     const deptParam = searchParams?.get('dept');
     const typeParam = searchParams?.get('type');
     const exactDepartment = searchParams?.get('exact') === 'true';
-    const { data: session } = useSession();
+    const { data: session, status: sessionStatus } = useSession();
     const { showSuccess, showError } = useToast();
-    const [type, setType] = useState<TransactionType>('INCOME');
+    
+    // Check if user is a leader
+    const leaderRoles = ['GLOBAL_LEADER', 'INTERNATIONAL_LEADER', 'NATIONAL_LEADER', 'REGIONAL_LEADER', 'CAMPUS_LEADER', 'STREAM_LEADER', 'COUNCIL_LEADER'];
+    const isLeader = session?.user?.role && leaderRoles.includes(session.user.role);
+    
+    // Initialize type based on whether user is a leader (leaders can only make expenses)
+    // Wait for session to load to determine initial type
+    const [type, setType] = useState<TransactionType>(() => {
+        if (typeParam && (typeParam === 'INCOME' || typeParam === 'EXPENSE')) {
+            return typeParam as TransactionType;
+        }
+        return 'INCOME'; // Default, will be updated by useEffect when session loads
+    });
     const [amount, setAmount] = useState('');
     const [description, setDescription] = useState('');
     const [descriptionPreset, setDescriptionPreset] = useState('');
@@ -48,11 +60,10 @@ function NewTransactionForm() {
     const [balanceCurrency, setBalanceCurrency] = useState<{ code: string; symbol: string } | null>(null);
     const [balanceLoading, setBalanceLoading] = useState(false);
 
-    // Check if user is a leader
-    const leaderRoles = ['GLOBAL_LEADER', 'INTERNATIONAL_LEADER', 'NATIONAL_LEADER', 'REGIONAL_LEADER', 'CAMPUS_LEADER', 'STREAM_LEADER', 'COUNCIL_LEADER'];
-    const isLeader = session?.user?.role && leaderRoles.includes(session.user.role);
-
     useEffect(() => {
+        // Only set type once session has loaded
+        if (sessionStatus === 'loading') return;
+        
         // Check time restriction for leaders making expense requests
         if (isLeader) {
             const now = new Date();
@@ -69,7 +80,7 @@ function NewTransactionForm() {
             // Leaders can only make expense requests
             setType('EXPENSE');
         }
-    }, [typeParam, isLeader]);
+    }, [typeParam, isLeader, sessionStatus]);
 
     useEffect(() => {
         fetchDepartments();
@@ -341,6 +352,15 @@ function NewTransactionForm() {
                 </Box>
             );
         }
+    }
+
+    // Show loading spinner while session is loading to prevent showing wrong form options
+    if (sessionStatus === 'loading') {
+        return (
+            <Box maxWidth="sm" sx={{ mx: 'auto', mt: 8, display: 'flex', justifyContent: 'center' }}>
+                <CircularProgress />
+            </Box>
+        );
     }
 
     return (
