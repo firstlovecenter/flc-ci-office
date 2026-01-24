@@ -101,6 +101,7 @@ export const authOptions: NextAuthOptions = {
                     departmentId: activeRole.departmentId,
                     departmentLevel: activeRole.department?.level,
                     departmentName: activeRole.department?.name,
+                    activeUserRoleId: activeRole.id,
                 };
             },
         }),
@@ -117,6 +118,7 @@ export const authOptions: NextAuthOptions = {
                 session.user.departmentId = token.departmentId as string;
                 session.user.departmentLevel = token.departmentLevel as string;
                 session.user.departmentName = token.departmentName as string;
+                session.user.activeUserRoleId = token.activeUserRoleId as string | null;
             }
             return session;
         },
@@ -131,6 +133,7 @@ export const authOptions: NextAuthOptions = {
                 token.departmentId = user.departmentId;
                 token.departmentLevel = user.departmentLevel;
                 token.departmentName = user.departmentName;
+                token.activeUserRoleId = user.activeUserRoleId;
             }
             
             // Handle session update (e.g., when switching roles)
@@ -168,6 +171,7 @@ export const authOptions: NextAuthOptions = {
                         token.departmentId = updatedUser.departmentId;
                         token.departmentLevel = undefined;
                         token.departmentName = updatedUser.department?.name;
+                        token.activeUserRoleId = null;
                     } else {
                         const activeRole = updatedUser.activeUserRole || updatedUser.userRoles[0];
                         const allRoles = updatedUser.userRoles.map(ur => ur.role);
@@ -178,6 +182,7 @@ export const authOptions: NextAuthOptions = {
                         token.departmentId = activeRole?.departmentId;
                         token.departmentLevel = activeRole?.department?.level;
                         token.departmentName = activeRole?.department?.name;
+                        token.activeUserRoleId = activeRole?.id || null;
                     }
                 }
             }
