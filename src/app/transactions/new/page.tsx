@@ -35,13 +35,12 @@ function NewTransactionForm() {
     const leaderRoles = ['GLOBAL_LEADER', 'INTERNATIONAL_LEADER', 'NATIONAL_LEADER', 'REGIONAL_LEADER', 'CAMPUS_LEADER', 'STREAM_LEADER', 'COUNCIL_LEADER'];
     const isLeader = session?.user?.role && leaderRoles.includes(session.user.role);
     
-    // Initialize type based on whether user is a leader (leaders can only make expenses)
-    // Wait for session to load to determine initial type
+    // Initialize type - will be set properly by useEffect once session loads
     const [type, setType] = useState<TransactionType>(() => {
         if (typeParam && (typeParam === 'INCOME' || typeParam === 'EXPENSE')) {
             return typeParam as TransactionType;
         }
-        return 'INCOME'; // Default, will be updated by useEffect when session loads
+        return 'EXPENSE'; // Default to EXPENSE - leaders can only do expenses, and admins can change
     });
     const [amount, setAmount] = useState('');
     const [description, setDescription] = useState('');
@@ -79,6 +78,9 @@ function NewTransactionForm() {
         } else if (isLeader) {
             // Leaders can only make expense requests
             setType('EXPENSE');
+        } else if (!isLeader && !typeParam) {
+            // Admins default to INCOME when no URL param
+            setType('INCOME');
         }
     }, [typeParam, isLeader, sessionStatus]);
 
@@ -480,23 +482,14 @@ function NewTransactionForm() {
                             disabled={loading}
                         >
                             <MenuItem value="">Custom</MenuItem>
-                            {type === 'EXPENSE' ? (
-                                // Expense description presets
-                                <>
-                                    <MenuItem value="HR">HR</MenuItem>
-                                    <MenuItem value="Ministry expense">Ministry expense</MenuItem>
-                                </>
-                            ) : (
-                                // Income description presets
-                                <>
-                                    <MenuItem value="Tithe">Tithe</MenuItem>
-                                    <MenuItem value="Offering">Offering</MenuItem>
-                                    <MenuItem value="Donation">Donation</MenuItem>
-                                    <MenuItem value="Pledge">Pledge</MenuItem>
-                                    <MenuItem value="Seed">Seed</MenuItem>
-                                    <MenuItem value="Special Offering">Special Offering</MenuItem>
-                                </>
-                            )}
+                            {type === 'EXPENSE' && <MenuItem value="HR">HR</MenuItem>}
+                            {type === 'EXPENSE' && <MenuItem value="Ministry expense">Ministry expense</MenuItem>}
+                            {type === 'INCOME' && <MenuItem value="Tithe">Tithe</MenuItem>}
+                            {type === 'INCOME' && <MenuItem value="Offering">Offering</MenuItem>}
+                            {type === 'INCOME' && <MenuItem value="Donation">Donation</MenuItem>}
+                            {type === 'INCOME' && <MenuItem value="Pledge">Pledge</MenuItem>}
+                            {type === 'INCOME' && <MenuItem value="Seed">Seed</MenuItem>}
+                            {type === 'INCOME' && <MenuItem value="Special Offering">Special Offering</MenuItem>}
                         </Select>
                     </FormControl>
 
