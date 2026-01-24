@@ -338,6 +338,7 @@ function UsersPageContent() {
                                             whiteSpace: 'nowrap',
                                         }}
                                     >
+                                        {user.userRoles?.[0]?.role && `${user.userRoles[0].role} - `}
                                         {user.userRoles?.[0]?.department?.name || user.department?.name || 'No department'}
                                         {user.userRoles?.length > 1 && ` (+${user.userRoles.length - 1} more)`}
                                     </Typography>

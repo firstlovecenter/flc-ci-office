@@ -297,6 +297,20 @@ export default function EditUserDialog({
                     Please note that * are required to submit the form
                 </Typography>
 
+                {/* Role Assignments */}
+                {user?.userRoles && user.userRoles.length > 0 && (
+                    <Box sx={{ mb: 2, p: 1.5, bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)', borderRadius: 1 }}>
+                        <Typography variant="body2" fontWeight={600} sx={{ mb: 1 }}>
+                            Assigned Roles:
+                        </Typography>
+                        {user.userRoles.map((userRole: any) => (
+                            <Typography key={userRole.id} variant="body2" sx={{ mb: 0.5 }}>
+                                • <strong>{userRole.role}</strong> - {userRole.department?.name}
+                            </Typography>
+                        ))}
+                    </Box>
+                )}
+
                 <TextField
                     fullWidth
                     label="Title (Optional)"
