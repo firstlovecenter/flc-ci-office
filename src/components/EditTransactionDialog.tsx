@@ -360,6 +360,8 @@ export default function EditTransactionDialog({
                         <MenuItem value="">Custom</MenuItem>
                         <MenuItem value="HR">HR</MenuItem>
                         <MenuItem value="Ministry expense">Ministry expense</MenuItem>
+                        <MenuItem value="Bussing">Bussing</MenuItem>
+                        <MenuItem value="Construction">Construction</MenuItem>
                     </Select>
                 </FormControl>
 

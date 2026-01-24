@@ -484,6 +484,8 @@ function NewTransactionForm() {
                             <MenuItem value="">Custom</MenuItem>
                             {type === 'EXPENSE' && <MenuItem value="HR">HR</MenuItem>}
                             {type === 'EXPENSE' && <MenuItem value="Ministry expense">Ministry expense</MenuItem>}
+                            {type === 'EXPENSE' && <MenuItem value="Bussing">Bussing</MenuItem>}
+                            {type === 'EXPENSE' && <MenuItem value="Construction">Construction</MenuItem>}
                             {type === 'INCOME' && <MenuItem value="Tithe">Tithe</MenuItem>}
                             {type === 'INCOME' && <MenuItem value="Offering">Offering</MenuItem>}
                             {type === 'INCOME' && <MenuItem value="Donation">Donation</MenuItem>}
