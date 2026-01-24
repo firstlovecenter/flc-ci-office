@@ -30,6 +30,14 @@ export async function GET(request: Request) {
             archived: false, // Only show non-archived users by default
         };
 
+        // Determine which department to use for filtering
+        // For users with multiple roles, use the activeUserRole's department
+        let filterDepartmentId = session.user.departmentId;
+        
+        if (session.user.activeUserRole?.departmentId) {
+            filterDepartmentId = session.user.activeUserRole.departmentId;
+        }
+
         // For available users (leader selection), we want all registered users
         // that are not archived, regardless of their current department
         if (availableOnly) {
@@ -39,8 +47,8 @@ export async function GET(request: Request) {
                 // Get users that are either:
                 // 1. Have no department (unassigned users)
                 // 2. Are in the admin's department hierarchy
-                const allowedDepartmentIds = session.user.departmentId 
-                    ? await getDescendantDepartmentIds(session.user.departmentId)
+                const allowedDepartmentIds = filterDepartmentId 
+                    ? await getDescendantDepartmentIds(filterDepartmentId)
                     : [];
                     
                 whereClause.OR = [
@@ -52,8 +60,8 @@ export async function GET(request: Request) {
         } else {
             // Filter users based on department hierarchy (original behavior)
             if (session.user.role !== 'SUPERADMIN') {
-                if (session.user.departmentId) {
-                    const allowedDepartmentIds = await getDescendantDepartmentIds(session.user.departmentId);
+                if (filterDepartmentId) {
+                    const allowedDepartmentIds = await getDescendantDepartmentIds(filterDepartmentId);
                     whereClause.departmentId = { in: allowedDepartmentIds };
                 } else {
                     // User has no department, can't see any users

@@ -81,7 +81,9 @@ export async function GET(
 
         // For non-superadmins, verify they can access this user
         if (session.user.role !== 'SUPERADMIN') {
-            if (!session.user.departmentId) {
+            const filterDepartmentId = session.user.activeUserRole?.departmentId || session.user.departmentId;
+            
+            if (!filterDepartmentId) {
                 return NextResponse.json(
                     { error: 'No department assigned' },
                     { status: 403 }
@@ -89,7 +91,7 @@ export async function GET(
             }
 
             // Get all departments this admin oversees
-            const allowedDepartmentIds = await getDescendantDepartmentIds(session.user.departmentId);
+            const allowedDepartmentIds = await getDescendantDepartmentIds(filterDepartmentId);
             
             // Check if user is in admin's department hierarchy
             if (user.departmentId && !allowedDepartmentIds.includes(user.departmentId)) {
@@ -179,7 +181,9 @@ export async function PUT(
 
         // For non-superadmins, verify department access
         if (session.user.role !== 'SUPERADMIN') {
-            if (!session.user.departmentId) {
+            const filterDepartmentId = session.user.activeUserRole?.departmentId || session.user.departmentId;
+            
+            if (!filterDepartmentId) {
                 return NextResponse.json(
                     { error: 'No department assigned' },
                     { status: 403 }
@@ -187,7 +191,7 @@ export async function PUT(
             }
 
             // Get all departments this admin oversees
-            const allowedDepartmentIds = await getDescendantDepartmentIds(session.user.departmentId);
+            const allowedDepartmentIds = await getDescendantDepartmentIds(filterDepartmentId);
             
             // Check current user's department
             if (targetUser.departmentId && !allowedDepartmentIds.includes(targetUser.departmentId)) {
@@ -566,7 +570,9 @@ export async function PATCH(
 
         // For non-superadmins, verify department access
         if (session.user.role !== 'SUPERADMIN') {
-            if (!session.user.departmentId) {
+            const filterDepartmentId = session.user.activeUserRole?.departmentId || session.user.departmentId;
+            
+            if (!filterDepartmentId) {
                 return NextResponse.json(
                     { error: 'No department assigned' },
                     { status: 403 }
@@ -574,7 +580,7 @@ export async function PATCH(
             }
 
             // Get all departments this admin oversees
-            const allowedDepartmentIds = await getDescendantDepartmentIds(session.user.departmentId);
+            const allowedDepartmentIds = await getDescendantDepartmentIds(filterDepartmentId);
             
             // Check if user is in admin's department hierarchy
             if (targetUser.departmentId && !allowedDepartmentIds.includes(targetUser.departmentId)) {

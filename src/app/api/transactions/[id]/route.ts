@@ -172,8 +172,10 @@ export async function PATCH(
 
         // Check if the admin has access to this department
         if (session.user.role !== 'SUPERADMIN') {
+            const filterDepartmentId = session.user.activeUserRole?.departmentId || session.user.departmentId;
+            
             const hasAccess = await hasDepartmentAccess(
-                { role: session.user.role, departmentId: session.user.departmentId },
+                { role: session.user.role, departmentId: filterDepartmentId },
                 transaction.departmentId
             );
 

@@ -21,8 +21,10 @@ export async function POST(
         const { reason } = body;
 
         // Only leaders and admins at or above this department level can close it
+        const filterDepartmentId = session.user.activeUserRole?.departmentId || session.user.departmentId;
+        
         const hasAccess = await hasDepartmentAccess(
-            { role: session.user.role, departmentId: session.user.departmentId },
+            { role: session.user.role, departmentId: filterDepartmentId },
             departmentId
         );
 

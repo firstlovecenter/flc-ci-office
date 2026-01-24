@@ -28,13 +28,27 @@ export async function GET(request: Request) {
     try {
         const whereClause: any = {};
 
+        // Determine which department to use for filtering
+        // For users with multiple roles, use the activeUserRole's department
+        let filterDepartmentId = session.user.departmentId;
+        
+        if (session.user.activeUserRoleId) {
+            const activeRole = await prisma.userRole.findUnique({
+                where: { id: session.user.activeUserRoleId },
+                select: { departmentId: true },
+            });
+            if (activeRole?.departmentId) {
+                filterDepartmentId = activeRole.departmentId;
+            }
+        }
+
         if (session.user.role !== 'SUPERADMIN') {
-            if (!session.user.departmentId) {
+            if (!filterDepartmentId) {
                 return new NextResponse('Forbidden', { status: 403 });
             }
 
             // Get all allowed department IDs
-            const allowedIds = await getDescendantDepartmentIds(session.user.departmentId);
+            const allowedIds = await getDescendantDepartmentIds(filterDepartmentId);
 
             if (departmentId) {
                 // If specific department requested, verify access

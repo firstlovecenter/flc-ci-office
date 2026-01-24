@@ -30,13 +30,22 @@ export async function GET(request: Request) {
             whereClause.isActive = true;
         }
 
+        // Determine which department to use for filtering
+        // For users with multiple roles, use the activeUserRole's department
+        // For users with single roles, use their session department
+        let filterDepartmentId = session.user.departmentId;
+        
+        if (session.user.activeUserRole?.departmentId) {
+            filterDepartmentId = session.user.activeUserRole.departmentId;
+        }
+
         // If fetching all departments (for dropdowns), return based on role
         if (fetchAll) {
             if (session.user.role === 'SUPERADMIN') {
                 // Superadmin can see all departments (whereClause already has isActive filter)
-            } else if (session.user.departmentId) {
+            } else if (filterDepartmentId) {
                 // Others see their department and descendants
-                const allowedIds = await getDescendantDepartmentIds(session.user.departmentId);
+                const allowedIds = await getDescendantDepartmentIds(filterDepartmentId);
                 whereClause.id = { in: allowedIds };
             } else {
                 // Non-superadmin users without department assignment return empty
@@ -46,11 +55,11 @@ export async function GET(request: Request) {
             // Regular fetch - exclude user's own department and siblings
             if (session.user.role === 'SUPERADMIN') {
                 // Superadmin can see all departments (whereClause already has isActive filter)
-            } else if (session.user.departmentId) {
-                const allowedIds = await getDescendantDepartmentIds(session.user.departmentId);
+            } else if (filterDepartmentId) {
+                const allowedIds = await getDescendantDepartmentIds(filterDepartmentId);
                 
                 // Remove the user's own department from the list
-                const filteredIds = allowedIds.filter(id => id !== session.user.departmentId);
+                const filteredIds = allowedIds.filter(id => id !== filterDepartmentId);
                 
                 if (filteredIds.length === 0) {
                     // User has no child departments
@@ -111,8 +120,11 @@ export async function GET(request: Request) {
 
         // For non-superadmin users, exclude their own department and sibling departments
         let filteredDepartments = departments;
-        if (session.user.role !== 'SUPERADMIN' && !fetchAll && session.user.departmentId) {
-            filteredDepartments = departments.filter(dept => dept.id !== session.user.departmentId);
+        if (session.user.role !== 'SUPERADMIN' && !fetchAll) {
+            const filterDepartmentId = session.user.activeUserRole?.departmentId || session.user.departmentId;
+            if (filterDepartmentId) {
+                filteredDepartments = departments.filter(dept => dept.id !== filterDepartmentId);
+            }
         }
 
         return NextResponse.json(filteredDepartments);
@@ -178,10 +190,11 @@ export async function POST(request: Request) {
         }
 
         // Get user's department to check level
+        const filterDepartmentId = session.user.activeUserRole?.departmentId || session.user.departmentId;
         let userDepartmentLevel;
-        if (session.user.departmentId) {
+        if (filterDepartmentId) {
             const userDepartment = await prisma.department.findUnique({
-                where: { id: session.user.departmentId },
+                where: { id: filterDepartmentId },
                 select: { level: true },
             });
             userDepartmentLevel = userDepartment?.level;
@@ -199,8 +212,8 @@ export async function POST(request: Request) {
 
         // If parentId is provided, verify user has access to that department
         if (parentId && session.user.role !== 'SUPERADMIN') {
-            const allowedIds = session.user.departmentId 
-                ? await getDescendantDepartmentIds(session.user.departmentId)
+            const allowedIds = filterDepartmentId 
+                ? await getDescendantDepartmentIds(filterDepartmentId)
                 : [];
             
             if (!allowedIds.includes(parentId)) {

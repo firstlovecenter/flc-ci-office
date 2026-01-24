@@ -102,6 +102,11 @@ export const authOptions: NextAuthOptions = {
                     departmentLevel: activeRole.department?.level,
                     departmentName: activeRole.department?.name,
                     activeUserRoleId: activeRole.id,
+                    activeUserRole: {
+                        id: activeRole.id,
+                        role: activeRole.role,
+                        departmentId: activeRole.departmentId,
+                    },
                 };
             },
         }),
@@ -119,6 +124,7 @@ export const authOptions: NextAuthOptions = {
                 session.user.departmentLevel = token.departmentLevel as string;
                 session.user.departmentName = token.departmentName as string;
                 session.user.activeUserRoleId = token.activeUserRoleId as string | null;
+                session.user.activeUserRole = token.activeUserRole as any;
             }
             return session;
         },
@@ -134,6 +140,7 @@ export const authOptions: NextAuthOptions = {
                 token.departmentLevel = user.departmentLevel;
                 token.departmentName = user.departmentName;
                 token.activeUserRoleId = user.activeUserRoleId;
+                token.activeUserRole = user.activeUserRole;
             }
             
             // Handle session update (e.g., when switching roles)
@@ -172,6 +179,7 @@ export const authOptions: NextAuthOptions = {
                         token.departmentLevel = undefined;
                         token.departmentName = updatedUser.department?.name;
                         token.activeUserRoleId = null;
+                        token.activeUserRole = null;
                     } else {
                         const activeRole = updatedUser.activeUserRole || updatedUser.userRoles[0];
                         const allRoles = updatedUser.userRoles.map(ur => ur.role);
@@ -183,6 +191,11 @@ export const authOptions: NextAuthOptions = {
                         token.departmentLevel = activeRole?.department?.level;
                         token.departmentName = activeRole?.department?.name;
                         token.activeUserRoleId = activeRole?.id || null;
+                        token.activeUserRole = activeRole ? {
+                            id: activeRole.id,
+                            role: activeRole.role,
+                            departmentId: activeRole.departmentId,
+                        } : null;
                     }
                 }
             }

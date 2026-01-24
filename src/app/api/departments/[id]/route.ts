@@ -89,8 +89,10 @@ export async function PUT(
         const departmentId = params.id;
 
         // Check if user has access to this department
+        const filterDepartmentId = session.user.activeUserRole?.departmentId || session.user.departmentId;
+        
         const hasAccess = await hasDepartmentAccess(
-            { role: session.user.role, departmentId: session.user.departmentId },
+            { role: session.user.role, departmentId: filterDepartmentId },
             departmentId
         );
 

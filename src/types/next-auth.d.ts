@@ -10,6 +10,11 @@ declare module 'next-auth' {
             departmentLevel?: string;
             departmentName?: string;
             activeUserRoleId?: string | null;
+            activeUserRole?: {
+                id: string;
+                role: string;
+                departmentId: string;
+            } | null;
         } & DefaultSession['user'];
     }
 
@@ -21,6 +26,11 @@ declare module 'next-auth' {
         departmentLevel?: string;
         departmentName?: string;
         activeUserRoleId?: string;
+        activeUserRole?: {
+            id: string;
+            role: string;
+            departmentId: string;
+        } | null;
     }
 }
 
@@ -33,5 +43,10 @@ declare module 'next-auth/jwt' {
         departmentLevel?: string;
         departmentName?: string;
         activeUserRoleId?: string | null;
+        activeUserRole?: {
+            id: string;
+            role: string;
+            departmentId: string;
+        } | null;
     }
 }
