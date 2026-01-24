@@ -168,6 +168,24 @@ export async function POST(
             });
 
             if (departmentLeader?.phone) {
+                // Calculate department balance after this correction
+                const departmentTransactions = await prisma.transaction.findMany({
+                    where: {
+                        departmentId: originalTransaction.departmentId,
+                        status: 'APPROVED',
+                    },
+                    select: {
+                        type: true,
+                        amountInBase: true,
+                        amount: true,
+                    },
+                });
+
+                const balance = departmentTransactions.reduce((sum, tx) => {
+                    const txAmount = Number(tx.amountInBase || tx.amount);
+                    return sum + (tx.type === 'INCOME' ? txAmount : -txAmount);
+                }, 0);
+
                 const currencySymbol = originalTransaction.currency?.symbol || '$';
                 const smsMessage = await generateCorrectionNotificationSms({
                     transactionType: originalTransaction.type.toLowerCase(),
@@ -178,6 +196,7 @@ export async function POST(
                     correctionType: correctionType === 'INCOME' ? 'Credit' : 'Debit',
                     adjustmentAmount: formatNumber(absoluteCorrectionAmount),
                     reason: reason || 'Amount adjustment',
+                    balance: formatNumber(balance),
                 });
                 
                 await sendSms({

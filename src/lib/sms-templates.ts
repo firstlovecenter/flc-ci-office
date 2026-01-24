@@ -15,7 +15,7 @@ interface PasswordResetSmsParams {
 export function generatePasswordResetSms(params: PasswordResetSmsParams): string {
     const { resetCode, expirationMinutes = 30 } = params;
     const hours = Math.round(expirationMinutes / 60);
-    return `Your password reset code is ${resetCode}. Valid for ${hours} hours. Go to the reset page and enter this code.`;
+    return `Your password reset code is ${resetCode}. Valid for ${hours} hours. If you did not request this, please ignore.`;
 }
 
 interface FirstRoleAssignmentSmsParams {
@@ -27,7 +27,7 @@ interface FirstRoleAssignmentSmsParams {
 
 export function generateFirstRoleAssignmentSms(params: FirstRoleAssignmentSmsParams): string {
     const { userName, resetLink } = params;
-    return `Welcome ${userName}! You've been given access to CI OFFICE. Set your password here: ${resetLink}`;
+    return `Welcome ${userName}! Welcome to CI OFFICE. Set your password here: ${resetLink}`;
 }
 
 interface RoleAssignmentSmsParams {
@@ -100,7 +100,7 @@ interface TransactionApprovedSmsParams {
 
 export function generateTransactionApprovedSms(params: TransactionApprovedSmsParams): string {
     const { transactionType, currency, amount, chargeText, departmentName, balance } = params;
-    return `APPROVED: Your ${transactionType} request of ${currency}${amount} has been approved.${chargeText} ${departmentName} Balance: ${currency}${balance}.`;
+    return `Your ${transactionType} request of ${currency}${amount} has been approved.${chargeText}. Your new  balance is ${currency}${balance}.`;
 }
 
 interface TransactionDeclinedSmsParams {
@@ -112,7 +112,7 @@ interface TransactionDeclinedSmsParams {
 
 export function generateTransactionDeclinedSms(params: TransactionDeclinedSmsParams): string {
     const { transactionType, currency, amount, reasonText } = params;
-    return `DECLINED: Your ${transactionType} request of ${currency}${amount} has been declined.${reasonText}`;
+    return `Your ${transactionType} request of ${currency}${amount} has been declined.${reasonText} Contact the office for details`;
 }
 
 interface TransactionChargeSmsParams {
@@ -138,7 +138,7 @@ interface PendingApprovalRequestSmsParams {
 
 export function generatePendingApprovalRequestSms(params: PendingApprovalRequestSmsParams): string {
     const { userName, transactionType, currency, amount, description } = params;
-    return `NEW APPROVAL REQUEST: ${userName} submitted a ${transactionType} request of ${currency}${amount}. Description: ${description}. Please review.`;
+    return `NEW EXPENSE REQUEST: ${userName} submitted a ${transactionType} request of ${currency}${amount}. Description: ${description}. Please review.`;
 }
 
 interface CorrectionNotificationSmsParams {
@@ -150,11 +150,14 @@ interface CorrectionNotificationSmsParams {
     correctionType: string;
     adjustmentAmount: string;
     reason: string;
+    balance: string;
 }
 
 export function generateCorrectionNotificationSms(params: CorrectionNotificationSmsParams): string {
-    const { transactionType, departmentName, currency, originalAmount, newAmount, correctionType, adjustmentAmount, reason } = params;
-    return `TRANSACTION CORRECTION: A ${transactionType} in ${departmentName} of ${currency}${originalAmount} has been corrected to ${currency}${newAmount}. ${correctionType} adjustment: ${currency}${adjustmentAmount}. Reason: ${reason}.`;
+    const { transactionType, departmentName, currency, originalAmount, newAmount, correctionType, adjustmentAmount, reason, balance } = params;
+    // Truncate reason to keep message within 2 SMS segments
+    const shortReason = reason.length > 20 ? reason.substring(0, 20) + '...' : reason;
+    return `CORRECTION: ${departmentName} ${transactionType} ${currency}${originalAmount} to ${currency}${newAmount}. ${correctionType}: ${currency}${adjustmentAmount}. ${shortReason}. Bal: ${currency}${balance}.`;
 }
 
 interface CreditAlertSmsParams {

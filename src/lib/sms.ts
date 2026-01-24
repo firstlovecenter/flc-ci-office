@@ -6,6 +6,91 @@
 const SMSOPTICS_BASE_URL = 'https://bms.codeslaw.dev/api/v1';
 
 /**
+ * GSM-7 character set (basic + extension)
+ * Standard GSM-7 allows 160 chars per SMS, 153 for concatenated
+ */
+const GSM7_BASIC_CHARS = '@£$¥èéùìòÇ\nØø\rÅåΔ_ΦΓΛΩΠΨΣΘΞÆæßÉ !"#¤%&\'()*+,-./0123456789:;<=>?¡ABCDEFGHIJKLMNOPQRSTUVWXYZ ÄÖÑÜ§¿abcdefghijklmnopqrstuvwxyz äöñüà';
+const GSM7_EXTENSION_CHARS = '^{}\\[~]|€';
+
+/**
+ * Map of common non-GSM-7 characters to their GSM-7 equivalents
+ */
+const CHAR_REPLACEMENTS: Record<string, string> = {
+  '\u2192': '->', // → Arrow right
+  '\u2190': '<-', // ← Arrow left
+  '\u2013': '-', // – En dash
+  '\u2014': '-', // — Em dash
+  '\u201C': '"', // " Left double quote
+  '\u201D': '"', // " Right double quote
+  '\u2018': "'", // ' Left single quote
+  '\u2019': "'", // ' Right single quote
+  '\u2026': '...', // … Ellipsis
+  '\u20B5': 'GHS', // ₵ Ghanaian Cedi
+  '\u20A6': 'NGN', // ₦ Nigerian Naira
+  '\u20B9': 'INR', // ₹ Indian Rupee
+  '\u20BD': 'RUB', // ₽ Russian Ruble
+  '\u20BF': 'BTC', // ₿ Bitcoin
+  '\u00A9': '(c)', // © Copyright
+  '\u00AE': '(R)', // ® Registered
+  '\u2122': '(TM)', // ™ Trademark
+  '\u00B0': 'deg', // ° Degree
+  '\u00D7': 'x', // × Multiplication
+  '\u00F7': '/', // ÷ Division
+  '\u2022': '*', // • Bullet
+  '\u00B7': '.', // · Middle dot
+};
+
+/**
+ * Check if a character is GSM-7 compatible
+ */
+function isGsm7Char(char: string): boolean {
+  return GSM7_BASIC_CHARS.includes(char) || GSM7_EXTENSION_CHARS.includes(char);
+}
+
+/**
+ * Sanitize message to use only GSM-7 compatible characters
+ * This ensures predictable SMS segment counting and delivery
+ */
+export function sanitizeForGsm7(message: string): string {
+  let result = '';
+  for (const char of message) {
+    if (isGsm7Char(char)) {
+      result += char;
+    } else if (CHAR_REPLACEMENTS[char]) {
+      result += CHAR_REPLACEMENTS[char];
+    } else {
+      // Replace unknown characters with space
+      result += ' ';
+    }
+  }
+  return result;
+}
+
+/**
+ * Calculate GSM-7 message length (extension chars count as 2)
+ */
+export function getGsm7Length(message: string): number {
+  let length = 0;
+  for (const char of message) {
+    if (GSM7_EXTENSION_CHARS.includes(char)) {
+      length += 2; // Extension chars use escape sequence
+    } else {
+      length += 1;
+    }
+  }
+  return length;
+}
+
+/**
+ * Get number of SMS segments for a message
+ */
+export function getSmsSegmentCount(message: string): number {
+  const length = getGsm7Length(message);
+  if (length <= 160) return 1;
+  return Math.ceil(length / 153); // 153 chars per segment when concatenated
+}
+
+/**
  * Check if SMS service is properly configured
  */
 export function isSmsConfigured(): boolean {
@@ -41,6 +126,9 @@ export async function sendSms(options: SmsOptions): Promise<boolean> {
 
     const apiKey = process.env.SMSOPTICS_API_KEY;
     const senderId = process.env.SMSOPTICS_SENDER_ID || 'SMSOptics';
+    
+    // Sanitize message for GSM-7 compatibility
+    const sanitizedMessage = sanitizeForGsm7(options.message);
 
     const response = await fetch(`${SMSOPTICS_BASE_URL}/sms/send`, {
       method: 'POST',
@@ -50,7 +138,7 @@ export async function sendSms(options: SmsOptions): Promise<boolean> {
       },
       body: JSON.stringify({
         recipients: [formatGhanaPhone(options.to)],
-        message: options.message,
+        message: sanitizedMessage,
         senderId: senderId,
       }),
     });
@@ -87,6 +175,9 @@ export async function sendBulkSms(
 
     // Format all phone numbers
     const formattedRecipients = recipients.map(formatGhanaPhone);
+    
+    // Sanitize message for GSM-7 compatibility
+    const sanitizedMessage = sanitizeForGsm7(message);
 
     const response = await fetch(`${SMSOPTICS_BASE_URL}/sms/send`, {
       method: 'POST',
@@ -96,7 +187,7 @@ export async function sendBulkSms(
       },
       body: JSON.stringify({
         recipients: formattedRecipients,
-        message: message,
+        message: sanitizedMessage,
         senderId: senderId,
       }),
     });
