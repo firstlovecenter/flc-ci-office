@@ -19,11 +19,19 @@ export async function GET(request: Request) {
     try {
         let whereClause: any = {};
 
+        // Determine which department to use for filtering
+        // For users with multiple roles, use the activeUserRole's department
+        let filterDepartmentId = session.user.departmentId;
+        
+        if (session.user.activeUserRole?.departmentId) {
+            filterDepartmentId = session.user.activeUserRole.departmentId;
+        }
+
         if (session.user.role !== 'SUPERADMIN' && session.user.role !== 'GLOBAL_ADMIN') {
-            if (!session.user.departmentId) {
+            if (!filterDepartmentId) {
                 return new NextResponse('Forbidden - No department assigned', { status: 403 });
             }
-            const allowedIds = await getDescendantDepartmentIds(session.user.departmentId);
+            const allowedIds = await getDescendantDepartmentIds(filterDepartmentId);
             whereClause.departmentId = { in: allowedIds };
         }
 

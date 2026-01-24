@@ -164,12 +164,14 @@ export async function POST(request: Request) {
 
         // For non-superadmins, verify they can create users in the target department
         if (session.user.role !== 'SUPERADMIN') {
-            if (!session.user.departmentId) {
+            const filterDepartmentId = session.user.activeUserRole?.departmentId || session.user.departmentId;
+            
+            if (!filterDepartmentId) {
                 return new NextResponse('Forbidden - No department assigned', { status: 403 });
             }
 
             // Get all departments this admin oversees
-            const allowedDepartmentIds = await getDescendantDepartmentIds(session.user.departmentId);
+            const allowedDepartmentIds = await getDescendantDepartmentIds(filterDepartmentId);
             
             // Verify all target departments are within their scope
             for (const pair of roleDepartmentPairs) {
@@ -181,7 +183,7 @@ export async function POST(request: Request) {
             // Verify the role being assigned is appropriate for the admin's level
             // Admins can only assign roles at their level or below
             const userDept = firstDept ? await prisma.department.findUnique({ where: { id: firstDept } }) : null;
-            const adminDept = await prisma.department.findUnique({ where: { id: session.user.departmentId } });
+            const adminDept = await prisma.department.findUnique({ where: { id: filterDepartmentId } });
             
             if (userDept && adminDept) {
                 const DEPARTMENT_HIERARCHY: Record<string, number> = {
