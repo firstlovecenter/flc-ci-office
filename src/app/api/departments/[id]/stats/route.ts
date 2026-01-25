@@ -5,15 +5,19 @@ import { authOptions } from '@/lib/auth';
 import { getDescendantDepartmentIds } from '@/lib/departments';
 import { getISOWeek, getISOWeekYear, subWeeks } from 'date-fns';
 
-// Helper function to get start and end of current week (Sunday to Saturday)
+// Helper function to get start and end of current week (Monday to Sunday)
 function getCurrentWeekRange(): { start: Date; end: Date } {
     const now = new Date();
-    const dayOfWeek = now.getDay(); // 0 = Sunday, 6 = Saturday
+    const dayOfWeek = now.getDay(); // 0 = Sunday, 1 = Monday, 6 = Saturday
+    // Calculate days to subtract to get to Monday
+    // If Monday (1-6): subtract (dayOfWeek - 1)
+    // If Sunday (0): subtract 6 (go back to previous Monday)
+    const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
     const start = new Date(now);
-    start.setDate(now.getDate() - dayOfWeek);
+    start.setDate(now.getDate() - daysToMonday);
     start.setHours(0, 0, 0, 0);
     const end = new Date(start);
-    end.setDate(start.getDate() + 6);
+    end.setDate(start.getDate() + 6); // 6 days later = Sunday
     end.setHours(23, 59, 59, 999);
     return { start, end };
 }

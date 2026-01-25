@@ -35,13 +35,19 @@ export async function GET(request: Request) {
             whereClause.departmentId = { in: allowedIds };
         }
 
-        // Get current week date range
+        // Get current week date range (Monday to Sunday)
         const now = new Date();
+        const dayOfWeek = now.getDay(); // 0 = Sunday, 1 = Monday, 6 = Saturday
+        // Calculate days to subtract to get to Monday
+        // If Monday (1-6): subtract (dayOfWeek - 1)
+        // If Sunday (0): subtract 6 (go back to previous Monday)
+        const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
         const startOfWeek = new Date(now);
-        startOfWeek.setDate(now.getDate() - now.getDay()); // Sunday
+        startOfWeek.setDate(now.getDate() - daysToMonday);
         startOfWeek.setHours(0, 0, 0, 0);
         const endOfWeek = new Date(startOfWeek);
-        endOfWeek.setDate(startOfWeek.getDate() + 7);
+        endOfWeek.setDate(startOfWeek.getDate() + 6); // 6 days later = Sunday
+        endOfWeek.setHours(23, 59, 59, 999);
 
         // Calculate the last 4 ISO weeks using date-fns subWeeks for proper handling
         const weekRanges: { weekNumber: number; year: number }[] = [];
