@@ -1,31 +1,25 @@
 // Role hierarchy - lower number = higher privilege
 export const ROLE_HIERARCHY: Record<string, number> = {
     SUPERADMIN: 1,
-    GLOBAL_ADMIN: 2,
-    INTERNATIONAL_ADMIN: 3,
-    NATIONAL_ADMIN: 4,
-    REGIONAL_ADMIN: 5,
-    CAMPUS_ADMIN: 6,
-    STREAM_ADMIN: 7,
-    COUNCIL_ADMIN: 8,
-    GLOBAL_LEADER: 9,
-    INTERNATIONAL_LEADER: 10,
-    NATIONAL_LEADER: 11,
-    REGIONAL_LEADER: 12,
-    CAMPUS_LEADER: 13,
-    STREAM_LEADER: 14,
-    COUNCIL_LEADER: 15,
+    DENOMINATION_ADMIN: 2,
+    OVERSIGHT_ADMIN: 3,
+    CAMPUS_ADMIN: 4,
+    STREAM_ADMIN: 5,
+    COUNCIL_ADMIN: 6,
+    DENOMINATION_LEADER: 7,
+    OVERSIGHT_LEADER: 8,
+    CAMPUS_LEADER: 9,
+    STREAM_LEADER: 10,
+    COUNCIL_LEADER: 11,
 };
 
 // Department hierarchy
 export const DEPARTMENT_HIERARCHY: Record<string, number> = {
-    GLOBAL: 1,
-    INTERNATIONAL: 2,
-    NATIONAL: 3,
-    REGIONAL: 4,
-    CAMPUS: 5,
-    STREAM: 6,
-    COUNCIL: 7,
+    DENOMINATION: 1,
+    OVERSIGHT: 2,
+    CAMPUS: 3,
+    STREAM: 4,
+    COUNCIL: 5,
 };
 
 /**
@@ -103,19 +97,15 @@ export function canManageDepartmentLevel(adminDepartmentLevel: string, targetDep
 /**
  * Get the department level that corresponds to a role
  * @param role - The role name
- * @returns The department level string (e.g., 'CAMPUS', 'NATIONAL') or null if role doesn't map to a department
+ * @returns The department level string (e.g., 'CAMPUS', 'DENOMINATION') or null if role doesn't map to a department
  */
 export function getDepartmentLevelForRole(role: string): string | null {
     // Map roles to their corresponding department levels
     const roleMapping: Record<string, string> = {
-        GLOBAL_ADMIN: 'GLOBAL',
-        GLOBAL_LEADER: 'GLOBAL',
-        INTERNATIONAL_ADMIN: 'INTERNATIONAL',
-        INTERNATIONAL_LEADER: 'INTERNATIONAL',
-        NATIONAL_ADMIN: 'NATIONAL',
-        NATIONAL_LEADER: 'NATIONAL',
-        REGIONAL_ADMIN: 'REGIONAL',
-        REGIONAL_LEADER: 'REGIONAL',
+        DENOMINATION_ADMIN: 'DENOMINATION',
+        DENOMINATION_LEADER: 'DENOMINATION',
+        OVERSIGHT_ADMIN: 'OVERSIGHT',
+        OVERSIGHT_LEADER: 'OVERSIGHT',
         CAMPUS_ADMIN: 'CAMPUS',
         CAMPUS_LEADER: 'CAMPUS',
         STREAM_ADMIN: 'STREAM',

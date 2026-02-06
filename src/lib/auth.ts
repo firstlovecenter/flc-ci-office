@@ -65,8 +65,8 @@ export const authOptions: NextAuthOptions = {
                     return null;
                 }
 
-                // SUPERADMIN and GLOBAL_ADMIN can work without UserRole entries
-                const isSuperUser = user.roles.includes('SUPERADMIN') || user.roles.includes('GLOBAL_ADMIN');
+                // SUPERADMIN and DENOMINATION_ADMIN can work without UserRole entries
+                const isSuperUser = user.roles.includes('SUPERADMIN') || user.roles.includes('DENOMINATION_ADMIN');
                 
                 if (isSuperUser && user.userRoles.length === 0) {
                     // Super users don't need UserRole entries
@@ -75,7 +75,7 @@ export const authOptions: NextAuthOptions = {
                         email: user.email,
                         name: user.name,
                         image: user.image,
-                        role: user.roles.includes('SUPERADMIN') ? 'SUPERADMIN' : 'GLOBAL_ADMIN',
+                        role: user.roles.includes('SUPERADMIN') ? 'SUPERADMIN' : 'DENOMINATION_ADMIN',
                         roles: user.roles,
                         departmentId: user.departmentId || undefined,
                         departmentLevel: undefined,
@@ -165,7 +165,7 @@ export const authOptions: NextAuthOptions = {
                 });
                 
                 if (updatedUser) {
-                    const isSuperUserOnUpdate = updatedUser.roles.includes('SUPERADMIN') || updatedUser.roles.includes('GLOBAL_ADMIN');
+                    const isSuperUserOnUpdate = updatedUser.roles.includes('SUPERADMIN') || updatedUser.roles.includes('DENOMINATION_ADMIN');
                     
                     // Always update name and image
                     token.name = updatedUser.name;
@@ -173,7 +173,7 @@ export const authOptions: NextAuthOptions = {
                     
                     if (isSuperUserOnUpdate && updatedUser.userRoles.length === 0) {
                         token.id = updatedUser.id;
-                        token.role = updatedUser.roles.includes('SUPERADMIN') ? 'SUPERADMIN' : 'GLOBAL_ADMIN';
+                        token.role = updatedUser.roles.includes('SUPERADMIN') ? 'SUPERADMIN' : 'DENOMINATION_ADMIN';
                         token.roles = updatedUser.roles;
                         token.departmentId = updatedUser.departmentId;
                         token.departmentLevel = undefined;

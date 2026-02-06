@@ -218,7 +218,7 @@ export default function DashboardPage() {
     // Memoize quick links to avoid recalculating on every render
     const quickLinks = useMemo(() => {
         const userRole = session?.user?.role as Role;
-        const leaderRoles = [Role.GLOBAL_LEADER, Role.INTERNATIONAL_LEADER, Role.NATIONAL_LEADER, Role.REGIONAL_LEADER, Role.CAMPUS_LEADER, Role.STREAM_LEADER, Role.COUNCIL_LEADER] as Role[];
+        const leaderRoles = [Role.DENOMINATION_LEADER, Role.OVERSIGHT_LEADER, Role.CAMPUS_LEADER, Role.STREAM_LEADER, Role.COUNCIL_LEADER] as Role[];
         const isLeader = userRole && leaderRoles.includes(userRole);
         
         const allLinks = [
@@ -228,7 +228,7 @@ export default function DashboardPage() {
                 href: '/transactions/new?type=EXPENSE',
                 color: theme.palette.error.main,
                 bgColor: theme.palette.error.main + '15',
-                roles: [Role.GLOBAL_LEADER, Role.INTERNATIONAL_LEADER, Role.NATIONAL_LEADER, Role.REGIONAL_LEADER, Role.CAMPUS_LEADER, Role.STREAM_LEADER, Role.COUNCIL_LEADER] as Role[]
+                roles: [Role.DENOMINATION_LEADER, Role.OVERSIGHT_LEADER, Role.CAMPUS_LEADER, Role.STREAM_LEADER, Role.COUNCIL_LEADER] as Role[]
             },
             {
                 title: 'New Transaction',
@@ -270,7 +270,7 @@ export default function DashboardPage() {
                 href: '/users',
                 color: theme.palette.primary.main,
                 bgColor: theme.palette.primary.main + '15',
-                roles: [Role.SUPERADMIN, Role.GLOBAL_ADMIN, Role.INTERNATIONAL_ADMIN, Role.NATIONAL_ADMIN, Role.REGIONAL_ADMIN, Role.CAMPUS_ADMIN] as Role[]
+                roles: [Role.SUPERADMIN, Role.DENOMINATION_ADMIN, Role.OVERSIGHT_ADMIN, Role.CAMPUS_ADMIN] as Role[]
             },
             {
                 title: 'Currencies',
@@ -278,7 +278,7 @@ export default function DashboardPage() {
                 href: '/currencies',
                 color: theme.palette.error.main,
                 bgColor: theme.palette.error.main + '15',
-                roles: [Role.SUPERADMIN, Role.GLOBAL_ADMIN] as Role[]
+                roles: [Role.SUPERADMIN, Role.DENOMINATION_ADMIN] as Role[]
             }
         ];
 
@@ -324,7 +324,7 @@ export default function DashboardPage() {
 
     // Check if user is a leader
     const userRole = session?.user?.role as Role;
-    const leaderRoles = [Role.GLOBAL_LEADER, Role.INTERNATIONAL_LEADER, Role.NATIONAL_LEADER, Role.REGIONAL_LEADER, Role.CAMPUS_LEADER, Role.STREAM_LEADER, Role.COUNCIL_LEADER] as Role[];
+    const leaderRoles = [Role.DENOMINATION_LEADER, Role.OVERSIGHT_LEADER, Role.CAMPUS_LEADER, Role.STREAM_LEADER, Role.COUNCIL_LEADER] as Role[];
     const isLeader = userRole && leaderRoles.includes(userRole);
 
     // Calculate color for Account Balance based on value

@@ -24,7 +24,7 @@ export async function POST(
         const originalTransactionId = params.id;
 
         // Only admins can create corrections
-        const adminRoles = ['SUPERADMIN', 'GLOBAL_ADMIN', 'INTERNATIONAL_ADMIN', 'NATIONAL_ADMIN', 'REGIONAL_ADMIN', 'CAMPUS_ADMIN'];
+        const adminRoles = ['SUPERADMIN', 'DENOMINATION_ADMIN', 'OVERSIGHT_ADMIN', 'CAMPUS_ADMIN'];
         if (!adminRoles.includes(session.user.role)) {
             return NextResponse.json(
                 { error: 'Only admins can create transaction corrections' },
@@ -145,10 +145,8 @@ export async function POST(
         // Send SMS notification to the department leader
         try {
             // Find the department leader based on department level
-            const leaderRole = originalTransaction.department.level === 'GLOBAL' ? 'GLOBAL_LEADER' :
-                              originalTransaction.department.level === 'INTERNATIONAL' ? 'INTERNATIONAL_LEADER' :
-                              originalTransaction.department.level === 'NATIONAL' ? 'NATIONAL_LEADER' :
-                              originalTransaction.department.level === 'REGIONAL' ? 'REGIONAL_LEADER' :
+            const leaderRole = originalTransaction.department.level === 'DENOMINATION' ? 'DENOMINATION_LEADER' :
+                              originalTransaction.department.level === 'OVERSIGHT' ? 'OVERSIGHT_LEADER' :
                               originalTransaction.department.level === 'CAMPUS' ? 'CAMPUS_LEADER' :
                               originalTransaction.department.level === 'STREAM' ? 'STREAM_LEADER' :
                               'COUNCIL_LEADER';

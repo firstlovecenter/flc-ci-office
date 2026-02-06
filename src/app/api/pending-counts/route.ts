@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
         const userId = session.user.id;
 
         // Only admins see pending approvals
-        const adminRoles = ['SUPERADMIN', 'GLOBAL_ADMIN', 'INTERNATIONAL_ADMIN', 'NATIONAL_ADMIN', 'REGIONAL_ADMIN', 'CAMPUS_ADMIN'];
+        const adminRoles = ['SUPERADMIN', 'DENOMINATION_ADMIN', 'OVERSIGHT_ADMIN', 'CAMPUS_ADMIN'];
         const isAdmin = adminRoles.includes(userRole);
 
         // Determine which department to use for filtering
@@ -34,7 +34,7 @@ export async function GET(request: NextRequest) {
         // Run queries in parallel for better performance
         const [pendingApprovals, pendingTransactions] = await Promise.all([
             isAdmin ? (
-                session.user.role === 'SUPERADMIN' || session.user.role === 'GLOBAL_ADMIN'
+                session.user.role === 'SUPERADMIN' || session.user.role === 'DENOMINATION_ADMIN'
                     ? prisma.transaction.count({
                         where: { status: TransactionStatus.PENDING },
                     })

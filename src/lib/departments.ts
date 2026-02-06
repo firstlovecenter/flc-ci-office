@@ -6,10 +6,8 @@ import { DepartmentLevel, Role } from '@prisma/client';
  */
 export function getLeaderRoleForLevel(level: DepartmentLevel): Role {
     const levelToRole: Record<DepartmentLevel, Role> = {
-        GLOBAL: 'GLOBAL_LEADER',
-        INTERNATIONAL: 'INTERNATIONAL_LEADER',
-        NATIONAL: 'NATIONAL_LEADER',
-        REGIONAL: 'REGIONAL_LEADER',
+        DENOMINATION: 'DENOMINATION_LEADER',
+        OVERSIGHT: 'OVERSIGHT_LEADER',
         CAMPUS: 'CAMPUS_LEADER',
         STREAM: 'STREAM_LEADER',
         COUNCIL: 'COUNCIL_LEADER',
@@ -22,10 +20,8 @@ export function getLeaderRoleForLevel(level: DepartmentLevel): Role {
  */
 export function getAdminRoleForLevel(level: DepartmentLevel): Role | null {
     const levelToRole: Partial<Record<DepartmentLevel, Role>> = {
-        GLOBAL: 'GLOBAL_ADMIN',
-        INTERNATIONAL: 'INTERNATIONAL_ADMIN',
-        NATIONAL: 'NATIONAL_ADMIN',
-        REGIONAL: 'REGIONAL_ADMIN',
+        DENOMINATION: 'DENOMINATION_ADMIN',
+        OVERSIGHT: 'OVERSIGHT_ADMIN',
         CAMPUS: 'CAMPUS_ADMIN',
         // STREAM and COUNCIL don't have admin roles
     };

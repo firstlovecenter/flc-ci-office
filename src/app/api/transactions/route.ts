@@ -202,26 +202,25 @@ export async function POST(request: Request) {
         });
 
         if (department) {
-            const nationalRoles = ['NATIONAL_ADMIN', 'NATIONAL_LEADER'];
-            const regionalRoles = ['REGIONAL_ADMIN', 'REGIONAL_LEADER', 'CAMPUS_ADMIN', 'CAMPUS_LEADER', 'STREAM_LEADER', 'COUNCIL_LEADER', 'STREAM_ADMIN', 'COUNCIL_ADMIN'];
-            const requiresBaseCurrency = nationalRoles.includes(session.user.role) || regionalRoles.includes(session.user.role);
+            const oversightRoles = ['OVERSIGHT_ADMIN', 'OVERSIGHT_LEADER', 'CAMPUS_ADMIN', 'CAMPUS_LEADER', 'STREAM_LEADER', 'COUNCIL_LEADER', 'STREAM_ADMIN', 'COUNCIL_ADMIN'];
+            const requiresBaseCurrency = oversightRoles.includes(session.user.role);
 
             if (requiresBaseCurrency) {
-                // Find the national department
-                let nationalDept = department;
-                while (nationalDept && nationalDept.level !== 'NATIONAL') {
-                    nationalDept = nationalDept.parent as typeof nationalDept;
+                // Find the oversight department
+                let oversightDept = department;
+                while (oversightDept && oversightDept.level !== 'OVERSIGHT') {
+                    oversightDept = oversightDept.parent as typeof oversightDept;
                 }
 
-                if (nationalDept && nationalDept.level === 'NATIONAL') {
-                    // Check if base currency is set for this national department
+                if (oversightDept && oversightDept.level === 'OVERSIGHT') {
+                    // Check if base currency is set for this oversight department
                     const deptBaseCurrency = await prisma.departmentBaseCurrency.findUnique({
-                        where: { departmentId: nationalDept.id },
+                        where: { departmentId: oversightDept.id },
                     });
 
                     if (!deptBaseCurrency) {
                         return NextResponse.json(
-                            { error: `Base currency must be set for ${nationalDept.name || 'your national department'} before transactions can be recorded. Please contact your National Admin to set the base currency.` },
+                            { error: `Base currency must be set for ${oversightDept.name || 'your oversight department'} before transactions can be recorded. Please contact your Oversight Admin to set the base currency.` },
                             { status: 400 }
                         );
                     }
@@ -236,7 +235,7 @@ export async function POST(request: Request) {
         }
 
         // Determine if this is a leader role (requires approval) or admin (auto-approved)
-        const leaderRoles = ['GLOBAL_LEADER', 'INTERNATIONAL_LEADER', 'NATIONAL_LEADER', 'REGIONAL_LEADER', 'CAMPUS_LEADER', 'STREAM_LEADER', 'COUNCIL_LEADER'];
+        const leaderRoles = ['DENOMINATION_LEADER', 'OVERSIGHT_LEADER', 'CAMPUS_LEADER', 'STREAM_LEADER', 'COUNCIL_LEADER'];
         const isLeader = leaderRoles.includes(session.user.role);
         
         // Leaders can only create expense requests, not income
@@ -385,10 +384,8 @@ export async function POST(request: Request) {
                 console.log(`[SMS] Processing ${alertType} alert for ${type.toLowerCase()} transaction in ${transaction.department.name}`);
                 
                 // Find the department leader based on department level
-                const leaderRole = transaction.department.level === 'GLOBAL' ? 'GLOBAL_LEADER' :
-                                  transaction.department.level === 'INTERNATIONAL' ? 'INTERNATIONAL_LEADER' :
-                                  transaction.department.level === 'NATIONAL' ? 'NATIONAL_LEADER' :
-                                  transaction.department.level === 'REGIONAL' ? 'REGIONAL_LEADER' :
+                const leaderRole = transaction.department.level === 'DENOMINATION' ? 'DENOMINATION_LEADER' :
+                                  transaction.department.level === 'OVERSIGHT' ? 'OVERSIGHT_LEADER' :
                                   transaction.department.level === 'CAMPUS' ? 'CAMPUS_LEADER' :
                                   transaction.department.level === 'STREAM' ? 'STREAM_LEADER' :
                                   'COUNCIL_LEADER';
@@ -717,7 +714,7 @@ export async function PATCH(request: Request) {
         }
 
         // Only admins can approve/reject
-        const adminRoles = ['SUPERADMIN', 'GLOBAL_ADMIN', 'INTERNATIONAL_ADMIN', 'NATIONAL_ADMIN', 'REGIONAL_ADMIN', 'CAMPUS_ADMIN'];
+        const adminRoles = ['SUPERADMIN', 'DENOMINATION_ADMIN', 'OVERSIGHT_ADMIN', 'CAMPUS_ADMIN'];
         if (!adminRoles.includes(session.user.role)) {
             return new NextResponse('Only admins can approve/reject transactions', { status: 403 });
         }

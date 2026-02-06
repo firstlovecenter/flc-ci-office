@@ -18,10 +18,8 @@ export default function AnalyticsPage() {
     // Check if user has access (CAMPUS_ADMIN and above)
     const hasAccess = session?.user?.role && [
         'SUPERADMIN',
-        'GLOBAL_ADMIN',
-        'INTERNATIONAL_ADMIN',
-        'NATIONAL_ADMIN',
-        'REGIONAL_ADMIN',
+        'DENOMINATION_ADMIN',
+        'OVERSIGHT_ADMIN',
         'CAMPUS_ADMIN'
     ].includes(session.user.role);
 

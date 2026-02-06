@@ -55,7 +55,7 @@ export default function EditTransactionDialog({
     const [loading, setLoading] = useState(false);
     
     // Check if user is a leader (not an admin)
-    const isLeader = userRole && !['SUPERADMIN', 'GLOBAL_ADMIN', 'INTERNATIONAL_ADMIN', 'NATIONAL_ADMIN', 'REGIONAL_ADMIN', 'CAMPUS_ADMIN', 'STREAM_ADMIN', 'COUNCIL_ADMIN'].includes(userRole);
+    const isLeader = userRole && !['SUPERADMIN', 'DENOMINATION_ADMIN', 'OVERSIGHT_ADMIN', 'CAMPUS_ADMIN', 'STREAM_ADMIN', 'COUNCIL_ADMIN'].includes(userRole);
 
 
     useEffect(() => {

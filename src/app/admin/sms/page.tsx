@@ -65,9 +65,8 @@ export default function SMSManagementPage() {
 
 
     const roles = [
-        'SUPERADMIN', 'GLOBAL_ADMIN', 'GLOBAL_LEADER', 'INTERNATIONAL_ADMIN', 'INTERNATIONAL_LEADER',
-        'NATIONAL_ADMIN', 'NATIONAL_LEADER', 'REGIONAL_ADMIN', 'REGIONAL_LEADER',
-        'CAMPUS_ADMIN', 'CAMPUS_LEADER', 'STREAM_ADMIN', 'STREAM_LEADER', 'COUNCIL_ADMIN', 'COUNCIL_LEADER',
+        'SUPERADMIN', 'DENOMINATION_ADMIN', 'DENOMINATION_LEADER', 'OVERSIGHT_ADMIN', 'OVERSIGHT_LEADER',
+        'CAMPUS_ADMIN', 'CAMPUS_LEADER', 'STREAM_ADMIN', 'STREAM_LEADER', 'COUNCIL_ADMIN', 'COUNCIL_LEADER'
     ];
 
     const templates: Partial<Record<SMSTemplate, { name: string; description: string; params: TemplateParam[] }>> = {

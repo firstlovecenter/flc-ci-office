@@ -11,8 +11,8 @@ export async function POST(req: NextRequest) {
             return new NextResponse('Unauthorized', { status: 401 });
         }
 
-        // Only SUPERADMIN and GLOBAL_ADMIN can trigger recalculation
-        if (!['SUPERADMIN', 'GLOBAL_ADMIN'].includes(session.user.role)) {
+        // Only SUPERADMIN and DENOMINATION_ADMIN can trigger recalculation
+        if (!['SUPERADMIN', 'DENOMINATION_ADMIN'].includes(session.user.role)) {
             return new NextResponse('Forbidden', { status: 403 });
         }
 

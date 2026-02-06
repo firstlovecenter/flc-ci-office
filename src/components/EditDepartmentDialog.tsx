@@ -105,10 +105,8 @@ export default function EditDepartmentDialog({
             setParentId(department.parentId || '');
             
             // Get current leader from department's userRoles
-            const leaderRoles = ['GLOBAL_LEADER', 'INTERNATIONAL_LEADER', 'NATIONAL_LEADER', 
-                                 'REGIONAL_LEADER', 'CAMPUS_LEADER', 'STREAM_LEADER', 'COUNCIL_LEADER'];
-            const adminRoles = ['GLOBAL_ADMIN', 'INTERNATIONAL_ADMIN', 'NATIONAL_ADMIN', 
-                               'REGIONAL_ADMIN', 'CAMPUS_ADMIN'];
+            const leaderRoles = ['DENOMINATION_LEADER', 'OVERSIGHT_LEADER', 'CAMPUS_LEADER', 'STREAM_LEADER', 'COUNCIL_LEADER'];
+            const adminRoles = ['DENOMINATION_ADMIN', 'OVERSIGHT_ADMIN', 'CAMPUS_ADMIN'];
             
             const leaderRole = department.userRoles?.find((ur: any) => leaderRoles.includes(ur.role));
             const adminRole = department.userRoles?.find((ur: any) => adminRoles.includes(ur.role));

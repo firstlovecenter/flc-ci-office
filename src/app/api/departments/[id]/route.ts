@@ -31,15 +31,11 @@ export async function GET(
                             { role: 'COUNCIL_LEADER' },
                             { role: 'STREAM_LEADER' },
                             { role: 'CAMPUS_LEADER' },
-                            { role: 'REGIONAL_LEADER' },
-                            { role: 'NATIONAL_LEADER' },
-                            { role: 'INTERNATIONAL_LEADER' },
-                            { role: 'GLOBAL_LEADER' },
+                            { role: 'OVERSIGHT_LEADER' },
+                            { role: 'DENOMINATION_LEADER' },
                             { role: 'CAMPUS_ADMIN' },
-                            { role: 'REGIONAL_ADMIN' },
-                            { role: 'NATIONAL_ADMIN' },
-                            { role: 'INTERNATIONAL_ADMIN' },
-                            { role: 'GLOBAL_ADMIN' },
+                            { role: 'OVERSIGHT_ADMIN' },
+                            { role: 'DENOMINATION_ADMIN' },
                         ],
                     },
                     include: {
@@ -110,10 +106,10 @@ export async function PUT(
                 userRoles: {
                     where: {
                         role: {
-                            in: ['GLOBAL_LEADER', 'INTERNATIONAL_LEADER', 'NATIONAL_LEADER', 
-                                 'REGIONAL_LEADER', 'CAMPUS_LEADER', 'STREAM_LEADER', 'COUNCIL_LEADER',
-                                 'GLOBAL_ADMIN', 'INTERNATIONAL_ADMIN', 'NATIONAL_ADMIN',
-                                 'REGIONAL_ADMIN', 'CAMPUS_ADMIN']
+                            in: ['DENOMINATION_LEADER', 'OVERSIGHT_LEADER', 'CAMPUS_LEADER', 
+                                 'STREAM_LEADER', 'COUNCIL_LEADER',
+                                 'DENOMINATION_ADMIN', 'OVERSIGHT_ADMIN',
+                                 'CAMPUS_ADMIN']
                         }
                     },
                     include: { user: true },
@@ -126,10 +122,10 @@ export async function PUT(
         }
 
         // Separate leader and admin roles
-        const leaderRoles = ['GLOBAL_LEADER', 'INTERNATIONAL_LEADER', 'NATIONAL_LEADER', 
-                            'REGIONAL_LEADER', 'CAMPUS_LEADER', 'STREAM_LEADER', 'COUNCIL_LEADER'];
-        const adminRoles = ['GLOBAL_ADMIN', 'INTERNATIONAL_ADMIN', 'NATIONAL_ADMIN',
-                           'REGIONAL_ADMIN', 'CAMPUS_ADMIN'];
+        const leaderRoles = ['DENOMINATION_LEADER', 'OVERSIGHT_LEADER', 'CAMPUS_LEADER', 
+                            'STREAM_LEADER', 'COUNCIL_LEADER'];
+        const adminRoles = ['DENOMINATION_ADMIN', 'OVERSIGHT_ADMIN',
+                           'CAMPUS_ADMIN'];
         
         const currentLeaderRole = currentDepartment.userRoles.find(ur => leaderRoles.includes(ur.role));
         const currentAdminRole = currentDepartment.userRoles.find(ur => adminRoles.includes(ur.role));

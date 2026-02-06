@@ -18,7 +18,7 @@ export async function GET(request: Request) {
 
     // Only admins can list users
     // TODO: Add more granular checks
-    if (!['SUPERADMIN', 'GLOBAL_ADMIN', 'INTERNATIONAL_ADMIN', 'NATIONAL_ADMIN', 'REGIONAL_ADMIN', 'CAMPUS_ADMIN'].includes(session.user.role)) {
+    if (!['SUPERADMIN', 'DENOMINATION_ADMIN', 'OVERSIGHT_ADMIN', 'CAMPUS_ADMIN'].includes(session.user.role)) {
         return new NextResponse('Forbidden', { status: 403 });
     }
 
@@ -119,7 +119,7 @@ export async function POST(request: Request) {
     }
 
     // Check if user has admin role
-    const adminRoles = ['SUPERADMIN', 'GLOBAL_ADMIN', 'INTERNATIONAL_ADMIN', 'NATIONAL_ADMIN', 'REGIONAL_ADMIN', 'CAMPUS_ADMIN'];
+    const adminRoles = ['SUPERADMIN', 'DENOMINATION_ADMIN', 'OVERSIGHT_ADMIN', 'CAMPUS_ADMIN'];
     if (!adminRoles.includes(session.user.role)) {
         return new NextResponse('Forbidden - Admin role required', { status: 403 });
     }

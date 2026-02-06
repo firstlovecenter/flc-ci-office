@@ -83,10 +83,10 @@ export default function CurrenciesPage() {
     const [baseCurrencies, setBaseCurrencies] = useState<any[]>([]);
     const [systemBase, setSystemBase] = useState<any>(null);
 
-    // Only SUPERADMIN and GLOBAL_ADMIN can access this page
+    // Only SUPERADMIN and DENOMINATION_ADMIN can access this page
     useEffect(() => {
         if (session?.user?.role) {
-            if (!['SUPERADMIN', 'GLOBAL_ADMIN'].includes(session.user.role)) {
+            if (!['SUPERADMIN', 'DENOMINATION_ADMIN'].includes(session.user.role)) {
                 router.push('/dashboard');
             }
         }

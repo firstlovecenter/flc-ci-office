@@ -22,11 +22,15 @@ export async function GET(
     }
 
     try {
-        const params = await context.params;
-        const userId = params.id;
+        const adminRoles = ['SUPERADMIN', 'DENOMINATION_ADMIN', 'OVERSIGHT_ADMIN', 'CAMPUS_ADMIN', 'STREAM_ADMIN', 'COUNCIL_ADMIN'];
+        if (!adminRoles.includes(session.user.role)) {
+            return NextResponse.json(
+                { error: 'Admin role required' },
+                { status: 403 }
+            );
+        }
 
-        // Check if user has admin role
-        const adminRoles = ['SUPERADMIN', 'GLOBAL_ADMIN', 'INTERNATIONAL_ADMIN', 'NATIONAL_ADMIN', 'REGIONAL_ADMIN', 'CAMPUS_ADMIN', 'STREAM_ADMIN', 'COUNCIL_ADMIN'];
+        const params = await context.params;
         if (!adminRoles.includes(session.user.role)) {
             return NextResponse.json(
                 { error: 'Admin role required' },
@@ -136,7 +140,7 @@ export async function PUT(
         }
 
         // Check if user has admin role
-        const adminRoles = ['SUPERADMIN', 'GLOBAL_ADMIN', 'INTERNATIONAL_ADMIN', 'NATIONAL_ADMIN', 'REGIONAL_ADMIN', 'CAMPUS_ADMIN', 'STREAM_ADMIN', 'COUNCIL_ADMIN'];
+        const adminRoles = ['SUPERADMIN', 'DENOMINATION_ADMIN', 'OVERSIGHT_ADMIN', 'CAMPUS_ADMIN', 'STREAM_ADMIN', 'COUNCIL_ADMIN'];
         if (!adminRoles.includes(session.user.role)) {
             return NextResponse.json(
                 { error: 'Admin role required' },
@@ -238,12 +242,12 @@ export async function PUT(
             updateData.image = image || null;
         }
 
-        // Phone number update restriction: only user themselves, SUPERADMIN, or GLOBAL_ADMIN
+        // Phone number update restriction: only user themselves, SUPERADMIN, or DENOMINATION_ADMIN
         if (phone !== undefined && phone?.trim() !== targetUser.phone) {
             const canUpdatePhone = 
                 userId === session.user.id || // User updating their own phone
                 session.user.role === 'SUPERADMIN' || 
-                session.user.role === 'GLOBAL_ADMIN';
+                session.user.role === 'DENOMINATION_ADMIN';
             
             if (!canUpdatePhone) {
                 return NextResponse.json(
@@ -522,7 +526,7 @@ export async function PATCH(
         const userId = params.id;
 
         // Check if user has admin role
-        const adminRoles = ['SUPERADMIN', 'GLOBAL_ADMIN', 'INTERNATIONAL_ADMIN', 'NATIONAL_ADMIN', 'REGIONAL_ADMIN', 'CAMPUS_ADMIN'];
+        const adminRoles = ['SUPERADMIN', 'DENOMINATION_ADMIN', 'OVERSIGHT_ADMIN', 'CAMPUS_ADMIN'];
         if (!adminRoles.includes(session.user.role)) {
             return NextResponse.json(
                 { error: 'Admin role required' },

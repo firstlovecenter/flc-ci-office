@@ -88,10 +88,8 @@ export default function ModernDashboardLayout({ children }: { children: React.Re
     const isSuperAdmin = session?.user?.role === 'SUPERADMIN';
     const userRole = session?.user?.role;
     const leaderAndAdminRoles = [
-        'GLOBAL_ADMIN', 'GLOBAL_LEADER',
-        'INTERNATIONAL_ADMIN', 'INTERNATIONAL_LEADER',
-        'NATIONAL_ADMIN', 'NATIONAL_LEADER',
-        'REGIONAL_ADMIN', 'REGIONAL_LEADER',
+        'DENOMINATION_ADMIN', 'DENOMINATION_LEADER',
+        'OVERSIGHT_ADMIN', 'OVERSIGHT_LEADER',
         'CAMPUS_ADMIN', 'CAMPUS_LEADER',
         'STREAM_LEADER', 'COUNCIL_LEADER'
     ];

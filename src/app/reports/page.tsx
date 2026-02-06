@@ -56,7 +56,7 @@ function ReportsPageContent() {
     const [isLeader, setIsLeader] = useState(false);
     const [hasSubDepartments, setHasSubDepartments] = useState(false);
 
-    const leaderRoles = ['GLOBAL_LEADER', 'INTERNATIONAL_LEADER', 'NATIONAL_LEADER', 'REGIONAL_LEADER', 'CAMPUS_LEADER', 'STREAM_LEADER', 'COUNCIL_LEADER'];
+    const leaderRoles = ['DENOMINATION_LEADER', 'OVERSIGHT_LEADER', 'CAMPUS_LEADER', 'STREAM_LEADER', 'COUNCIL_LEADER'];
 
     useEffect(() => {
         fetchDepartments();

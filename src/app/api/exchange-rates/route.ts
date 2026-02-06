@@ -41,9 +41,9 @@ export async function POST(req: NextRequest) {
             return new NextResponse('Unauthorized', { status: 401 });
         }
 
-        // Only SUPERADMIN and GLOBAL_ADMIN can manage exchange rates
-        if (!['SUPERADMIN', 'GLOBAL_ADMIN'].includes(session.user.role)) {
-            return new NextResponse('Forbidden - Only SUPERADMIN or GLOBAL_ADMIN can manage exchange rates', { status: 403 });
+        // Only SUPERADMIN and DENOMINATION_ADMIN can manage exchange rates
+        if (!['SUPERADMIN', 'DENOMINATION_ADMIN'].includes(session.user.role)) {
+            return new NextResponse('Forbidden - Only SUPERADMIN or DENOMINATION_ADMIN can manage exchange rates', { status: 403 });
         }
 
         const body = await req.json();

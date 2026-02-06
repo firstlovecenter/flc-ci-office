@@ -6,7 +6,7 @@ const SUPERADMIN_EMAIL = 'skaduteye@gmail.com';
 /**
  * Validates role assignment constraints:
  * - Only skaduteye@gmail.com can have SUPERADMIN role
- * - Only one GLOBAL_ADMIN can exist globally
+ * - Only one DENOMINATION_ADMIN can exist globally
  * - Multiple users can have other admin roles for the same department
  */
 export async function validateRoleAssignment(
@@ -58,28 +58,28 @@ export async function validateRoleAssignment(
         }
     }
 
-    // Check for GLOBAL_ADMIN constraint
-    if (roles.includes('GLOBAL_ADMIN')) {
-        const existingGlobalAdmin = await prisma.user.findFirst({
+    // Check for DENOMINATION_ADMIN constraint
+    if (roles.includes('DENOMINATION_ADMIN')) {
+        const existingDenominationAdmin = await prisma.user.findFirst({
             where: {
-                roles: { has: 'GLOBAL_ADMIN' },
+                roles: { has: 'DENOMINATION_ADMIN' },
                 id: { not: userId },
                 archived: false,
             },
             select: { id: true, email: true, name: true },
         });
 
-        if (existingGlobalAdmin) {
+        if (existingDenominationAdmin) {
             return {
                 valid: false,
-                error: `There can only be one GLOBAL_ADMIN. Current GLOBAL_ADMIN: ${existingGlobalAdmin.name || existingGlobalAdmin.email}`,
+                error: `There can only be one DENOMINATION_ADMIN. Current DENOMINATION_ADMIN: ${existingDenominationAdmin.name || existingDenominationAdmin.email}`,
             };
         }
     }
 
     // Multiple users CAN have the same department-level admin roles
     // No additional validation needed for:
-    // INTERNATIONAL_ADMIN, NATIONAL_ADMIN, REGIONAL_ADMIN, CAMPUS_ADMIN, etc.
+    // OVERSIGHT_ADMIN, CAMPUS_ADMIN, etc.
 
     return { valid: true };
 }
@@ -117,7 +117,7 @@ export async function canAssignRole(
     departmentId?: string | null
 ): Promise<{ canAssign: boolean; reason?: string }> {
     // For non-unique roles, always allow
-    if (!['SUPERADMIN', 'GLOBAL_ADMIN'].includes(role)) {
+    if (!['SUPERADMIN', 'DENOMINATION_ADMIN'].includes(role)) {
         return { canAssign: true };
     }
 
@@ -140,17 +140,15 @@ export async function canAssignRole(
 export async function getRoleStats() {
     const roles = [
         'SUPERADMIN',
-        'GLOBAL_ADMIN',
-        'GLOBAL_LEADER',
-        'INTERNATIONAL_ADMIN',
-        'INTERNATIONAL_LEADER',
-        'NATIONAL_ADMIN',
-        'NATIONAL_LEADER',
-        'REGIONAL_ADMIN',
-        'REGIONAL_LEADER',
+        'DENOMINATION_ADMIN',
+        'DENOMINATION_LEADER',
+        'OVERSIGHT_ADMIN',
+        'OVERSIGHT_LEADER',
         'CAMPUS_ADMIN',
         'CAMPUS_LEADER',
+        'STREAM_ADMIN',
         'STREAM_LEADER',
+        'COUNCIL_ADMIN',
         'COUNCIL_LEADER',
     ];
 

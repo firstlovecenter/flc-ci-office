@@ -74,14 +74,14 @@ export async function GET(request: NextRequest) {
         let activeUserRole = user.activeUserRole;
         
         if (!activeUserRole && user.userRoles.length > 0) {
-            // If no active role selected, prioritize SUPERADMIN or GLOBAL_ADMIN
-            activeUserRole = user.userRoles.find(ur => ['SUPERADMIN', 'GLOBAL_ADMIN'].includes(ur.role)) || user.userRoles[0];
+            // If no active role selected, prioritize SUPERADMIN or DENOMINATION_ADMIN
+            activeUserRole = user.userRoles.find(ur => ['SUPERADMIN', 'DENOMINATION_ADMIN'].includes(ur.role)) || user.userRoles[0];
         }
 
         const activeRole = activeUserRole?.role || user.activeRole || 'COUNCIL_LEADER';
 
         // For international level and above, use system base currency
-        const highLevelRoles = ['SUPERADMIN', 'GLOBAL_ADMIN', 'GLOBAL_LEADER', 'INTERNATIONAL_ADMIN', 'INTERNATIONAL_LEADER'];
+        const highLevelRoles = ['SUPERADMIN', 'DENOMINATION_ADMIN', 'DENOMINATION_LEADER'];
         const isHighLevel = highLevelRoles.includes(activeRole);
         
         if (isHighLevel) {
@@ -100,7 +100,7 @@ export async function GET(request: NextRequest) {
         
         // For national admin/leader, use their current department
         // For below national level, traverse up to find national department
-        const regionalRoles = ['REGIONAL_ADMIN', 'REGIONAL_LEADER', 'CAMPUS_ADMIN', 'CAMPUS_LEADER', 'STREAM_LEADER', 'COUNCIL_LEADER'];
+        const oversightRoles = ['OVERSIGHT_ADMIN', 'OVERSIGHT_LEADER', 'CAMPUS_ADMIN', 'CAMPUS_LEADER', 'STREAM_LEADER', 'COUNCIL_LEADER'];
         const isRegional = regionalRoles.includes(activeRole);
         
         if (isRegional && nationalDept) {
@@ -180,43 +180,43 @@ export async function PATCH(request: NextRequest) {
         const body = await request.json();
         const { baseCurrencyId } = body;
 
-        // Check if user has NATIONAL_ADMIN role in any of their role-department assignments
-        const nationalAdminRole = user.userRoles?.find(
-            ur => ur.role === 'NATIONAL_ADMIN' && ur.department.level === 'NATIONAL'
+        // Check if user has OVERSIGHT_ADMIN role in any of their role-department assignments
+        const oversightAdminRole = user.userRoles?.find(
+            ur => ur.role === 'OVERSIGHT_ADMIN' && ur.department.level === 'OVERSIGHT'
         );
 
         // Fallback to legacy roles check
-        const hasNationalAdminLegacy = user.roles?.includes('NATIONAL_ADMIN') && 
-                                       user.department?.level === 'NATIONAL';
+        const hasOversightAdminLegacy = user.roles?.includes('OVERSIGHT_ADMIN') && 
+                                       user.department?.level === 'OVERSIGHT';
 
-        if (!nationalAdminRole && !hasNationalAdminLegacy) {
+        if (!oversightAdminRole && !hasOversightAdminLegacy) {
             return NextResponse.json(
-                { error: 'Only national admins with a national department assignment can set base currency' },
+                { error: 'Only oversight admins with an oversight department assignment can set base currency' },
                 { status: 403 }
             );
         }
 
-        // Use the national department from the role assignment, or fall back to legacy department
-        const nationalDepartment = nationalAdminRole?.department || user.department;
+        // Use the oversight department from the role assignment, or fall back to legacy department
+        const oversightDepartment = oversightAdminRole?.department || user.department;
 
-        if (!nationalDepartment) {
+        if (!oversightDepartment) {
             return NextResponse.json(
-                { error: 'National department not found' },
+                { error: 'Oversight department not found' },
                 { status: 400 }
             );
         }
 
         // Get the old base currency (if any) before updating
         const oldDeptBaseCurrency = await prisma.departmentBaseCurrency.findUnique({
-            where: { departmentId: nationalDepartment.id },
+            where: { departmentId: oversightDepartment.id },
             include: { currency: true },
         });
 
         // Upsert the department base currency
         const deptBaseCurrency = await prisma.departmentBaseCurrency.upsert({
-            where: { departmentId: nationalDepartment.id },
+            where: { departmentId: oversightDepartment.id },
             create: {
-                departmentId: nationalDepartment.id,
+                departmentId: oversightDepartment.id,
                 currencyId: baseCurrencyId,
                 setBy: user.id,
             },

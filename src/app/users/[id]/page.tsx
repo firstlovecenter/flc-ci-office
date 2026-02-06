@@ -95,7 +95,7 @@ export default function UserDetailPage() {
         }
         
         // Redirect leaders to dashboard
-        const leaderRoles = ['GLOBAL_LEADER', 'INTERNATIONAL_LEADER', 'NATIONAL_LEADER', 'REGIONAL_LEADER', 'CAMPUS_LEADER', 'STREAM_LEADER', 'COUNCIL_LEADER'];
+        const leaderRoles = ['DENOMINATION_LEADER', 'OVERSIGHT_LEADER', 'CAMPUS_LEADER', 'STREAM_LEADER', 'COUNCIL_LEADER'];
         if (leaderRoles.includes(session.user.role)) {
             router.push('/dashboard');
             return;

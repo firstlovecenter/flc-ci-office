@@ -160,8 +160,8 @@ export default function ModernSidebar({ userRole, userName, userImage, pendingCo
     const [success, setSuccess] = useState('');
 
     const isSuperAdmin = userRole === 'SUPERADMIN';
-    const isGlobalAdmin = userRole === 'GLOBAL_ADMIN';
-    const isNationalAdmin = userRole === 'NATIONAL_ADMIN';
+    const isGlobalAdmin = userRole === 'DENOMINATION_ADMIN';
+    const isOversightAdmin = userRole === 'OVERSIGHT_ADMIN';
     const canManageCurrencies = isSuperAdmin || isGlobalAdmin;
     const isAdmin = userRole?.includes('ADMIN');
 
@@ -234,7 +234,7 @@ export default function ModernSidebar({ userRole, userName, userImage, pendingCo
     ] : [];
 
     // Filter menu items based on user role - leaders don't see Users menu
-    const leaderRoles = ['GLOBAL_LEADER', 'INTERNATIONAL_LEADER', 'NATIONAL_LEADER', 'REGIONAL_LEADER', 'CAMPUS_LEADER', 'STREAM_LEADER', 'COUNCIL_LEADER'];
+    const leaderRoles = ['DENOMINATION_LEADER', 'OVERSIGHT_LEADER', 'CAMPUS_LEADER', 'STREAM_LEADER', 'COUNCIL_LEADER'];
     const isLeader = leaderRoles.includes(userRole || '');
 
     const filteredMenuItems = menuItems.filter(item => {

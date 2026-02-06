@@ -48,7 +48,7 @@ export async function PUT(
 
         // Check if transaction is approved - only CAMPUS_ADMIN and above can edit
         if (existingTransaction.status === 'APPROVED') {
-            const adminRoles = ['SUPERADMIN', 'GLOBAL_ADMIN', 'INTERNATIONAL_ADMIN', 'NATIONAL_ADMIN', 'REGIONAL_ADMIN', 'CAMPUS_ADMIN'];
+            const adminRoles = ['SUPERADMIN', 'DENOMINATION_ADMIN', 'OVERSIGHT_ADMIN', 'CAMPUS_ADMIN'];
             if (!adminRoles.includes(session.user.role)) {
                 return NextResponse.json(
                     { error: 'Only Campus Admin and above can edit approved transactions' },
@@ -165,7 +165,7 @@ export async function PATCH(
         }
 
         // Check if user has permission (must be admin role)
-        const adminRoles = ['CAMPUS_ADMIN', 'REGIONAL_ADMIN', 'NATIONAL_ADMIN', 'INTERNATIONAL_ADMIN', 'GLOBAL_ADMIN', 'SUPERADMIN'];
+        const adminRoles = ['CAMPUS_ADMIN', 'OVERSIGHT_ADMIN', 'DENOMINATION_ADMIN', 'SUPERADMIN'];
         if (!adminRoles.includes(session.user.role)) {
             return new NextResponse('Only admins can approve/reject transactions', { status: 403 });
         }
@@ -260,10 +260,8 @@ export async function PATCH(
             // Send SMS notification to the department leader about the charge
             try {
                 // Find the department leader based on department level
-                const leaderRole = updatedTransaction.department.level === 'GLOBAL' ? 'GLOBAL_LEADER' :
-                                  updatedTransaction.department.level === 'INTERNATIONAL' ? 'INTERNATIONAL_LEADER' :
-                                  updatedTransaction.department.level === 'NATIONAL' ? 'NATIONAL_LEADER' :
-                                  updatedTransaction.department.level === 'REGIONAL' ? 'REGIONAL_LEADER' :
+                const leaderRole = updatedTransaction.department.level === 'DENOMINATION' ? 'DENOMINATION_LEADER' :
+                                  updatedTransaction.department.level === 'OVERSIGHT' ? 'OVERSIGHT_LEADER' :
                                   updatedTransaction.department.level === 'CAMPUS' ? 'CAMPUS_LEADER' :
                                   updatedTransaction.department.level === 'STREAM' ? 'STREAM_LEADER' :
                                   'COUNCIL_LEADER';
@@ -396,10 +394,8 @@ export async function PATCH(
         if (status === 'APPROVED') {
             try {
                 // Determine the leader role based on department level
-                const leaderRole = updatedTransaction.department.level === 'GLOBAL' ? 'GLOBAL_LEADER' :
-                                  updatedTransaction.department.level === 'INTERNATIONAL' ? 'INTERNATIONAL_LEADER' :
-                                  updatedTransaction.department.level === 'NATIONAL' ? 'NATIONAL_LEADER' :
-                                  updatedTransaction.department.level === 'REGIONAL' ? 'REGIONAL_LEADER' :
+                const leaderRole = updatedTransaction.department.level === 'DENOMINATION' ? 'DENOMINATION_LEADER' :
+                                  updatedTransaction.department.level === 'OVERSIGHT' ? 'OVERSIGHT_LEADER' :
                                   updatedTransaction.department.level === 'CAMPUS' ? 'CAMPUS_LEADER' :
                                   updatedTransaction.department.level === 'STREAM' ? 'STREAM_LEADER' :
                                   'COUNCIL_LEADER';

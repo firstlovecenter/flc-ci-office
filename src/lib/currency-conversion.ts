@@ -84,7 +84,7 @@ export async function getUserBaseCurrency(userId: string) {
 
     const role = user?.activeUserRole?.role || user?.activeRole;
 
-    if (role === 'SUPERADMIN' || role === 'GLOBAL_ADMIN') {
+    if (role === 'SUPERADMIN' || role === 'DENOMINATION_ADMIN') {
         const systemBase = await prisma.currency.findFirst({
             where: { isBase: true },
         });

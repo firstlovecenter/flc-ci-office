@@ -32,7 +32,7 @@ function NewTransactionForm() {
     const { showSuccess, showError } = useToast();
     
     // Check if user is a leader
-    const leaderRoles = ['GLOBAL_LEADER', 'INTERNATIONAL_LEADER', 'NATIONAL_LEADER', 'REGIONAL_LEADER', 'CAMPUS_LEADER', 'STREAM_LEADER', 'COUNCIL_LEADER'];
+    const leaderRoles = ['DENOMINATION_LEADER', 'OVERSIGHT_LEADER', 'CAMPUS_LEADER', 'STREAM_LEADER', 'COUNCIL_LEADER'];
     const isLeader = session?.user?.role && leaderRoles.includes(session.user.role);
     
     // Initialize type - will be set properly by useEffect once session loads
@@ -161,7 +161,7 @@ function NewTransactionForm() {
                     setCurrencyId(profile.baseCurrency.id);
                 } else {
                     // Check if user is national level or below
-                    const nationalAndBelowRoles = ['NATIONAL_ADMIN', 'NATIONAL_LEADER', 'REGIONAL_ADMIN', 'REGIONAL_LEADER', 'CAMPUS_ADMIN', 'CAMPUS_LEADER', 'STREAM_LEADER', 'COUNCIL_LEADER', 'STREAM_ADMIN', 'COUNCIL_ADMIN'];
+                    const nationalAndBelowRoles = ['OVERSIGHT_ADMIN', 'OVERSIGHT_LEADER', 'CAMPUS_ADMIN', 'CAMPUS_LEADER', 'STREAM_LEADER', 'COUNCIL_LEADER', 'STREAM_ADMIN', 'COUNCIL_ADMIN'];
                     if (session?.user?.role && nationalAndBelowRoles.includes(session.user.role)) {
                         setError('Base currency must be set for your national department before you can record transactions. Please contact your National Admin to set the base currency.');
                     }

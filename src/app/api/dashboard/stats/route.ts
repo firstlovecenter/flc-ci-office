@@ -27,7 +27,7 @@ export async function GET(request: Request) {
             filterDepartmentId = session.user.activeUserRole.departmentId;
         }
 
-        if (session.user.role !== 'SUPERADMIN' && session.user.role !== 'GLOBAL_ADMIN') {
+        if (session.user.role !== 'SUPERADMIN' && session.user.role !== 'DENOMINATION_ADMIN') {
             if (!filterDepartmentId) {
                 return new NextResponse('Forbidden - No department assigned', { status: 403 });
             }

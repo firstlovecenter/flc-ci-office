@@ -55,7 +55,7 @@ function UsersPageContent() {
     // Redirect leaders to dashboard - they shouldn't access user management
     useEffect(() => {
         if (session?.user?.role) {
-            const leaderRoles = ['GLOBAL_LEADER', 'INTERNATIONAL_LEADER', 'NATIONAL_LEADER', 'REGIONAL_LEADER', 'CAMPUS_LEADER', 'STREAM_LEADER', 'COUNCIL_LEADER'];
+            const leaderRoles = ['DENOMINATION_LEADER', 'OVERSIGHT_LEADER', 'CAMPUS_LEADER', 'STREAM_LEADER', 'COUNCIL_LEADER'];
             if (leaderRoles.includes(session.user.role)) {
                 router.push('/dashboard');
             }
@@ -223,7 +223,7 @@ function UsersPageContent() {
     };
 
     // Admins can create users
-    const adminRoles = ['SUPERADMIN', 'GLOBAL_ADMIN', 'INTERNATIONAL_ADMIN', 'NATIONAL_ADMIN', 'REGIONAL_ADMIN', 'CAMPUS_ADMIN'];
+    const adminRoles = ['SUPERADMIN', 'DENOMINATION_ADMIN', 'OVERSIGHT_ADMIN', 'CAMPUS_ADMIN'];
     const canCreateUsers = session?.user?.role && adminRoles.includes(session.user.role);
 
     // Filter users based on search query

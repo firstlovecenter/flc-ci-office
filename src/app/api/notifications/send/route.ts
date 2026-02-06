@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Only admins can send notifications
-    const adminRoles = ['SUPERADMIN', 'GLOBAL_ADMIN', 'INTERNATIONAL_ADMIN', 'NATIONAL_ADMIN', 'REGIONAL_ADMIN', 'CAMPUS_ADMIN'];
+    const adminRoles = ['SUPERADMIN', 'DENOMINATION_ADMIN', 'OVERSIGHT_ADMIN', 'CAMPUS_ADMIN'];
     if (!session.user.role || !adminRoles.includes(session.user.role)) {
       return new NextResponse('Forbidden', { status: 403 });
     }

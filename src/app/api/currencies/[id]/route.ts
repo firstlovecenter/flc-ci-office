@@ -15,9 +15,9 @@ export async function PUT(
             return new NextResponse('Unauthorized', { status: 401 });
         }
 
-        // Only SUPERADMIN and GLOBAL_ADMIN can update currencies
-        if (!['SUPERADMIN', 'GLOBAL_ADMIN'].includes(session.user.role)) {
-            return new NextResponse('Forbidden - Only SUPERADMIN or GLOBAL_ADMIN can manage currencies', { status: 403 });
+        // Only SUPERADMIN and DENOMINATION_ADMIN can update currencies
+        if (!['SUPERADMIN', 'DENOMINATION_ADMIN'].includes(session.user.role)) {
+            return new NextResponse('Forbidden - Only SUPERADMIN or DENOMINATION_ADMIN can manage currencies', { status: 403 });
         }
 
         const params = await context.params;
@@ -131,9 +131,9 @@ export async function PATCH(
             return new NextResponse('Unauthorized', { status: 401 });
         }
 
-        // Only SUPERADMIN and GLOBAL_ADMIN can update currencies
-        if (!['SUPERADMIN', 'GLOBAL_ADMIN'].includes(session.user.role)) {
-            return new NextResponse('Forbidden - Only SUPERADMIN or GLOBAL_ADMIN can manage currencies', { status: 403 });
+        // Only SUPERADMIN and DENOMINATION_ADMIN can update currencies
+        if (!['SUPERADMIN', 'DENOMINATION_ADMIN'].includes(session.user.role)) {
+            return new NextResponse('Forbidden - Only SUPERADMIN or DENOMINATION_ADMIN can manage currencies', { status: 403 });
         }
 
         const params = await context.params;

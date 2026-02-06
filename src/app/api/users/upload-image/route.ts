@@ -24,7 +24,7 @@ export async function POST(req: NextRequest) {
         }
 
         // Check if user is an admin
-        const adminRoles = ['SUPERADMIN', 'GLOBAL_ADMIN', 'INTERNATIONAL_ADMIN', 'NATIONAL_ADMIN', 'REGIONAL_ADMIN', 'CAMPUS_ADMIN'];
+        const adminRoles = ['SUPERADMIN', 'DENOMINATION_ADMIN', 'OVERSIGHT_ADMIN', 'CAMPUS_ADMIN'];
         if (!adminRoles.includes(session.user.role)) {
             return NextResponse.json({ error: 'Only admins can upload user images' }, { status: 403 });
         }

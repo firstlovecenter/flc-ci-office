@@ -11,8 +11,8 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Only SUPERADMIN or GLOBAL_ADMIN can view all base currencies
-    if (session.user.role !== 'SUPERADMIN' && session.user.role !== 'GLOBAL_ADMIN') {
+    // Only SUPERADMIN or DENOMINATION_ADMIN can view all base currencies
+    if (session.user.role !== 'SUPERADMIN' && session.user.role !== 'DENOMINATION_ADMIN') {
       return NextResponse.json(
         { error: 'Only super admins can view all base currencies' },
         { status: 403 }

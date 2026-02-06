@@ -82,7 +82,7 @@ export default function ApprovalsPage() {
 
     useEffect(() => {
         if (session?.user?.role) {
-            const adminRoles = ['CAMPUS_ADMIN', 'REGIONAL_ADMIN', 'NATIONAL_ADMIN', 'INTERNATIONAL_ADMIN', 'GLOBAL_ADMIN', 'SUPERADMIN'];
+            const adminRoles = ['CAMPUS_ADMIN', 'OVERSIGHT_ADMIN', 'DENOMINATION_ADMIN', 'SUPERADMIN'];
             if (!adminRoles.includes(session.user.role)) {
                 router.push('/dashboard');
             }

@@ -11,7 +11,7 @@ export async function GET(request: Request) {
     }
 
     // Only admins can check role availability
-    const adminRoles = ['SUPERADMIN', 'GLOBAL_ADMIN', 'INTERNATIONAL_ADMIN', 'NATIONAL_ADMIN', 'REGIONAL_ADMIN', 'CAMPUS_ADMIN'];
+    const adminRoles = ['SUPERADMIN', 'DENOMINATION_ADMIN', 'OVERSIGHT_ADMIN', 'CAMPUS_ADMIN'];
     if (!adminRoles.includes(session.user.role)) {
         return new NextResponse('Forbidden', { status: 403 });
     }

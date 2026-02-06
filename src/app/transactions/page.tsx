@@ -112,9 +112,9 @@ function TransactionsPageContent() {
     const deptParam = searchParams?.get('dept');
 
     const isSuperAdmin = session?.user?.role === 'SUPERADMIN';
-    const isAdmin = session?.user?.role && ['SUPERADMIN', 'GLOBAL_ADMIN', 'INTERNATIONAL_ADMIN', 'NATIONAL_ADMIN', 'REGIONAL_ADMIN', 'CAMPUS_ADMIN'].includes(session.user.role);
+    const isAdmin = session?.user?.role && ['SUPERADMIN', 'DENOMINATION_ADMIN', 'OVERSIGHT_ADMIN', 'CAMPUS_ADMIN'].includes(session.user.role);
     const isLeader = session?.user?.role?.includes('LEADER') || false;
-    const canSelectBaseCurrency = session?.user?.role === 'NATIONAL_ADMIN';
+    const canSelectBaseCurrency = session?.user?.role === 'OVERSIGHT_ADMIN';
 
     useEffect(() => {
         fetchCurrencies();
@@ -154,7 +154,7 @@ function TransactionsPageContent() {
     const fetchBaseCurrency = async () => {
         try {
             // For international level and above, use system base currency (USD)
-            if (session?.user?.role && ['SUPERADMIN', 'GLOBAL_ADMIN', 'GLOBAL_LEADER', 'INTERNATIONAL_ADMIN', 'INTERNATIONAL_LEADER'].includes(session.user.role)) {
+            if (session?.user?.role && ['SUPERADMIN', 'DENOMINATION_ADMIN', 'DENOMINATION_LEADER'].includes(session.user.role)) {
                 const response = await fetch('/api/currencies?active=true');
                 if (response.ok) {
                     const currencies = await response.json();
