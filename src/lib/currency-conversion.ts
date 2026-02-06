@@ -2,8 +2,8 @@ import { prisma } from './prisma';
 
 /**
  * Get the base currency for a department
- * - Global level: uses system base currency (USD)
- * - National and below: uses the national department's configured base currency
+ * - Denomination level: uses system base currency (USD)
+ * - Oversight and below: uses the oversight department's configured base currency
  */
 export async function getDepartmentBaseCurrency(departmentId: string) {
     const department = await prisma.department.findUnique({
@@ -15,17 +15,17 @@ export async function getDepartmentBaseCurrency(departmentId: string) {
         throw new Error('Department not found');
     }
 
-    // For Global level, use system base currency
-    if (department.level === 'GLOBAL') {
+    // For Denomination level, use system base currency
+    if (department.level === 'DENOMINATION') {
         const systemBase = await prisma.currency.findFirst({
             where: { isBase: true },
         });
         return systemBase;
     }
 
-    // For other levels, find the National department in the hierarchy
+    // For other levels, find the Oversight department in the hierarchy
     let currentDeptId: string | null = departmentId;
-    let nationalDept = null;
+    let oversightDept = null;
 
     while (currentDeptId) {
         const dept: { level: string; parentId: string | null } | null = await prisma.department.findUnique({
@@ -35,8 +35,8 @@ export async function getDepartmentBaseCurrency(departmentId: string) {
 
         if (!dept) break;
 
-        if (dept.level === 'NATIONAL') {
-            nationalDept = await prisma.department.findUnique({
+        if (dept.level === 'OVERSIGHT') {
+            oversightDept = await prisma.department.findUnique({
                 where: { id: currentDeptId },
             });
             break;
@@ -45,10 +45,10 @@ export async function getDepartmentBaseCurrency(departmentId: string) {
         currentDeptId = dept.parentId || null;
     }
 
-    if (nationalDept) {
-        // Get the base currency for this national department
+    if (oversightDept) {
+        // Get the base currency for this oversight department
         const deptBaseCurrency = await prisma.departmentBaseCurrency.findUnique({
-            where: { departmentId: nationalDept.id },
+            where: { departmentId: oversightDept.id },
             include: { currency: true },
         });
 

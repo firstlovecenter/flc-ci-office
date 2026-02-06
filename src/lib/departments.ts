@@ -91,13 +91,11 @@ export async function hasDepartmentAccess(user: { role: string, departmentId?: s
  * Department hierarchy map
  */
 const DEPARTMENT_HIERARCHY: Record<DepartmentLevel, number> = {
-    GLOBAL: 1,
-    INTERNATIONAL: 2,
-    NATIONAL: 3,
-    REGIONAL: 4,
-    CAMPUS: 5,
-    STREAM: 6,
-    COUNCIL: 7,
+    DENOMINATION: 1,
+    OVERSIGHT: 2,
+    CAMPUS: 3,
+    STREAM: 4,
+    COUNCIL: 5,
 };
 
 /**

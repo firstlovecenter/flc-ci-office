@@ -229,7 +229,7 @@ export default function ModernSidebar({ userRole, userName, userImage, pendingCo
         { text: 'Audit Trail', icon: <HistoryIcon />, path: '/audit', superAdminOnly: true },
     ];
 
-    const nationalAdminItems = isNationalAdmin ? [
+    const oversightAdminItems = isOversightAdmin ? [
         { text: 'Base Currency', icon: <AccountBalanceIcon />, action: () => setBaseCurrencyDialogOpen(true) },
     ] : [];
 
@@ -317,10 +317,10 @@ export default function ModernSidebar({ userRole, userName, userImage, pendingCo
 
             <Box sx={{ flexGrow: 1 }} />
 
-            {nationalAdminItems.length > 0 && (
+            {oversightAdminItems.length > 0 && (
                 <MenuSection>
                     <List disablePadding>
-                        {nationalAdminItems.map((item) => (
+                        {oversightAdminItems.map((item) => (
                             <ListItem key={item.text} disablePadding>
                                 <Tooltip title={collapsed ? item.text : ''} placement="right" arrow>
                                     <StyledListItemButton
@@ -399,13 +399,13 @@ export default function ModernSidebar({ userRole, userName, userImage, pendingCo
                 maxWidth="sm"
                 fullWidth
             >
-                <DialogTitle>Set National Base Currency</DialogTitle>
+                <DialogTitle>Set Oversight Base Currency</DialogTitle>
                 <DialogContent>
                     {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
                     {success && <Alert severity="success" sx={{ mb: 2 }}>{success}</Alert>}
                     
                     <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-                        Select the base currency for your national department. All transactions will be converted to this currency for reporting.
+                        Select the base currency for your oversight department. All transactions will be converted to this currency for reporting.
                     </Typography>
                     
                     <FormControl fullWidth>

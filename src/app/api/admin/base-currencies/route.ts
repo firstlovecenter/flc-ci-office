@@ -3,7 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 
-// GET /api/admin/base-currencies - List all national departments and their base currencies
+// GET /api/admin/base-currencies - List all oversight departments and their base currencies
 export async function GET(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
@@ -19,10 +19,10 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    // Get all national-level departments
-    const nationalDepts = await prisma.department.findMany({
+    // Get all oversight-level departments
+    const oversightDepts = await prisma.department.findMany({
       where: {
-        level: 'NATIONAL',
+        level: 'OVERSIGHT',
       },
       include: {
         departmentBaseCurrency: {
@@ -47,7 +47,7 @@ export async function GET(req: NextRequest) {
       where: { isBase: true },
     });
 
-    const result = nationalDepts.map((dept) => ({
+    const result = oversightDepts.map((dept) => ({
       departmentId: dept.id,
       departmentName: dept.name,
       baseCurrency: dept.departmentBaseCurrency?.currency
@@ -76,7 +76,7 @@ export async function GET(req: NextRequest) {
     }));
 
     return NextResponse.json({
-      nationalDepartments: result,
+      oversightDepartments: result,
       systemBase: systemBase
         ? {
             code: systemBase.code,
@@ -93,7 +93,7 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// POST /api/admin/base-currencies - Initialize base currencies for all national departments
+// POST /api/admin/base-currencies - Initialize base currencies for all oversight departments
 export async function POST(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
@@ -118,7 +118,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Verify department exists and is NATIONAL level
+    // Verify department exists and is OVERSIGHT level
     const department = await prisma.department.findUnique({
       where: { id: departmentId },
     });
@@ -127,9 +127,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Department not found' }, { status: 404 });
     }
 
-    if (department.level !== 'NATIONAL') {
+    if (department.level !== 'OVERSIGHT') {
       return NextResponse.json(
-        { error: 'Only NATIONAL-level departments can have base currencies set' },
+        { error: 'Only OVERSIGHT-level departments can have base currencies set' },
         { status: 400 }
       );
     }
@@ -172,7 +172,7 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// DELETE /api/admin/base-currencies - Delete a custom base currency for a national department
+// DELETE /api/admin/base-currencies - Delete a custom base currency for an oversight department
 export async function DELETE(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
@@ -198,7 +198,7 @@ export async function DELETE(req: NextRequest) {
       );
     }
 
-    // Verify department exists and is NATIONAL level
+    // Verify department exists and is OVERSIGHT level
     const department = await prisma.department.findUnique({
       where: { id: departmentId },
     });
@@ -207,9 +207,9 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: 'Department not found' }, { status: 404 });
     }
 
-    if (department.level !== 'NATIONAL') {
+    if (department.level !== 'OVERSIGHT') {
       return NextResponse.json(
-        { error: 'Only NATIONAL-level departments can have base currencies' },
+        { error: 'Only OVERSIGHT-level departments can have base currencies' },
         { status: 400 }
       );
     }

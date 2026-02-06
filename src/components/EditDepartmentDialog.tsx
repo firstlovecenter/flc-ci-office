@@ -28,7 +28,7 @@ import PersonOffIcon from '@mui/icons-material/PersonOff';
 import BlockIcon from '@mui/icons-material/Block';
 import { formatDepartmentLevel, formatRole } from '@/lib/utils';
 
-type DepartmentLevel = 'GLOBAL' | 'INTERNATIONAL' | 'NATIONAL' | 'REGIONAL' | 'CAMPUS' | 'STREAM' | 'COUNCIL';
+type DepartmentLevel = 'DENOMINATION' | 'OVERSIGHT' | 'CAMPUS' | 'STREAM' | 'COUNCIL';
 
 interface EditDepartmentDialogProps {
     open: boolean;

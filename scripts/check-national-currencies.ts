@@ -10,11 +10,11 @@ const adapter = new PrismaPg(pool);
 const prisma = new PrismaClient({ adapter });
 
 async function main() {
-  console.log('National Departments and Base Currencies:');
+  console.log('Oversight Departments and Base Currencies:');
   console.log('========================================\n');
 
-  const nationalDepts = await prisma.department.findMany({
-    where: { level: 'NATIONAL' },
+  const oversightDepts = await prisma.department.findMany({
+    where: { level: 'OVERSIGHT' },
     include: {
       departmentBaseCurrency: {
         include: {
@@ -24,7 +24,7 @@ async function main() {
     },
   });
 
-  for (const dept of nationalDepts) {
+  for (const dept of oversightDepts) {
     console.log(`Department: ${dept.name}`);
     console.log(`  ID: ${dept.id}`);
     if (dept.departmentBaseCurrency) {
@@ -36,7 +36,7 @@ async function main() {
     console.log('');
   }
 
-  console.log(`\nTotal National Departments: ${nationalDepts.length}`);
+  console.log(`\nTotal Oversight Departments: ${oversightDepts.length}`);
 }
 
 main()
