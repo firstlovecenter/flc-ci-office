@@ -29,7 +29,7 @@ interface Currency {
   symbol: string;
 }
 
-interface NationalDepartment {
+interface OversightDepartment {
   departmentId: string;
   departmentName: string;
   baseCurrency: Currency | null;
@@ -43,7 +43,7 @@ interface NationalDepartment {
 
 export default function BaseCurrenciesAdminPage() {
   const { data: session, status } = useSession();
-  const [departments, setDepartments] = useState<NationalDepartment[]>([]);
+  const [departments, setDepartments] = useState<OversightDepartment[]>([]);
   const [systemBase, setSystemBase] = useState<Currency | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -64,7 +64,7 @@ export default function BaseCurrenciesAdminPage() {
       }
 
       const data = await response.json();
-      setDepartments(data.nationalDepartments);
+      setDepartments(data.oversightDepartments);
       setSystemBase(data.systemBase);
     } catch (err: any) {
       setError(err.message);
@@ -121,14 +121,14 @@ export default function BaseCurrenciesAdminPage() {
   return (
     <Box sx={{ p: 3 }}>
       <Typography variant="h4" gutterBottom>
-        National Base Currencies
+        Oversight Base Currencies
       </Typography>
 
       {/* Summary Cards */}
       <Box sx={{ display: 'flex', gap: 2, mb: 3 }}>
         <Paper sx={{ p: 2, flex: 1 }}>
           <Typography variant="body2" color="text.secondary">
-            Total National Departments
+            Total Oversight Departments
           </Typography>
           <Typography variant="h4">{departments.length}</Typography>
         </Paper>
