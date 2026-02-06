@@ -220,10 +220,10 @@ export async function POST(request: Request) {
             }
         }
 
-        // Validate currency for NATIONAL departments
-        if (level === 'NATIONAL' && !currencyId) {
+        // Validate currency for OVERSIGHT departments
+        if (level === 'OVERSIGHT' && !currencyId) {
             return NextResponse.json(
-                { error: 'Currency is required for NATIONAL departments' },
+                { error: 'Currency is required for OVERSIGHT departments' },
                 { status: 400 }
             );
         }
@@ -237,8 +237,8 @@ export async function POST(request: Request) {
             },
         });
 
-        // Create DepartmentBaseCurrency for NATIONAL departments
-        if (level === 'NATIONAL' && currencyId) {
+        // Create DepartmentBaseCurrency for OVERSIGHT departments
+        if (level === 'OVERSIGHT' && currencyId) {
             await prisma.departmentBaseCurrency.create({
                 data: {
                     departmentId: department.id,

@@ -66,7 +66,7 @@ export function formatRole(role: string | null | undefined): string {
 }
 
 /**
- * Format a department level enum value for display (e.g., INTERNATIONAL -> International)
+ * Format a department level enum value for display (e.g., DENOMINATION -> Denomination)
  */
 export function formatDepartmentLevel(level: string | null | undefined): string {
     if (!level) return '';

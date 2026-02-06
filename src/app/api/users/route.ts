@@ -187,13 +187,11 @@ export async function POST(request: Request) {
             
             if (userDept && adminDept) {
                 const DEPARTMENT_HIERARCHY: Record<string, number> = {
-                    GLOBAL: 1,
-                    INTERNATIONAL: 2,
-                    NATIONAL: 3,
-                    REGIONAL: 4,
-                    CAMPUS: 5,
-                    STREAM: 6,
-                    COUNCIL: 7,
+                    DENOMINATION: 1,
+                    OVERSIGHT: 2,
+                    CAMPUS: 3,
+                    STREAM: 4,
+                    COUNCIL: 5,
                 };
 
                 const userDeptLevel = DEPARTMENT_HIERARCHY[userDept.level];

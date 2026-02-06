@@ -40,27 +40,23 @@ interface EditDepartmentDialogProps {
 }
 
 const DEPARTMENT_LEVELS: DepartmentLevel[] = [
-    'GLOBAL',
-    'INTERNATIONAL',
-    'NATIONAL',
-    'REGIONAL',
+    'DENOMINATION',
+    'OVERSIGHT',
     'CAMPUS',
     'STREAM',
     'COUNCIL',
 ];
 
 const DEPARTMENT_HIERARCHY: Record<DepartmentLevel, number> = {
-    GLOBAL: 1,
-    INTERNATIONAL: 2,
-    NATIONAL: 3,
-    REGIONAL: 4,
-    CAMPUS: 5,
-    STREAM: 6,
-    COUNCIL: 7,
+    DENOMINATION: 1,
+    OVERSIGHT: 2,
+    CAMPUS: 3,
+    STREAM: 4,
+    COUNCIL: 5,
 };
 
 // Levels that support admin roles
-const ADMIN_SUPPORTED_LEVELS: DepartmentLevel[] = ['GLOBAL', 'INTERNATIONAL', 'NATIONAL', 'REGIONAL', 'CAMPUS'];
+const ADMIN_SUPPORTED_LEVELS: DepartmentLevel[] = ['DENOMINATION', 'OVERSIGHT', 'CAMPUS'];
 
 export default function EditDepartmentDialog({
     open,
@@ -127,8 +123,8 @@ export default function EditDepartmentDialog({
                 setCurrentAdmin(null);
             }
             
-            // Fetch current base currency if NATIONAL department
-            if (department.level === 'NATIONAL') {
+            // Fetch current base currency if OVERSIGHT department
+            if (department.level === 'OVERSIGHT') {
                 fetchDepartmentCurrency(department.id);
             } else {
                 setCurrencyId('');
@@ -281,7 +277,7 @@ export default function EditDepartmentDialog({
                     name,
                     level,
                     parentId: parentId || null,
-                    currencyId: level === 'NATIONAL' && currencyId ? currencyId : undefined,
+                    currencyId: level === 'OVERSIGHT' && currencyId ? currencyId : undefined,
                     leaderId: leaderId || undefined,
                     adminId: ADMIN_SUPPORTED_LEVELS.includes(level) ? (adminId || null) : undefined,
                 }),
@@ -428,7 +424,7 @@ export default function EditDepartmentDialog({
                     </FormControl>
                 )}
 
-                {level === 'NATIONAL' && (
+                {level === 'OVERSIGHT' && (
                     <FormControl fullWidth sx={{ mb: 2 }}>
                         <InputLabel>Base Currency *</InputLabel>
                         <Select

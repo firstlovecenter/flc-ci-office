@@ -31,6 +31,8 @@ export async function GET(
         }
 
         const params = await context.params;
+        const userId = params.id;
+        
         if (!adminRoles.includes(session.user.role)) {
             return NextResponse.json(
                 { error: 'Admin role required' },

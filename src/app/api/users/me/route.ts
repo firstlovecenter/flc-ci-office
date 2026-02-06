@@ -80,7 +80,7 @@ export async function GET(request: NextRequest) {
 
         const activeRole = activeUserRole?.role || user.activeRole || 'COUNCIL_LEADER';
 
-        // For international level and above, use system base currency
+        // For denomination level and above, use system base currency
         const highLevelRoles = ['SUPERADMIN', 'DENOMINATION_ADMIN', 'DENOMINATION_LEADER'];
         const isHighLevel = highLevelRoles.includes(activeRole);
         
@@ -95,19 +95,19 @@ export async function GET(request: NextRequest) {
             });
         }
 
-        // For national level and below, find the national department's base currency
-        let nationalDept = activeUserRole?.department;
+        // For oversight level and below, find the oversight department's base currency
+        let oversightDept = activeUserRole?.department;
         
-        // For national admin/leader, use their current department
-        // For below national level, traverse up to find national department
+        // For oversight admin/leader, use their current department
+        // For below oversight level, traverse up to find oversight department
         const oversightRoles = ['OVERSIGHT_ADMIN', 'OVERSIGHT_LEADER', 'CAMPUS_ADMIN', 'CAMPUS_LEADER', 'STREAM_LEADER', 'COUNCIL_LEADER'];
-        const isRegional = regionalRoles.includes(activeRole);
+        const isOversightOrBelow = oversightRoles.includes(activeRole);
         
-        if (isRegional && nationalDept) {
-            // Traverse up to find national department
-            while (nationalDept && nationalDept.level !== 'NATIONAL' && nationalDept.parentId) {
-                nationalDept = await prisma.department.findUnique({
-                    where: { id: nationalDept.parentId },
+        if (isOversightOrBelow && oversightDept) {
+            // Traverse up to find oversight department
+            while (oversightDept && oversightDept.level !== 'OVERSIGHT' && oversightDept.parentId) {
+                oversightDept = await prisma.department.findUnique({
+                    where: { id: oversightDept.parentId },
                     include: {
                         parent: {
                             include: {
@@ -119,14 +119,14 @@ export async function GET(request: NextRequest) {
                             },
                         },
                     },
-                }) || nationalDept;
+                }) || oversightDept;
             }
         }
 
-        if (nationalDept && nationalDept.level === 'NATIONAL') {
-            // Check if this national department has a base currency set
+        if (oversightDept && oversightDept.level === 'OVERSIGHT') {
+            // Check if this oversight department has a base currency set
             const deptBaseCurrency = await prisma.departmentBaseCurrency.findUnique({
-                where: { departmentId: nationalDept.id },
+                where: { departmentId: oversightDept.id },
                 include: { currency: true },
             });
 
@@ -239,7 +239,7 @@ export async function PATCH(request: NextRequest) {
                 },
             });
 
-            // Get all departments under this national department (including itself)
+            // Get all departments under this oversight department (including itself)
             const departmentIds = await prisma.$queryRaw<{ id: string }[]>`
                 WITH RECURSIVE dept_tree AS (
                     SELECT id FROM "Department" WHERE id = ${user.department?.id}

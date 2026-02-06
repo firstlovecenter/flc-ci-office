@@ -125,7 +125,7 @@ export default function CurrenciesPage() {
             const response = await fetch('/api/admin/base-currencies');
             if (response.ok) {
                 const data = await response.json();
-                setBaseCurrencies(data.nationalDepartments || []);
+                setBaseCurrencies(data.oversightDepartments || []);
                 setSystemBase(data.systemBase);
             }
         } catch (error) {
@@ -462,7 +462,7 @@ export default function CurrenciesPage() {
 
             {tab === 2 && (
                 <Box>
-                    <Typography variant="h6" sx={{ mb: 2 }}>National Base Currencies</Typography>
+                    <Typography variant="h6" sx={{ mb: 2 }}>Oversight Base Currencies</Typography>
                     
                     {systemBase && (
                         <Alert severity="info" sx={{ mb: 2 }}>
@@ -474,7 +474,7 @@ export default function CurrenciesPage() {
                         <Table>
                             <TableHead>
                                 <TableRow>
-                                    <TableCell>National Department</TableCell>
+                                    <TableCell>Oversight Department</TableCell>
                                     <TableCell>Base Currency</TableCell>
                                     <TableCell>Status</TableCell>
                                     <TableCell>Set By</TableCell>
@@ -516,7 +516,7 @@ export default function CurrenciesPage() {
                                 {baseCurrencies.length === 0 && (
                                     <TableRow>
                                         <TableCell colSpan={5} align="center">
-                                            No national departments found
+                                            No oversight departments found
                                         </TableCell>
                                     </TableRow>
                                 )}

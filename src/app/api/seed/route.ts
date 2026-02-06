@@ -5,36 +5,25 @@ import bcrypt from 'bcryptjs';
 export async function POST(request: Request) {
     try {
 
-        // Create departments
-        const globalDept = await prisma.department.upsert({
-            where: { id: 'global-1' },
+        // Create departments - new 5-level hierarchy
+        const denominationDept = await prisma.department.upsert({
+            where: { id: 'denomination-1' },
             update: {},
             create: {
-                id: 'global-1',
-                name: 'Global Headquarters',
-                level: 'GLOBAL',
+                id: 'denomination-1',
+                name: 'Global Church Denomination',
+                level: 'DENOMINATION',
             },
         });
 
-        const nationalDept = await prisma.department.upsert({
-            where: { id: 'national-1' },
+        const oversightDept = await prisma.department.upsert({
+            where: { id: 'oversight-1' },
             update: {},
             create: {
-                id: 'national-1',
-                name: 'National Office - USA',
-                level: 'NATIONAL',
-                parentId: globalDept.id,
-            },
-        });
-
-        const regionalDept = await prisma.department.upsert({
-            where: { id: 'regional-1' },
-            update: {},
-            create: {
-                id: 'regional-1',
-                name: 'Western Region',
-                level: 'REGIONAL',
-                parentId: nationalDept.id,
+                id: 'oversight-1',
+                name: 'Regional Oversight',
+                level: 'OVERSIGHT',
+                parentId: denominationDept.id,
             },
         });
 
@@ -45,7 +34,7 @@ export async function POST(request: Request) {
                 id: 'campus-1',
                 name: 'Los Angeles Campus',
                 level: 'CAMPUS',
-                parentId: regionalDept.id,
+                parentId: oversightDept.id,
             },
         });
 

@@ -48,15 +48,15 @@ export async function GET(
         // Get the appropriate base currency for this department
         let baseCurrency;
         
-        if (department.level === 'GLOBAL') {
-            // Global level uses system base currency (USD)
+        if (department.level === 'DENOMINATION') {
+            // Denomination level uses system base currency (USD)
             baseCurrency = await prisma.currency.findFirst({
                 where: { isBase: true },
             });
         } else {
-            // Find the National department for this department hierarchy
+            // Find the Oversight department for this department hierarchy
             let currentDeptId: string | null = id;
-            let nationalDept = null;
+            let oversightDept = null;
 
             while (currentDeptId) {
                 const dept: { level: string; parentId: string | null } | null = await prisma.department.findUnique({
@@ -66,8 +66,8 @@ export async function GET(
 
                 if (!dept) break;
 
-                if (dept.level === 'NATIONAL') {
-                    nationalDept = await prisma.department.findUnique({
+                if (dept.level === 'OVERSIGHT') {
+                    oversightDept = await prisma.department.findUnique({
                         where: { id: currentDeptId },
                     });
                     break;
@@ -76,10 +76,10 @@ export async function GET(
                 currentDeptId = dept.parentId || null;
             }
 
-            if (nationalDept) {
-                // Get the base currency for this national department
+            if (oversightDept) {
+                // Get the base currency for this oversight department
                 const deptBaseCurrency = await prisma.departmentBaseCurrency.findUnique({
-                    where: { departmentId: nationalDept.id },
+                    where: { departmentId: oversightDept.id },
                     include: { currency: true },
                 });
 

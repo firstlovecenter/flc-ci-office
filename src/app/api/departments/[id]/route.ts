@@ -130,10 +130,10 @@ export async function PUT(
         const currentLeaderRole = currentDepartment.userRoles.find(ur => leaderRoles.includes(ur.role));
         const currentAdminRole = currentDepartment.userRoles.find(ur => adminRoles.includes(ur.role));
 
-        // Validate currency for NATIONAL departments
-        if (level === 'NATIONAL' && !currencyId) {
+        // Validate currency for OVERSIGHT departments
+        if (level === 'OVERSIGHT' && !currencyId) {
             return NextResponse.json(
-                { error: 'Currency is required for NATIONAL departments' },
+                { error: 'Currency is required for OVERSIGHT departments' },
                 { status: 400 }
             );
         }
@@ -148,8 +148,8 @@ export async function PUT(
             },
         });
 
-        // Update or create DepartmentBaseCurrency for NATIONAL departments
-        if (level === 'NATIONAL' && currencyId) {
+        // Update or create DepartmentBaseCurrency for OVERSIGHT departments
+        if (level === 'OVERSIGHT' && currencyId) {
             await prisma.departmentBaseCurrency.upsert({
                 where: { departmentId },
                 update: {
@@ -540,8 +540,8 @@ export async function DELETE(
             select: { level: true },
         });
 
-        // If it's a NATIONAL level department, delete its base currency first
-        if (department?.level === 'NATIONAL') {
+        // If it's an OVERSIGHT level department, delete its base currency first
+        if (department?.level === 'OVERSIGHT') {
             await prisma.departmentBaseCurrency.deleteMany({
                 where: { departmentId },
             });

@@ -18,18 +18,16 @@ import {
 import { useSession } from 'next-auth/react';
 import { formatDepartmentLevel } from '@/lib/utils';
 
-type DepartmentLevel = 'GLOBAL' | 'INTERNATIONAL' | 'NATIONAL' | 'REGIONAL' | 'CAMPUS' | 'STREAM' | 'COUNCIL';
+type DepartmentLevel = 'DENOMINATION' | 'OVERSIGHT' | 'CAMPUS' | 'STREAM' | 'COUNCIL';
 
-const DEPARTMENT_LEVELS: DepartmentLevel[] = ['GLOBAL', 'INTERNATIONAL', 'NATIONAL', 'REGIONAL', 'CAMPUS', 'STREAM', 'COUNCIL'];
+const DEPARTMENT_LEVELS: DepartmentLevel[] = ['DENOMINATION', 'OVERSIGHT', 'CAMPUS', 'STREAM', 'COUNCIL'];
 
 const DEPARTMENT_HIERARCHY: Record<DepartmentLevel, number> = {
-    GLOBAL: 1,
-    INTERNATIONAL: 2,
-    NATIONAL: 3,
-    REGIONAL: 4,
-    CAMPUS: 5,
-    STREAM: 6,
-    COUNCIL: 7,
+    DENOMINATION: 1,
+    OVERSIGHT: 2,
+    CAMPUS: 3,
+    STREAM: 4,
+    COUNCIL: 5,
 };
 
 function NewDepartmentForm() {
@@ -54,7 +52,7 @@ function NewDepartmentForm() {
     const [usersLoading, setUsersLoading] = useState(false);
 
     // Levels that support admin roles
-    const ADMIN_SUPPORTED_LEVELS: DepartmentLevel[] = ['GLOBAL', 'INTERNATIONAL', 'NATIONAL', 'REGIONAL', 'CAMPUS'];
+    const ADMIN_SUPPORTED_LEVELS: DepartmentLevel[] = ['DENOMINATION', 'OVERSIGHT', 'CAMPUS'];
 
     useEffect(() => {
         fetchDepartments();
@@ -226,7 +224,7 @@ function NewDepartmentForm() {
                     name,
                     level,
                     parentId: parentId || null,
-                    currencyId: level === 'NATIONAL' && currencyId ? currencyId : undefined,
+                    currencyId: level === 'OVERSIGHT' && currencyId ? currencyId : undefined,
                     leaderId,
                     adminId: ADMIN_SUPPORTED_LEVELS.includes(level) && adminId ? adminId : undefined,
                 }),
@@ -372,7 +370,7 @@ function NewDepartmentForm() {
                         </FormControl>
                     )}
 
-                    {level === 'NATIONAL' && (
+                    {level === 'OVERSIGHT' && (
                         <FormControl fullWidth sx={{ mb: 3 }}>
                             <InputLabel>Base Currency *</InputLabel>
                             <Select

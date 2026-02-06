@@ -153,7 +153,7 @@ function TransactionsPageContent() {
 
     const fetchBaseCurrency = async () => {
         try {
-            // For international level and above, use system base currency (USD)
+            // For denomination level and above, use system base currency (USD)
             if (session?.user?.role && ['SUPERADMIN', 'DENOMINATION_ADMIN', 'DENOMINATION_LEADER'].includes(session.user.role)) {
                 const response = await fetch('/api/currencies?active=true');
                 if (response.ok) {
@@ -164,7 +164,7 @@ function TransactionsPageContent() {
                     }
                 }
             } else {
-                // For national level and below, fetch user's base currency preference
+                // For oversight level and below, fetch user's base currency preference
                 const userResponse = await fetch('/api/users/me');
                 if (userResponse.ok) {
                     const userData = await userResponse.json();

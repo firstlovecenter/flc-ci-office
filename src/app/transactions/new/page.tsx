@@ -160,10 +160,10 @@ function NewTransactionForm() {
                     setBaseCurrency(profile.baseCurrency);
                     setCurrencyId(profile.baseCurrency.id);
                 } else {
-                    // Check if user is national level or below
-                    const nationalAndBelowRoles = ['OVERSIGHT_ADMIN', 'OVERSIGHT_LEADER', 'CAMPUS_ADMIN', 'CAMPUS_LEADER', 'STREAM_LEADER', 'COUNCIL_LEADER', 'STREAM_ADMIN', 'COUNCIL_ADMIN'];
-                    if (session?.user?.role && nationalAndBelowRoles.includes(session.user.role)) {
-                        setError('Base currency must be set for your national department before you can record transactions. Please contact your National Admin to set the base currency.');
+                    // Check if user is oversight level or below
+                    const oversightAndBelowRoles = ['OVERSIGHT_ADMIN', 'OVERSIGHT_LEADER', 'CAMPUS_ADMIN', 'CAMPUS_LEADER', 'STREAM_LEADER', 'COUNCIL_LEADER', 'STREAM_ADMIN', 'COUNCIL_ADMIN'];
+                    if (session?.user?.role && oversightAndBelowRoles.includes(session.user.role)) {
+                        setError('Base currency must be set for your oversight department before you can record transactions. Please contact your Oversight Admin to set the base currency.');
                     }
                 }
             }

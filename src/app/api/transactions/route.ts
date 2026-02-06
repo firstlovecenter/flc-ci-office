@@ -195,7 +195,7 @@ export async function POST(request: Request) {
             return new NextResponse('Unauthorized', { status: 403 });
         }
 
-        // Validate base currency is set for national and below departments
+        // Validate base currency is set for oversight and below departments
         const department = await prisma.department.findUnique({
             where: { id: departmentId },
             select: { level: true, id: true, name: true, parent: { select: { id: true, level: true, parent: { select: { id: true, level: true, parent: { select: { id: true, level: true } } } } } } }

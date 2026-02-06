@@ -185,10 +185,8 @@ function DepartmentsPageContent() {
     // Get sub-department level name for display
     const getSubLevelName = (level: string) => {
         const levelMap: Record<string, string> = {
-            'GLOBAL': 'Internationals',
-            'INTERNATIONAL': 'Nationals',
-            'NATIONAL': 'Regionals',
-            'REGIONAL': 'Campuses',
+            'DENOMINATION': 'Oversights',
+            'OVERSIGHT': 'Campuses',
             'CAMPUS': 'Streams',
             'STREAM': 'Councils',
             'COUNCIL': 'Councils',
@@ -212,7 +210,7 @@ function DepartmentsPageContent() {
     const parentLeader = getParentLeader();
     const parentAdmin = getParentAdmin();
 
-    const levels = ['GLOBAL', 'INTERNATIONAL', 'NATIONAL', 'REGIONAL', 'CAMPUS', 'STREAM', 'COUNCIL'];
+    const levels = ['DENOMINATION', 'OVERSIGHT', 'CAMPUS', 'STREAM', 'COUNCIL'];
 
     const isLeader = session?.user?.role?.includes('LEADER');
     const canCreateDepartment = !isLeader; // Only admins and superadmin can create
