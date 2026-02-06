@@ -7,35 +7,24 @@ async function main() {
     console.log('Starting seed...');
 
     // Create departments
-    const globalDept = await prisma.department.upsert({
+    const denominationDept = await prisma.department.upsert({
         where: { id: 'global-1' },
         update: {},
         create: {
             id: 'global-1',
-            name: 'Global Headquarters',
-            level: 'GLOBAL',
+            name: 'Denomination Headquarters',
+            level: 'DENOMINATION',
         },
     });
 
-    const nationalDept = await prisma.department.upsert({
-        where: { id: 'national-1' },
-        update: {},
-        create: {
-            id: 'national-1',
-            name: 'National Office - USA',
-            level: 'NATIONAL',
-            parentId: globalDept.id,
-        },
-    });
-
-    const regionalDept = await prisma.department.upsert({
+    const oversightDept = await prisma.department.upsert({
         where: { id: 'regional-1' },
         update: {},
         create: {
             id: 'regional-1',
-            name: 'Western Region',
-            level: 'REGIONAL',
-            parentId: nationalDept.id,
+            name: 'Western Oversight',
+            level: 'OVERSIGHT',
+            parentId: denominationDept.id,
         },
     });
 
@@ -46,7 +35,7 @@ async function main() {
             id: 'campus-1',
             name: 'Los Angeles Campus',
             level: 'CAMPUS',
-            parentId: regionalDept.id,
+            parentId: oversightDept.id,
         },
     });
 
