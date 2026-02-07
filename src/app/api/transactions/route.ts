@@ -30,10 +30,38 @@ export async function GET(request: Request) {
         const whereClause: any = {};
 
         // Determine which department to use for filtering
-        // For users with multiple roles, use the activeUserRole's department
+        // For PENDING status queries (approvals page), use ALL user roles to show all pending transactions
+        // For other queries, use the activeUserRole's department for context-specific filtering
         let filterDepartmentId = session.user.departmentId;
+        let allDepartmentIds: string[] = [];
         
-        if (session.user.activeUserRoleId) {
+        if (status === 'PENDING' && session.user.role !== 'SUPERADMIN') {
+            // For approvals, aggregate all departments from all user roles
+            const userRoles = await prisma.userRole.findMany({
+                where: { 
+                    userId: session.user.id,
+                },
+                select: { departmentId: true },
+            });
+            
+            // Get descendants for each role's department
+            for (const role of userRoles) {
+                if (role.departmentId) {
+                    const descendants = await getDescendantDepartmentIds(role.departmentId);
+                    allDepartmentIds.push(...descendants);
+                }
+            }
+            
+            // Also include user's base department
+            if (filterDepartmentId) {
+                const baseDescendants = await getDescendantDepartmentIds(filterDepartmentId);
+                allDepartmentIds.push(...baseDescendants);
+            }
+            
+            // Remove duplicates
+            allDepartmentIds = [...new Set(allDepartmentIds)];
+        } else if (session.user.activeUserRoleId) {
+            // For non-pending queries, use active role's department
             const activeRole = await prisma.userRole.findUnique({
                 where: { id: session.user.activeUserRoleId },
                 select: { departmentId: true },
@@ -44,12 +72,14 @@ export async function GET(request: Request) {
         }
 
         if (session.user.role !== 'SUPERADMIN') {
-            if (!filterDepartmentId) {
+            if (!filterDepartmentId && allDepartmentIds.length === 0) {
                 return new NextResponse('Forbidden', { status: 403 });
             }
 
-            // Get all allowed department IDs
-            const allowedIds = await getDescendantDepartmentIds(filterDepartmentId);
+            // Use aggregated departments for pending queries, otherwise use standard filtering
+            const allowedIds = allDepartmentIds.length > 0 
+                ? allDepartmentIds 
+                : (filterDepartmentId ? await getDescendantDepartmentIds(filterDepartmentId) : []);
 
             if (departmentId) {
                 // If specific department requested, verify access
