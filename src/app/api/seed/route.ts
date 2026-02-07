@@ -13,6 +13,7 @@ export async function POST(request: Request) {
                 id: 'denomination-1',
                 name: 'Global Church Denomination',
                 level: 'DENOMINATION',
+                updatedAt: new Date(),
             },
         });
 
@@ -24,6 +25,7 @@ export async function POST(request: Request) {
                 name: 'Regional Oversight',
                 level: 'OVERSIGHT',
                 parentId: denominationDept.id,
+                updatedAt: new Date(),
             },
         });
 
@@ -35,6 +37,7 @@ export async function POST(request: Request) {
                 name: 'Los Angeles Campus',
                 level: 'CAMPUS',
                 parentId: oversightDept.id,
+                updatedAt: new Date(),
             },
         });
 
@@ -46,6 +49,7 @@ export async function POST(request: Request) {
                 name: 'Youth Stream',
                 level: 'STREAM',
                 parentId: campusDept.id,
+                updatedAt: new Date(),
             },
         });
 
@@ -57,47 +61,84 @@ export async function POST(request: Request) {
                 name: 'Youth Council A',
                 level: 'COUNCIL',
                 parentId: streamDept.id,
+                updatedAt: new Date(),
             },
         });
 
         // Create users
         const hashedPassword = await bcrypt.hash('password123', 10);
 
-        await prisma.user.upsert({
+        const superAdmin = await prisma.user.upsert({
             where: { email: 'admin@flc.org' },
             update: {},
             create: {
+                id: 'superadmin-1',
                 email: 'admin@flc.org',
                 name: 'Super Admin',
                 phone: '0501234567',
                 password: hashedPassword,
-                roles: ['SUPERADMIN'],
+                activeRole: 'SUPERADMIN',
+                updatedAt: new Date(),
             },
         });
 
-        await prisma.user.upsert({
+        await prisma.userRole.create({
+            data: {
+                id: 'superadmin-role-1',
+                userId: superAdmin.id,
+                role: 'SUPERADMIN',
+                departmentId: denominationDept.id,
+                updatedAt: new Date(),
+            },
+        });
+
+        const campusAdmin = await prisma.user.upsert({
             where: { email: 'campus.admin@flc.org' },
             update: {},
             create: {
+                id: 'campus-admin-1',
                 email: 'campus.admin@flc.org',
                 name: 'Campus Admin',
                 phone: '0501234568',
                 password: hashedPassword,
-                roles: ['CAMPUS_ADMIN'],
+                activeRole: 'CAMPUS_ADMIN',
                 departmentId: campusDept.id,
+                updatedAt: new Date(),
             },
         });
 
-        await prisma.user.upsert({
+        await prisma.userRole.create({
+            data: {
+                id: 'campus-admin-role-1',
+                userId: campusAdmin.id,
+                role: 'CAMPUS_ADMIN',
+                departmentId: campusDept.id,
+                updatedAt: new Date(),
+            },
+        });
+
+        const councilLeader = await prisma.user.upsert({
             where: { email: 'council.leader@flc.org' },
             update: {},
             create: {
+                id: 'council-leader-1',
                 email: 'council.leader@flc.org',
                 name: 'Council Leader',
                 phone: '0501234569',
                 password: hashedPassword,
-                roles: ['COUNCIL_LEADER'],
+                activeRole: 'COUNCIL_LEADER',
                 departmentId: councilDept.id,
+                updatedAt: new Date(),
+            },
+        });
+
+        await prisma.userRole.create({
+            data: {
+                id: 'council-leader-role-1',
+                userId: councilLeader.id,
+                role: 'COUNCIL_LEADER',
+                departmentId: councilDept.id,
+                updatedAt: new Date(),
             },
         });
 

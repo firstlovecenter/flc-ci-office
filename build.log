@@ -1,0 +1,29 @@
+
+> flc-ci-office@0.1.0 build
+> next build
+
+[baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
+   ▲ Next.js 16.0.7 (Turbopack)
+   - Environments: .env
+   - Experiments (use with caution):
+     ✓ optimizeCss
+     · optimizePackageImports
+
+   Creating an optimized production build ...
+[baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
+[baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
+ ✓ Compiled successfully in 13.5s
+   Running TypeScript ...
+Failed to compile.
+
+./scripts/fix-superadmin-roles.ts:46:7
+Type error: Object literal may only specify known properties, and 'roles' does not exist in type 'Without<UserUpdateInput, UserUncheckedUpdateInput> & UserUncheckedUpdateInput'.
+
+[0m [90m 44 |[39m       activeUserRoleId[33m:[39m [36mnull[39m[33m,[39m
+ [90m 45 |[39m       activeRole[33m:[39m [32m'SUPERADMIN'[39m[33m,[39m
+[31m[1m>[22m[39m[90m 46 |[39m       roles[33m:[39m [[32m'SUPERADMIN'[39m][33m,[39m
+ [90m    |[39m       [31m[1m^[22m[39m
+ [90m 47 |[39m       departmentId[33m:[39m [36mnull[39m[33m,[39m
+ [90m 48 |[39m     }[33m,[39m
+ [90m 49 |[39m   })[33m;[39m[0m
+Next.js build worker exited with code: 1 and signal: null

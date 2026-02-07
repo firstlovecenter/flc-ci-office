@@ -2,6 +2,7 @@ import { NextAuthOptions } from 'next-auth';
 import CredentialsProvider from 'next-auth/providers/credentials';
 import bcrypt from 'bcryptjs';
 import { prisma } from '@/lib/prisma';
+import type { Role } from '@prisma/client';
 
 export const authOptions: NextAuthOptions = {
     secret: process.env.NEXTAUTH_SECRET,
@@ -72,8 +73,8 @@ export const authOptions: NextAuthOptions = {
                 // Check if user has a direct activeRole set
                 if (user.activeRole === 'SUPERADMIN' || user.activeRole === 'DENOMINATION_ADMIN') {
                     const allRoles = user.userRoles.length > 0 
-                        ? user.userRoles.map(ur => ur.role).filter((r): r is string => r !== null)
-                        : [user.activeRole];
+                        ? user.userRoles.map(ur => ur.role).filter((r): r is Role => r !== null)
+                        : (user.activeRole ? [user.activeRole] : []);
                     
                     return {
                         id: user.id,
@@ -81,17 +82,17 @@ export const authOptions: NextAuthOptions = {
                         name: user.name,
                         image: user.image,
                         role: user.activeRole,
-                        roles: allRoles,
+                        roles: allRoles as string[],
                         departmentId: user.departmentId || undefined,
                         departmentLevel: user.department?.level || undefined,
                         departmentName: user.department?.name,
                         activeUserRoleId: user.activeUserRoleId || undefined,
                         activeUserRole: user.activeUserRole ? {
                             id: user.activeUserRole.id,
-                            role: user.activeUserRole.role,
+                            role: user.activeUserRole.role as string,
                             departmentId: user.activeUserRole.departmentId,
                         } : undefined,
-                    };
+                    } as any;
                 }
 
                 // For other users, they need at least one UserRole entry
@@ -101,7 +102,7 @@ export const authOptions: NextAuthOptions = {
 
                 // Use activeUserRole if set, otherwise use first userRole
                 const activeRole = user.activeUserRole || user.userRoles[0];
-                const allRoles = user.userRoles.map(ur => ur.role).filter((r): r is string => r !== null);
+                const allRoles: Role[] = user.userRoles.map(ur => ur.role).filter((r): r is Role => r !== null);
 
                 if (!activeRole) {
                     return null;
@@ -113,17 +114,17 @@ export const authOptions: NextAuthOptions = {
                     name: user.name,
                     image: user.image,
                     role: activeRole.role,
-                    roles: allRoles,
+                    roles: allRoles as string[],
                     departmentId: activeRole.departmentId,
                     departmentLevel: activeRole.department?.level,
                     departmentName: activeRole.department?.name,
                     activeUserRoleId: activeRole.id,
                     activeUserRole: {
                         id: activeRole.id,
-                        role: activeRole.role,
+                        role: activeRole.role as string,
                         departmentId: activeRole.departmentId,
                     },
-                };
+                } as any;
             },
         }),
     ],
@@ -198,7 +199,7 @@ export const authOptions: NextAuthOptions = {
                         token.activeUserRoleId = updatedUser.activeUserRoleId || null;
                         token.activeUserRole = updatedUser.activeUserRole ? {
                             id: updatedUser.activeUserRole.id,
-                            role: updatedUser.activeUserRole.role,
+                            role: updatedUser.activeUserRole.role as string,
                             departmentId: updatedUser.activeUserRole.departmentId,
                         } : null;
                     } else {
@@ -213,7 +214,7 @@ export const authOptions: NextAuthOptions = {
                         token.activeUserRoleId = activeRole?.id || null;
                         token.activeUserRole = activeRole ? {
                             id: activeRole.id,
-                            role: activeRole.role,
+                            role: activeRole.role as string,
                             departmentId: activeRole.departmentId,
                         } : null;
                     }

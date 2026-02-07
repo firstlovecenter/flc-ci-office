@@ -6,6 +6,7 @@ import { createAuditLog } from '@/lib/audit';
 import { formatCurrency, formatNumber } from '@/lib/utils';
 import { sendSms } from '@/lib/sms';
 import { generateCorrectionNotificationSms } from '@/lib/sms-templates';
+import crypto from 'crypto';
 
 export async function POST(
     request: Request,
@@ -96,6 +97,7 @@ export async function POST(
 
         const correctionTransaction = await prisma.transaction.create({
             data: {
+                id: crypto.randomUUID(),
                 type: correctionType,
                 amount: absoluteCorrectionAmount,
                 amountInBase: correctionAmountInBase,
@@ -110,6 +112,7 @@ export async function POST(
                 locked: false,
                 weekNumber: originalTransaction.weekNumber,
                 year: originalTransaction.year,
+                updatedAt: new Date(),
             },
             include: {
                 department: {

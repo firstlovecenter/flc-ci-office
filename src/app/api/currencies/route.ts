@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import crypto from 'crypto';
 
 export const revalidate = 300; // Revalidate every 5 minutes (currencies change infrequently)
 
@@ -72,17 +73,20 @@ export async function POST(req: NextRequest) {
 
         const currency = await prisma.currency.create({
             data: {
+                id: crypto.randomUUID(),
                 code: code.toUpperCase(),
                 name,
                 symbol,
                 isBase: isBase || false,
                 isActive: true,
+                updatedAt: new Date(),
             },
         });
 
         // Create audit log
         await prisma.auditLog.create({
             data: {
+                id: crypto.randomUUID(),
                 userId: session.user.id,
                 actionType: 'CREATE',
                 entityType: 'Currency',

@@ -27,6 +27,10 @@ export async function sendPushNotification(
   userIds: string[],
   notification: NotificationPayload
 ): Promise<{ sent: number; failed: number }> {
+  // Push notifications are not currently available (PushSubscription model not in schema)
+  return { sent: 0, failed: 0 };
+
+  /* Original logic - disabled until PushSubscription model is added to schema
   if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) {
     return { sent: 0, failed: 0 };
   }
@@ -81,4 +85,5 @@ export async function sendPushNotification(
   } catch (error) {
     return { sent: 0, failed: 0 };
   }
+  */
 }

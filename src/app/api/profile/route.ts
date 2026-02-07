@@ -22,7 +22,6 @@ export async function GET(req: NextRequest) {
                 email: true,
                 phone: true,
                 image: true,
-                roles: true,
                 activeRole: true,
                 archived: true,
                 departmentId: true,
@@ -109,7 +108,6 @@ export async function PATCH(req: NextRequest) {
                 email: true,
                 phone: true,
                 image: true,
-                roles: true,
                 activeRole: true,
                 departmentId: true,
                 department: {

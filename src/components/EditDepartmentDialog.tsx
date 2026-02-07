@@ -104,8 +104,12 @@ export default function EditDepartmentDialog({
             const leaderRoles = ['DENOMINATION_LEADER', 'OVERSIGHT_LEADER', 'CAMPUS_LEADER', 'STREAM_LEADER', 'COUNCIL_LEADER'];
             const adminRoles = ['DENOMINATION_ADMIN', 'OVERSIGHT_ADMIN', 'CAMPUS_ADMIN'];
             
-            const leaderRole = department.userRoles?.find((ur: any) => leaderRoles.includes(ur.role));
-            const adminRole = department.userRoles?.find((ur: any) => adminRoles.includes(ur.role));
+            const leaderRole = department.userRoles?.find(
+                (ur: any) => ur.role && leaderRoles.includes(ur.role)
+            );
+            const adminRole = department.userRoles?.find(
+                (ur: any) => ur.role && adminRoles.includes(ur.role)
+            );
             
             if (leaderRole) {
                 setLeaderId(leaderRole.user?.id || leaderRole.userId || '');

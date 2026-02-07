@@ -194,8 +194,8 @@ export async function POST(request: Request) {
                     COUNCIL: 5,
                 };
 
-                const userDeptLevel = DEPARTMENT_HIERARCHY[userDept.level];
-                const adminDeptLevel = DEPARTMENT_HIERARCHY[adminDept.level];
+                const userDeptLevel = userDept.level ? DEPARTMENT_HIERARCHY[userDept.level] : 999;
+                const adminDeptLevel = adminDept.level ? DEPARTMENT_HIERARCHY[adminDept.level] : 999;
 
                 // User department must be at admin's level or below
                 if (userDeptLevel < adminDeptLevel) {
@@ -208,14 +208,15 @@ export async function POST(request: Request) {
         const randomPassword = crypto.randomBytes(32).toString('hex');
         const user = await prisma.user.create({
             data: {
+                id: crypto.randomUUID(),
                 title: title?.trim() || null,
                 name,
                 email: email.toLowerCase(),
                 phone: phone.trim(),
                 password: await bcrypt.hash(randomPassword, 10),
-                roles: hasRoles ? (userRoles as any) : [], // Keep for backward compatibility
                 activeRole: hasRoles ? (userRoles[0] as any) : null, // Keep for backward compatibility
                 departmentId: firstDept, // Set to first department for backward compatibility
+                updatedAt: new Date(),
             },
         });
 

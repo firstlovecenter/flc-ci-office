@@ -127,8 +127,12 @@ export async function PUT(
         const adminRoles = ['DENOMINATION_ADMIN', 'OVERSIGHT_ADMIN',
                            'CAMPUS_ADMIN'];
         
-        const currentLeaderRole = currentDepartment.userRoles.find(ur => leaderRoles.includes(ur.role));
-        const currentAdminRole = currentDepartment.userRoles.find(ur => adminRoles.includes(ur.role));
+        const currentLeaderRole = currentDepartment.userRoles.find(
+            (ur) => ur.role && leaderRoles.includes(ur.role)
+        );
+        const currentAdminRole = currentDepartment.userRoles.find(
+            (ur) => ur.role && adminRoles.includes(ur.role)
+        );
 
         // Validate currency for OVERSIGHT departments
         if (level === 'OVERSIGHT' && !currencyId) {
@@ -238,7 +242,6 @@ export async function PUT(
                                 activeUserRoleId: null,
                                 activeRole: null,
                                 departmentId: null,
-                                roles: [],
                             },
                         });
                     } else {
@@ -268,9 +271,11 @@ export async function PUT(
                 // Create new leader's role
                 const newUserRole = await prisma.userRole.create({
                     data: {
+                        id: crypto.randomUUID(),
                         userId: leaderId,
                         role: leaderRole,
                         departmentId: departmentId,
+                        updatedAt: new Date(),
                     },
                 });
 
@@ -282,7 +287,7 @@ export async function PUT(
                         departmentId: isFirstRole ? departmentId : newLeader.departmentId,
                         activeRole: isFirstRole ? leaderRole : newLeader.activeRole,
                         activeUserRoleId: isFirstRole ? newUserRole.id : newLeader.activeUserRoleId,
-                        roles: isFirstRole ? [leaderRole] : { push: leaderRole },
+                        updatedAt: new Date(),
                     },
                 });
 
@@ -363,7 +368,7 @@ export async function PUT(
                                 activeUserRoleId: null,
                                 activeRole: null,
                                 departmentId: null,
-                                roles: [],
+                                updatedAt: new Date(),
                             },
                         });
                     } else {
@@ -395,9 +400,11 @@ export async function PUT(
                     // Create new admin's role
                     const newUserRole = await prisma.userRole.create({
                         data: {
+                            id: crypto.randomUUID(),
                             userId: adminId,
                             role: adminRole,
                             departmentId: departmentId,
+                            updatedAt: new Date(),
                         },
                     });
 
@@ -409,7 +416,7 @@ export async function PUT(
                             departmentId: isFirstRole ? departmentId : newAdmin.departmentId,
                             activeRole: isFirstRole ? adminRole : newAdmin.activeRole,
                             activeUserRoleId: isFirstRole ? newUserRole.id : newAdmin.activeUserRoleId,
-                            roles: isFirstRole ? [adminRole] : { push: adminRole },
+                            updatedAt: new Date(),
                         },
                     });
 

@@ -1,6 +1,7 @@
 import { PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { Pool } from 'pg';
+import crypto from 'crypto';
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 const adapter = new PrismaPg(pool);
@@ -139,13 +140,16 @@ async function main() {
                     name: currency.name,
                     symbol: currency.symbol,
                     isActive: true,
+                    updatedAt: new Date(),
                 },
                 create: {
+                    id: crypto.randomUUID(),
                     code: currency.code,
                     name: currency.name,
                     symbol: currency.symbol,
                     isBase: currency.isBase || false,
                     isActive: true,
+                    updatedAt: new Date(),
                 },
             });
 

@@ -8,6 +8,7 @@ import { sendSms, formatGhanaPhone } from '@/lib/sms';
 import { generateFirstRoleAssignmentSms } from '@/lib/sms-templates';
 import { canManageUser, canAssignRole, ROLE_HIERARCHY } from '@/lib/roles';
 import { getDescendantDepartmentIds } from '@/lib/departments';
+import type { Role } from '@prisma/client';
 import { validateRoleAssignment } from '@/lib/roleValidation';
 
 // GET - Fetch a single user by ID
@@ -184,7 +185,7 @@ export async function PUT(
 
         // Check if admin can manage this user based on role hierarchy
         // For users with multiple roles, check against their highest role
-        const targetUserRoles = targetUser.userRoles.map(ur => ur.role).filter((r): r is string => r !== null);
+        const targetUserRoles = targetUser.userRoles.map(ur => ur.role).filter((r): r is Role => r !== null);
         const targetUserHighestRole = targetUser.activeRole || targetUserRoles[0] || 'COUNCIL_LEADER';
         if (!canManageUser(session.user.role, targetUserHighestRole)) {
             return NextResponse.json(
@@ -572,7 +573,7 @@ export async function PATCH(
 
         // Check if admin can manage this user based on role hierarchy
         // User can be managed if admin can manage their highest role
-        const targetUserRoles = targetUser.userRoles.map(ur => ur.role).filter((r): r is string => r !== null);
+        const targetUserRoles = targetUser.userRoles.map(ur => ur.role).filter((r): r is Role => r !== null);
         const targetHighestRole = targetUserRoles.length > 0
             ? targetUserRoles.reduce((highest, role) => {
                 const highestLevel = ROLE_HIERARCHY[highest] || 999;

@@ -5,6 +5,10 @@ import { prisma } from '@/lib/prisma';
 
 // Subscribe to push notifications
 export async function POST(req: NextRequest) {
+  // Push notifications are not currently available (PushSubscription model not in schema)
+  return new NextResponse('Push notifications are not currently available', { status: 501 });
+
+  /* Original logic - disabled until PushSubscription model is added to schema
   try {
     const session = await getServerSession(authOptions);
     
@@ -52,10 +56,15 @@ export async function POST(req: NextRequest) {
   } catch (error) {
     return new NextResponse('Internal Server Error', { status: 500 });
   }
+  */
 }
 
 // Unsubscribe from push notifications
 export async function DELETE(req: NextRequest) {
+  // Push notifications are not currently available (PushSubscription model not in schema)
+  return new NextResponse('Push notifications are not currently available', { status: 501 });
+
+  /* Original logic - disabled until PushSubscription model is added to schema
   try {
     const session = await getServerSession(authOptions);
     
@@ -82,4 +91,5 @@ export async function DELETE(req: NextRequest) {
   } catch (error) {
     return new NextResponse('Internal Server Error', { status: 500 });
   }
+  */
 }

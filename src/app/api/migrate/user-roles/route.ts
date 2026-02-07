@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import crypto from 'crypto';
 
 export async function GET() {
   try {
@@ -14,9 +15,15 @@ export async function GET() {
 
     const user = await prisma.user.findUnique({
       where: { email: session.user.email },
+      include: {
+        userRoles: true,
+      },
     });
 
-    if (!user || !user.roles.includes('SUPERADMIN')) {
+    const isSuperAdmin = user?.activeRole === 'SUPERADMIN' || 
+                         user?.userRoles.some(ur => ur.role === 'SUPERADMIN');
+
+    if (!user || !isSuperAdmin) {
       return NextResponse.json({ error: 'Forbidden: SUPERADMIN access required' }, { status: 403 });
     }
 
@@ -36,13 +43,13 @@ export async function GET() {
       },
       include: {
         department: true,
+        userRoles: true,
       },
     });
 
     for (const user of users) {
       const userDetail: any = {
         email: user.email,
-        roles: user.roles,
         activeRole: user.activeRole,
         department: user.department?.name || 'None',
         userRolesCreated: [],
@@ -59,14 +66,14 @@ export async function GET() {
 
         results.usersProcessed++;
 
-        // Create UserRole entries for each role the user has
-        for (const role of user.roles) {
+        // Create UserRole entry for active role if it doesn't exist
+        if (user.activeRole) {
           try {
             const existingUserRole = await prisma.userRole.findUnique({
               where: {
                 userId_role_departmentId: {
                   userId: user.id,
-                  role: role,
+                  role: user.activeRole,
                   departmentId: user.departmentId,
                 },
               },
@@ -74,14 +81,15 @@ export async function GET() {
 
             if (existingUserRole) {
               results.userRolesExisted++;
-              userDetail.userRolesCreated.push(`${role} (existed)`);
+              userDetail.userRolesCreated.push(`${user.activeRole} (existed)`);
 
-              // If this is the active role, ensure it's set
-              if (role === user.activeRole && !user.activeUserRoleId) {
+              // Ensure it's set as active
+              if (!user.activeUserRoleId) {
                 await prisma.user.update({
                   where: { id: user.id },
                   data: {
                     activeUserRoleId: existingUserRole.id,
+                    updatedAt: new Date(),
                   },
                 });
                 results.activeRolesSet++;
@@ -90,28 +98,29 @@ export async function GET() {
             } else {
               const userRole = await prisma.userRole.create({
                 data: {
+                  id: crypto.randomUUID(),
                   userId: user.id,
-                  role: role,
+                  role: user.activeRole,
                   departmentId: user.departmentId,
+                  updatedAt: new Date(),
                 },
               });
               results.userRolesCreated++;
-              userDetail.userRolesCreated.push(`${role} (created)`);
+              userDetail.userRolesCreated.push(`${user.activeRole} (created)`);
 
-              // If this is the active role, set it as the active user role
-              if (role === user.activeRole) {
-                await prisma.user.update({
-                  where: { id: user.id },
-                  data: {
-                    activeUserRoleId: userRole.id,
-                  },
-                });
-                results.activeRolesSet++;
-                userDetail.activeRoleSet = true;
-              }
+              // Set it as the active user role
+              await prisma.user.update({
+                where: { id: user.id },
+                data: {
+                  activeUserRoleId: userRole.id,
+                  updatedAt: new Date(),
+                },
+              });
+              results.activeRolesSet++;
+              userDetail.activeRoleSet = true;
             }
           } catch (error: any) {
-            results.errors.push(`Error creating UserRole for ${user.email}, role ${role}: ${error.message}`);
+            results.errors.push(`Error creating UserRole for ${user.email}, role ${user.activeRole}: ${error.message}`);
             userDetail.status = 'error';
             userDetail.error = error.message;
           }
@@ -132,6 +141,7 @@ export async function GET() {
               where: { id: user.id },
               data: {
                 activeUserRoleId: activeUserRole.id,
+                updatedAt: new Date(),
               },
             });
             results.activeRolesSet++;

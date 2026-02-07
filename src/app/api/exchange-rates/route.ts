@@ -92,6 +92,7 @@ export async function POST(req: NextRequest) {
                     rate,
                     effectiveDate: effectiveDate ? new Date(effectiveDate) : new Date(),
                     createdBy: session.user.id,
+                    updatedAt: new Date(),
                 },
                 include: {
                     fromCurrency: true,
@@ -114,11 +115,13 @@ export async function POST(req: NextRequest) {
             // Create new rate
             exchangeRate = await prisma.exchangeRate.create({
                 data: {
+                    id: crypto.randomUUID(),
                     fromCurrencyId,
                     toCurrencyId,
                     rate,
                     effectiveDate: effectiveDate ? new Date(effectiveDate) : new Date(),
                     createdBy: session.user.id,
+                    updatedAt: new Date(),
                 },
                 include: {
                     fromCurrency: true,

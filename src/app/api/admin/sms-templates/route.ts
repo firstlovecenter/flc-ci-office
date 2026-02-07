@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import crypto from 'crypto';
 
 // GET all SMS templates
 export async function GET(request: NextRequest) {
@@ -13,7 +14,10 @@ export async function GET(request: NextRequest) {
         }
 
         // Only SUPERADMIN can manage templates
-        if (!session.user.roles?.includes('SUPERADMIN')) {
+        const isSuperAdmin =
+            session.user.role === 'SUPERADMIN' ||
+            session.user.roles?.includes('SUPERADMIN');
+        if (!isSuperAdmin) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 
@@ -128,8 +132,18 @@ async function seedTemplates() {
         },
     ];
 
+    const templatesToCreate = defaultTemplates.map((template) => ({
+        id: crypto.randomUUID(),
+        key: template.key,
+        name: template.name,
+        description: template.description,
+        template: template.template,
+        variables: template.variables,
+        updatedAt: new Date(),
+    }));
+
     await prisma.smsTemplate.createMany({
-        data: defaultTemplates,
+        data: templatesToCreate,
         skipDuplicates: true,
     });
 }

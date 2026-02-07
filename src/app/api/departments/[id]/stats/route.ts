@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { DepartmentLevel } from '@prisma/client';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { getDescendantDepartmentIds } from '@/lib/departments';
@@ -59,7 +60,7 @@ export async function GET(
             let oversightDept = null;
 
             while (currentDeptId) {
-                const dept: { level: string; parentId: string | null } | null = await prisma.department.findUnique({
+                const dept: { level: DepartmentLevel | null; parentId: string | null } | null = await prisma.department.findUnique({
                     where: { id: currentDeptId },
                     select: { level: true, parentId: true },
                 });

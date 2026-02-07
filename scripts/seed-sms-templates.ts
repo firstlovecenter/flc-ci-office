@@ -2,6 +2,7 @@ import { config } from 'dotenv';
 import { PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { Pool } from 'pg';
+import crypto from 'crypto';
 
 // Load environment variables
 config();
@@ -84,8 +85,22 @@ async function main() {
     for (const template of smsTemplates) {
         const result = await prisma.smsTemplate.upsert({
             where: { key: template.key },
-            update: template,
-            create: template,
+            update: {
+                name: template.name,
+                description: template.description,
+                template: template.template,
+                variables: template.variables,
+                updatedAt: new Date(),
+            },
+            create: {
+                id: crypto.randomUUID(),
+                key: template.key,
+                name: template.name,
+                description: template.description,
+                template: template.template,
+                variables: template.variables,
+                updatedAt: new Date(),
+            },
         });
         console.log(`✓ ${result.name} (${result.key})`);
     }

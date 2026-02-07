@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { DepartmentLevel } from '@prisma/client';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 
@@ -187,13 +188,13 @@ export async function POST(request: Request) {
 
         // Get user's department to check level
         const filterDepartmentId = session.user.activeUserRole?.departmentId || session.user.departmentId;
-        let userDepartmentLevel;
+        let userDepartmentLevel: DepartmentLevel | undefined;
         if (filterDepartmentId) {
             const userDepartment = await prisma.department.findUnique({
                 where: { id: filterDepartmentId },
                 select: { level: true },
             });
-            userDepartmentLevel = userDepartment?.level;
+            userDepartmentLevel = userDepartment?.level ?? undefined;
         }
 
         // Check if user has permission to create this level of department
@@ -231,9 +232,11 @@ export async function POST(request: Request) {
         // Create the department
         const department = await prisma.department.create({
             data: {
+                id: crypto.randomUUID(),
                 name,
                 level,
                 parentId,
+                updatedAt: new Date(),
             },
         });
 
@@ -256,9 +259,11 @@ export async function POST(request: Request) {
         // Create UserRole for the leader
         const userRole = await prisma.userRole.create({
             data: {
+                id: crypto.randomUUID(),
                 userId: leaderId,
                 role: leaderRole,
                 departmentId: department.id,
+                updatedAt: new Date(),
             },
         });
 
@@ -270,7 +275,7 @@ export async function POST(request: Request) {
                 departmentId: isFirstRole ? department.id : leader.departmentId,
                 activeRole: isFirstRole ? leaderRole : leader.activeRole,
                 activeUserRoleId: isFirstRole ? userRole.id : leader.activeUserRoleId,
-                roles: isFirstRole ? [leaderRole] : { push: leaderRole },
+                updatedAt: new Date(),
             },
         });
 
@@ -321,9 +326,11 @@ export async function POST(request: Request) {
                 // Create UserRole for the admin
                 const adminUserRole = await prisma.userRole.create({
                     data: {
+                        id: crypto.randomUUID(),
                         userId: adminId,
                         role: adminRole,
                         departmentId: department.id,
+                        updatedAt: new Date(),
                     },
                 });
 
@@ -335,7 +342,7 @@ export async function POST(request: Request) {
                         departmentId: isAdminFirstRole ? department.id : admin.departmentId,
                         activeRole: isAdminFirstRole ? adminRole : admin.activeRole,
                         activeUserRoleId: isAdminFirstRole ? adminUserRole.id : admin.activeUserRoleId,
-                        roles: isAdminFirstRole ? [adminRole] : { push: adminRole },
+                        updatedAt: new Date(),
                     },
                 });
 

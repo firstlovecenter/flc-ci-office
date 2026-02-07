@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import crypto from 'crypto';
 
 // Emergency endpoint to fix user roles - should be removed after use
 export async function POST(request: Request) {
@@ -30,52 +31,47 @@ export async function POST(request: Request) {
       });
     }
 
-    // Migrate from old roles array to UserRole table
-    const userRolesToCreate = [];
+    // Create UserRole from activeRole if user has one
+    const createdUserRoles = [];
     
-    for (const role of user.roles) {
-      // Skip if userRole already exists
+    if (user.activeRole && user.departmentId) {
+      // Check if userRole already exists
       const existing = await prisma.userRole.findFirst({
         where: {
           userId: user.id,
-          role: role as any,
-          departmentId: user.departmentId || undefined,
+          role: user.activeRole,
+          departmentId: user.departmentId,
         },
       });
 
-      if (!existing && user.departmentId) {
-        userRolesToCreate.push({
-          userId: user.id,
-          role: role as any,
-          departmentId: user.departmentId,
+      if (!existing) {
+        const created = await prisma.userRole.create({
+          data: {
+            id: crypto.randomUUID(),
+            userId: user.id,
+            role: user.activeRole,
+            departmentId: user.departmentId,
+            updatedAt: new Date(),
+          },
+          include: {
+            department: true,
+          },
+        });
+        createdUserRoles.push(created);
+
+        // Set as active role
+        await prisma.user.update({
+          where: { id: user.id },
+          data: {
+            activeUserRoleId: created.id,
+            updatedAt: new Date(),
+          },
         });
       }
     }
 
-    // Create UserRole entries
-    const createdUserRoles = [];
-    for (const userRoleData of userRolesToCreate) {
-      const created = await prisma.userRole.create({
-        data: userRoleData,
-        include: {
-          department: true,
-        },
-      });
-      createdUserRoles.push(created);
-    }
-
-    // Set first one as active if no active role is set
-    if (createdUserRoles.length > 0 && !user.activeUserRoleId) {
-      await prisma.user.update({
-        where: { id: user.id },
-        data: {
-          activeUserRoleId: createdUserRoles[0].id,
-        },
-      });
-    }
-
     return NextResponse.json({
-      message: 'User roles fixed successfully',
+      message: createdUserRoles.length > 0 ? 'User roles fixed successfully' : 'No roles to migrate',
       email: user.email,
       userRolesCreated: createdUserRoles.length,
       userRoles: createdUserRoles,

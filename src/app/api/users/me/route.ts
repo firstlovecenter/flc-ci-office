@@ -76,7 +76,10 @@ export async function GET(request: NextRequest) {
         
         if (!activeUserRole && user.userRoles.length > 0) {
             // If no active role selected, prioritize SUPERADMIN or DENOMINATION_ADMIN
-            activeUserRole = user.userRoles.find(ur => ['SUPERADMIN', 'DENOMINATION_ADMIN'].includes(ur.role)) || user.userRoles[0];
+            activeUserRole =
+                user.userRoles.find(
+                    (ur) => ur.role && ['SUPERADMIN', 'DENOMINATION_ADMIN'].includes(ur.role)
+                ) || user.userRoles[0];
         }
 
         const activeRole = activeUserRole?.role || user.activeRole || 'COUNCIL_LEADER';

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import crypto from 'crypto';
 
 // Comprehensive list of world currencies
 const allCurrencies = [
@@ -159,11 +160,13 @@ export async function POST(req: NextRequest) {
             } else {
                 await prisma.currency.create({
                     data: {
+                        id: crypto.randomUUID(),
                         code: currency.code,
                         name: currency.name,
                         symbol: currency.symbol,
                         isBase: currency.code === 'USD', // USD as default base
                         isActive: true,
+                        updatedAt: new Date(),
                     },
                 });
                 created++;

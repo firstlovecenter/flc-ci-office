@@ -242,6 +242,7 @@ export async function PATCH(
 
             const chargeTransaction = await prisma.transaction.create({
                 data: {
+                    id: crypto.randomUUID(),
                     type: 'EXPENSE', // Transaction charge is always a debit/expense
                     amount: chargeAmount,
                     amountInBase: chargeAmountInBase,
@@ -256,6 +257,7 @@ export async function PATCH(
                     locked: false,
                     weekNumber: transaction.weekNumber,
                     year: transaction.year,
+                    updatedAt: new Date(),
                 },
             });
 

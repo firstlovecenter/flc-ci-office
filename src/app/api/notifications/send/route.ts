@@ -53,7 +53,10 @@ export async function POST(req: NextRequest) {
       return handleSMSRequest(body);
     }
 
-    // Original push notification logic
+    // Push notifications are not currently available (PushSubscription model not in schema)
+    return new NextResponse('Push notifications are not currently available. Use SMS notifications instead.', { status: 501 });
+
+    /* Original push notification logic - disabled until PushSubscription model is added to schema
     const { userIds, notification } = body as { userIds: string[]; notification: NotificationPayload };
 
     if (!userIds || !Array.isArray(userIds) || userIds.length === 0) {
@@ -124,6 +127,7 @@ export async function POST(req: NextRequest) {
       failed,
       total: subscriptions.length,
     });
+    */
   } catch (error) {
     return new NextResponse('Internal Server Error', { status: 500 });
   }
