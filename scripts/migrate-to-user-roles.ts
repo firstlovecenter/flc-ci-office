@@ -1,4 +1,5 @@
 import { PrismaClient } from '@prisma/client';
+import crypto from 'crypto';
 import * as dotenv from 'dotenv';
 
 dotenv.config();
@@ -6,7 +7,7 @@ dotenv.config();
 const prisma = new PrismaClient();
 
 async function main() {
-  console.log('Starting migration to UserRole model...');
+  console.log('Validating UserRole migration...');
 
   // Get all users with their current roles and departments
   const users = await prisma.user.findMany({
@@ -15,49 +16,58 @@ async function main() {
     },
     include: {
       department: true,
+      userRoles: true,
     },
   });
 
-  console.log(`Found ${users.length} users to migrate`);
+  console.log(`Found ${users.length} users to validate`);
 
   for (const user of users) {
-    console.log(`\nMigrating user: ${user.email}`);
-    console.log(`  Current roles: ${user.roles.join(', ')}`);
+    console.log(`\nValidating user: ${user.email}`);
     console.log(`  Active role: ${user.activeRole}`);
+    console.log(`  User roles count: ${user.userRoles.length}`);
     console.log(`  Department: ${user.department?.name || 'None'}`);
+    console.log(`  Current UserRoles: ${user.userRoles.map(ur => ur.role).join(', ') || 'None'}`);
 
     if (!user.departmentId) {
       console.log(`  ⚠️  Skipping - no department assigned`);
       continue;
     }
 
-    // Create UserRole entries for each role the user has
-    for (const role of user.roles) {
-      try {
-        const userRole = await prisma.userRole.create({
-          data: {
-            userId: user.id,
-            role: role,
-            departmentId: user.departmentId,
-          },
-        });
-        console.log(`  ✓ Created UserRole: ${role} for ${user.department?.name}`);
-
-        // If this is the active role, set it as the active user role
-        if (role === user.activeRole) {
-          await prisma.user.update({
-            where: { id: user.id },
+    // If user has active role but no UserRole entry for it, create one
+    if (user.activeRole) {
+      const existingRole = user.userRoles.find(ur => ur.role === user.activeRole);
+      
+      if (!existingRole) {
+        try {
+          const userRole = await prisma.userRole.create({
             data: {
-              activeUserRoleId: userRole.id,
+              id: crypto.randomUUID(),
+              userId: user.id,
+              role: user.activeRole,
+              departmentId: user.departmentId,
+              updatedAt: new Date(),
             },
           });
-          console.log(`  ✓ Set as active UserRole`);
-        }
-      } catch (error: any) {
-        if (error.code === 'P2002') {
-          console.log(`  ⚠️  UserRole already exists: ${role} for ${user.department?.name}`);
-        } else {
-          console.error(`  ✗ Error creating UserRole:`, error.message);
+          console.log(`  ✓ Created missing UserRole: ${user.activeRole}`);
+
+          // Set as active if not already set
+          if (!user.activeUserRoleId) {
+            await prisma.user.update({
+              where: { id: user.id },
+              data: {
+                activeUserRoleId: userRole.id,
+                updatedAt: new Date(),
+              },
+            });
+            console.log(`  ✓ Set as active UserRole`);
+          }
+        } catch (error: any) {
+          if (error.code === 'P2002') {
+            console.log(`  ⚠️  UserRole already exists: ${user.activeRole}`);
+          } else {
+            console.error(`  ✗ Error creating UserRole:`, error.message);
+          }
         }
       }
     }
@@ -77,6 +87,7 @@ async function main() {
           where: { id: user.id },
           data: {
             activeUserRoleId: activeUserRole.id,
+            updatedAt: new Date(),
           },
         });
         console.log(`  ✓ Fixed activeUserRoleId`);
@@ -84,11 +95,7 @@ async function main() {
     }
   }
 
-  console.log('\n✓ Migration completed!');
-  console.log('\nNext steps:');
-  console.log('1. Verify the data in the UserRole table');
-  console.log('2. Update application code to use UserRole instead of roles array');
-  console.log('3. After thorough testing, the old roles, activeRole, and departmentId fields can be removed');
+  console.log('\n✓ UserRole migration validation completed!');
 }
 
 main()
