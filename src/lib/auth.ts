@@ -182,7 +182,7 @@ export const authOptions: NextAuthOptions = {
                 });
                 
                 if (updatedUser) {
-                    const allRoles = updatedUser.userRoles.map(ur => ur.role).filter((r): r is string => r !== null);
+                    const allRoles = updatedUser.userRoles.map(ur => ur.role).filter((r): r is Role => r !== null);
                     const isSuperUserOnUpdate = updatedUser.activeRole === 'SUPERADMIN' || updatedUser.activeRole === 'DENOMINATION_ADMIN';
                     
                     // Always update name and image
