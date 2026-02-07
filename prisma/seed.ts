@@ -1,5 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
+import crypto from 'crypto';
 
 const prisma = new PrismaClient();
 
@@ -9,55 +10,70 @@ async function main() {
     // Create departments
     const denominationDept = await prisma.department.upsert({
         where: { id: 'global-1' },
-        update: {},
+        update: {
+            updatedAt: new Date(),
+        },
         create: {
             id: 'global-1',
             name: 'Denomination Headquarters',
             level: 'DENOMINATION',
+            updatedAt: new Date(),
         },
     });
 
     const oversightDept = await prisma.department.upsert({
         where: { id: 'regional-1' },
-        update: {},
+        update: {
+            updatedAt: new Date(),
+        },
         create: {
             id: 'regional-1',
             name: 'Western Oversight',
             level: 'OVERSIGHT',
             parentId: denominationDept.id,
+            updatedAt: new Date(),
         },
     });
 
     const campusDept = await prisma.department.upsert({
         where: { id: 'campus-1' },
-        update: {},
+        update: {
+            updatedAt: new Date(),
+        },
         create: {
             id: 'campus-1',
             name: 'Los Angeles Campus',
             level: 'CAMPUS',
             parentId: oversightDept.id,
+            updatedAt: new Date(),
         },
     });
 
     const streamDept = await prisma.department.upsert({
         where: { id: 'stream-1' },
-        update: {},
+        update: {
+            updatedAt: new Date(),
+        },
         create: {
             id: 'stream-1',
             name: 'Youth Stream',
             level: 'STREAM',
             parentId: campusDept.id,
+            updatedAt: new Date(),
         },
     });
 
     const councilDept = await prisma.department.upsert({
         where: { id: 'council-1' },
-        update: {},
+        update: {
+            updatedAt: new Date(),
+        },
         create: {
             id: 'council-1',
             name: 'Youth Council A',
             level: 'COUNCIL',
             parentId: streamDept.id,
+            updatedAt: new Date(),
         },
     });
 
@@ -68,39 +84,48 @@ async function main() {
 
     const superAdmin = await prisma.user.upsert({
         where: { email: 'admin@flc.org' },
-        update: {},
+        update: {
+            updatedAt: new Date(),
+        },
         create: {
+            id: crypto.randomUUID(),
             email: 'admin@flc.org',
             name: 'Super Admin',
             phone: '0501234567',
             password: hashedPassword,
-            roles: ['SUPERADMIN'],
+            updatedAt: new Date(),
         },
     });
 
     const campusAdmin = await prisma.user.upsert({
         where: { email: 'campus.admin@flc.org' },
-        update: {},
+        update: {
+            updatedAt: new Date(),
+        },
         create: {
+            id: crypto.randomUUID(),
             email: 'campus.admin@flc.org',
             name: 'Campus Admin',
             phone: '0501234568',
             password: hashedPassword,
-            roles: ['CAMPUS_ADMIN'],
             departmentId: campusDept.id,
+            updatedAt: new Date(),
         },
     });
 
     const councilLeader = await prisma.user.upsert({
         where: { email: 'council.leader@flc.org' },
-        update: {},
+        update: {
+            updatedAt: new Date(),
+        },
         create: {
+            id: crypto.randomUUID(),
             email: 'council.leader@flc.org',
             name: 'Council Leader',
             phone: '0501234569',
             password: hashedPassword,
-            roles: ['COUNCIL_LEADER'],
             departmentId: councilDept.id,
+            updatedAt: new Date(),
         },
     });
 

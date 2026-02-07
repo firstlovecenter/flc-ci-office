@@ -32,9 +32,12 @@ export const authOptions: NextAuthOptions = {
                 
                 // Build the query based on input type
                 const user = await prisma.user.findFirst({
-                    where: isEmail 
-                        ? { email: loginIdentifier }
-                        : { phone: loginIdentifier },
+                    where: {
+                        ...(isEmail 
+                            ? { email: loginIdentifier }
+                            : { phone: loginIdentifier }),
+                        archived: false,
+                    },
                     include: {
                         department: true,
                         activeUserRole: {
@@ -65,27 +68,40 @@ export const authOptions: NextAuthOptions = {
                     return null;
                 }
 
-                // SUPERADMIN and DENOMINATION_ADMIN can work without UserRole entries
-                const isSuperUser = user.roles.includes('SUPERADMIN') || user.roles.includes('DENOMINATION_ADMIN');
-                
-                if (isSuperUser && user.userRoles.length === 0) {
-                    // Super users don't need UserRole entries
+                // SUPERADMIN users may not have UserRole entries (legacy setup)
+                // Check if user has a direct activeRole set
+                if (user.activeRole === 'SUPERADMIN' || user.activeRole === 'DENOMINATION_ADMIN') {
+                    const allRoles = user.userRoles.length > 0 
+                        ? user.userRoles.map(ur => ur.role).filter((r): r is string => r !== null)
+                        : [user.activeRole];
+                    
                     return {
                         id: user.id,
                         email: user.email,
                         name: user.name,
                         image: user.image,
-                        role: user.roles.includes('SUPERADMIN') ? 'SUPERADMIN' : 'DENOMINATION_ADMIN',
-                        roles: user.roles,
+                        role: user.activeRole,
+                        roles: allRoles,
                         departmentId: user.departmentId || undefined,
-                        departmentLevel: undefined,
+                        departmentLevel: user.department?.level || undefined,
                         departmentName: user.department?.name,
+                        activeUserRoleId: user.activeUserRoleId || undefined,
+                        activeUserRole: user.activeUserRole ? {
+                            id: user.activeUserRole.id,
+                            role: user.activeUserRole.role,
+                            departmentId: user.activeUserRole.departmentId,
+                        } : undefined,
                     };
+                }
+
+                // For other users, they need at least one UserRole entry
+                if (user.userRoles.length === 0) {
+                    return null;
                 }
 
                 // Use activeUserRole if set, otherwise use first userRole
                 const activeRole = user.activeUserRole || user.userRoles[0];
-                const allRoles = user.userRoles.map(ur => ur.role);
+                const allRoles = user.userRoles.map(ur => ur.role).filter((r): r is string => r !== null);
 
                 if (!activeRole) {
                     return null;
@@ -165,24 +181,28 @@ export const authOptions: NextAuthOptions = {
                 });
                 
                 if (updatedUser) {
-                    const isSuperUserOnUpdate = updatedUser.roles.includes('SUPERADMIN') || updatedUser.roles.includes('DENOMINATION_ADMIN');
+                    const allRoles = updatedUser.userRoles.map(ur => ur.role).filter((r): r is string => r !== null);
+                    const isSuperUserOnUpdate = updatedUser.activeRole === 'SUPERADMIN' || updatedUser.activeRole === 'DENOMINATION_ADMIN';
                     
                     // Always update name and image
                     token.name = updatedUser.name;
                     token.picture = updatedUser.image;
                     
-                    if (isSuperUserOnUpdate && updatedUser.userRoles.length === 0) {
+                    if (isSuperUserOnUpdate) {
                         token.id = updatedUser.id;
-                        token.role = updatedUser.roles.includes('SUPERADMIN') ? 'SUPERADMIN' : 'DENOMINATION_ADMIN';
-                        token.roles = updatedUser.roles;
+                        token.role = updatedUser.activeRole;
+                        token.roles = allRoles.length > 0 ? allRoles : [updatedUser.activeRole];
                         token.departmentId = updatedUser.departmentId;
-                        token.departmentLevel = undefined;
+                        token.departmentLevel = updatedUser.department?.level || undefined;
                         token.departmentName = updatedUser.department?.name;
-                        token.activeUserRoleId = null;
-                        token.activeUserRole = null;
+                        token.activeUserRoleId = updatedUser.activeUserRoleId || null;
+                        token.activeUserRole = updatedUser.activeUserRole ? {
+                            id: updatedUser.activeUserRole.id,
+                            role: updatedUser.activeUserRole.role,
+                            departmentId: updatedUser.activeUserRole.departmentId,
+                        } : null;
                     } else {
                         const activeRole = updatedUser.activeUserRole || updatedUser.userRoles[0];
-                        const allRoles = updatedUser.userRoles.map(ur => ur.role);
                         
                         token.id = updatedUser.id;
                         token.role = activeRole?.role || 'COUNCIL_LEADER';

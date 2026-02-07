@@ -90,6 +90,7 @@ export default function CorrectTransactionDialog({
     };
 
     const difference = calculateDifference();
+    const hasTransaction = Boolean(transaction?.id);
 
     return (
         <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth>
@@ -98,6 +99,12 @@ export default function CorrectTransactionDialog({
                 {error && (
                     <Alert severity="error" sx={{ mb: 3 }}>
                         {error}
+                    </Alert>
+                )}
+
+                {!hasTransaction && (
+                    <Alert severity="warning" sx={{ mb: 3 }}>
+                        Transaction details are unavailable. Close this dialog and reopen it.
                     </Alert>
                 )}
 
@@ -183,7 +190,7 @@ export default function CorrectTransactionDialog({
                 <Button 
                     onClick={handleSubmit} 
                     variant="contained" 
-                    disabled={loading || !newAmount || !reason.trim()}
+                    disabled={!hasTransaction || loading || !newAmount || !reason.trim()}
                 >
                     {loading ? 'Creating Correction...' : 'Create Correction'}
                 </Button>

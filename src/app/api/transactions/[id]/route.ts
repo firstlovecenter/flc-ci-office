@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
+import crypto from 'crypto';
 import { hasDepartmentAccess } from '@/lib/departments';
 import { sendSms } from '@/lib/sms';
 import { generateTransactionApprovedSms, generateTransactionDeclinedSms, generateTransactionChargeSms, generateCreditAlertSms, generateDebitAlertSms } from '@/lib/sms-templates';
@@ -107,6 +108,7 @@ export async function PUT(
         // Create audit log for the update
         await prisma.auditLog.create({
             data: {
+                id: crypto.randomUUID(),
                 userId: session.user.id,
                 actionType: 'UPDATE',
                 entityType: 'Transaction',
@@ -317,6 +319,7 @@ export async function PATCH(
         // Create audit log for the approval/rejection
         await prisma.auditLog.create({
             data: {
+                id: crypto.randomUUID(),
                 userId: session.user.id,
                 actionType: 'UPDATE',
                 entityType: 'Transaction',
@@ -576,6 +579,7 @@ export async function DELETE(
         // Create audit log for the deletion
         await prisma.auditLog.create({
             data: {
+                id: crypto.randomUUID(),
                 userId: session.user.id,
                 actionType: 'DELETE',
                 entityType: 'Transaction',

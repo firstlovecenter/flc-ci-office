@@ -241,9 +241,11 @@ export async function POST(request: Request) {
         if (level === 'OVERSIGHT' && currencyId) {
             await prisma.departmentBaseCurrency.create({
                 data: {
+                    id: crypto.randomUUID(),
                     departmentId: department.id,
                     currencyId: currencyId,
                     setBy: session.user.id,
+                    updatedAt: new Date(),
                 },
             });
         }
@@ -282,6 +284,7 @@ export async function POST(request: Request) {
 
             await prisma.passwordReset.create({
                 data: {
+                    id: crypto.randomUUID(),
                     userId: leaderId,
                     token: resetToken,
                     expiresAt: resetTokenExpiry,
@@ -345,6 +348,7 @@ export async function POST(request: Request) {
 
                     await prisma.passwordReset.create({
                         data: {
+                            id: crypto.randomUUID(),
                             userId: adminId,
                             token: resetToken,
                             expiresAt: resetTokenExpiry,
@@ -375,6 +379,7 @@ export async function POST(request: Request) {
         // Create audit log
         await prisma.auditLog.create({
             data: {
+                id: crypto.randomUUID(),
                 userId: session.user.id,
                 actionType: 'CREATE',
                 entityType: 'Department',

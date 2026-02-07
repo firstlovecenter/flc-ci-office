@@ -1,4 +1,5 @@
 import { prisma } from '../src/lib/prisma';
+import crypto from 'crypto';
 
 async function main() {
     console.log('Seeding currencies...');
@@ -9,13 +10,16 @@ async function main() {
         update: {
             isBase: true,
             isActive: true,
+            updatedAt: new Date(),
         },
         create: {
+            id: crypto.randomUUID(),
             code: 'GHS',
             name: 'Ghana Cedis',
             symbol: '₵',
             isBase: true,
             isActive: true,
+            updatedAt: new Date(),
         },
     });
 
@@ -24,37 +28,49 @@ async function main() {
     // Create other common currencies
     const usd = await prisma.currency.upsert({
         where: { code: 'USD' },
-        update: {},
+        update: {
+            updatedAt: new Date(),
+        },
         create: {
+            id: crypto.randomUUID(),
             code: 'USD',
             name: 'US Dollar',
             symbol: '$',
             isBase: false,
             isActive: true,
+            updatedAt: new Date(),
         },
     });
 
     const eur = await prisma.currency.upsert({
         where: { code: 'EUR' },
-        update: {},
+        update: {
+            updatedAt: new Date(),
+        },
         create: {
+            id: crypto.randomUUID(),
             code: 'EUR',
             name: 'Euro',
             symbol: '€',
             isBase: false,
             isActive: true,
+            updatedAt: new Date(),
         },
     });
 
     const gbp = await prisma.currency.upsert({
         where: { code: 'GBP' },
-        update: {},
+        update: {
+            updatedAt: new Date(),
+        },
         create: {
+            id: crypto.randomUUID(),
             code: 'GBP',
             name: 'British Pound',
             symbol: '£',
             isBase: false,
             isActive: true,
+            updatedAt: new Date(),
         },
     });
 
@@ -71,13 +87,16 @@ async function main() {
         update: {
             rate: 16.50,
             effectiveDate: new Date(),
+            updatedAt: new Date(),
         },
         create: {
+            id: crypto.randomUUID(),
             fromCurrencyId: usd.id,
             toCurrencyId: ghs.id,
             rate: 16.50,
             effectiveDate: new Date(),
             createdBy: 'system',
+            updatedAt: new Date(),
         },
     });
 
@@ -91,13 +110,16 @@ async function main() {
         update: {
             rate: 18.00,
             effectiveDate: new Date(),
+            updatedAt: new Date(),
         },
         create: {
+            id: crypto.randomUUID(),
             fromCurrencyId: eur.id,
             toCurrencyId: ghs.id,
             rate: 18.00,
             effectiveDate: new Date(),
             createdBy: 'system',
+            updatedAt: new Date(),
         },
     });
 
@@ -111,13 +133,16 @@ async function main() {
         update: {
             rate: 20.50,
             effectiveDate: new Date(),
+            updatedAt: new Date(),
         },
         create: {
+            id: crypto.randomUUID(),
             fromCurrencyId: gbp.id,
             toCurrencyId: ghs.id,
             rate: 20.50,
             effectiveDate: new Date(),
             createdBy: 'system',
+            updatedAt: new Date(),
         },
     });
 

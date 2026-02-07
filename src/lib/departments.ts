@@ -23,7 +23,8 @@ export function getAdminRoleForLevel(level: DepartmentLevel): Role | null {
         DENOMINATION: 'DENOMINATION_ADMIN',
         OVERSIGHT: 'OVERSIGHT_ADMIN',
         CAMPUS: 'CAMPUS_ADMIN',
-        // STREAM and COUNCIL don't have admin roles
+        STREAM: 'STREAM_ADMIN',
+        COUNCIL: 'COUNCIL_ADMIN',
     };
     return levelToRole[level] || null;
 }

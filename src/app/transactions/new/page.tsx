@@ -54,6 +54,7 @@ function NewTransactionForm() {
     const [exchangeRate, setExchangeRate] = useState<number | null>(null);
     const [files, setFiles] = useState<File[]>([]);
     const [error, setError] = useState('');
+    const [profileLoading, setProfileLoading] = useState(true);
     const [loading, setLoading] = useState(false);
     const [departmentBalance, setDepartmentBalance] = useState<number | null>(null);
     const [balanceCurrency, setBalanceCurrency] = useState<{ code: string; symbol: string } | null>(null);
@@ -148,26 +149,36 @@ function NewTransactionForm() {
     };
 
     const fetchUserProfile = async () => {
+        setProfileLoading(true);
         try {
             // Use the /api/users/me endpoint which handles base currency logic
             const response = await fetch('/api/users/me');
-            if (response.ok) {
-                const profile = await response.json();
-                setUserProfile(profile);
-                
-                // Set the base currency from the profile (already computed by the API)
-                if (profile.baseCurrency) {
-                    setBaseCurrency(profile.baseCurrency);
-                    setCurrencyId(profile.baseCurrency.id);
+            if (!response.ok) {
+                const errorText = await response.text();
+                setError(errorText || 'Unable to load your profile. Please refresh and try again.');
+                return;
+            }
+
+            const profile = await response.json();
+            setUserProfile(profile);
+
+            // Set the base currency from the profile (already computed by the API)
+            if (profile.baseCurrency) {
+                setBaseCurrency(profile.baseCurrency);
+                setCurrencyId(profile.baseCurrency.id);
+            } else {
+                // Check if user is oversight level or below
+                const oversightAndBelowRoles = ['OVERSIGHT_ADMIN', 'OVERSIGHT_LEADER', 'CAMPUS_ADMIN', 'CAMPUS_LEADER', 'STREAM_LEADER', 'COUNCIL_LEADER', 'STREAM_ADMIN', 'COUNCIL_ADMIN'];
+                if (session?.user?.role && oversightAndBelowRoles.includes(session.user.role)) {
+                    setError('Base currency must be set for your oversight department before you can record transactions. Please contact your Oversight Admin to set the base currency.');
                 } else {
-                    // Check if user is oversight level or below
-                    const oversightAndBelowRoles = ['OVERSIGHT_ADMIN', 'OVERSIGHT_LEADER', 'CAMPUS_ADMIN', 'CAMPUS_LEADER', 'STREAM_LEADER', 'COUNCIL_LEADER', 'STREAM_ADMIN', 'COUNCIL_ADMIN'];
-                    if (session?.user?.role && oversightAndBelowRoles.includes(session.user.role)) {
-                        setError('Base currency must be set for your oversight department before you can record transactions. Please contact your Oversight Admin to set the base currency.');
-                    }
+                    setError('Unable to determine base currency. Please refresh and try again.');
                 }
             }
         } catch (error) {
+            setError('Unable to load your profile. Please refresh and try again.');
+        } finally {
+            setProfileLoading(false);
         }
     };
 
@@ -234,8 +245,19 @@ function NewTransactionForm() {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        setLoading(true);
         setError('');
+
+        if (profileLoading) {
+            setError('Loading your profile. Please wait a moment and try again.');
+            return;
+        }
+
+        if (!baseCurrency) {
+            setError('Base currency is not set. Please contact your administrator.');
+            return;
+        }
+
+        setLoading(true);
 
         // Check time restriction for expense requests (6am - 3pm)
         if (type === 'EXPENSE') {
@@ -413,6 +435,12 @@ function NewTransactionForm() {
                         </Alert>
                     )}
 
+                    {!profileLoading && !baseCurrency && !error && (
+                        <Alert severity="warning" sx={{ mb: 3 }}>
+                            Base currency is required before you can submit a transaction.
+                        </Alert>
+                    )}
+
                     {!isLeader && (
                         <FormControl fullWidth sx={{ mb: 3 }}>
                             <InputLabel>Type</InputLabel>
@@ -560,7 +588,7 @@ function NewTransactionForm() {
                         <Button 
                             type="submit" 
                             variant="contained" 
-                            disabled={loading || !baseCurrency}
+                            disabled={loading || profileLoading}
                         >
                             {loading ? 'Submitting...' : isLeader ? 'Submit Expense Request' : 'Save Transaction'}
                         </Button>

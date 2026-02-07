@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import crypto from 'crypto';
 
 // Update an exchange rate
 export async function PUT(
@@ -58,6 +59,7 @@ export async function PUT(
         // Create audit log
         await prisma.auditLog.create({
             data: {
+                id: crypto.randomUUID(),
                 userId: session.user.id,
                 actionType: 'UPDATE',
                 entityType: 'ExchangeRate',
@@ -117,6 +119,7 @@ export async function DELETE(
         // Create audit log
         await prisma.auditLog.create({
             data: {
+                id: crypto.randomUUID(),
                 userId: session.user.id,
                 actionType: 'DELETE',
                 entityType: 'ExchangeRate',

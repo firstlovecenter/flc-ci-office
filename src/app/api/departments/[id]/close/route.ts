@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { hasDepartmentAccess } from '@/lib/departments';
+import crypto from 'crypto';
 
 export async function POST(
     request: Request,
@@ -127,24 +128,9 @@ export async function POST(
                                 activeUserRoleId: null,
                                 activeRole: null,
                                 departmentId: null,
-                                roles: [],
                             },
                         });
                     }
-                }
-
-                // Update user's roles array to remove this role
-                const userWithRoles = await tx.user.findUnique({
-                    where: { id: userRole.userId },
-                    select: { roles: true },
-                });
-
-                if (userWithRoles) {
-                    const updatedRoles = userWithRoles.roles.filter(r => r !== userRole.role);
-                    await tx.user.update({
-                        where: { id: userRole.userId },
-                        data: { roles: updatedRoles },
-                    });
                 }
             }
 
@@ -168,6 +154,7 @@ export async function POST(
             // 4. Create audit log
             await tx.auditLog.create({
                 data: {
+                    id: crypto.randomUUID(),
                     userId: session.user.id,
                     actionType: 'DELETE',
                     entityType: 'Department',

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import crypto from 'crypto';
 
 // GET /api/admin/base-currencies - List all oversight departments and their base currencies
 export async function GET(req: NextRequest) {
@@ -147,13 +148,16 @@ export async function POST(req: NextRequest) {
     const deptBaseCurrency = await prisma.departmentBaseCurrency.upsert({
       where: { departmentId },
       create: {
+        id: crypto.randomUUID(),
         departmentId,
         currencyId,
         setBy: session.user.id,
+        updatedAt: new Date(),
       },
       update: {
         currencyId,
         setBy: session.user.id,
+        updatedAt: new Date(),
       },
       include: {
         currency: true,

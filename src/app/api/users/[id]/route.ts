@@ -153,7 +153,14 @@ export async function PUT(
         // Get the user being edited
         const targetUser = await prisma.user.findUnique({
             where: { id: userId },
-            include: { department: true },
+            include: { 
+                department: true,
+                userRoles: {
+                    include: {
+                        department: true,
+                    },
+                },
+            },
         });
 
         if (!targetUser) {
@@ -177,7 +184,8 @@ export async function PUT(
 
         // Check if admin can manage this user based on role hierarchy
         // For users with multiple roles, check against their highest role
-        const targetUserHighestRole = targetUser.roles?.[0] || 'COUNCIL_LEADER';
+        const targetUserRoles = targetUser.userRoles.map(ur => ur.role).filter((r): r is string => r !== null);
+        const targetUserHighestRole = targetUser.activeRole || targetUserRoles[0] || 'COUNCIL_LEADER';
         if (!canManageUser(session.user.role, targetUserHighestRole)) {
             return NextResponse.json(
                 { error: 'You cannot manage users with equal or higher roles' },
@@ -378,6 +386,7 @@ export async function PUT(
                     // Create new password reset record
                     await prisma.passwordReset.create({
                         data: {
+                            id: crypto.randomUUID(),
                             token: resetToken,
                             userId: userId,
                             expiresAt,
@@ -416,6 +425,7 @@ export async function PUT(
         if (session.user.role !== 'SUPERADMIN') {
             await prisma.auditLog.create({
                 data: {
+                    id: crypto.randomUUID(),
                     userId: session.user.id,
                     actionType: 'UPDATE',
                     entityType: 'User',
@@ -547,7 +557,10 @@ export async function PATCH(
         // Get the user being archived
         const targetUser = await prisma.user.findUnique({
             where: { id: userId },
-            include: { department: true },
+            include: { 
+                department: true,
+                userRoles: true,
+            },
         });
 
         if (!targetUser) {
@@ -559,13 +572,14 @@ export async function PATCH(
 
         // Check if admin can manage this user based on role hierarchy
         // User can be managed if admin can manage their highest role
-        const targetHighestRole = targetUser.roles && targetUser.roles.length > 0 
-            ? targetUser.roles.reduce((highest, role) => {
+        const targetUserRoles = targetUser.userRoles.map(ur => ur.role).filter((r): r is string => r !== null);
+        const targetHighestRole = targetUserRoles.length > 0
+            ? targetUserRoles.reduce((highest, role) => {
                 const highestLevel = ROLE_HIERARCHY[highest] || 999;
                 const roleLevel = ROLE_HIERARCHY[role] || 999;
                 return roleLevel < highestLevel ? role : highest;
-              }, targetUser.roles[0])
-            : 'COUNCIL_LEADER';
+              }, targetUserRoles[0])
+            : targetUser.activeRole || 'COUNCIL_LEADER';
             
         if (!canManageUser(session.user.role, targetHighestRole)) {
             return NextResponse.json(
@@ -611,6 +625,7 @@ export async function PATCH(
         if (session.user.role !== 'SUPERADMIN') {
             await prisma.auditLog.create({
                 data: {
+                    id: crypto.randomUUID(),
                     userId: session.user.id,
                     actionType: 'UPDATE',
                     entityType: 'User',

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import crypto from 'crypto';
 
 // Force dynamic rendering - data is user/role specific
 export const dynamic = 'force-dynamic';
@@ -185,19 +186,15 @@ export async function PATCH(request: NextRequest) {
             ur => ur.role === 'OVERSIGHT_ADMIN' && ur.department.level === 'OVERSIGHT'
         );
 
-        // Fallback to legacy roles check
-        const hasOversightAdminLegacy = user.roles?.includes('OVERSIGHT_ADMIN') && 
-                                       user.department?.level === 'OVERSIGHT';
-
-        if (!oversightAdminRole && !hasOversightAdminLegacy) {
+        if (!oversightAdminRole) {
             return NextResponse.json(
                 { error: 'Only oversight admins with an oversight department assignment can set base currency' },
                 { status: 403 }
             );
         }
 
-        // Use the oversight department from the role assignment, or fall back to legacy department
-        const oversightDepartment = oversightAdminRole?.department || user.department;
+        // Use the oversight department from the role assignment
+        const oversightDepartment = oversightAdminRole.department;
 
         if (!oversightDepartment) {
             return NextResponse.json(
@@ -216,13 +213,16 @@ export async function PATCH(request: NextRequest) {
         const deptBaseCurrency = await prisma.departmentBaseCurrency.upsert({
             where: { departmentId: oversightDepartment.id },
             create: {
+                id: crypto.randomUUID(),
                 departmentId: oversightDepartment.id,
                 currencyId: baseCurrencyId,
                 setBy: user.id,
+                updatedAt: new Date(),
             },
             update: {
                 currencyId: baseCurrencyId,
                 setBy: user.id,
+                updatedAt: new Date(),
             },
             include: {
                 currency: true,

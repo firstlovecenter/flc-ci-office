@@ -58,6 +58,7 @@ export async function POST(request: NextRequest) {
     // Create new password reset record
     await prisma.passwordReset.create({
       data: {
+        id: crypto.randomUUID(),
         userId: user.id,
         token,
         expiresAt,

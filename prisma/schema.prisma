@@ -6,123 +6,6 @@ datasource db {
   provider = "postgresql"
 }
 
-model Department {
-  id                     String                  @id @default(cuid())
-  name                   String
-  level                  DepartmentLevel
-  parentId               String?
-  isActive               Boolean                 @default(true)
-  closedAt               DateTime?
-  closedBy               String?
-  closureReason          String?
-  createdAt              DateTime                @default(now())
-  updatedAt              DateTime                @updatedAt
-  parent                 Department?             @relation("DepartmentHierarchy", fields: [parentId], references: [id])
-  children               Department[]            @relation("DepartmentHierarchy")
-  departmentBaseCurrency DepartmentBaseCurrency?
-  transactions           Transaction[]
-  users                  User[]
-  userRoles              UserRole[]
-
-  @@index([parentId])
-  @@index([level])
-  @@index([isActive])
-}
-
-model UserRole {
-  id           String     @id @default(cuid())
-  userId       String
-  role         Role
-  departmentId String
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt
-  activeUsers  User[]     @relation("ActiveUserRole")
-  department   Department @relation(fields: [departmentId], references: [id])
-  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, role, departmentId])
-  @@index([userId])
-  @@index([departmentId])
-  @@index([role])
-}
-
-model User {
-  id                          String                   @id @default(cuid())
-  name                        String?
-  email                       String                   @unique
-  password                    String?
-  image                       String?
-  departmentId                String?
-  createdAt                   DateTime                 @default(now())
-  updatedAt                   DateTime                 @updatedAt
-  archived                    Boolean                  @default(false)
-  baseCurrencyId              String?
-  activeRole                  Role?
-  roles                       Role[]
-  activeUserRoleId            String?
-  title                       String?
-  phone                       String                   @unique
-  auditLogs                   AuditLog[]
-  departmentBaseCurrenciesSet DepartmentBaseCurrency[]
-  passwordResets              PasswordReset[]
-  pushSubscriptions           PushSubscription[]
-  transactions                Transaction[]
-  activeUserRole              UserRole?                @relation("ActiveUserRole", fields: [activeUserRoleId], references: [id])
-  baseCurrency                Currency?                @relation(fields: [baseCurrencyId], references: [id])
-  department                  Department?              @relation(fields: [departmentId], references: [id])
-  userRoles                   UserRole[]
-
-  @@index([archived])
-  @@index([baseCurrencyId])
-  @@index([activeUserRoleId])
-}
-
-model Transaction {
-  id              String            @id @default(cuid())
-  departmentId    String
-  userId          String
-  type            TransactionType
-  amount          Decimal
-  description     String
-  weekNumber      Int
-  year            Int
-  locked          Boolean           @default(false)
-  createdAt       DateTime          @default(now())
-  updatedAt       DateTime          @updatedAt
-  approvedAt      DateTime?
-  approvedBy      String?
-  status          TransactionStatus @default(PENDING)
-  amountInBase    Decimal?
-  currencyId      String?
-  exchangeRate    Decimal?
-  rejectedAt      DateTime?
-  rejectedBy      String?
-  rejectionReason String?
-  files           File[]
-  currency        Currency?         @relation(fields: [currencyId], references: [id])
-  department      Department        @relation(fields: [departmentId], references: [id])
-  user            User              @relation(fields: [userId], references: [id])
-
-  @@index([departmentId])
-  @@index([userId])
-  @@index([status])
-  @@index([type])
-  @@index([createdAt])
-  @@index([departmentId, status, type])
-  @@index([currencyId])
-}
-
-model File {
-  id            String      @id @default(cuid())
-  transactionId String
-  fileName      String
-  fileUrl       String
-  fileMime      String
-  uploadedBy    String
-  uploadedAt    DateTime    @default(now())
-  transaction   Transaction @relation(fields: [transactionId], references: [id])
-}
-
 model AuditLog {
   id           String        @id @default(cuid())
   userId       String
@@ -140,139 +23,208 @@ model AuditLog {
   severity     AuditSeverity @default(LOW)
   success      Boolean       @default(true)
   userAgent    String?
-  user         User          @relation(fields: [userId], references: [id])
+    user         User          @relation("AuditLogs", fields: [userId], references: [id])
 
-  @@index([userId])
-  @@index([entityType, entityId])
   @@index([actionType])
-  @@index([timestamp])
+  @@index([entityType, entityId])
   @@index([severity])
-}
-
-model PushSubscription {
-  id           String   @id @default(cuid())
-  userId       String
-  endpoint     String
-  subscription Json
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  user         User     @relation(fields: [userId], references: [id])
-
-  @@unique([userId, endpoint])
+  @@index([timestamp])
   @@index([userId])
 }
 
 model Currency {
-  id                       String                   @id @default(cuid())
-  code                     String                   @unique
-  name                     String
-  symbol                   String
-  isBase                   Boolean                  @default(false)
-  isActive                 Boolean                  @default(true)
-  createdAt                DateTime                 @default(now())
-  updatedAt                DateTime                 @updatedAt
-  departmentBaseCurrencies DepartmentBaseCurrency[]
-  exchangeRates            ExchangeRate[]           @relation("FromCurrency")
-  reverseRates             ExchangeRate[]           @relation("ToCurrency")
-  transactions             Transaction[]
-  users                    User[]
+  id                                                 String                   @id
+  code                                               String                   @unique
+  name                                               String
+  symbol                                             String
+  isBase                                             Boolean                  @default(false)
+  isActive                                           Boolean                  @default(true)
+  createdAt                                          DateTime                 @default(now())
+  updatedAt                                          DateTime
+    departmentBaseCurrencies                           DepartmentBaseCurrency[]
+    exchangeRates                                      ExchangeRate[]           @relation("FromCurrency")
+    reverseRates                                       ExchangeRate[]           @relation("ToCurrency")
+    transactions                                       Transaction[]
+    users                                              User[]
 
   @@index([code])
   @@index([isActive])
 }
 
-model ExchangeRate {
-  id             String   @id @default(cuid())
-  fromCurrencyId String
-  toCurrencyId   String
-  rate           Decimal
-  effectiveDate  DateTime @default(now())
-  createdBy      String
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-  fromCurrency   Currency @relation("FromCurrency", fields: [fromCurrencyId], references: [id])
-  toCurrency     Currency @relation("ToCurrency", fields: [toCurrencyId], references: [id])
+model Department {
+  id                     String                  @id
+  name                   String
+  level                  DepartmentLevel?
+  parentId               String?
+  createdAt              DateTime                @default(now())
+  updatedAt              DateTime
+  closedAt               DateTime?
+  closedBy               String?
+  closureReason          String?
+  isActive               Boolean                 @default(true)
+    parent                 Department?             @relation("DepartmentHierarchy", fields: [parentId], references: [id])
+    children               Department[]            @relation("DepartmentHierarchy")
+    departmentBaseCurrency DepartmentBaseCurrency?
+    transactions           Transaction[]
+    users                  User[]
+    userRoles              UserRole[]
 
-  @@unique([fromCurrencyId, toCurrencyId])
-  @@index([fromCurrencyId])
-  @@index([toCurrencyId])
-  @@index([effectiveDate])
+  @@index([isActive])
+  @@index([level])
+  @@index([parentId])
 }
 
 model DepartmentBaseCurrency {
-  id           String     @id @default(cuid())
+  id           String     @id
   departmentId String     @unique
   currencyId   String
   setBy        String
   createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt
-  currency     Currency   @relation(fields: [currencyId], references: [id])
-  department   Department @relation(fields: [departmentId], references: [id])
-  setByUser    User       @relation(fields: [setBy], references: [id])
+  updatedAt    DateTime
+    currency     Currency   @relation(fields: [currencyId], references: [id])
+    department   Department @relation(fields: [departmentId], references: [id])
+    setByUser    User       @relation("DepartmentBaseCurrenciesSet", fields: [setBy], references: [id])
 
-  @@index([departmentId])
   @@index([currencyId])
+  @@index([departmentId])
+}
+
+model ExchangeRate {
+  id                                             String   @id
+  fromCurrencyId                                 String
+  toCurrencyId                                   String
+  rate                                           Decimal
+  effectiveDate                                  DateTime @default(now())
+  createdBy                                      String
+  createdAt                                      DateTime @default(now())
+  updatedAt                                      DateTime
+    fromCurrency                                   Currency @relation("FromCurrency", fields: [fromCurrencyId], references: [id])
+    toCurrency                                     Currency @relation("ToCurrency", fields: [toCurrencyId], references: [id])
+
+  @@unique([fromCurrencyId, toCurrencyId])
+  @@index([effectiveDate])
+  @@index([fromCurrencyId])
+  @@index([toCurrencyId])
+}
+
+model File {
+  id            String      @id
+  transactionId String
+  fileName      String
+  fileUrl       String
+  fileMime      String
+  uploadedBy    String
+  uploadedAt    DateTime    @default(now())
+    transaction   Transaction @relation(fields: [transactionId], references: [id])
 }
 
 model PasswordReset {
-  id        String    @id @default(cuid())
+  id        String    @id
   userId    String
   token     String    @unique
   expiresAt DateTime
   used      Boolean   @default(false)
   usedAt    DateTime?
   createdAt DateTime  @default(now())
-  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+    user      User      @relation("PasswordResets", fields: [userId], references: [id], onDelete: Cascade)
 
-  @@index([userId])
-  @@index([token])
   @@index([expiresAt])
+  @@index([token])
+  @@index([userId])
 }
 
 model SmsTemplate {
-  id          String   @id @default(cuid())
+  id          String   @id
   key         String   @unique
   name        String
   description String?
   template    String
   variables   String[]
   createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  updatedAt   DateTime
 
   @@index([key])
 }
 
-enum DepartmentLevel {
-  DENOMINATION
-  OVERSIGHT
-  CAMPUS
-  STREAM
-  COUNCIL
+model Transaction {
+  id              String            @id
+  departmentId    String
+  userId          String
+  type            TransactionType
+  amount          Decimal
+  description     String
+  weekNumber      Int
+  year            Int
+  locked          Boolean           @default(false)
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime
+  approvedAt      DateTime?
+  approvedBy      String?
+  status          TransactionStatus @default(PENDING)
+  amountInBase    Decimal?
+  currencyId      String?
+  exchangeRate    Decimal?
+  rejectedAt      DateTime?
+  rejectedBy      String?
+  rejectionReason String?
+    files           File[]
+    currency        Currency?         @relation(fields: [currencyId], references: [id])
+    department      Department        @relation(fields: [departmentId], references: [id])
+    user            User              @relation("Transactions", fields: [userId], references: [id])
+
+  @@index([createdAt])
+  @@index([currencyId])
+  @@index([departmentId])
+  @@index([departmentId, status, type])
+  @@index([status])
+  @@index([type])
+  @@index([userId])
 }
 
-enum Role {
-  SUPERADMIN
-  DENOMINATION_ADMIN
-  DENOMINATION_LEADER
-  OVERSIGHT_ADMIN
-  OVERSIGHT_LEADER
-  CAMPUS_ADMIN
-  CAMPUS_LEADER
-  STREAM_ADMIN
-  STREAM_LEADER
-  COUNCIL_ADMIN
-  COUNCIL_LEADER
+model User {
+  id                                       String                   @id
+  name                                     String?
+  email                                    String                   @unique
+  password                                 String?
+  image                                    String?
+  departmentId                             String?
+  createdAt                                DateTime                 @default(now())
+  updatedAt                                DateTime
+  archived                                 Boolean                  @default(false)
+  baseCurrencyId                           String?
+  activeRole                               Role?
+  activeUserRoleId                         String?
+  title                                    String?
+  phone                                    String                   @unique
+    auditLogs                                AuditLog[]               @relation("AuditLogs")
+    departmentBaseCurrenciesSet              DepartmentBaseCurrency[] @relation("DepartmentBaseCurrenciesSet")
+    passwordResets                           PasswordReset[]          @relation("PasswordResets")
+    transactions                             Transaction[]            @relation("Transactions")
+    activeUserRole                           UserRole?                @relation("ActiveUserRole", fields: [activeUserRoleId], references: [id])
+    baseCurrency                             Currency?                @relation(fields: [baseCurrencyId], references: [id])
+    department                               Department?              @relation(fields: [departmentId], references: [id])
+    userRoles                                UserRole[]               @relation("UserRoles")
+
+  @@index([activeUserRoleId])
+  @@index([archived])
+  @@index([baseCurrencyId])
 }
 
-enum TransactionType {
-  INCOME
-  EXPENSE
-}
+model UserRole {
+  id                                   String     @id
+  userId                               String
+  role                                 Role?
+  departmentId                         String
+  createdAt                            DateTime   @default(now())
+  updatedAt                            DateTime
+    activeUsers                          User[]     @relation("ActiveUserRole")
+    department                           Department @relation(fields: [departmentId], references: [id])
+    user                                 User       @relation("UserRoles", fields: [userId], references: [id], onDelete: Cascade)
 
-enum TransactionStatus {
-  PENDING
-  APPROVED
-  REJECTED
+  @@unique([userId, role, departmentId])
+  @@index([departmentId])
+  @@index([role])
+  @@index([userId])
 }
 
 enum ActionType {
@@ -297,4 +249,37 @@ enum AuditSeverity {
   MEDIUM
   HIGH
   CRITICAL
+}
+
+enum DepartmentLevel {
+  DENOMINATION
+  OVERSIGHT
+  CAMPUS
+  STREAM
+  COUNCIL
+}
+
+enum Role {
+  SUPERADMIN
+  DENOMINATION_ADMIN
+  DENOMINATION_LEADER
+  OVERSIGHT_ADMIN
+  OVERSIGHT_LEADER
+  CAMPUS_ADMIN
+  CAMPUS_LEADER
+  STREAM_ADMIN
+  STREAM_LEADER
+  COUNCIL_ADMIN
+  COUNCIL_LEADER
+}
+
+enum TransactionStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum TransactionType {
+  INCOME
+  EXPENSE
 }

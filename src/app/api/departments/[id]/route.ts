@@ -155,11 +155,14 @@ export async function PUT(
                 update: {
                     currencyId,
                     setBy: session.user.id,
+                    updatedAt: new Date(),
                 },
                 create: {
+                    id: crypto.randomUUID(),
                     departmentId,
                     currencyId,
                     setBy: session.user.id,
+                    updatedAt: new Date(),
                 },
             });
         }
@@ -292,6 +295,7 @@ export async function PUT(
 
                     await prisma.passwordReset.create({
                         data: {
+                            id: crypto.randomUUID(),
                             userId: leaderId,
                             token: resetToken,
                             expiresAt: resetTokenExpiry,
@@ -320,6 +324,7 @@ export async function PUT(
                 // Audit the leader change
                 await prisma.auditLog.create({
                     data: {
+                        id: crypto.randomUUID(),
                         userId: session.user.id,
                         actionType: 'UPDATE',
                         entityType: 'Department',
@@ -417,6 +422,7 @@ export async function PUT(
 
                         await prisma.passwordReset.create({
                             data: {
+                                id: crypto.randomUUID(),
                                 userId: adminId,
                                 token: resetToken,
                                 expiresAt: resetTokenExpiry,
@@ -445,6 +451,7 @@ export async function PUT(
                     // Audit the admin change
                     await prisma.auditLog.create({
                         data: {
+                            id: crypto.randomUUID(),
                             userId: session.user.id,
                             actionType: 'UPDATE',
                             entityType: 'Department',
@@ -458,6 +465,7 @@ export async function PUT(
                     // Admin was removed but not replaced
                     await prisma.auditLog.create({
                         data: {
+                            id: crypto.randomUUID(),
                             userId: session.user.id,
                             actionType: 'UPDATE',
                             entityType: 'Department',
@@ -474,6 +482,7 @@ export async function PUT(
         // Create audit log
         await prisma.auditLog.create({
             data: {
+                id: crypto.randomUUID(),
                 userId: session.user.id,
                 actionType: 'UPDATE',
                 entityType: 'Department',
@@ -555,6 +564,7 @@ export async function DELETE(
         // Create audit log
         await prisma.auditLog.create({
             data: {
+                id: crypto.randomUUID(),
                 userId: session.user.id,
                 actionType: 'DELETE',
                 entityType: 'Department',

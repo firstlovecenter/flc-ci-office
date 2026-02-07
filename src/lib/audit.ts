@@ -1,6 +1,7 @@
 import { PrismaClient, ActionType, AuditSeverity } from '@prisma/client';
 import { headers } from 'next/headers';
 import { prisma } from '@/lib/prisma';
+import crypto from 'crypto';
 
 interface AuditLogData {
   userId: string;
@@ -187,6 +188,7 @@ export async function createAuditLog(data: AuditLogData): Promise<void> {
 
     await prisma.auditLog.create({
       data: {
+        id: crypto.randomUUID(),
         userId: data.userId,
         actionType: data.actionType,
         entityType: data.entityType,
@@ -245,6 +247,7 @@ export async function createBulkAuditLogs(
       );
 
       return {
+        id: crypto.randomUUID(),
         userId: data.userId,
         actionType: data.actionType,
         entityType: data.entityType,

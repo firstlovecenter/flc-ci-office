@@ -267,6 +267,8 @@ export default function EditTransactionDialog({
         }
     };
 
+    const hasTransaction = Boolean(transaction?.id);
+
     return (
         <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
             <DialogTitle>
@@ -286,6 +288,12 @@ export default function EditTransactionDialog({
                 {error && (
                     <Alert severity="error" sx={{ mb: 3 }}>
                         {error}
+                    </Alert>
+                )}
+
+                {!hasTransaction && (
+                    <Alert severity="warning" sx={{ mb: 3 }}>
+                        Transaction details are unavailable. Close this dialog and reopen it.
                     </Alert>
                 )}
 
@@ -443,7 +451,7 @@ export default function EditTransactionDialog({
                 <Button
                     onClick={handleSubmit}
                     variant="contained"
-                    disabled={loading || (transaction?.locked && !isSuperAdmin)}
+                    disabled={!hasTransaction || loading || (transaction?.locked && !isSuperAdmin)}
                 >
                     {loading ? 'Saving...' : 'Save Changes'}
                 </Button>

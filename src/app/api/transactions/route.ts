@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
+import crypto from 'crypto';
 import { getCurrentWeek, formatNumber } from '@/lib/utils';
 import { sendSms } from '@/lib/sms';
 import { generatePendingApprovalRequestSms, generateCreditAlertSms, generateDebitAlertSms } from '@/lib/sms-templates';
@@ -245,6 +246,7 @@ export async function POST(request: Request) {
 
         const transaction = await prisma.transaction.create({
             data: {
+                id: crypto.randomUUID(),
                 type,
                 amount,
                 currencyId: currencyId || null,
@@ -256,6 +258,7 @@ export async function POST(request: Request) {
                 weekNumber,
                 year,
                 locked: false,
+                updatedAt: new Date(),
                 status: isLeader ? 'PENDING' : 'APPROVED',
                 approvedBy: isLeader ? null : session.user.id,
                 approvedAt: isLeader ? null : new Date(),
@@ -277,6 +280,7 @@ export async function POST(request: Request) {
         // Create Audit Log
         await prisma.auditLog.create({
             data: {
+                id: crypto.randomUUID(),
                 userId: session.user.id,
                 actionType: 'CREATE',
                 entityType: 'Transaction',
@@ -596,6 +600,7 @@ export async function PUT(request: Request) {
                 currencyId: currencyId || null,
                 exchangeRate: exchangeRate || null,
                 amountInBase: amountInBase,
+                updatedAt: new Date(),
                 files: files && files.length > 0 ? {
                     create: files.map((f: any) => ({
                         fileName: f.name,
@@ -605,11 +610,16 @@ export async function PUT(request: Request) {
                     })),
                 } : undefined,
             },
+            include: {
+                department: true,
+                currency: true,
+            },
         });
 
         // Audit Log
         await prisma.auditLog.create({
             data: {
+                id: crypto.randomUUID(),
                 userId: session.user.id,
                 actionType: 'UPDATE',
                 entityType: 'Transaction',
@@ -671,6 +681,7 @@ export async function DELETE(request: Request) {
         // Audit Log
         await prisma.auditLog.create({
             data: {
+                id: crypto.randomUUID(),
                 userId: session.user.id,
                 actionType: 'DELETE',
                 entityType: 'Transaction',
@@ -739,12 +750,18 @@ export async function PATCH(request: Request) {
                 rejectedBy: action === 'reject' ? session.user.id : null,
                 rejectedAt: action === 'reject' ? new Date() : null,
                 rejectionReason: action === 'reject' ? rejectionReason : null,
+                updatedAt: new Date(),
+            },
+            include: {
+                department: true,
+                currency: true,
             },
         });
 
         // Audit Log
         await prisma.auditLog.create({
             data: {
+                id: crypto.randomUUID(),
                 userId: session.user.id,
                 actionType: action === 'approve' ? 'APPROVE' : 'REJECT',
                 entityType: 'Transaction',
