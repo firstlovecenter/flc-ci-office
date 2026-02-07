@@ -259,12 +259,16 @@ function NewTransactionForm() {
 
         setLoading(true);
 
-        // Check time restriction for expense requests (6am - 3pm)
+        // Check time restriction for expense requests (6am - 3pm on weekdays, 6am - 7pm on Saturday)
         if (type === 'EXPENSE') {
             const now = new Date();
             const hour = now.getHours();
-            if (hour < 6 || hour >= 15) {
-                setError('Expense requests can only be made between 6:00 AM and 3:00 PM');
+            const day = now.getDay();
+            const isSaturday = day === 6;
+            const maxHour = isSaturday ? 19 : 15;
+            if (hour < 6 || hour >= maxHour) {
+                const timeRange = isSaturday ? '6:00 AM and 7:00 PM' : '6:00 AM and 3:00 PM';
+                setError(`Expense requests can only be made between ${timeRange}`);
                 setLoading(false);
                 return;
             }
@@ -347,7 +351,10 @@ function NewTransactionForm() {
     if (isLeader) {
         const now = new Date();
         const hour = now.getHours();
-        if (hour < 6 || hour >= 15) {
+        const isSaturday = now.getDay() === 6;
+        const maxHour = isSaturday ? 19 : 15;
+        if (hour < 6 || hour >= maxHour) {
+            const timeRange = isSaturday ? '6:00 AM and 7:00 PM' : '6:00 AM and 3:00 PM';
             return (
                 <Box maxWidth="sm" sx={{ mx: 'auto', mt: 8 }}>
                     <Paper sx={{ p: 4 }}>
@@ -356,7 +363,7 @@ function NewTransactionForm() {
                                 Outside Operating Hours
                             </Typography>
                             <Typography variant="body2">
-                                Expense requests can only be made between <strong>6:00 AM and 3:00 PM</strong>.
+                                Expense requests can only be made between <strong>{timeRange}</strong>.
                             </Typography>
                             <Typography variant="body2" sx={{ mt: 2 }}>
                                 Current time: {now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}
