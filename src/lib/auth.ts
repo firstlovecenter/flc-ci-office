@@ -191,8 +191,8 @@ export const authOptions: NextAuthOptions = {
                     
                     if (isSuperUserOnUpdate) {
                         token.id = updatedUser.id;
-                        token.role = updatedUser.activeRole;
-                        token.roles = allRoles.length > 0 ? allRoles : [updatedUser.activeRole];
+                        token.role = updatedUser.activeRole as string;
+                        token.roles = allRoles.length > 0 ? allRoles : [updatedUser.activeRole as string];
                         token.departmentId = updatedUser.departmentId;
                         token.departmentLevel = updatedUser.department?.level || undefined;
                         token.departmentName = updatedUser.department?.name;
@@ -209,8 +209,8 @@ export const authOptions: NextAuthOptions = {
                         token.role = activeRole?.role || 'COUNCIL_LEADER';
                         token.roles = allRoles;
                         token.departmentId = activeRole?.departmentId;
-                        token.departmentLevel = activeRole?.department?.level;
-                        token.departmentName = activeRole?.department?.name;
+                        token.departmentLevel = activeRole?.department?.level || undefined;
+                        token.departmentName = activeRole?.department?.name || undefined;
                         token.activeUserRoleId = activeRole?.id || null;
                         token.activeUserRole = activeRole ? {
                             id: activeRole.id,

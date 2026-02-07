@@ -1,4 +1,5 @@
 import { prisma } from './prisma';
+import { DepartmentLevel } from '@prisma/client';
 
 /**
  * Get the base currency for a department
@@ -28,7 +29,7 @@ export async function getDepartmentBaseCurrency(departmentId: string) {
     let oversightDept = null;
 
     while (currentDeptId) {
-        const dept: { level: string; parentId: string | null } | null = await prisma.department.findUnique({
+        const dept: { level: DepartmentLevel | null; parentId: string | null } | null = await prisma.department.findUnique({
             where: { id: currentDeptId },
             select: { level: true, parentId: true },
         });

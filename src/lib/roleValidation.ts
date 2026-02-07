@@ -43,7 +43,7 @@ export async function validateRoleAssignment(
         // Check if someone else already has SUPERADMIN
         const existingSuperAdmin = await prisma.user.findFirst({
             where: {
-                roles: { has: 'SUPERADMIN' },
+                activeRole: 'SUPERADMIN',
                 id: { not: userId },
                 archived: false,
             },
@@ -62,7 +62,7 @@ export async function validateRoleAssignment(
     if (roles.includes('DENOMINATION_ADMIN')) {
         const existingDenominationAdmin = await prisma.user.findFirst({
             where: {
-                roles: { has: 'DENOMINATION_ADMIN' },
+                activeRole: 'DENOMINATION_ADMIN',
                 id: { not: userId },
                 archived: false,
             },
@@ -88,8 +88,12 @@ export async function validateRoleAssignment(
  * Get all users with a specific role
  */
 export async function getUsersByRole(role: string, departmentId?: string) {
+    // Query users by activeRole or through userRoles relationship
     const where: any = {
-        roles: { has: role },
+        OR: [
+            { activeRole: role },
+            { userRoles: { some: { role } } },
+        ],
         archived: false,
     };
 
@@ -156,7 +160,10 @@ export async function getRoleStats() {
         roles.map(async (role) => {
             const count = await prisma.user.count({
                 where: {
-                    roles: { has: role as any },
+                    OR: [
+                        { activeRole: role as any },
+                        { userRoles: { some: { role: role as any } } },
+                    ],
                     archived: false,
                 },
             });
