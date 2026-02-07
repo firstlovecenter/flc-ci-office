@@ -43,8 +43,8 @@ async function main() {
     data: {
       activeUserRoleId: null,
       activeRole: 'SUPERADMIN',
-      roles: ['SUPERADMIN'],
       departmentId: null,
+      updatedAt: new Date(),
     },
   });
   console.log('Updated user: no department, SUPERADMIN role only');
