@@ -196,6 +196,23 @@ export async function POST(request: Request) {
             return new NextResponse('Unauthorized', { status: 403 });
         }
 
+        // Server-side time validation for expense requests (prevents client-side clock manipulation)
+        if (type === 'EXPENSE') {
+            const serverTime = new Date();
+            const hour = serverTime.getHours();
+            const day = serverTime.getDay();
+            const isSaturday = day === 6;
+            const maxHour = isSaturday ? 19 : 15;
+            
+            if (hour < 6 || hour >= maxHour) {
+                const timeRange = isSaturday ? '6:00 AM and 7:00 PM' : '6:00 AM and 3:00 PM';
+                return NextResponse.json(
+                    { error: `Expense requests can only be made between ${timeRange}. Actual time is ${serverTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}` },
+                    { status: 400 }
+                );
+            }
+        }
+
         // Validate base currency is set for oversight and below departments
         const department = await prisma.department.findUnique({
             where: { id: departmentId },
