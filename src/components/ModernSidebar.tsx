@@ -25,6 +25,7 @@ import ShowChartIcon from '@mui/icons-material/ShowChart';
 import MenuIcon from '@mui/icons-material/Menu';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import { signOut } from 'next-auth/react';
+import { getDisplayRole } from '@/lib/roleDisplay';
 
 const SidebarContainer = styled(Box, {
     shouldForwardProp: (prop) => prop !== 'collapsed',
@@ -242,7 +243,7 @@ export default function ModernSidebar({ userRole, userName, userImage, pendingCo
         if (item.superAdminOnly && !isSuperAdmin) return false;
         if (item.adminOnly && !isAdmin) return false;
         return true;
-    });
+    });;
 
     const filteredBottomItems = bottomMenuItems.filter(item => {
         if (item.superAdminOnly && !isSuperAdmin) return false;

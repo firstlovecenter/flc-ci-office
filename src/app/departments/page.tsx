@@ -176,10 +176,21 @@ function DepartmentsPageContent() {
             leaderName.toLowerCase().includes(query) ||
             adminName.toLowerCase().includes(query);
     }).sort((a: any, b: any) => {
-        // Sort by most active (transaction count) descending
-        const aTransactions = a._count?.transactions || 0;
-        const bTransactions = b._count?.transactions || 0;
-        return bTransactions - aTransactions;
+        // Sort by level hierarchy - lowest level (deepest/most specific) at top
+        // Order: COUNCIL > STREAM > CAMPUS > OVERSIGHT > DENOMINATION
+        const levelOrder: Record<string, number> = {
+            'COUNCIL': 5,
+            'STREAM': 4,
+            'CAMPUS': 3,
+            'OVERSIGHT': 2,
+            'DENOMINATION': 1,
+        };
+        
+        const levelDiff = (levelOrder[b.level] || 0) - (levelOrder[a.level] || 0);
+        if (levelDiff !== 0) return levelDiff;
+        
+        // If same level, sort by name alphabetically
+        return a.name.localeCompare(b.name);
     });
 
     // Get sub-department level name for display
