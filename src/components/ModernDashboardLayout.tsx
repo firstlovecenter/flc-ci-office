@@ -44,7 +44,10 @@ const ContentArea = styled(Box)(({ theme }) => ({
     [theme.breakpoints.down('md')]: {
         marginLeft: 0,
         padding: theme.spacing(2),
-        paddingTop: theme.spacing(10), // Add top padding to account for fixed TopBar
+        paddingTop: 'calc(80px + env(safe-area-inset-top))', // TopBar height + safe area inset
+        paddingLeft: 'max(16px, env(safe-area-inset-left))',
+        paddingRight: 'max(16px, env(safe-area-inset-right))',
+        paddingBottom: 'max(16px, env(safe-area-inset-bottom))',
     },
 }));
 
@@ -150,6 +153,9 @@ export default function ModernDashboardLayout({ children }: { children: React.Re
                         right: 0,
                         zIndex: theme.zIndex.appBar + 1,
                         padding: 2,
+                        paddingTop: 'max(16px, env(safe-area-inset-top))',
+                        paddingLeft: 'max(16px, env(safe-area-inset-left))',
+                        paddingRight: 'max(16px, env(safe-area-inset-right))',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'space-between',
@@ -327,6 +333,8 @@ export default function ModernDashboardLayout({ children }: { children: React.Re
                             width: 280,
                             display: 'flex',
                             flexDirection: 'column',
+                            paddingTop: 'env(safe-area-inset-top)',
+                            paddingBottom: 'env(safe-area-inset-bottom)',
                             // iOS 26 Liquid Glass effect
                             background: theme.palette.mode === 'dark'
                                 ? 'rgba(30, 41, 59, 0.95)'
