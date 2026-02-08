@@ -25,7 +25,6 @@ import {
     TableHead,
     TableRow,
 } from '@mui/material';
-import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import EditIcon from '@mui/icons-material/Edit';
 import HistoryIcon from '@mui/icons-material/History';
 import PersonIcon from '@mui/icons-material/Person';
@@ -150,13 +149,6 @@ export default function UserDetailPage() {
     if (error || !user) {
         return (
             <Box sx={{ py: 4 }}>
-                <Button
-                    startIcon={<ArrowBackIcon />}
-                    onClick={() => router.push('/users')}
-                    sx={{ mb: 3 }}
-                >
-                    Back to Users
-                </Button>
                 <Alert severity="error">{error || 'User not found'}</Alert>
             </Box>
         );
@@ -164,14 +156,7 @@ export default function UserDetailPage() {
 
     return (
         <Box sx={{ py: 2, maxWidth: 600, mx: 'auto' }}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                <Button
-                    size="small"
-                    startIcon={<ArrowBackIcon />}
-                    onClick={() => router.push('/users')}
-                >
-                    Back
-                </Button>
+            <Box sx={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', mb: 2 }}>
                 {!user.archived && (
                     <Button
                         variant="contained"

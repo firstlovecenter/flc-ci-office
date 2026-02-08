@@ -44,7 +44,7 @@ const ContentArea = styled(Box)(({ theme }) => ({
     [theme.breakpoints.down('md')]: {
         marginLeft: 0,
         padding: theme.spacing(2),
-        paddingTop: 'calc(60px + env(safe-area-inset-top))', // TopBar height + safe area inset
+        paddingTop: theme.spacing(12), // Increased to account for fixed TopBar + safe area
         paddingLeft: 'max(16px, env(safe-area-inset-left))',
         paddingRight: 'max(16px, env(safe-area-inset-right))',
         paddingBottom: 'max(16px, env(safe-area-inset-bottom))',

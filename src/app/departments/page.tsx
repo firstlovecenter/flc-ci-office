@@ -15,8 +15,6 @@ import {
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import SearchIcon from '@mui/icons-material/Search';
-import ArrowBackIcon from '@mui/icons-material/ArrowBack';
-import RefreshIcon from '@mui/icons-material/Refresh';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import EditDepartmentDialog from '@/components/EditDepartmentDialog';
@@ -226,38 +224,8 @@ function DepartmentsPageContent() {
     const isLeader = session?.user?.role?.includes('LEADER');
     const canCreateDepartment = !isLeader; // Only admins and superadmin can create
 
-    const handleRefresh = () => {
-        fetchDepartments(parentParam);
-        if (parentParam) fetchParentDepartment();
-        fetchAllDepartments();
-    };
-
     return (
         <Box>
-            {/* Back and Refresh Buttons - show when viewing sub-churches */}
-            {parentParam && (
-                <Box sx={{ display: 'flex', gap: 1, mb: 2 }}>
-                    <IconButton 
-                        onClick={() => router.back()}
-                        sx={{ 
-                            color: 'text.secondary',
-                            '&:hover': { color: 'text.primary' }
-                        }}
-                    >
-                        <ArrowBackIcon />
-                    </IconButton>
-                    <IconButton 
-                        onClick={handleRefresh}
-                        sx={{ 
-                            color: 'text.secondary',
-                            '&:hover': { color: 'text.primary' }
-                        }}
-                    >
-                        <RefreshIcon />
-                    </IconButton>
-                </Box>
-            )}
-
             {/* Header Section */}
             <Box sx={{ mb: 3 }}>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1 }}>

@@ -24,7 +24,7 @@ import {
     Skeleton,
     IconButton,
 } from '@mui/material';
-import { Download as DownloadIcon, Print as PrintIcon, ArrowBack as ArrowBackIcon, Refresh as RefreshIcon } from '@mui/icons-material';
+import { Download as DownloadIcon, Print as PrintIcon } from '@mui/icons-material';
 import { formatDepartmentLevel } from '@/lib/utils';
 import { formatCurrency } from '@/lib/utils';
 import { BarChart, Bar, XAxis, Tooltip, ResponsiveContainer, Cell, LabelList } from 'recharts';
@@ -478,28 +478,6 @@ function ReportsPageContent() {
     return (
         <Box>
             {/* Back and Refresh Buttons - show when viewing specific department */}
-            {fixedDepartment && (
-                <Box sx={{ display: 'flex', gap: 1, mb: 2, '@media print': { display: 'none' } }}>
-                    <IconButton 
-                        onClick={() => router.back()}
-                        sx={{ 
-                            color: 'text.secondary',
-                            '&:hover': { color: 'text.primary' }
-                        }}
-                    >
-                        <ArrowBackIcon />
-                    </IconButton>
-                    <IconButton 
-                        onClick={handleRefresh}
-                        sx={{ 
-                            color: 'text.secondary',
-                            '&:hover': { color: 'text.primary' }
-                        }}
-                    >
-                        <RefreshIcon />
-                    </IconButton>
-                </Box>
-            )}
 
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3, '@media print': { display: 'none' } }}>
                 <Box>

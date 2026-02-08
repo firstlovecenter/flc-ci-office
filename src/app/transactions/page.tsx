@@ -36,8 +36,6 @@ import AttachFileIcon from '@mui/icons-material/AttachFile';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import CancelIcon from '@mui/icons-material/Cancel';
 import EditNoteIcon from '@mui/icons-material/EditNote';
-import ArrowBackIcon from '@mui/icons-material/ArrowBack';
-import RefreshIcon from '@mui/icons-material/Refresh';
 import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
 import Link from 'next/link';
 import { formatCurrency, formatDepartmentLevel } from '@/lib/utils';
@@ -320,39 +318,8 @@ function TransactionsPageContent() {
         .filter((tx) => tx.type === 'EXPENSE' && tx.status === 'APPROVED')
         .reduce((sum, tx) => sum + Number(tx.amountInBase || tx.amount), 0);
 
-    const handleRefresh = () => {
-        fetchTransactions();
-        if (deptParam) fetchDepartment();
-    };
-
     return (
         <Box>
-            {/* Back and Refresh Buttons - show when viewing specific department */}
-            {deptParam && (
-                <Box sx={{ display: 'flex', gap: 1, mb: 2 }}>
-                    <IconButton 
-                        onClick={() => router.back()}
-                        sx={{ 
-                            color: 'text.secondary',
-                            '&:hover': { color: 'text.primary', bgcolor: 'action.hover' },
-                            transition: 'all 0.2s ease',
-                        }}
-                    >
-                        <ArrowBackIcon />
-                    </IconButton>
-                    <IconButton 
-                        onClick={handleRefresh}
-                        sx={{ 
-                            color: 'text.secondary',
-                            '&:hover': { color: 'text.primary', bgcolor: 'action.hover' },
-                            transition: 'all 0.2s ease',
-                        }}
-                    >
-                        <RefreshIcon />
-                    </IconButton>
-                </Box>
-            )}
-
             {/* Page Header */}
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 4 }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>

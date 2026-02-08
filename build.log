@@ -12,18 +12,93 @@
    Creating an optimized production build ...
 [baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
 [baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
- ✓ Compiled successfully in 13.5s
+ ✓ Compiled successfully in 49s
    Running TypeScript ...
-Failed to compile.
+   Collecting page data using 7 workers ...
+[baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
+[baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
+[baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
+[baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
+[baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
+[baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
+[baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
+   Generating static pages using 7 workers (0/48) ...
+[baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
+[baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
+   Generating static pages using 7 workers (12/48) 
+   Generating static pages using 7 workers (24/48) 
+   Generating static pages using 7 workers (36/48) 
+ ✓ Generating static pages using 7 workers (48/48) in 4.8s
+   Finalizing page optimization ...
 
-./scripts/fix-superadmin-roles.ts:46:7
-Type error: Object literal may only specify known properties, and 'roles' does not exist in type 'Without<UserUpdateInput, UserUncheckedUpdateInput> & UserUncheckedUpdateInput'.
+Route (app)
+┌ ○ /
+├ ○ /_not-found
+├ ○ /admin/base-currencies
+├ ○ /admin/sms
+├ ○ /analytics
+├ ƒ /api/admin/base-currencies
+├ ƒ /api/admin/sms-templates
+├ ƒ /api/admin/sms/send
+├ ƒ /api/audit
+├ ƒ /api/auth/[...nextauth]
+├ ƒ /api/auth/forgot-password
+├ ƒ /api/auth/reset-password
+├ ƒ /api/cron/lock-weeks
+├ ƒ /api/currencies
+├ ƒ /api/currencies/[id]
+├ ƒ /api/currencies/recalculate
+├ ƒ /api/dashboard/stats
+├ ƒ /api/debug/transactions
+├ ƒ /api/departments
+├ ƒ /api/departments/[id]
+├ ƒ /api/departments/[id]/close
+├ ƒ /api/departments/[id]/details
+├ ƒ /api/departments/[id]/stats
+├ ƒ /api/exchange-rates
+├ ƒ /api/exchange-rates/[id]
+├ ƒ /api/fix-user-roles
+├ ƒ /api/migrate/user-roles
+├ ƒ /api/notifications/send
+├ ƒ /api/notifications/subscribe
+├ ƒ /api/pending-counts
+├ ƒ /api/profile
+├ ƒ /api/profile/upload-image
+├ ƒ /api/reports/pdf
+├ ƒ /api/roles/availability
+├ ƒ /api/seed
+├ ƒ /api/seed/currencies
+├ ƒ /api/test-sms
+├ ƒ /api/transactions
+├ ƒ /api/transactions/[id]
+├ ƒ /api/transactions/[id]/correct
+├ ƒ /api/transactions/fix-conversions
+├ ƒ /api/upload
+├ ƒ /api/users
+├ ƒ /api/users/[id]
+├ ƒ /api/users/me
+├ ƒ /api/users/select-role
+├ ƒ /api/users/upload-image
+├ ○ /approvals
+├ ○ /audit
+├ ○ /auth/forgot-password
+├ ○ /auth/login
+├ ○ /auth/reset-password
+├ ○ /currencies
+├ ○ /dashboard
+├ ○ /departments
+├ ƒ /departments/[id]/dashboard
+├ ○ /departments/new
+├ ○ /offline
+├ ○ /profile
+├ ○ /reports
+├ ○ /select-role
+├ ○ /transactions
+├ ○ /transactions/new
+├ ○ /users
+└ ƒ /users/[id]
 
-[0m [90m 44 |[39m       activeUserRoleId[33m:[39m [36mnull[39m[33m,[39m
- [90m 45 |[39m       activeRole[33m:[39m [32m'SUPERADMIN'[39m[33m,[39m
-[31m[1m>[22m[39m[90m 46 |[39m       roles[33m:[39m [[32m'SUPERADMIN'[39m][33m,[39m
- [90m    |[39m       [31m[1m^[22m[39m
- [90m 47 |[39m       departmentId[33m:[39m [36mnull[39m[33m,[39m
- [90m 48 |[39m     }[33m,[39m
- [90m 49 |[39m   })[33m;[39m[0m
-Next.js build worker exited with code: 1 and signal: null
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+

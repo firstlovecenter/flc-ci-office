@@ -9,8 +9,6 @@ import ReceiptIcon from '@mui/icons-material/Receipt';
 import AssessmentIcon from '@mui/icons-material/Assessment';
 import PendingActionsIcon from '@mui/icons-material/PendingActions';
 import EditIcon from '@mui/icons-material/Edit';
-import ArrowBackIcon from '@mui/icons-material/ArrowBack';
-import RefreshIcon from '@mui/icons-material/Refresh';
 import { useParams, useRouter } from 'next/navigation';
 import EditDepartmentDialog from '@/components/EditDepartmentDialog';
 import { useSession } from 'next-auth/react';
@@ -153,28 +151,6 @@ export default function DepartmentDashboardPage() {
 
     return (
         <Box sx={{ px: { xs: 1.5, sm: 3, md: 6, lg: 8 }, py: { xs: 1.5, sm: 2, md: 1.5 }, maxWidth: '1600px', mx: 'auto' }}>
-            {/* Back and Refresh Buttons */}
-            <Box sx={{ display: 'flex', gap: 1, mb: 2 }}>
-                <IconButton 
-                    onClick={() => router.back()}
-                    sx={{ 
-                        color: 'text.secondary',
-                        '&:hover': { color: 'text.primary' }
-                    }}
-                >
-                    <ArrowBackIcon />
-                </IconButton>
-                <IconButton 
-                    onClick={handleRefresh}
-                    sx={{ 
-                        color: 'text.secondary',
-                        '&:hover': { color: 'text.primary' }
-                    }}
-                >
-                    <RefreshIcon />
-                </IconButton>
-            </Box>
-
             {/* Header */}
             <Box sx={{ mb: { xs: 2, md: 2 }, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                 <Box sx={{ flex: 1 }}>
