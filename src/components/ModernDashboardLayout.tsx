@@ -44,7 +44,7 @@ const ContentArea = styled(Box)(({ theme }) => ({
     [theme.breakpoints.down('md')]: {
         marginLeft: 0,
         padding: theme.spacing(2),
-        paddingTop: 'calc(80px + env(safe-area-inset-top))', // TopBar height + safe area inset
+        paddingTop: 'calc(60px + env(safe-area-inset-top))', // TopBar height + safe area inset
         paddingLeft: 'max(16px, env(safe-area-inset-left))',
         paddingRight: 'max(16px, env(safe-area-inset-right))',
         paddingBottom: 'max(16px, env(safe-area-inset-bottom))',
@@ -148,12 +148,11 @@ export default function ModernDashboardLayout({ children }: { children: React.Re
                 <TopBar
                     sx={{
                         position: 'fixed',
-                        top: 0,
+                        top: 'env(safe-area-inset-top)',
                         left: 0,
                         right: 0,
                         zIndex: theme.zIndex.appBar + 1,
                         padding: 2,
-                        paddingTop: 'max(16px, env(safe-area-inset-top))',
                         paddingLeft: 'max(16px, env(safe-area-inset-left))',
                         paddingRight: 'max(16px, env(safe-area-inset-right))',
                         display: 'flex',
