@@ -1,8 +1,8 @@
 :root {
-  --background: #1e293b;
-  --foreground: #f1f5f9;
-  --glass-bg: rgba(51, 65, 85, 0.6);
-  --glass-border: rgba(255, 255, 255, 0.12);
+  --background: #0f172a;
+  --foreground: #f8fafc;
+  --glass-bg: rgba(30, 41, 59, 0.7);
+  --glass-border: rgba(255, 255, 255, 0.08);
   --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
 }
 
@@ -11,8 +11,8 @@ body {
   max-width: 100vw;
   overflow-x: hidden;
   min-height: 100vh;
-  /* iOS 26 style gradient background */
-  background: linear-gradient(135deg, #1e293b 0%, #0f172a 50%, #1e293b 100%);
+  /* Modern Fintech Deep Gradient */
+  background: linear-gradient(135deg, #0F172A 0%, #020617 100%);
   background-attachment: fixed;
   /* Mobile optimizations */
   -webkit-tap-highlight-color: transparent;
@@ -21,13 +21,18 @@ body {
 
 body {
   color: var(--foreground);
-  background: linear-gradient(135deg, #1e293b 0%, #0f172a 50%, #1e293b 100%);
+  background: linear-gradient(135deg, #0F172A 0%, #020617 100%);
   background-attachment: fixed;
-  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Segoe UI', Roboto, Arial, sans-serif;
+  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   /* Fix for iOS Safari bottom bar */
   min-height: -webkit-fill-available;
+}
+
+::selection {
+  background: rgba(37, 99, 235, 0.3); /* Blue selection */
+  color: #fff;
 }
 
 /* iOS 26 Liquid Glass utility classes */

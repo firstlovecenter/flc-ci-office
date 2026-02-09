@@ -14,6 +14,7 @@ import {
   IconButton,
   Link as MuiLink,
 } from '@mui/material';
+import { GlassCard } from '@/components/ui';
 import Link from 'next/link';
 import { LockReset, Visibility, VisibilityOff, CheckCircle } from '@mui/icons-material';
 
@@ -97,11 +98,9 @@ function ResetPasswordForm() {
             alignItems: 'center',
           }}
         >
-          <Paper
-            elevation={3}
+          <GlassCard
             sx={{
-              padding: 4,
-              display: 'flex',
+              p: 'flex',
               flexDirection: 'column',
               alignItems: 'center',
               width: '100%',
@@ -143,7 +142,7 @@ function ResetPasswordForm() {
             >
               Go to Login
             </Button>
-          </Paper>
+          </GlassCard>
         </Box>
       </Container>
     );
@@ -159,10 +158,9 @@ function ResetPasswordForm() {
           alignItems: 'center',
         }}
       >
-        <Paper
-          elevation={3}
+        <GlassCard
           sx={{
-            padding: 4,
+            p: 4,
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
@@ -307,7 +305,7 @@ function ResetPasswordForm() {
               </MuiLink>
             </Box>
           </Box>
-        </Paper>
+        </GlassCard>
       </Box>
     </Container>
   );

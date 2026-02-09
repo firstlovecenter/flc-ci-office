@@ -277,67 +277,77 @@ export default function ApprovalsPage() {
             {/* Summary Cards */}
             <Grid container spacing={3} sx={{ mb: 4 }}>
                 <Grid size={{ xs: 12, sm: 6 }}>
-                    <Box
+                    <GlassCard 
+                        variant="highlight"
                         sx={{
+                            background: 'linear-gradient(135deg, rgba(255, 152, 0, 0.1) 0%, rgba(245, 124, 0, 0.2) 100%)',
                             position: 'relative',
-                            p: 2.5,
-                            borderRadius: 3,
-                            background: 'linear-gradient(135deg, #ff9800 0%, #f57c00 100%)',
                             overflow: 'hidden',
-                            boxShadow: '0 8px 32px rgba(255, 152, 0, 0.25)',
-                            '&::before': {
-                                content: '""',
-                                position: 'absolute',
-                                top: -20,
-                                right: -20,
-                                width: 100,
-                                height: 100,
-                                borderRadius: '50%',
-                                background: 'rgba(255, 255, 255, 0.1)',
-                            },
                         }}
                     >
-                        <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.9)', mb: 1 }}>
-                            Pending Approvals
-                        </Typography>
-                        <AnimatedCounter
-                            value={transactions.length}
-                            duration={800}
-                            sx={{ color: 'white', fontSize: '2rem', fontWeight: 700 }}
-                        />
-                    </Box>
+                        <Box sx={{ position: 'relative', zIndex: 1 }}>
+                            <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                                Pending Approvals
+                            </Typography>
+                            <AnimatedCounter
+                                value={transactions.length}
+                                duration={800}
+                                sx={{ 
+                                    fontSize: '2rem', 
+                                    fontWeight: 700,
+                                    color: 'warning.main'
+                                }}
+                            />
+                        </Box>
+                        <Box
+                            sx={{
+                                position: 'absolute',
+                                right: -20,
+                                top: -20,
+                                opacity: 0.1,
+                                transform: 'rotate(-15deg)',
+                            }}
+                        >
+                            <PendingActionsIcon sx={{ fontSize: 100, color: 'warning.main' }} />
+                        </Box>
+                    </GlassCard>
                 </Grid>
                 <Grid size={{ xs: 12, sm: 6 }}>
-                    <Box
+                    <GlassCard 
+                        variant="highlight"
                         sx={{
+                            background: 'linear-gradient(135deg, rgba(239, 83, 80, 0.1) 0%, rgba(198, 40, 40, 0.2) 100%)',
                             position: 'relative',
-                            p: 2.5,
-                            borderRadius: 3,
-                            background: 'linear-gradient(135deg, #ef5350 0%, #c62828 100%)',
                             overflow: 'hidden',
-                            boxShadow: '0 8px 32px rgba(239, 83, 80, 0.25)',
-                            '&::before': {
-                                content: '""',
-                                position: 'absolute',
-                                top: -20,
-                                right: -20,
-                                width: 100,
-                                height: 100,
-                                borderRadius: '50%',
-                                background: 'rgba(255, 255, 255, 0.1)',
-                            },
                         }}
                     >
-                        <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.9)', mb: 1 }}>
-                            Total Amount
-                        </Typography>
-                        <AnimatedCounter
-                            value={transactions.reduce((sum, t) => sum + parseFloat(t.amount), 0)}
-                            duration={1000}
-                            formatter={(val) => val.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                            sx={{ color: 'white', fontSize: '2rem', fontWeight: 700 }}
-                        />
-                    </Box>
+                        <Box sx={{ position: 'relative', zIndex: 1 }}>
+                            <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                                Total Amount
+                            </Typography>
+                            <AnimatedCounter
+                                value={transactions.reduce((sum, t) => sum + parseFloat(t.amount), 0)}
+                                duration={1000}
+                                formatter={(val) => val.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                sx={{ 
+                                    fontSize: '2rem', 
+                                    fontWeight: 700,
+                                    color: 'error.main'
+                                }}
+                            />
+                        </Box>
+                        <Box
+                            sx={{
+                                position: 'absolute',
+                                right: -20,
+                                top: -20,
+                                opacity: 0.1,
+                                transform: 'rotate(-15deg)',
+                            }}
+                        >
+                            <CancelIcon sx={{ fontSize: 100, color: 'error.main' }} />
+                        </Box>
+                    </GlassCard>
                 </Grid>
             </Grid>
 

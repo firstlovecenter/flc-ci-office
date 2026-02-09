@@ -359,10 +359,11 @@ function TransactionsPageContent() {
                         </Typography>
                     </Box>
                 </Box>
-                <Link href={deptParam ? `/transactions/new?dept=${deptParam}` : '/transactions/new'} style={{ textDecoration: 'none' }}>
-                    <Button 
-                        variant="contained" 
-                        startIcon={<AddIcon />}
+                <Button 
+                    component={Link}
+                    href={deptParam ? `/transactions/new?dept=${deptParam}` : '/transactions/new'}
+                    variant="contained" 
+                    startIcon={<AddIcon />}
                         sx={{ 
                             borderRadius: 2,
                             px: 3,
@@ -380,138 +381,144 @@ function TransactionsPageContent() {
                     >
                         {isLeader ? 'Request Expense' : 'New Transaction'}
                     </Button>
-                </Link>
             </Box>
 
             {/* Summary Cards */}
             <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr 1fr' }, gap: 2, mb: 4 }}>
                 {/* Balance Card */}
-                <Box
+                <GlassCard
+                    variant="highlight"
                     sx={{
                         position: 'relative',
-                        p: 2.5,
-                        borderRadius: 3,
                         background: (() => {
                             const balance = totalIncome - totalExpense;
-                            if (balance < 0) return 'linear-gradient(135deg, #ef5350 0%, #c62828 100%)';
-                            if (balance === 0) return 'linear-gradient(135deg, #ff9800 0%, #f57c00 100%)';
-                            if (balance < 5000) return 'linear-gradient(135deg, #ffc107 0%, #ff9800 100%)';
-                            return 'linear-gradient(135deg, #66bb6a 0%, #43a047 100%)';
+                            if (balance < 0) return 'linear-gradient(135deg, rgba(239, 83, 80, 0.1) 0%, rgba(198, 40, 40, 0.2) 100%)';
+                            if (balance === 0) return 'linear-gradient(135deg, rgba(255, 152, 0, 0.1) 0%, rgba(245, 124, 0, 0.2) 100%)';
+                            if (balance < 5000) return 'linear-gradient(135deg, rgba(255, 193, 7, 0.1) 0%, rgba(255, 152, 0, 0.2) 100%)';
+                            return 'linear-gradient(135deg, rgba(102, 187, 106, 0.1) 0%, rgba(67, 160, 71, 0.2) 100%)';
                         })(),
                         overflow: 'hidden',
-                        boxShadow: '0 8px 32px rgba(0, 0, 0, 0.12)',
                         '@keyframes blink': {
                             '0%, 100%': { opacity: 1 },
                             '50%': { opacity: 0.6 }
                         },
-                        animation: totalIncome - totalExpense < 5000 ? 'blink 1.5s ease-in-out infinite' : 'none',
-                        '&::before': {
-                            content: '""',
-                            position: 'absolute',
-                            top: -20,
-                            right: -20,
-                            width: 100,
-                            height: 100,
-                            borderRadius: '50%',
-                            background: 'rgba(255, 255, 255, 0.1)',
-                        },
+                        animation: totalIncome - totalExpense > 0 && totalIncome - totalExpense < 5000 ? 'blink 1.5s ease-in-out infinite' : 'none',
                     }}
                 >
-                    <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.9)', mb: 1 }}>
-                        Account Balance
-                    </Typography>
-                    <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.5 }}>
-                        {baseCurrency && (
-                            <Typography component="span" sx={{ color: 'white', fontSize: '1.1rem', fontWeight: 600 }}>
-                                {baseCurrency.symbol}
-                            </Typography>
-                        )}
-                        <AnimatedCounter
-                            value={totalIncome - totalExpense}
-                            duration={1000}
-                            formatter={(val) => val.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                            sx={{ color: 'white', fontSize: '1.75rem', fontWeight: 700 }}
-                        />
+                    <Box sx={{ position: 'relative', zIndex: 1 }}>
+                        <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                            Account Balance
+                        </Typography>
+                        <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.5 }}>
+                            {baseCurrency && (
+                                <Typography component="span" sx={{ fontSize: '1.1rem', fontWeight: 600, color: 'text.primary' }}>
+                                    {baseCurrency.symbol}
+                                </Typography>
+                            )}
+                            <AnimatedCounter
+                                value={totalIncome - totalExpense}
+                                duration={1000}
+                                formatter={(val) => val.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                sx={{ 
+                                    fontSize: '1.75rem', 
+                                    fontWeight: 700,
+                                    color: (totalIncome - totalExpense) < 0 ? 'error.main' : 'text.primary' 
+                                }}
+                            />
+                        </Box>
                     </Box>
-                </Box>
+                    <Box
+                        sx={{
+                            position: 'absolute',
+                            right: -20,
+                            top: -20,
+                            opacity: 0.05,
+                            transform: 'rotate(-15deg)',
+                        }}
+                    >
+                        <ReceiptLongIcon sx={{ fontSize: 100, color: 'text.primary' }} />
+                    </Box>
+                </GlassCard>
 
                 {/* Income Card */}
-                <Box
+                <GlassCard
+                    variant="highlight"
                     sx={{
                         position: 'relative',
-                        p: 2.5,
-                        borderRadius: 3,
-                        background: 'linear-gradient(135deg, #4caf50 0%, #2e7d32 100%)',
+                        background: 'linear-gradient(135deg, rgba(76, 175, 80, 0.1) 0%, rgba(46, 125, 50, 0.2) 100%)',
                         overflow: 'hidden',
-                        boxShadow: '0 8px 32px rgba(0, 0, 0, 0.12)',
-                        '&::before': {
-                            content: '""',
-                            position: 'absolute',
-                            top: -20,
-                            right: -20,
-                            width: 100,
-                            height: 100,
-                            borderRadius: '50%',
-                            background: 'rgba(255, 255, 255, 0.1)',
-                        },
                     }}
                 >
-                    <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.9)', mb: 1 }}>
-                        Total Inflows
-                    </Typography>
-                    <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.5 }}>
-                        {baseCurrency && (
-                            <Typography component="span" sx={{ color: 'white', fontSize: '1.1rem', fontWeight: 600 }}>
-                                {baseCurrency.symbol}
-                            </Typography>
-                        )}
-                        <AnimatedCounter
-                            value={totalIncome}
-                            duration={1000}
-                            formatter={(val) => val.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                            sx={{ color: 'white', fontSize: '1.75rem', fontWeight: 700 }}
-                        />
+                    <Box sx={{ position: 'relative', zIndex: 1 }}>
+                        <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                            Total Inflows
+                        </Typography>
+                        <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.5 }}>
+                            {baseCurrency && (
+                                <Typography component="span" sx={{ fontSize: '1.1rem', fontWeight: 600, color: 'success.main' }}>
+                                    {baseCurrency.symbol}
+                                </Typography>
+                            )}
+                            <AnimatedCounter
+                                value={totalIncome}
+                                duration={1000}
+                                formatter={(val) => val.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                sx={{ fontSize: '1.75rem', fontWeight: 700, color: 'success.main' }}
+                            />
+                        </Box>
                     </Box>
-                </Box>
+                    <Box
+                        sx={{
+                            position: 'absolute',
+                            right: -20,
+                            top: -20,
+                            opacity: 0.1,
+                            transform: 'rotate(-15deg)',
+                        }}
+                    >
+                        <CheckCircleIcon sx={{ fontSize: 100, color: 'success.main' }} />
+                    </Box>
+                </GlassCard>
 
                 {/* Expense Card */}
-                <Box
+                <GlassCard
+                    variant="highlight"
                     sx={{
                         position: 'relative',
-                        p: 2.5,
-                        borderRadius: 3,
-                        background: 'linear-gradient(135deg, #ef5350 0%, #c62828 100%)',
+                        background: 'linear-gradient(135deg, rgba(239, 83, 80, 0.1) 0%, rgba(198, 40, 40, 0.2) 100%)',
                         overflow: 'hidden',
-                        boxShadow: '0 8px 32px rgba(0, 0, 0, 0.12)',
-                        '&::before': {
-                            content: '""',
-                            position: 'absolute',
-                            top: -20,
-                            right: -20,
-                            width: 100,
-                            height: 100,
-                            borderRadius: '50%',
-                            background: 'rgba(255, 255, 255, 0.1)',
-                        },
                     }}
                 >
-                    <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.9)', mb: 1 }}>
-                        Total Expense
-                    </Typography>
-                    <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.5 }}>
-                        {baseCurrency && (
-                            <Typography component="span" sx={{ color: 'white', fontSize: '1.1rem', fontWeight: 600 }}>
-                                {baseCurrency.symbol}
-                            </Typography>
-                        )}
-                        <AnimatedCounter
-                            value={totalExpense}
-                            duration={1000}
-                            formatter={(val) => val.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                            sx={{ color: 'white', fontSize: '1.75rem', fontWeight: 700 }}
-                        />
+                    <Box sx={{ position: 'relative', zIndex: 1 }}>
+                        <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                            Total Expense
+                        </Typography>
+                        <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.5 }}>
+                            {baseCurrency && (
+                                <Typography component="span" sx={{ fontSize: '1.1rem', fontWeight: 600, color: 'error.main' }}>
+                                    {baseCurrency.symbol}
+                                </Typography>
+                            )}
+                            <AnimatedCounter
+                                value={totalExpense}
+                                duration={1000}
+                                formatter={(val) => val.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                sx={{ fontSize: '1.75rem', fontWeight: 700, color: 'error.main' }}
+                            />
+                        </Box>
                     </Box>
-                </Box>
+                    <Box
+                        sx={{
+                            position: 'absolute',
+                            right: -20,
+                            top: -20,
+                            opacity: 0.1,
+                            transform: 'rotate(-15deg)',
+                        }}
+                    >
+                        <CancelIcon sx={{ fontSize: 100, color: 'error.main' }} />
+                    </Box>
+                </GlassCard>
             </Box>
 
             {/* Filters */}
@@ -587,9 +594,9 @@ function TransactionsPageContent() {
             </GlassCard>
 
             <GlassCard sx={{ overflow: 'hidden' }}>
-                <TableContainer>
+                <TableContainer sx={{ background: 'transparent' }}>
                 <Table size="small">
-                    <TableHead sx={{ bgcolor: 'action.hover' }}>
+                    <TableHead>
                         <TableRow>
                             <TableCell sx={{ fontWeight: 700, py: 1 }}>Date</TableCell>
                             <TableCell sx={{ fontWeight: 700, py: 1 }}>Description</TableCell>

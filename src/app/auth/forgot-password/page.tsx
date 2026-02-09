@@ -12,6 +12,7 @@ import {
   Alert,
   Link as MuiLink,
 } from '@mui/material';
+import { GlassCard } from '@/components/ui';
 import Link from 'next/link';
 import { Sms, ArrowBack } from '@mui/icons-material';
 
@@ -65,10 +66,9 @@ export default function ForgotPasswordPage() {
           alignItems: 'center',
         }}
       >
-        <Paper
-          elevation={3}
+        <GlassCard
           sx={{
-            padding: 4,
+            p: 4,
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
@@ -158,7 +158,7 @@ export default function ForgotPasswordPage() {
               </MuiLink>
             </Box>
           </Box>
-        </Paper>
+        </GlassCard>
       </Box>
     </Container>
   );

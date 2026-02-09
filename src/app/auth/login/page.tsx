@@ -20,6 +20,7 @@ import {
     alpha,
     Link as MuiLink
 } from '@mui/material';
+import { GlassCard } from '@/components/ui';
 import Link from 'next/link';
 import EmailIcon from '@mui/icons-material/Email';
 import LockIcon from '@mui/icons-material/Lock';
@@ -128,9 +129,21 @@ function LoginForm() {
                 >
                     <Box sx={{ display: 'flex', gap: 4, width: '100%', flexDirection: { xs: 'column', md: 'row' } }}>
                         {/* Left side - Branding and Features */}
-                        <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-                            <Box sx={{ mb: 4 }}>
-                                <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                        <Box sx={{ 
+                            flex: 1, 
+                            display: 'flex', 
+                            flexDirection: 'column', 
+                            justifyContent: 'center',
+                            alignItems: { xs: 'center', md: 'flex-start' },
+                            textAlign: { xs: 'center', md: 'left' } 
+                        }}>
+                            <Box sx={{ mb: 4, width: '100%' }}>
+                                <Box sx={{ 
+                                    display: 'flex', 
+                                    alignItems: 'center', 
+                                    justifyContent: { xs: 'center', md: 'flex-start' },
+                                    mb: 2 
+                                }}>
                                     <ChurchIcon sx={{ fontSize: 48, color: 'primary.main', mr: 2 }} />
                                     <Typography variant="h3" component="h1" fontWeight={700} color="text.primary">
                                         FLC CI Office
@@ -146,15 +159,9 @@ function LoginForm() {
 
                             <Stack spacing={2}>
                                 {features.map((feature, index) => (
-                                    <Card 
+                                    <GlassCard 
                                         key={index}
-                                        elevation={0}
-                                        sx={{ 
-                                            bgcolor: (theme) => alpha(theme.palette.background.paper, 0.7),
-                                            backdropFilter: 'blur(10px)',
-                                            border: '1px solid',
-                                            borderColor: 'divider',
-                                        }}
+                                        variant="standard"
                                     >
                                         <CardContent sx={{ display: 'flex', alignItems: 'center', py: 2 }}>
                                             <Box sx={{ 
@@ -174,29 +181,41 @@ function LoginForm() {
                                                 {feature.text}
                                             </Typography>
                                         </CardContent>
-                                    </Card>
+                                    </GlassCard>
                                 ))}
                             </Stack>
                         </Box>
 
                         {/* Right side - Login Form */}
                         <Box sx={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                            <Paper 
-                                elevation={8}
+                            <GlassCard 
                                 sx={{ 
                                     p: { xs: 3, sm: 5 },
                                     width: '100%',
                                     maxWidth: 480,
-                                    borderRadius: 3,
-                                    bgcolor: (theme) => alpha(theme.palette.background.paper, 0.9),
-                                    backdropFilter: 'blur(20px)',
                                 }}
                             >
                                 <Box sx={{ textAlign: 'center', mb: 4 }}>
-                                    <Typography component="h2" variant="h4" fontWeight={700} gutterBottom>
+                                    <Box
+                                        sx={{
+                                            width: 60,
+                                            height: 60,
+                                            borderRadius: 2,
+                                            bgcolor: 'primary.main',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            mx: 'auto',
+                                            mb: 2,
+                                            boxShadow: '0 8px 16px rgba(37, 99, 235, 0.24)',
+                                        }}
+                                    >
+                                        <SecurityIcon sx={{ color: 'white', fontSize: 32 }} />
+                                    </Box>
+                                    <Typography component="h1" variant="h4" fontWeight={800} gutterBottom sx={{ letterSpacing: '-0.02em' }}>
                                         Welcome Back
                                     </Typography>
-                                    <Typography variant="body2" color="text.secondary">
+                                    <Typography variant="body1" color="text.secondary">
                                         Sign in to access your account
                                     </Typography>
                                 </Box>
@@ -245,9 +264,10 @@ function LoginForm() {
                                                 </InputAdornment>
                                             ),
                                         }}
-                                        sx={{
+                                        sx={{ 
+                                            mb: 1.5,
                                             '& .MuiOutlinedInput-root': {
-                                                borderRadius: 2,
+                                                bgcolor: (theme) => alpha(theme.palette.background.default, 0.4),
                                             }
                                         }}
                                     />
@@ -280,30 +300,41 @@ function LoginForm() {
                                                 </InputAdornment>
                                             ),
                                         }}
-                                        sx={{
+                                        sx={{ 
+                                            mb: 1,
                                             '& .MuiOutlinedInput-root': {
-                                                borderRadius: 2,
+                                                bgcolor: (theme) => alpha(theme.palette.background.default, 0.4),
                                             }
                                         }}
                                     />
-                                    
+                                    <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 3 }}>
+                                        <MuiLink
+                                            component={Link}
+                                            href="/auth/forgot-password"
+                                            variant="body2"
+                                            underline="hover"
+                                            sx={{ color: 'primary.main', fontWeight: 600 }}
+                                        >
+                                            Forgot password?
+                                        </MuiLink>
+                                    </Box>
+
                                     <Button
                                         type="submit"
                                         fullWidth
                                         variant="contained"
                                         size="large"
                                         disabled={loading}
-                                        sx={{ 
-                                            mt: 4, 
-                                            mb: 2, 
+                                        sx={{
                                             py: 1.5,
-                                            borderRadius: 2,
-                                            textTransform: 'none',
-                                            fontSize: '1.1rem',
-                                            fontWeight: 600,
-                                            boxShadow: (theme) => `0 4px 14px 0 ${alpha(theme.palette.primary.main, 0.4)}`,
+                                            fontSize: '1rem',
+                                            fontWeight: 700,
+                                            mb: 3,
+                                            background: 'linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%)',
+                                            boxShadow: '0 4px 12px rgba(37, 99, 235, 0.3)',
                                             '&:hover': {
-                                                boxShadow: (theme) => `0 6px 20px 0 ${alpha(theme.palette.primary.main, 0.5)}`,
+                                                boxShadow: '0 8px 24px rgba(37, 99, 235, 0.4)',
+                                                transform: 'translateY(-1px)',
                                             }
                                         }}
                                     >
@@ -334,7 +365,7 @@ function LoginForm() {
                                         Protected by NextAuth • Your data is encrypted and secure
                                     </Typography>
                                 </Box>
-                            </Paper>
+                            </GlassCard>
                         </Box>
                     </Box>
                 </Box>

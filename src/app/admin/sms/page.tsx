@@ -27,6 +27,7 @@ import SearchIcon from '@mui/icons-material/Search';
 import EditIcon from '@mui/icons-material/Edit';
 import SaveIcon from '@mui/icons-material/Save';
 import CancelIcon from '@mui/icons-material/Cancel';
+import { GlassCard } from '@/components/ui';
 
 type SMSTemplate = 
     | 'password_reset'
@@ -437,7 +438,7 @@ export default function SMSManagementPage() {
             </Box>
 
             {/* Main Form */}
-            <Paper sx={{ p: 3 }}>
+            <GlassCard sx={{ p: 3 }}>
                 <Stack spacing={3}>
                     {error && <Alert severity="error" onClose={() => setError('')}>{error}</Alert>}
                     {success && <Alert severity="success" onClose={() => setSuccess('')}>{success}</Alert>}
@@ -464,12 +465,12 @@ export default function SMSManagementPage() {
                         />
                         
                         {searchTerm && !selectedUser && (
-                            <Paper 
-                                elevation={3}
+                            <GlassCard 
                                 sx={{ 
                                     maxHeight: 300, 
                                     overflow: 'auto',
-                                    mb: 2
+                                    mb: 2,
+                                    p: 0,
                                 }}
                             >
                                 {filteredUsers.length > 0 ? (
@@ -487,6 +488,7 @@ export default function SMSManagementPage() {
                                                     cursor: 'pointer',
                                                     borderBottom: '1px solid',
                                                     borderColor: 'divider',
+                                                    transition: 'all 0.2s',
                                                     '&:hover': {
                                                         bgcolor: 'action.hover',
                                                     },
@@ -511,7 +513,7 @@ export default function SMSManagementPage() {
                                         </Typography>
                                     </Box>
                                 )}
-                            </Paper>
+                            </GlassCard>
                         )}
 
                         {selectedUser && (
@@ -566,12 +568,12 @@ export default function SMSManagementPage() {
                                 <Typography variant="subtitle2" color="text.secondary" gutterBottom fontWeight="600">
                                     Message Preview
                                 </Typography>
-                                <Paper
+                                <GlassCard
                                     sx={{
                                         p: 2,
-                                        bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.05)' : 'grey.100',
+                                        bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.02)',
                                         border: '1px dashed',
-                                        borderColor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.2)' : 'grey.400',
+                                        borderColor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.2)' : 'divider',
                                     }}
                                 >
                                     <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
@@ -599,7 +601,7 @@ export default function SMSManagementPage() {
                                             </>
                                         )}
                                     </Stack>
-                                </Paper>
+                                </GlassCard>
                             </Box>
                         </>
                     )}
@@ -619,10 +621,10 @@ export default function SMSManagementPage() {
                         {loading ? 'Sending SMS...' : 'Send SMS to ' + (selectedUser?.name || 'User')}
                     </Button>
                 </Stack>
-            </Paper>
+            </GlassCard>
 
             {/* Template Management Section */}
-            <Paper elevation={2} sx={{ p: 4, mt: 4 }}>
+            <GlassCard sx={{ p: 4, mt: 4 }}>
                 <Stack spacing={3}>
                     <Box>
                         <Typography variant="h5" fontWeight="700" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -637,7 +639,7 @@ export default function SMSManagementPage() {
                     <Divider />
 
                     {dbTemplates.map((template) => (
-                        <Paper key={template.id} variant="outlined" sx={{ p: 3 }}>
+                        <GlassCard key={template.id} variant="highlight" sx={{ p: 3, border: '1px solid', borderColor: 'divider' }}>
                             <Stack spacing={2}>
                                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
                                     <Box>
@@ -703,11 +705,12 @@ export default function SMSManagementPage() {
                                         </Box>
                                     </>
                                 ) : (
-                                    <Paper sx={{ 
+                                    <GlassCard sx={{ 
                                         p: 2, 
-                                        bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.05)' : 'grey.50',
+                                        bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.02)',
                                         border: '1px solid',
-                                        borderColor: 'divider'
+                                        borderColor: 'divider',
+                                        boxShadow: 'none',
                                     }}>
                                         <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', fontFamily: 'monospace' }}>
                                             {template.template}
@@ -716,13 +719,13 @@ export default function SMSManagementPage() {
                                         <Typography variant="caption" color="text.secondary">
                                             {template.template.length} characters • {Math.ceil(template.template.length / 160)} SMS segment(s)
                                         </Typography>
-                                    </Paper>
+                                    </GlassCard>
                                 )}
                             </Stack>
-                        </Paper>
+                        </GlassCard>
                     ))}
                 </Stack>
-            </Paper>
+            </GlassCard>
         </Box>
     );
 }

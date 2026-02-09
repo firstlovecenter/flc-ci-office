@@ -15,10 +15,12 @@ import {
     Alert,
     InputAdornment,
     CircularProgress,
+    alpha,
 } from '@mui/material';
 import { useSession } from 'next-auth/react';
 import { formatNumber, formatDepartmentLevel } from '@/lib/utils';
 import { useToast } from '@/components/ToastProvider';
+import { GlassCard } from '@/components/ui';
 
 type TransactionType = 'INCOME' | 'EXPENSE';
 
@@ -357,7 +359,7 @@ function NewTransactionForm() {
             const timeRange = isSaturday ? '6:00 AM and 7:00 PM' : '6:00 AM and 3:00 PM';
             return (
                 <Box maxWidth="sm" sx={{ mx: 'auto', mt: 8 }}>
-                    <Paper sx={{ p: 4 }}>
+                    <GlassCard sx={{ p: 4, borderRadius: 3 }}>
                         <Alert severity="warning" sx={{ mb: 3 }}>
                             <Typography variant="h6" gutterBottom>
                                 Outside Operating Hours
@@ -379,7 +381,7 @@ function NewTransactionForm() {
                         >
                             Back to Transactions
                         </Button>
-                    </Paper>
+                    </GlassCard>
                 </Box>
             );
         }
@@ -402,14 +404,16 @@ function NewTransactionForm() {
 
             {/* Show account balance for leaders */}
             {isLeader && (
-                <Paper 
+                <GlassCard 
+                    variant="highlight"
                     sx={{ 
                         p: 3, 
                         mb: 3, 
                         background: (theme) => theme.palette.mode === 'dark' 
                             ? 'linear-gradient(135deg, #1a472a 0%, #2d5a3d 100%)' 
                             : 'linear-gradient(135deg, #2e7d32 0%, #4caf50 100%)',
-                        color: 'white'
+                        color: 'white',
+                        border: 'none'
                     }}
                 >
                     <Typography variant="subtitle2" sx={{ opacity: 0.9, mb: 0.5 }}>
@@ -431,10 +435,10 @@ function NewTransactionForm() {
                             Unable to load balance
                         </Typography>
                     )}
-                </Paper>
+                </GlassCard>
             )}
 
-            <Paper sx={{ p: 4 }}>
+            <GlassCard sx={{ p: 4, borderRadius: 3 }}>
                 <form onSubmit={handleSubmit}>
                     {error && (
                         <Alert severity="error" sx={{ mb: 3 }}>
@@ -601,7 +605,7 @@ function NewTransactionForm() {
                         </Button>
                     </Box>
                 </form>
-            </Paper>
+            </GlassCard>
         </Box>
     );
 }

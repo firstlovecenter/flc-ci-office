@@ -21,6 +21,7 @@ import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import InfoIcon from '@mui/icons-material/Info';
 import DeleteIcon from '@mui/icons-material/Delete';
 import { useSession } from 'next-auth/react';
+import { GlassCard } from '@/components/ui';
 
 interface Currency {
   id: string;
@@ -126,50 +127,50 @@ export default function BaseCurrenciesAdminPage() {
 
       {/* Summary Cards */}
       <Box sx={{ display: 'flex', gap: 2, mb: 3 }}>
-        <Paper sx={{ p: 2, flex: 1 }}>
+        <GlassCard sx={{ p: 2, flex: 1 }}>
           <Typography variant="body2" color="text.secondary">
             Total Oversight Departments
           </Typography>
           <Typography variant="h4">{departments.length}</Typography>
-        </Paper>
-        <Paper sx={{ p: 2, flex: 1 }}>
+        </GlassCard>
+        <GlassCard sx={{ p: 2, flex: 1 }}>
           <Typography variant="body2" color="text.secondary">
             Custom Base Currency
           </Typography>
-          <Typography variant="h4">{customizedCount}</Typography>
-        </Paper>
-        <Paper sx={{ p: 2, flex: 1 }}>
+          <Typography variant="h4" color="primary.main">{customizedCount}</Typography>
+        </GlassCard>
+        <GlassCard sx={{ p: 2, flex: 1 }}>
           <Typography variant="body2" color="text.secondary">
             Using System Default
           </Typography>
           <Typography variant="h4">{usingSystemCount}</Typography>
-        </Paper>
-        <Paper sx={{ p: 2, flex: 1 }}>
+        </GlassCard>
+        <GlassCard sx={{ p: 2, flex: 1 }} variant="highlight">
           <Typography variant="body2" color="text.secondary">
             System Base Currency
           </Typography>
-          <Typography variant="h4">
+          <Typography variant="h4" color="primary.main">
             {systemBase?.code || 'N/A'} ({systemBase?.symbol || ''})
           </Typography>
-        </Paper>
+        </GlassCard>
       </Box>
 
       {/* Departments Table */}
-      <TableContainer component={Paper}>
+      <TableContainer component={GlassCard}>
         <Table>
           <TableHead>
-            <TableRow>
-              <TableCell>Department</TableCell>
-              <TableCell>Base Currency</TableCell>
-              <TableCell>Status</TableCell>
-              <TableCell>Set By</TableCell>
-              <TableCell>Last Updated</TableCell>
-              <TableCell align="center">Actions</TableCell>
+            <TableRow sx={{ bgcolor: 'action.hover' }}>
+              <TableCell sx={{ fontWeight: 700 }}>Department</TableCell>
+              <TableCell sx={{ fontWeight: 700 }}>Base Currency</TableCell>
+              <TableCell sx={{ fontWeight: 700 }}>Status</TableCell>
+              <TableCell sx={{ fontWeight: 700 }}>Set By</TableCell>
+              <TableCell sx={{ fontWeight: 700 }}>Last Updated</TableCell>
+              <TableCell align="center" sx={{ fontWeight: 700 }}>Actions</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
             {departments.map((dept) => (
-              <TableRow key={dept.departmentId}>
+              <TableRow key={dept.departmentId} sx={{ '&:hover': { bgcolor: 'action.hover' } }}>
                 <TableCell>
                   <Typography variant="body1" fontWeight="medium">
                     {dept.departmentName}

@@ -131,8 +131,10 @@ const DashboardStatCard = ({
                             component="span" 
                             sx={{ 
                                 color: 'white', 
-                                fontSize: { xs: '1rem', sm: '1.25rem' },
+                                fontSize: { xs: '0.85rem', sm: '1rem' },
                                 fontWeight: 600,
+                                opacity: 0.9,
+                                mr: 0.25
                             }}
                         >
                             {currencySymbol}
@@ -144,9 +146,10 @@ const DashboardStatCard = ({
                         formatter={(val) => val.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         sx={{
                             color: 'white',
-                            fontSize: { xs: '1.5rem', sm: '1.75rem', md: '2rem' },
+                            fontSize: { xs: '1.25rem', sm: '1.5rem', md: '1.75rem' },
                             fontWeight: 700,
                             textShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                            letterSpacing: '-0.03em',
                         }}
                     />
                 </Box>
@@ -730,30 +733,19 @@ export default function DashboardPage() {
                     <Card
                         key={link.title}
                         sx={{
-                            background: 'linear-gradient(135deg, #FFB6C1 0%, #FF69B4 100%)',
+                            background: link.color ? 
+                                `linear-gradient(135deg, ${alpha(link.color, 0.8)} 0%, ${alpha(link.color, 1)} 100%)` : 
+                                'linear-gradient(135deg, #3B82F6 0%, #2563EB 100%)',
                             border: 'none',
-                            boxShadow: '0 4px 20px rgba(255, 105, 180, 0.3)',
-                            borderRadius: 2,
+                            boxShadow: `0 8px 32px ${alpha(link.color || '#2563EB', 0.25)}`,
+                            borderRadius: 3,
                             overflow: 'hidden',
                             position: 'relative',
                             transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
                             transform: 'translateX(0)',
                             '&:hover': {
                                 transform: 'translateX(8px)',
-                                boxShadow: '0 6px 24px rgba(255, 105, 180, 0.4)',
-                            },
-                            '&::before': {
-                                content: '""',
-                                position: 'absolute',
-                                left: 0,
-                                top: 0,
-                                bottom: 0,
-                                width: 4,
-                                bgcolor: '#c2185b',
-                                transition: 'width 0.3s ease',
-                            },
-                            '&:hover::before': {
-                                width: 6,
+                                boxShadow: `0 12px 40px ${alpha(link.color || '#2563EB', 0.35)}`,
                             },
                             animation: `slideIn 0.4s ease-out ${index * 0.1}s both`,
                             '@keyframes slideIn': {

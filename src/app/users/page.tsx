@@ -18,6 +18,7 @@ import {
     Card,
     CardActionArea,
     InputAdornment,
+    alpha,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import SearchIcon from '@mui/icons-material/Search';
@@ -27,6 +28,7 @@ import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import EditUserDialog from '@/components/EditUserDialog';
 import { useToast } from '@/components/ToastProvider';
+import { GlassCard } from '@/components/ui';
 
 function UsersPageContent() {
     const { data: session } = useSession();
@@ -270,32 +272,36 @@ function UsersPageContent() {
                     ),
                 }}
                 sx={{ 
-                    mb: 3,
+                    mb: 4,
                     '& .MuiOutlinedInput-root': {
-                        borderRadius: 3,
-                        bgcolor: 'background.paper',
+                        transition: 'all 0.2s',
+                        background: (theme) => `linear-gradient(135deg, ${alpha(theme.palette.background.paper, 0.4)} 0%, ${alpha(theme.palette.background.paper, 0.2)} 100%)`,
+                        backdropFilter: 'blur(20px)',
+                        boxShadow: '0 4px 20px rgba(0, 0, 0, 0.1)',
+                        '&:hover': {
+                            boxShadow: '0 8px 25px rgba(0, 0, 0, 0.15)',
+                        },
+                        '&.Mui-focused': {
+                            boxShadow: (theme) => `0 8px 25px ${alpha(theme.palette.primary.main, 0.2)}`,
+                        }
                     }
                 }}
-                size="small"
             />
 
             {/* User Cards Grid */}
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
                 {filteredUsers.map((user) => (
-                    <Card 
+                    <GlassCard 
                         key={user.id}
                         sx={{ 
-                            borderRadius: 2,
-                            boxShadow: 1,
+                            p: 0,
+                            borderRadius: 3,
                             opacity: user.archived ? 0.6 : 1,
-                            '&:hover': {
-                                boxShadow: 3,
-                            },
                         }}
                     >
                         <CardActionArea 
                             onClick={() => handleEdit(user)}
-                            sx={{ py: 1.5, px: 2 }}
+                            sx={{ p: 2 }}
                         >
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                                 <Avatar
@@ -345,7 +351,7 @@ function UsersPageContent() {
                                 </Box>
                             </Box>
                         </CardActionArea>
-                    </Card>
+                    </GlassCard>
                 ))}
                 {filteredUsers.length === 0 && (
                     <Box sx={{ textAlign: 'center', py: 4 }}>

@@ -1,8 +1,9 @@
 'use client';
 
 import { useEffect, useState, useMemo } from 'react';
-import { Typography, Box, CircularProgress, Grid, Stack, Card, CardActionArea, IconButton, useTheme } from '@mui/material';
+import { Typography, Box, CircularProgress, Grid, Stack, CardActionArea, IconButton, useTheme, alpha } from '@mui/material';
 import { formatCurrency } from '@/lib/utils';
+import { GlassCard } from '@/components/ui';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
 import ReceiptIcon from '@mui/icons-material/Receipt';
@@ -188,25 +189,26 @@ export default function DepartmentDashboardPage() {
                     const Icon = card.icon;
                     return (
                         <Grid size={{ xs: 6, md: 6 }} key={index}>
-                            <Box
+                            <GlassCard
+                                variant="highlight"
                                 sx={{
                                     p: { xs: 2, sm: 2.5, md: 3 },
-                                    borderRadius: 2,
+                                    borderRadius: 3,
                                     bgcolor: card.bgColor,
-                                    border: '2px solid',
-                                    borderColor: card.bgColor,
-                                    transition: 'all 0.2s ease-in-out',
+                                    border: '1px solid',
+                                    borderColor: 'rgba(255,255,255,0.2)',
+                                    transition: 'all 0.3s ease',
+                                    transformOrigin: 'center center',
                                     '@keyframes blink': {
                                         '0%, 100%': { opacity: 1 },
-                                        '50%': { opacity: 0.3 }
+                                        '50%': { opacity: 0.6 }
                                     },
                                     animation: card.title === 'Account Balance' && stats.balance < 5000
-                                        ? 'blink 1s ease-in-out infinite'
+                                        ? 'blink 2s ease-in-out infinite'
                                         : 'none',
                                     '&:hover': {
-                                        borderColor: card.color,
-                                        transform: { xs: 'none', sm: 'translateY(-2px)' },
-                                        boxShadow: `0 4px 12px ${card.bgColor}`,
+                                        transform: 'translateY(-4px)',
+                                        boxShadow: `0 12px 24px -4px ${alpha(card.bgColor, 0.5)}`,
                                     }
                                 }}
                             >
@@ -215,8 +217,8 @@ export default function DepartmentDashboardPage() {
                                         <Typography 
                                             variant="body2" 
                                             color="white" 
-                                            fontWeight="500" 
-                                            sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' }, opacity: 0.9 }}
+                                            fontWeight="600" 
+                                            sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' }, opacity: 0.95 }}
                                         >
                                             {card.title}
                                         </Typography>
@@ -224,8 +226,9 @@ export default function DepartmentDashboardPage() {
                                             sx={{
                                                 width: { xs: 36, sm: 40 },
                                                 height: { xs: 36, sm: 40 },
-                                                borderRadius: 2,
+                                                borderRadius: '50%',
                                                 bgcolor: 'rgba(255, 255, 255, 0.2)',
+                                                backdropFilter: 'blur(4px)',
                                                 display: 'flex',
                                                 alignItems: 'center',
                                                 justifyContent: 'center'
@@ -236,16 +239,17 @@ export default function DepartmentDashboardPage() {
                                     </Box>
                                     <Typography 
                                         variant="h4" 
-                                        fontWeight="700" 
+                                        fontWeight="800" 
                                         sx={{ 
                                             color: 'white',
-                                            fontSize: { xs: '1.5rem', sm: '1.75rem', md: '2.125rem' }
+                                            fontSize: { xs: '1.5rem', sm: '1.75rem', md: '2.125rem' },
+                                            textShadow: '0 2px 4px rgba(0,0,0,0.1)'
                                         }}
                                     >
                                         {formatCurrency(card.amount, stats.currency.code, stats.currency.symbol)}
                                     </Typography>
                                 </Stack>
-                            </Box>
+                            </GlassCard>
                         </Grid>
                     );
                 })}
@@ -253,15 +257,14 @@ export default function DepartmentDashboardPage() {
 
             {/* Weekly Income Chart */}
             {stats.chartData && stats.chartData.length > 0 && (
-            <Box
+            <GlassCard
                 sx={{
-                    p: { xs: 1.5, sm: 2, md: 2 },
-                    borderRadius: { xs: 1.5, sm: 2 },
-                    bgcolor: 'transparent',
-                    border: 'none',
+                    p: { xs: 2, sm: 3, md: 3 },
+                    borderRadius: { xs: 2, sm: 3 },
+                    overflow: 'visible'
                 }}
             >
-                <Typography variant="h6" fontWeight="600" sx={{ mb: { xs: 1, sm: 1.5 }, fontSize: { xs: '0.875rem', sm: '1rem' } }}>
+                <Typography variant="h6" fontWeight="700" sx={{ mb: { xs: 2, sm: 3 }, fontSize: { xs: '0.95rem', sm: '1.1rem' } }}>
                     Weekly Income (Last 4 Weeks)
                 </Typography>
                 <Box sx={{ width: '100%', height: { xs: 280, sm: 320, md: 350 } }}>
@@ -330,7 +333,7 @@ export default function DepartmentDashboardPage() {
                         </BarChart>
                     </ResponsiveContainer>
                 </Box>
-            </Box>
+            </GlassCard>
             )}
 
             {/* Quick Links */}
@@ -339,27 +342,33 @@ export default function DepartmentDashboardPage() {
                     mt: { xs: 2, md: 4 },
                     display: 'flex',
                     flexDirection: 'column',
-                    gap: 1.5
+                    gap: 2
                 }}
             >
                 {quickLinks.map((link) => (
-                    <Card
+                    <GlassCard
                         key={link.title}
                         sx={{
-                            bgcolor: theme.palette.mode === 'dark' ? 'rgba(255, 182, 193, 0.9)' : '#FFB6C1',
-                            border: 'none',
-                            boxShadow: 'none',
-                            borderRadius: 1,
+                            border: '1px solid',
+                            borderColor: theme.palette.mode === 'dark' ? 'rgba(255, 182, 193, 0.2)' : 'rgba(255, 182, 193, 0.5)',
+                            background: theme.palette.mode === 'dark' 
+                                ? 'linear-gradient(135deg, rgba(255, 182, 193, 0.05) 0%, rgba(255, 182, 193, 0.1) 100%)' 
+                                : 'linear-gradient(135deg, #FFF0F5 0%, #FFB6C1 100%)',
+                            borderRadius: 3,
+                            overflow: 'hidden',
                             '&:hover': {
-                                bgcolor: theme.palette.mode === 'dark' ? 'rgba(255, 182, 193, 1)' : '#FFA0AB',
+                                transform: 'translateY(-2px)',
+                                boxShadow: theme.palette.mode === 'dark' 
+                                    ? '0 8px 16px rgba(255, 182, 193, 0.1)' 
+                                    : '0 8px 16px rgba(255, 182, 193, 0.25)',
                             }
                         }}
                     >
                         <CardActionArea
                             onClick={() => router.push(link.href)}
                             sx={{
-                                py: 1.5,
-                                px: 2,
+                                py: 2.5,
+                                px: 3,
                                 display: 'flex',
                                 justifyContent: 'center',
                                 alignItems: 'center',
@@ -367,16 +376,16 @@ export default function DepartmentDashboardPage() {
                         >
                             <Typography
                                 variant="body1"
-                                fontWeight="600"
+                                fontWeight="700"
                                 sx={{
-                                    color: 'rgba(0, 0, 0, 0.87)',
-                                    fontSize: { xs: '0.9rem', sm: '1rem' }
+                                    color: theme.palette.mode === 'dark' ? '#FFB6C1' : '#D81B60',
+                                    fontSize: { xs: '1rem', sm: '1.05rem' }
                                 }}
                             >
                                 {link.title}
                             </Typography>
                         </CardActionArea>
-                    </Card>
+                    </GlassCard>
                 ))}
             </Box>
 

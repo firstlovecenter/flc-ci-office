@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Box, List, ListItem, ListItemButton, ListItemIcon, ListItemText, Typography, Avatar, IconButton, Tooltip, Badge, Dialog, DialogTitle, DialogContent, DialogActions, Button, FormControl, InputLabel, Select, MenuItem as MuiMenuItem, Alert } from '@mui/material';
-import { styled } from '@mui/material/styles';
+import { styled, alpha } from '@mui/material/styles';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import HomeIcon from '@mui/icons-material/Home';
@@ -30,32 +30,26 @@ import { getDisplayRole } from '@/lib/roleDisplay';
 const SidebarContainer = styled(Box, {
     shouldForwardProp: (prop) => prop !== 'collapsed',
 })<{ collapsed?: boolean }>(({ theme, collapsed }) => ({
-    width: collapsed ? 80 : 260,
+    width: collapsed ? 80 : 280,
     height: '100vh',
-    // iOS 26 Liquid Glass effect
-    background: theme.palette.mode === 'dark'
-        ? 'linear-gradient(180deg, rgba(69, 10, 10, 0.85) 0%, rgba(90, 15, 15, 0.8) 50%, rgba(45, 5, 5, 0.9) 100%)'
-        : 'linear-gradient(180deg, rgba(127, 29, 29, 0.9) 0%, rgba(153, 27, 27, 0.85) 50%, rgba(90, 15, 15, 0.9) 100%)',
-    backdropFilter: 'blur(40px) saturate(200%)',
-    WebkitBackdropFilter: 'blur(40px) saturate(200%)',
+    background: alpha(theme.palette.background.paper, 0.7),
+    backdropFilter: 'blur(20px)',
+    WebkitBackdropFilter: 'blur(20px)',
+    borderRight: `1px solid ${theme.palette.divider}`,
     padding: theme.spacing(2),
     display: 'flex',
     flexDirection: 'column',
     position: 'fixed',
     left: 0,
     top: 0,
-    borderTopRightRadius: 32,
-    borderBottomRightRadius: 32,
-    overflow: 'hidden',
-    border: '1px solid rgba(255, 255, 255, 0.1)',
-    borderLeft: 'none',
-    boxShadow: theme.palette.mode === 'dark'
-        ? '4px 0 40px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.1)'
-        : '4px 0 40px rgba(185, 28, 28, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.15)',
+    zIndex: 1200,
+    overflowX: 'hidden',
+    boxShadow: theme.shadows[1],
     transition: 'width 0.3s cubic-bezier(0.4, 0, 0.2, 1), padding 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
     [theme.breakpoints.down('md')]: {
-        width: collapsed ? 70 : 240,
-        padding: theme.spacing(2),
+        width: collapsed ? 0 : 280,
+        padding: collapsed ? 0 : theme.spacing(2),
+        opacity: collapsed ? 0 : 1,
     },
 }));
 
@@ -67,7 +61,7 @@ const Logo = styled(Box, {
     justifyContent: collapsed ? 'center' : 'flex-start',
     gap: theme.spacing(1.5),
     marginBottom: theme.spacing(4),
-    color: '#FFFFFF',
+    color: theme.palette.text.primary,
 }));
 
 const MenuSection = styled(Box)(({ theme }) => ({
@@ -77,11 +71,11 @@ const MenuSection = styled(Box)(({ theme }) => ({
 const MenuLabel = styled(Typography, {
     shouldForwardProp: (prop) => prop !== 'collapsed',
 })<{ collapsed?: boolean }>(({ theme, collapsed }) => ({
-    color: 'rgba(255, 255, 255, 0.6)',
-    fontSize: '12px',
-    fontWeight: 600,
+    color: theme.palette.text.secondary,
+    fontSize: '0.75rem',
+    fontWeight: 700,
     textTransform: 'uppercase',
-    letterSpacing: '0.5px',
+    letterSpacing: '0.1em',
     padding: theme.spacing(0, collapsed ? 0 : 2),
     marginBottom: theme.spacing(1),
     textAlign: collapsed ? 'center' : 'left',
@@ -90,19 +84,14 @@ const MenuLabel = styled(Typography, {
 }));
 
 const ToggleButton = styled(IconButton)(({ theme }) => ({
-    color: '#FFFFFF',
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
-    backdropFilter: 'blur(10px)',
-    WebkitBackdropFilter: 'blur(10px)',
-    border: '1px solid rgba(255, 255, 255, 0.1)',
-    boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.1)',
+    color: theme.palette.text.secondary,
+    backgroundColor: alpha(theme.palette.text.primary, 0.05),
+    border: `1px solid ${theme.palette.divider}`,
     transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
     '&:hover': {
-        backgroundColor: 'rgba(255, 255, 255, 0.25)',
+        backgroundColor: alpha(theme.palette.primary.main, 0.1),
+        color: theme.palette.primary.main,
         transform: 'scale(1.05)',
-    },
-    '&:active': {
-        transform: 'scale(0.95)',
     },
     width: 40,
     height: 40,
@@ -112,27 +101,38 @@ const ToggleButton = styled(IconButton)(({ theme }) => ({
 const StyledListItemButton = styled(ListItemButton, {
     shouldForwardProp: (prop) => prop !== 'active',
 })<{ active?: boolean }>(({ theme, active }) => ({
-    borderRadius: 16,
+    borderRadius: 12,
     marginBottom: theme.spacing(0.5),
     padding: theme.spacing(1.25),
-    color: active ? '#FFFFFF' : 'rgba(255, 255, 255, 0.7)',
-    backgroundColor: active ? 'rgba(255, 255, 255, 0.2)' : 'transparent',
-    backdropFilter: active ? 'blur(10px)' : 'none',
-    WebkitBackdropFilter: active ? 'blur(10px)' : 'none',
-    border: active ? '1px solid rgba(255, 255, 255, 0.15)' : '1px solid transparent',
-    boxShadow: active ? 'inset 0 1px 0 rgba(255, 255, 255, 0.1)' : 'none',
+    color: active ? theme.palette.primary.main : theme.palette.text.secondary,
+    backgroundColor: active ? alpha(theme.palette.primary.main, 0.1) : 'transparent',
+    fontWeight: active ? 600 : 500,
+    border: active ? `1px solid ${alpha(theme.palette.primary.main, 0.2)}` : '1px solid transparent',
     transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
     '&:hover': {
-        backgroundColor: active ? 'rgba(255, 255, 255, 0.25)' : 'rgba(255, 255, 255, 0.1)',
+        backgroundColor: active 
+            ? alpha(theme.palette.primary.main, 0.15) 
+            : alpha(theme.palette.text.primary, 0.05),
+        color: active ? theme.palette.primary.main : theme.palette.text.primary,
         transform: 'translateX(4px)',
     },
-    '&:active': {
-        transform: 'scale(0.98)',
-    },
     '& .MuiListItemIcon-root': {
-        color: active ? '#FFFFFF' : 'rgba(255, 255, 255, 0.7)',
+        color: active ? 'inherit' : theme.palette.text.secondary,
         minWidth: 40,
+        transition: 'color 0.2s ease',
     },
+     '&:before': active ? {
+        content: '""',
+        position: 'absolute',
+        left: -16,
+        top: '50%',
+        transform: 'translateY(-50%)',
+        width: 4,
+        height: '60%',
+        backgroundColor: theme.palette.primary.main,
+        borderTopRightRadius: 4,
+        borderBottomRightRadius: 4,
+    } : {},
 }));
 
 interface MenuItem {

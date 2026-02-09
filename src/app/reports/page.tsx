@@ -23,12 +23,15 @@ import {
     useTheme,
     Skeleton,
     IconButton,
+    alpha,
+    Grid,
 } from '@mui/material';
 import { Download as DownloadIcon, Print as PrintIcon } from '@mui/icons-material';
 import { formatDepartmentLevel } from '@/lib/utils';
 import { formatCurrency } from '@/lib/utils';
 import { BarChart, Bar, XAxis, Tooltip, ResponsiveContainer, Cell, LabelList } from 'recharts';
 import { useSession } from 'next-auth/react';
+import { GlassCard } from '@/components/ui';
 
 function ReportsPageContent() {
     const theme = useTheme();
@@ -337,7 +340,8 @@ function ReportsPageContent() {
         let runningBalance = openingBalance;
         
         return (
-            <TableContainer component={Paper} sx={{ mt: 3 }} className="print-content">
+            <GlassCard sx={{ mt: 3, overflow: 'hidden' }} className="print-content">
+                <TableContainer>
                 <Box sx={{ p: 3, '@media print': { p: 2 } }}>
                     <Typography variant="h5" gutterBottom align="center">
                         Full Report
@@ -462,7 +466,8 @@ function ReportsPageContent() {
                         {baseCurrency ? formatCurrency(closingBalance, baseCurrency.code, baseCurrency.symbol) : formatCurrency(closingBalance)}
                     </Typography>
                 </Box>
-            </TableContainer>
+                </TableContainer>
+            </GlassCard>
         );
     };
 
@@ -494,102 +499,56 @@ function ReportsPageContent() {
                 </Box>
             </Box>
 
-            <Paper
-                elevation={0}
+            <GlassCard
                 sx={{
-                    mb: 3,
-                    backgroundColor: 'transparent',
-                    boxShadow: 'none',
-                    '@media print': { display: 'none' },
+                    p: { xs: 2, sm: 3 },
+                    mb: 4,
+                    borderRadius: 3,
+                    bgcolor: (theme) => alpha(theme.palette.background.paper, 0.4),
                 }}
             >
-                <Box sx={{ p: 3 }}>
-                    <Typography variant="h6" gutterBottom>
-                        Weekly Income & Expense Trends (Last 4 Weeks)
-                    </Typography>
-                    {chartLoading ? (
-                        <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
-                            <CircularProgress />
-                        </Box>
-                    ) : chartData.length > 0 ? (
-                        <Box sx={{ width: '100%', height: { xs: 320, sm: 380, md: 420 } }}>
-                            <ResponsiveContainer width="100%" height="100%">
-                                <BarChart
-                                    data={chartData}
-                                    margin={{
-                                        top: 25,
-                                        right: 10,
-                                        left: 10,
-                                        bottom: 5,
-                                    }}
-                                    style={{ backgroundColor: 'transparent' }}
-                                >
-                                    <XAxis 
-                                        dataKey="week" 
-                                        tick={{ fill: theme.palette.text.secondary, fontSize: 12 }}
-                                        axisLine={{ stroke: theme.palette.divider }}
-                                        tickLine={false}
-                                    />
-                                    <Tooltip 
-                                        formatter={(value: any, name: any) => {
-                                            const numValue = Number(value);
-                                            const label = name === 'income' ? 'Income' : name === 'expense' ? 'Expense' : name;
-                                            const formatted = baseCurrency
-                                                ? `${baseCurrency.symbol}${numValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                                                : numValue.toLocaleString();
-                                            return [formatted, label];
-                                        }}
-                                        contentStyle={{
-                                            backgroundColor: theme.palette.background.paper,
-                                            border: `1px solid ${theme.palette.divider}`,
-                                            borderRadius: 8,
-                                        }}
-                                        labelStyle={{ color: theme.palette.text.primary }}
-                                        cursor={{ fill: 'transparent' }}
-                                    />
-                                    <Bar 
-                                        dataKey="income" 
-                                        radius={[4, 4, 0, 0]}
-                                        barSize={35}
-                                        fill={theme.palette.success.main}
-                                    >
-                                        <LabelList 
-                                            dataKey="income" 
-                                            position="top" 
-                                            fill={theme.palette.text.primary}
-                                            fontSize={12}
-                                            formatter={(value) => baseCurrency ? `${baseCurrency.symbol}${Number(value).toLocaleString()}` : Number(value).toLocaleString()}
-                                        />
-                                    </Bar>
-                                    <Bar 
-                                        dataKey="expense" 
-                                        radius={[4, 4, 0, 0]}
-                                        barSize={35}
-                                    >
-                                        <LabelList 
-                                            dataKey="expense" 
-                                            position="top" 
-                                            fill={theme.palette.text.primary}
-                                            fontSize={12}
-                                            formatter={(value) => baseCurrency ? `${baseCurrency.symbol}${Number(value).toLocaleString()}` : Number(value).toLocaleString()}
-                                        />
-                                        {chartData.map((entry, index) => (
-                                            <Cell 
-                                                key={`expense-cell-${index}`} 
-                                                fill={theme.palette.error.main} 
-                                            />
-                                        ))}
-                                    </Bar>
-                                </BarChart>
-                            </ResponsiveContainer>
-                        </Box>
-                    ) : (
-                        <Typography variant="body2" color="text.secondary" sx={{ py: 4, textAlign: 'center' }}>
-                            No income data available for the last 4 weeks.
+                <Grid container spacing={3}>
+                    <Grid size={{ xs: 12, md: 8 }}>
+                        <Typography variant="h6" gutterBottom fontWeight="700">
+                            Income vs Expense Trends
                         </Typography>
-                    )}
-
-                    <Divider sx={{ my: 3 }} />
+                        <Box sx={{ width: '100%', height: 350 }}>
+                            {chartLoading ? (
+                                <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
+                                    <CircularProgress />
+                                </Box>
+                            ) : (
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <BarChart
+                                        data={chartData}
+                                        margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
+                                    >
+                                        <XAxis dataKey="week" />
+                                        <Tooltip 
+                                            formatter={(value: any, name: string) => [
+                                                baseCurrency ? formatCurrency(value, baseCurrency.code, baseCurrency.symbol) : formatCurrency(value),
+                                                name === 'income' ? 'Income' : 'Expense'
+                                            ]}
+                                            contentStyle={{
+                                                backgroundColor: theme.palette.background.paper,
+                                                borderRadius: 8,
+                                                border: '1px solid rgba(255,255,255,0.1)',
+                                                boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+                                            }}
+                                        />
+                                        <Bar dataKey="income" name="Income" fill={theme.palette.success.main} radius={[4, 4, 0, 0]} />
+                                        <Bar dataKey="expense" name="Expense" fill={theme.palette.error.main} radius={[4, 4, 0, 0]} />
+                                    </BarChart>
+                                </ResponsiveContainer>
+                            )}
+                        </Box>
+                    </Grid>
+                    <Grid size={{ xs: 12, md: 4 }}>
+                         {/* Stats summary - already styled? Need to check */}
+                    </Grid>
+                </Grid>
+            </GlassCard>
+            <GlassCard sx={{ p: 3, mb: 4, borderRadius: 3 }}>
 
                     <Typography variant="h6" gutterBottom>
                         Generate Full Report
@@ -684,18 +643,19 @@ function ReportsPageContent() {
                                     </Button>
                                 </Box>
                             )}
-                        </Box>
-            </Paper>
+            </GlassCard>
 
             {transactions.length > 0 && (
                 <>
                     <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr 1fr' }, gap: 2, mb: 3, '@media print': { display: 'none' } }}>
-                        <Paper 
+                        <GlassCard 
+                            variant="highlight"
                             sx={{ 
                                 p: 2, 
                                 border: '2px solid', 
                                 borderColor: stats.balance >= 0 ? 'success.main' : 'error.main', 
                                 bgcolor: stats.balance >= 0 ? 'success.main' : 'error.main',
+                                color: 'white',
                                 '@keyframes blink': {
                                     '0%, 100%': { opacity: 1 },
                                     '50%': { opacity: 0.3 }
@@ -706,26 +666,44 @@ function ReportsPageContent() {
                             <Typography variant="subtitle2" color="white" sx={{ opacity: 0.9 }}>
                                 Account Balance
                             </Typography>
-                            <Typography variant="h5" color="white">
+                            <Typography variant="h5" color="white" fontWeight="700">
                                 {formatCurrency(stats.balance)}
                             </Typography>
-                        </Paper>
-                        <Paper sx={{ p: 2, border: '2px solid', borderColor: 'success.main', bgcolor: 'success.main' }}>
+                        </GlassCard>
+                        <GlassCard 
+                            variant="highlight"
+                            sx={{ 
+                                p: 2, 
+                                border: '2px solid', 
+                                borderColor: 'success.main', 
+                                bgcolor: 'success.main',
+                                color: 'white'
+                            }}
+                        >
                             <Typography variant="subtitle2" color="white" sx={{ opacity: 0.9 }}>
                                 Total Inflows
                             </Typography>
-                            <Typography variant="h5" color="white">
+                            <Typography variant="h5" color="white" fontWeight="700">
                                 {formatCurrency(stats.income)}
                             </Typography>
-                        </Paper>
-                        <Paper sx={{ p: 2, border: '2px solid', borderColor: 'error.main', bgcolor: 'error.main' }}>
+                        </GlassCard>
+                        <GlassCard 
+                            variant="highlight"
+                            sx={{ 
+                                p: 2, 
+                                border: '2px solid', 
+                                borderColor: 'error.main', 
+                                bgcolor: 'error.main',
+                                color: 'white'
+                            }}
+                        >
                             <Typography variant="subtitle2" color="white" sx={{ opacity: 0.9 }}>
                                 Total Expenses
                             </Typography>
-                            <Typography variant="h5" color="white">
+                            <Typography variant="h5" color="white" fontWeight="700">
                                 {formatCurrency(stats.expense)}
                             </Typography>
-                        </Paper>
+                        </GlassCard>
                     </Box>
 
                     {renderStatementView()}
@@ -733,14 +711,14 @@ function ReportsPageContent() {
             )}
 
             {!loading && transactions.length === 0 && (selectedDepartment || startDate || endDate) && (
-                <Paper sx={{ p: 4, textAlign: 'center' }}>
+                <GlassCard sx={{ p: 4, textAlign: 'center', borderRadius: 3 }}>
                     <Typography variant="h6" color="text.secondary" gutterBottom>
                         No Transactions Found
                     </Typography>
                     <Typography variant="body2" color="text.secondary">
                         There are no transactions for the selected criteria. Try adjusting your filters or date range.
                     </Typography>
-                </Paper>
+                </GlassCard>
             )}
 
             {loading && (

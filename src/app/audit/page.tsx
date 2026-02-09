@@ -23,6 +23,7 @@ import {
 import SearchIcon from '@mui/icons-material/Search';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
+import { GlassCard } from '@/components/ui';
 
 type AuditLog = {
     id: string;
@@ -145,7 +146,7 @@ export default function AuditPage() {
             </Box>
 
             {/* Filters */}
-            <Paper elevation={0} sx={{ p: 3, mb: 3, border: '1px solid', borderColor: 'divider' }}>
+            <GlassCard sx={{ p: 3, mb: 3 }}>
                 <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center' }}>
                     <TextField
                         placeholder="Search logs..."
@@ -191,19 +192,19 @@ export default function AuditPage() {
                         </Select>
                     </FormControl>
                 </Box>
-            </Paper>
+            </GlassCard>
 
             {/* Audit Logs Table */}
-            <TableContainer component={Paper} elevation={0} sx={{ border: '1px solid', borderColor: 'divider' }}>
+            <TableContainer component={GlassCard}>
                 <Table>
-                    <TableHead sx={{ bgcolor: 'action.hover' }}>
-                        <TableRow>
-                            <TableCell>Timestamp</TableCell>
-                            <TableCell>User</TableCell>
-                            <TableCell>Action</TableCell>
-                            <TableCell>Entity Type</TableCell>
-                            <TableCell>Entity ID</TableCell>
-                            <TableCell>IP Address</TableCell>
+                    <TableHead>
+                        <TableRow sx={{ bgcolor: 'action.hover' }}>
+                            <TableCell sx={{ fontWeight: 700 }}>Timestamp</TableCell>
+                            <TableCell sx={{ fontWeight: 700 }}>User</TableCell>
+                            <TableCell sx={{ fontWeight: 700 }}>Action</TableCell>
+                            <TableCell sx={{ fontWeight: 700 }}>Entity Type</TableCell>
+                            <TableCell sx={{ fontWeight: 700 }}>Entity ID</TableCell>
+                            <TableCell sx={{ fontWeight: 700 }}>IP Address</TableCell>
                         </TableRow>
                     </TableHead>
                     <TableBody>

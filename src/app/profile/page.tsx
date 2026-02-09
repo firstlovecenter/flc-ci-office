@@ -14,22 +14,12 @@ import {
     Divider,
     Alert,
     IconButton,
-    Card,
-    CardContent,
     Stack,
-    alpha,
-    FormControl,
-    InputLabel,
-    Select,
-    MenuItem,
     CircularProgress,
-    Table,
-    TableBody,
-    TableCell,
-    TableContainer,
-    TableHead,
-    TableRow,
+    alpha,
+    InputAdornment,
 } from '@mui/material';
+import { GlassCard, StatusChip } from '@/components/ui';
 import EditIcon from '@mui/icons-material/Edit';
 import SaveIcon from '@mui/icons-material/Save';
 import CancelIcon from '@mui/icons-material/Cancel';
@@ -327,11 +317,12 @@ export default function ProfilePage() {
             </Box>
 
             {/* Profile Card */}
-            <Paper 
-                elevation={0}
+            <GlassCard 
                 sx={{ 
-                    p: 2,
-                    borderRadius: 2,
+                    borderRadius: 3,
+                    position: 'relative',
+                    overflow: 'visible',
+                    mt: 2
                 }}
             >
                 {/* Avatar and Name Section */}
@@ -344,9 +335,9 @@ export default function ProfilePage() {
                                 height: 120,
                                 mx: 'auto',
                                 mb: 1.5,
-                                border: '3px solid',
+                                border: '4px solid',
                                 borderColor: 'background.paper',
-                                boxShadow: 3,
+                                boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
                             }}
                         >
                             {profile.name?.[0]?.toUpperCase() || profile.email[0]?.toUpperCase()}
@@ -434,10 +425,10 @@ export default function ProfilePage() {
                 )}
 
                 {/* User Info Grid */}
-                <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 1.5, mb: 2 }}>
+                <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 2, mb: 4 }}>
                     {/* Full Name */}
-                    <Paper sx={{ p: 1.5, bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)' }}>
-                        <Typography variant="caption" color="text.secondary">
+                    <Box sx={{ p: 2, borderRadius: 2, bgcolor: (theme) => alpha(theme.palette.background.paper, 0.4), border: '1px solid', borderColor: 'divider' }}>
+                        <Typography variant="caption" color="text.secondary" fontWeight={500}>
                             Full Name
                         </Typography>
                         {editing ? (
@@ -447,19 +438,20 @@ export default function ProfilePage() {
                                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                                 variant="standard"
                                 placeholder="Enter your full name"
+                                sx={{ mt: 1 }}
                             />
                         ) : (
-                            <Typography variant="body2" fontWeight={500}>
+                            <Typography variant="body1" fontWeight={600} sx={{ mt: 0.5 }}>
                                 {profile.name || '-'}
                             </Typography>
                         )}
-                    </Paper>
+                    </Box>
 
                     {/* Phone Number */}
-                    <Paper sx={{ p: 1.5, bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)', gridColumn: 'span 2' }}>
-                        <Typography variant="caption" color="text.secondary" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                    <Box sx={{ p: 2, borderRadius: 2, bgcolor: (theme) => alpha(theme.palette.background.paper, 0.4), border: '1px solid', borderColor: 'divider', gridColumn: 'span 2' }}>
+                        <Typography variant="caption" color="text.secondary" fontWeight={500} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                             Phone Number
-                            <PhoneIcon sx={{ fontSize: 14, color: '#60a5fa' }} />
+                            <PhoneIcon sx={{ fontSize: 14, color: 'primary.main' }} />
                         </Typography>
                         {editing ? (
                             <TextField
@@ -469,19 +461,18 @@ export default function ProfilePage() {
                                 onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                                 variant="standard"
                                 placeholder="Enter your phone number"
+                                sx={{ mt: 1 }}
                             />
                         ) : (
-                            <Typography variant="body2" fontWeight={500}>
+                            <Typography variant="body1" fontWeight={600} sx={{ mt: 0.5 }}>
                                 {profile.phone || '-'}
                             </Typography>
                         )}
-                    </Paper>
-
-
+                    </Box>
 
                     {/* Email Address */}
-                    <Paper sx={{ p: 1.5, bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)', gridColumn: 'span 2' }}>
-                        <Typography variant="caption" color="text.secondary">
+                    <Box sx={{ p: 2, borderRadius: 2, bgcolor: (theme) => alpha(theme.palette.background.paper, 0.4), border: '1px solid', borderColor: 'divider', gridColumn: 'span 2' }}>
+                        <Typography variant="caption" color="text.secondary" fontWeight={500}>
                             Email Address
                         </Typography>
                         {editing && session?.user?.role === 'SUPERADMIN' ? (
@@ -491,24 +482,25 @@ export default function ProfilePage() {
                                 value={formData.email}
                                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                                 variant="standard"
+                                sx={{ mt: 1 }}
                             />
                         ) : (
-                            <Typography variant="body2" fontWeight={500}>
+                            <Typography variant="body1" fontWeight={600} sx={{ mt: 0.5 }}>
                                 {profile.email}
                             </Typography>
                         )}
-                    </Paper>
+                    </Box>
 
                     {/* Department */}
                     {profile.department && (
-                        <Paper sx={{ p: 1.5, bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)', gridColumn: 'span 2' }}>
-                            <Typography variant="caption" color="text.secondary">
+                        <Box sx={{ p: 2, borderRadius: 2, bgcolor: (theme) => alpha(theme.palette.background.paper, 0.4), border: '1px solid', borderColor: 'divider', gridColumn: 'span 2' }}>
+                            <Typography variant="caption" color="text.secondary" fontWeight={500}>
                                 Department
                             </Typography>
-                            <Typography variant="body2" fontWeight={500}>
+                            <Typography variant="body1" fontWeight={600} sx={{ mt: 0.5 }}>
                                 {profile.department.name}
                             </Typography>
-                        </Paper>
+                        </Box>
                     )}
                 </Box>
 
@@ -525,29 +517,30 @@ export default function ProfilePage() {
 
                     {profile.auditLogs && profile.auditLogs.length > 0 ? (
                         <Stack spacing={1}>
-                            {profile.auditLogs.slice(0, 3).map((log) => (
-                                <Paper 
+                            {profile.auditLogs.map((log) => (
+                                <GlassCard 
                                     key={log.id}
+                                    variant="highlight"
                                     sx={{ 
                                         p: 1.5,
-                                        bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)',
                                         borderLeft: '3px solid',
-                                        borderLeftColor: 'error.main',
+                                        borderLeftColor: 'primary.main',
+                                        borderRadius: 1,
                                     }}
                                 >
-                                    <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
+                                    <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.5 }}>
                                         <Box 
                                             sx={{ 
                                                 width: 8, 
                                                 height: 8, 
                                                 borderRadius: '50%', 
-                                                bgcolor: 'error.main',
+                                                bgcolor: 'primary.main',
                                                 mt: 0.75,
                                                 flexShrink: 0,
                                             }} 
                                         />
                                         <Box sx={{ flex: 1 }}>
-                                            <Typography variant="body2" fontWeight={500}>
+                                            <Typography variant="body2" fontWeight={600}>
                                                 {log.description || formatRole(log.actionType)}
                                             </Typography>
                                             <Typography variant="caption" color="text.secondary">
@@ -555,7 +548,7 @@ export default function ProfilePage() {
                                             </Typography>
                                         </Box>
                                     </Box>
-                                </Paper>
+                                </GlassCard>
                             ))}
                         </Stack>
                     ) : (
@@ -564,7 +557,7 @@ export default function ProfilePage() {
                         </Typography>
                     )}
                 </Box>
-            </Paper>
+            </GlassCard>
         </Box>
     );
 }

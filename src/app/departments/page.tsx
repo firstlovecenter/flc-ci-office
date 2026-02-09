@@ -12,6 +12,7 @@ import {
     Avatar,
     InputAdornment,
     IconButton,
+    alpha,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import SearchIcon from '@mui/icons-material/Search';
@@ -20,6 +21,7 @@ import { useRouter } from 'next/navigation';
 import EditDepartmentDialog from '@/components/EditDepartmentDialog';
 import { formatDepartmentLevel } from '@/lib/utils';
 import { useToast } from '@/components/ToastProvider';
+import { GlassCard } from '@/components/ui';
 
 type Department = {
     id: string;
@@ -247,11 +249,15 @@ function DepartmentsPageContent() {
                         )}
                     </Box>
                     {canCreateDepartment && (
-                        <Link href={parentParam ? `/departments/new?parent=${parentParam}` : '/departments/new'}>
-                            <Button variant="contained" startIcon={<AddIcon />} size="small">
-                                Add New
-                            </Button>
-                        </Link>
+                        <Button 
+                            component={Link}
+                            href={parentParam ? `/departments/new?parent=${parentParam}` : '/departments/new'}
+                            variant="contained" 
+                            startIcon={<AddIcon />} 
+                            size="small"
+                        >
+                            Add New
+                        </Button>
                     )}
                 </Box>
             </Box>
@@ -287,8 +293,16 @@ function DepartmentsPageContent() {
                 sx={{ 
                     mb: 3,
                     '& .MuiOutlinedInput-root': {
-                        borderRadius: 3,
-                        bgcolor: 'background.paper',
+                        transition: 'all 0.2s',
+                        background: (theme) => `linear-gradient(135deg, ${alpha(theme.palette.background.paper, 0.4)} 0%, ${alpha(theme.palette.background.paper, 0.2)} 100%)`,
+                        backdropFilter: 'blur(20px)',
+                        boxShadow: '0 4px 20px rgba(0, 0, 0, 0.1)',
+                        '&:hover': {
+                            boxShadow: '0 8px 25px rgba(0, 0, 0, 0.15)',
+                        },
+                        '&.Mui-focused': {
+                            boxShadow: (theme) => `0 8px 25px ${alpha(theme.palette.primary.main, 0.2)}`,
+                        }
                     }
                 }}
                 size="small"
@@ -302,28 +316,27 @@ function DepartmentsPageContent() {
                     const subDeptCount = dept._count?.children || 0;
                     
                     return (
-                        <Card 
+                        <GlassCard 
                             key={dept.id}
                             sx={{ 
-                                borderRadius: 2,
-                                boxShadow: 1,
-                                '&:hover': {
-                                    boxShadow: 3,
-                                },
+                                p: 0,
+                                borderRadius: 3,
                             }}
                         >
                             <CardActionArea 
                                 onClick={() => router.push(`/departments/${dept.id}/dashboard`)}
-                                sx={{ py: 1.5, px: 2 }}
+                                sx={{ py: 2, px: 2.5 }}
                             >
-                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2.5 }}>
                                     <Avatar
                                         src={leader?.image || undefined}
                                         sx={{
                                             width: 50,
                                             height: 50,
-                                            bgcolor: 'primary.main',
+                                            background: (theme) => `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark} 100%)`,
                                             fontSize: '1.25rem',
+                                            boxShadow: '0 4px 12px rgba(37, 99, 235, 0.3)',
+                                            border: '2px solid rgba(255,255,255,0.1)',
                                         }}
                                     >
                                         {leader?.name?.[0]?.toUpperCase() || dept.name[0]?.toUpperCase() || 'D'}
@@ -331,20 +344,28 @@ function DepartmentsPageContent() {
                                     <Box sx={{ flex: 1, minWidth: 0 }}>
                                         <Typography 
                                             variant="subtitle1" 
-                                            fontWeight={600}
+                                            fontWeight={700}
                                             sx={{ 
                                                 overflow: 'hidden',
                                                 textOverflow: 'ellipsis',
                                                 whiteSpace: 'nowrap',
+                                                fontSize: '1.05rem',
+                                                mb: 0.5
                                             }}
                                         >
-                                            {dept.name} <Box component="span" sx={{ color: 'text.secondary', fontWeight: 400 }}>{formatDepartmentLevel(dept.level)}</Box>
+                                            {dept.name} <Box component="span" sx={{ color: 'text.secondary', fontWeight: 500, fontSize: '0.875rem' }}>{formatDepartmentLevel(dept.level)}</Box>
                                         </Typography>
                                         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, alignItems: 'center' }}>
                                             {leader && (
                                                 <Typography 
                                                     variant="body2" 
-                                                    sx={{ color: 'success.main' }}
+                                                    sx={{ 
+                                                        color: 'success.main',
+                                                        fontWeight: 500,
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        gap: 0.5
+                                                    }}
                                                 >
                                                     {leader.name || leader.email}
                                                 </Typography>
@@ -354,7 +375,7 @@ function DepartmentsPageContent() {
                                                     variant="body2" 
                                                     color="text.secondary"
                                                 >
-                                                    {leader ? ' | ' : ''}<Box component="span" sx={{ color: 'warning.main' }}>Admin:</Box> {admin.name || admin.email}
+                                                    {leader ? ' • ' : ''}<Box component="span" sx={{ color: 'warning.main', fontWeight: 500 }}>Admin:</Box> {admin.name || admin.email}
                                                 </Typography>
                                             )}
                                         </Box>
@@ -362,6 +383,7 @@ function DepartmentsPageContent() {
                                             <Typography 
                                                 variant="caption" 
                                                 color="text.secondary"
+                                                sx={{ mt: 0.5, display: 'block' }}
                                             >
                                                 {subDeptCount} {getSubLevelName(dept.level)}
                                             </Typography>
@@ -369,7 +391,7 @@ function DepartmentsPageContent() {
                                     </Box>
                                 </Box>
                             </CardActionArea>
-                        </Card>
+                        </GlassCard>
                     );
                 })}
                 {filteredDepartments.length === 0 && !loading && (

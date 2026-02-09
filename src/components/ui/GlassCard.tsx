@@ -9,6 +9,7 @@ interface GlassCardProps extends Omit<CardProps, 'variant'> {
     glowColor?: string;
     hoverLift?: boolean;
     blur?: number;
+    variant?: 'standard' | 'highlight';
 }
 
 export default function GlassCard({
@@ -17,6 +18,7 @@ export default function GlassCard({
     glowColor,
     hoverLift = true,
     blur = 10,
+    variant = 'standard',
     sx,
     ...cardProps
 }: GlassCardProps) {

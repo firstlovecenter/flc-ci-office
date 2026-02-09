@@ -16,6 +16,7 @@ import {
     alpha,
     CircularProgress,
 } from '@mui/material';
+import { GlassCard } from '@/components/ui';
 import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
 import BusinessIcon from '@mui/icons-material/Business';
 import GroupsIcon from '@mui/icons-material/Groups';
@@ -198,7 +199,7 @@ export default function SelectRolePage() {
                         
                         return (
                         <Grid key={item.id || role} size={{ xs: 12, sm: 6, md: 4 }}>
-                            <Card
+                            <GlassCard
                                 sx={{
                                     height: '100%',
                                     transition: 'all 0.3s',
@@ -261,7 +262,7 @@ export default function SelectRolePage() {
                                         </Box>
                                     </CardContent>
                                 </CardActionArea>
-                            </Card>
+                            </GlassCard>
                         </Grid>
                     )})}
                 </Grid>

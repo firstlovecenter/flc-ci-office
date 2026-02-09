@@ -12,10 +12,7 @@ import {
     Chip,
     Divider,
     Alert,
-    Card,
-    CardContent,
     Stack,
-    alpha,
     CircularProgress,
     IconButton,
     Table,
@@ -24,7 +21,9 @@ import {
     TableContainer,
     TableHead,
     TableRow,
+    alpha,
 } from '@mui/material';
+import { GlassCard } from '@/components/ui';
 import EditIcon from '@mui/icons-material/Edit';
 import HistoryIcon from '@mui/icons-material/History';
 import PersonIcon from '@mui/icons-material/Person';
@@ -171,31 +170,31 @@ export default function UserDetailPage() {
             </Box>
 
             {/* Profile Card */}
-            <Paper 
-                elevation={0}
+            <GlassCard 
                 sx={{ 
-                    p: 2,
-                    borderRadius: 2,
+                    p: 3,
+                    borderRadius: 3,
+                    mt: 2
                 }}
             >
                 {/* Avatar and Name Section */}
-                <Box sx={{ textAlign: 'center', mb: 3 }}>
+                <Box sx={{ textAlign: 'center', mb: 4 }}>
                     <Avatar
                         src={user.image || undefined}
                         sx={{ 
                             width: 120, 
                             height: 120,
                             mx: 'auto',
-                            mb: 1.5,
-                            border: '3px solid',
+                            mb: 2,
+                            border: '4px solid',
                             borderColor: 'background.paper',
-                            boxShadow: 3,
+                            boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
                         }}
                     >
                         {user.name?.[0]?.toUpperCase() || user.email[0]?.toUpperCase()}
                     </Avatar>
 
-                    <Typography variant="h5" fontWeight={600} sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5 }}>
+                    <Typography variant="h4" fontWeight={700} sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
                         {user.name || 'No name set'}
                         {user.archived && (
                             <Chip label="Archived" size="small" color="warning" />
@@ -224,48 +223,48 @@ export default function UserDetailPage() {
                 )}
 
                 {/* User Info Grid */}
-                <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 1.5, mb: 2 }}>
+                <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 2, mb: 4 }}>
                     {/* Full Name */}
-                    <Paper sx={{ p: 1.5, bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)' }}>
-                        <Typography variant="caption" color="text.secondary">
+                    <Box sx={{ p: 2, borderRadius: 2, bgcolor: (theme) => alpha(theme.palette.background.paper, 0.4), border: '1px solid', borderColor: 'divider' }}>
+                        <Typography variant="caption" color="text.secondary" fontWeight={500}>
                             Full Name
                         </Typography>
-                        <Typography variant="body2" fontWeight={500}>
+                        <Typography variant="body1" fontWeight={600} sx={{ mt: 0.5 }}>
                             {user.name || '-'}
                         </Typography>
-                    </Paper>
+                    </Box>
 
                     {/* Phone Number */}
-                    <Paper sx={{ p: 1.5, bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)', gridColumn: 'span 2' }}>
-                        <Typography variant="caption" color="text.secondary" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                    <Box sx={{ p: 2, borderRadius: 2, bgcolor: (theme) => alpha(theme.palette.background.paper, 0.4), border: '1px solid', borderColor: 'divider', gridColumn: 'span 2' }}>
+                        <Typography variant="caption" color="text.secondary" fontWeight={500} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                             Phone Number
-                            <PhoneIcon sx={{ fontSize: 14, color: '#60a5fa' }} />
+                            <PhoneIcon sx={{ fontSize: 14, color: 'primary.main' }} />
                         </Typography>
-                        <Typography variant="body2" fontWeight={500}>
+                        <Typography variant="body1" fontWeight={600} sx={{ mt: 0.5 }}>
                             {user.phone || '-'}
                         </Typography>
-                    </Paper>
+                    </Box>
 
                     {/* Email Address */}
-                    <Paper sx={{ p: 1.5, bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)', gridColumn: 'span 2' }}>
-                        <Typography variant="caption" color="text.secondary">
+                    <Box sx={{ p: 2, borderRadius: 2, bgcolor: (theme) => alpha(theme.palette.background.paper, 0.4), border: '1px solid', borderColor: 'divider', gridColumn: 'span 2' }}>
+                        <Typography variant="caption" color="text.secondary" fontWeight={500}>
                             Email Address
                         </Typography>
-                        <Typography variant="body2" fontWeight={500}>
+                        <Typography variant="body1" fontWeight={600} sx={{ mt: 0.5 }}>
                             {user.email}
                         </Typography>
-                    </Paper>
+                    </Box>
 
                     {/* Department */}
                     {user.department && (
-                        <Paper sx={{ p: 1.5, bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)', gridColumn: 'span 2' }}>
+                        <Box sx={{ p: 2, borderRadius: 2, bgcolor: (theme) => alpha(theme.palette.background.paper, 0.4), border: '1px solid', borderColor: 'divider', gridColumn: 'span 2' }}>
                             <Typography variant="caption" color="text.secondary">
                                 Department
                             </Typography>
-                            <Typography variant="body2" fontWeight={500}>
+                            <Typography variant="body1" fontWeight={600} sx={{ mt: 0.5 }}>
                                 {user.department.name}
                             </Typography>
-                        </Paper>
+                        </Box>
                     )}
                 </Box>
 
@@ -283,28 +282,29 @@ export default function UserDetailPage() {
                     {user.auditLogs && user.auditLogs.length > 0 ? (
                         <Stack spacing={1}>
                             {user.auditLogs.slice(0, 3).map((log) => (
-                                <Paper 
+                                <GlassCard 
                                     key={log.id}
+                                    variant="highlight"
                                     sx={{ 
                                         p: 1.5,
-                                        bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)',
                                         borderLeft: '3px solid',
-                                        borderLeftColor: 'error.main',
+                                        borderLeftColor: 'primary.main',
+                                        borderRadius: 1,
                                     }}
                                 >
-                                    <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
+                                    <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.5 }}>
                                         <Box 
                                             sx={{ 
                                                 width: 8, 
                                                 height: 8, 
                                                 borderRadius: '50%', 
-                                                bgcolor: 'error.main',
+                                                bgcolor: 'primary.main',
                                                 mt: 0.75,
                                                 flexShrink: 0,
                                             }} 
                                         />
                                         <Box sx={{ flex: 1 }}>
-                                            <Typography variant="body2" fontWeight={500}>
+                                            <Typography variant="body2" fontWeight={600}>
                                                 {log.description || formatRole(log.actionType)}
                                             </Typography>
                                             <Typography variant="caption" color="text.secondary">
@@ -312,7 +312,7 @@ export default function UserDetailPage() {
                                             </Typography>
                                         </Box>
                                     </Box>
-                                </Paper>
+                                </GlassCard>
                             ))}
                         </Stack>
                     ) : (
@@ -321,7 +321,7 @@ export default function UserDetailPage() {
                         </Typography>
                     )}
                 </Box>
-            </Paper>
+            </GlassCard>
 
             {/* Edit User Dialog */}
             {editDialogOpen && (

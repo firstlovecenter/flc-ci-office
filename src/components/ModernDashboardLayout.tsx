@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { Box, Typography, Avatar, IconButton, useMediaQuery, useTheme, Badge, Drawer, List, ListItem, ListItemButton, ListItemIcon, ListItemText, Divider } from '@mui/material';
-import { styled } from '@mui/material/styles';
+import { styled, alpha } from '@mui/material/styles';
 import { useSession, signOut } from 'next-auth/react';
 import { usePathname, useRouter } from 'next/navigation';
 import HomeIcon from '@mui/icons-material/Home';
@@ -108,6 +108,12 @@ export default function ModernDashboardLayout({ children }: { children: React.Re
     const isAdmin = userRole && userRole.endsWith('_ADMIN');
     const isLeader = userRole && userRole.endsWith('_LEADER');
     
+    // Fix hydration mismatch by ensuring sidebar only renders on client
+    const [mounted, setMounted] = useState(false);
+    useEffect(() => {
+        setMounted(true);
+    }, []);
+    
     const mobileMenuItems = [
         { text: 'Home', icon: <HomeIcon />, path: '/dashboard', show: true },
         { text: 'Approvals', icon: <PendingActionsIcon />, path: '/approvals', badge: pendingCounts.approvals, show: isAdmin || isSuperAdmin },
@@ -134,7 +140,7 @@ export default function ModernDashboardLayout({ children }: { children: React.Re
         <>
         <PullToRefresh>
         <MainContainer>
-            {!isMobile && (
+            {!isMobile && mounted && (
                 <ModernSidebar
                     userRole={session?.user?.role}
                     userName={session?.user?.name || undefined}
@@ -305,8 +311,8 @@ export default function ModernDashboardLayout({ children }: { children: React.Re
                                     cursor: 'pointer',
                                     border: `2px solid ${theme.palette.background.paper}`,
                                     boxShadow: theme.palette.mode === 'dark'
-                                        ? '0 2px 8px rgba(220, 38, 38, 0.3)'
-                                        : '0 2px 8px rgba(185, 28, 28, 0.2)',
+                                        ? `0 2px 8px ${alpha(theme.palette.primary.main, 0.3)}`
+                                        : `0 2px 8px ${alpha(theme.palette.primary.main, 0.2)}`,
                                 }}
                                 onClick={() => router.push('/profile')}
                             >
@@ -351,8 +357,8 @@ export default function ModernDashboardLayout({ children }: { children: React.Re
                         sx={{
                             p: 3,
                             background: theme.palette.mode === 'dark'
-                                ? 'linear-gradient(135deg, rgba(220, 38, 38, 0.2) 0%, rgba(185, 28, 28, 0.2) 100%)'
-                                : 'linear-gradient(135deg, rgba(239, 68, 68, 0.1) 0%, rgba(220, 38, 38, 0.1) 100%)',
+                                ? `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.2)} 0%, ${alpha(theme.palette.primary.dark, 0.2)} 100%)`
+                                : `linear-gradient(135deg, ${alpha(theme.palette.primary.light, 0.1)} 0%, ${alpha(theme.palette.primary.main, 0.1)} 100%)`,
                             borderBottom: `1px solid ${theme.palette.mode === 'dark' 
                                 ? 'rgba(255, 255, 255, 0.1)' 
                                 : 'rgba(0, 0, 0, 0.1)'}`,
@@ -367,8 +373,8 @@ export default function ModernDashboardLayout({ children }: { children: React.Re
                                     bgcolor: theme.palette.primary.main,
                                     border: `2px solid ${theme.palette.background.paper}`,
                                     boxShadow: theme.palette.mode === 'dark'
-                                        ? '0 4px 12px rgba(220, 38, 38, 0.3)'
-                                        : '0 4px 12px rgba(185, 28, 28, 0.2)',
+                                        ? `0 4px 12px ${alpha(theme.palette.primary.main, 0.3)}`
+                                        : `0 4px 12px ${alpha(theme.palette.primary.main, 0.2)}`,
                                 }}
                             >
                                 {session?.user?.name?.[0]?.toUpperCase() || 'U'}
@@ -401,13 +407,9 @@ export default function ModernDashboardLayout({ children }: { children: React.Re
                                         mb: 0.5,
                                         borderRadius: 2,
                                         '&.Mui-selected': {
-                                            bgcolor: theme.palette.mode === 'dark'
-                                                ? 'rgba(220, 38, 38, 0.2)'
-                                                : 'rgba(220, 38, 38, 0.1)',
+                                            bgcolor: alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.2 : 0.1),
                                             '&:hover': {
-                                                bgcolor: theme.palette.mode === 'dark'
-                                                    ? 'rgba(220, 38, 38, 0.3)'
-                                                    : 'rgba(220, 38, 38, 0.15)',
+                                                bgcolor: alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.3 : 0.15),
                                             },
                                         },
                                     }}

@@ -27,6 +27,7 @@ import {
     FormControlLabel,
     Chip,
 } from '@mui/material';
+import { GlassCard } from '@/components/ui';
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
@@ -298,13 +299,13 @@ export default function CurrenciesPage() {
                 </Alert>
             )}
 
-            <Paper sx={{ mb: 3 }}>
+            <GlassCard sx={{ mb: 3 }}>
                 <Tabs value={tab} onChange={(_, v) => setTab(v)}>
                     <Tab label="Currencies" />
                     <Tab label="Exchange Rates" />
                     <Tab label="Base Currencies" />
                 </Tabs>
-            </Paper>
+            </GlassCard>
 
             {tab === 0 && (
                 <Box>
@@ -319,21 +320,21 @@ export default function CurrenciesPage() {
                         </Button>
                     </Box>
 
-                    <TableContainer component={Paper}>
+                    <TableContainer component={GlassCard}>
                         <Table>
                             <TableHead>
-                                <TableRow>
-                                    <TableCell>Code</TableCell>
-                                    <TableCell>Name</TableCell>
-                                    <TableCell>Symbol</TableCell>
-                                    <TableCell>Status</TableCell>
-                                    <TableCell>Base Currency</TableCell>
-                                    <TableCell align="right">Actions</TableCell>
+                                <TableRow sx={{ bgcolor: 'action.hover' }}>
+                                    <TableCell sx={{ fontWeight: 700 }}>Code</TableCell>
+                                    <TableCell sx={{ fontWeight: 700 }}>Name</TableCell>
+                                    <TableCell sx={{ fontWeight: 700 }}>Symbol</TableCell>
+                                    <TableCell sx={{ fontWeight: 700 }}>Status</TableCell>
+                                    <TableCell sx={{ fontWeight: 700 }}>Base Currency</TableCell>
+                                    <TableCell align="right" sx={{ fontWeight: 700 }}>Actions</TableCell>
                                 </TableRow>
                             </TableHead>
                             <TableBody>
                                 {currencies.map((currency) => (
-                                    <TableRow key={currency.id}>
+                                    <TableRow key={currency.id} sx={{ '&:hover': { bgcolor: 'action.hover' } }}>
                                         <TableCell>
                                             <strong>{currency.code}</strong>
                                         </TableCell>
@@ -395,20 +396,20 @@ export default function CurrenciesPage() {
                         </Button>
                     </Box>
 
-                    <TableContainer component={Paper}>
+                    <TableContainer component={GlassCard}>
                         <Table>
                             <TableHead>
-                                <TableRow>
-                                    <TableCell>From Currency</TableCell>
-                                    <TableCell>To Currency</TableCell>
-                                    <TableCell>Exchange Rate</TableCell>
-                                    <TableCell>Effective Date</TableCell>
-                                    <TableCell align="right">Actions</TableCell>
+                                <TableRow sx={{ bgcolor: 'action.hover' }}>
+                                    <TableCell sx={{ fontWeight: 700 }}>From Currency</TableCell>
+                                    <TableCell sx={{ fontWeight: 700 }}>To Currency</TableCell>
+                                    <TableCell sx={{ fontWeight: 700 }}>Exchange Rate</TableCell>
+                                    <TableCell sx={{ fontWeight: 700 }}>Effective Date</TableCell>
+                                    <TableCell align="right" sx={{ fontWeight: 700 }}>Actions</TableCell>
                                 </TableRow>
                             </TableHead>
                             <TableBody>
                                 {exchangeRates.map((rate) => (
-                                    <TableRow key={rate.id}>
+                                    <TableRow key={rate.id} sx={{ '&:hover': { bgcolor: 'action.hover' } }}>
                                         <TableCell>
                                             <strong>{rate.fromCurrency.code}</strong> - {rate.fromCurrency.name}
                                         </TableCell>
@@ -470,20 +471,20 @@ export default function CurrenciesPage() {
                         </Alert>
                     )}
 
-                    <TableContainer component={Paper}>
+                    <TableContainer component={GlassCard}>
                         <Table>
                             <TableHead>
-                                <TableRow>
-                                    <TableCell>Oversight Department</TableCell>
-                                    <TableCell>Base Currency</TableCell>
-                                    <TableCell>Status</TableCell>
-                                    <TableCell>Set By</TableCell>
-                                    <TableCell>Date Set</TableCell>
+                                <TableRow sx={{ bgcolor: 'action.hover' }}>
+                                    <TableCell sx={{ fontWeight: 700 }}>Oversight Department</TableCell>
+                                    <TableCell sx={{ fontWeight: 700 }}>Base Currency</TableCell>
+                                    <TableCell sx={{ fontWeight: 700 }}>Status</TableCell>
+                                    <TableCell sx={{ fontWeight: 700 }}>Set By</TableCell>
+                                    <TableCell sx={{ fontWeight: 700 }}>Date Set</TableCell>
                                 </TableRow>
                             </TableHead>
                             <TableBody>
                                 {baseCurrencies.map((dept: any) => (
-                                    <TableRow key={dept.departmentId}>
+                                    <TableRow key={dept.departmentId} sx={{ '&:hover': { bgcolor: 'action.hover' } }}>
                                         <TableCell>
                                             <strong>{dept.departmentName}</strong>
                                         </TableCell>
