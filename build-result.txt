@@ -1,7 +1,0 @@
-
-> flc-ci-office@0.1.0 build
-> next build
-
-[baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
-   Suggestion: If you intended to restart next build, terminate the other process, and then try again.
- ⨯ Unable to acquire lock at C:\Users\samuel cyrus-aduteye\Documents\Codeslaw\flc-accounts\.next\lock, is another instance of next build running?

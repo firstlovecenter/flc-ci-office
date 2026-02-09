@@ -95,7 +95,7 @@ export async function GET(request: Request) {
                 },
             },
             orderBy: {
-                createdAt: 'desc',
+                name: 'asc',
             },
         });
 

@@ -2,27 +2,88 @@
 
 A comprehensive accounting system designed for church organizations with hierarchical department structures and role-based access control.
 
-## Features
+> **📚 Full Documentation**: See [docs/INDEX.md](./docs/INDEX.md) for complete technical documentation organized by topic.
+
+## Table of Contents
+- [Documentation](#-documentation)
+- [Features Overview](#features-overview)
+- [Tech Stack](#tech-stack)
+- [Getting Started](#getting-started)
+- [Project Structure](#project-structure)
+- [Key Features Explained](#key-features-explained)
+- [API Routes](#api-routes)
+- [Database Schema](#database-schema)
+- [Development](#development)
+- [Environment Variables](#environment-variables)
+- [Security Considerations](#security-considerations)
+- [Implemented Features](#implemented-features-)
+- [Future Enhancements](#future-enhancements)
+
+---
+
+## 📖 Documentation
+
+This project has extensive documentation organized by topic. For developers joining the project, start with:
+
+### Quick References
+- **[Quick Reference Guide](./docs/quick-reference.md)** - Common tasks and commands
+- **[Documentation Index](./docs/INDEX.md)** - Complete documentation hub
+
+### Architecture & Technical Design
+- [Currency System Architecture](./docs/architecture/currency-system-status.md) - Multi-currency conversion system
+
+### Features & Capabilities  
+- [Approval Workflow](./docs/features/approval-workflow.md) - Transaction approval system
+- [Audit Logging](./docs/features/audit-logging.md) - Enhanced audit trail with field-level tracking
+- [Push Notifications](./docs/features/push-notifications.md) - PWA push notification system
+- [Push Notifications Implementation](./docs/features/push-notifications-implementation.md) - Technical implementation details
+
+### Roles & Permissions
+- [Role Management](./docs/roles/role-management.md) - Role system overview
+- [Multiple Admins](./docs/roles/multiple-admins.md) - Multi-admin support per department
+- [Multiple Roles](./docs/roles/multiple-roles.md) - Users with multiple role-department combinations
+
+### Migration Notes
+- [Multi-Department Migration](./docs/migrations/multi-department-migration.md) - UserRole system migration
+- [Session Fix](./docs/migrations/session-fix-summary.md) - Session management updates
+- [Email Removal](./docs/migrations/email-removal-summary.md) - SMS-only transition
+- [Phone Migration](./docs/migrations/phone-migration.md) - Phone field implementation
+
+### User Guides
+- [Multi-Currency User Guide](./docs/guides/multi-currency-user-guide.md) - End-user currency guide
+
+---
+
+## Features Overview
 
 ### Core Functionality
-- **Multi-Level Department Hierarchy**: Global → International → National → Regional → Campus → Stream → Council
-- **Role-Based Access Control (RBAC)**: 12 different role levels with granular permissions
+- **Multi-Level Department Hierarchy**: Denomination → Oversight → Campus → Stream → Council (5 levels) (see [Multi-Department Migration](./docs/migrations/multi-department-migration.md))
+- **Role-Based Access Control (RBAC)**: 11 role levels (SUPERADMIN + 10 admin/leader roles) with granular permissions (see [Role Management](./docs/roles/role-management.md))
 - **Transaction Management**: Income and expense tracking with file attachments
-- **Transaction Approval Workflow**: Leaders submit requests, admins approve/reject
+- **Transaction Approval Workflow**: Leaders submit requests, admins approve/reject (see [Approval Workflow](./docs/features/approval-workflow.md))
+- **Multi-Currency Support**: Track transactions in multiple currencies with automatic conversion (see [Multi-Currency User Guide](./docs/guides/multi-currency-user-guide.md))
 - **Weekly Locking**: Automatic locking of past weeks' transactions
 - **Recursive Permissions**: Admins can view/manage child departments
-- **Audit Trail**: Complete logging of all system actions
+- **Audit Trail**: Complete logging of all system actions (see [Audit Logging](./docs/features/audit-logging.md))
 - **Financial Reports**: Generate reports by department
 - **Dashboard Analytics**: Real-time financial statistics
-- **Push Notifications**: Real-time PWA notifications for transaction approvals
+- **Push Notifications**: Real-time PWA notifications for transaction approvals (see [Push Notifications](./docs/features/push-notifications.md))
 - **Offline Support**: Progressive Web App with offline capabilities
 - **Background Sync**: Automatic sync when connection is restored
+
+> **📖 See Also**: 
+> - [Approval Workflow Documentation](./docs/features/approval-workflow.md)
+> - [Multi-Currency User Guide](./docs/guides/multi-currency-user-guide.md)
+> - [Push Notifications Setup](./docs/features/push-notifications.md)
 
 ### Security
 - **NextAuth Authentication**: Secure credential-based authentication
 - **Password Hashing**: bcrypt encryption for all passwords
 - **Session Management**: JWT-based sessions
 - **Permission Checks**: Server-side validation on all API routes
+- **Audit Trail**: Complete logging of all system actions ([docs](./docs/features/audit-logging.md))
+
+---
 
 ## Tech Stack
 
@@ -56,11 +117,9 @@ A comprehensive accounting system designed for church organizations with hierarc
    ```bash
    node scripts/generate-vapid-keys.js
    ```
-   Copy the generated keys to your `.env.local` file.
+   Copy the generated keys to your `.env.local` file. See [Push Notifications Setup](./docs/features/push-notifications.md) for details.
 
 4. **Set up environment variables**
-
-3. **Set up environment variables**
    Create a `.env` file in the root directory:
    ```env
    # Database
@@ -74,13 +133,13 @@ A comprehensive accounting system designed for church organizations with hierarc
    CRON_SECRET="your-cron-secret-here"
    ```
 
-4. **Set up the database**
+5. **Set up the database**
    ```bash
    npx prisma migrate dev
    npx prisma generate
    ```
 
-5. **Seed the database**
+6. **Seed the database**
    ```bash
    npm run db:seed
    ```
@@ -93,6 +152,8 @@ A comprehensive accounting system designed for church organizations with hierarc
 7. **Open your browser**
    Navigate to [http://localhost:3000](http://localhost:3000)
 
+> **💡 For detailed setup instructions**, see [Multi-Currency User Guide](./docs/guides/multi-currency-user-guide.md) and [Quick Reference](./docs/quick-reference.md)
+
 ### Default Login Credentials
 
 After seeding, you can log in with:
@@ -100,6 +161,8 @@ After seeding, you can log in with:
 - **SuperAdmin**: `admin@flc.org` / `password123`
 - **Campus Admin**: `campus.admin@flc.org` / `password123`
 - **Council Leader**: `council.leader@flc.org` / `password123`
+
+> **🔒 For role information**, see [Role Management](./docs/roles/role-management.md) and [Multiple Admins](./docs/roles/multiple-admins.md)
 
 ## Project Structure
 
@@ -138,25 +201,48 @@ flc-accounts/
 ## Key Features Explained
 
 ### Department Hierarchy
-The system supports a 7-level hierarchy:
-1. **Global** - Top-level organization
-2. **International** - International branches
-3. **National** - Country-level
-4. **Regional** - Regional offices
-5. **Campus** - Individual campuses
-6. **Stream** - Ministry streams
-7. **Council** - Smallest unit
+The system supports a 5-level hierarchy:
+1. **Denomination** - Top-level organization (denominational headquarters)
+2. **Oversight** - Oversight regions or zones
+3. **Campus** - Individual campuses or locations
+4. **Stream** - Ministry streams or departments
+5. **Council** - Smallest ministry unit (councils, groups, or teams)
 
 ### Roles and Permissions
-- **SuperAdmin**: Full system access
-- **Admins** (Global, International, National, Regional, Campus): Can manage their department and all child departments
-- **Leaders** (Global, International, National, Regional, Campus, Stream, Council): Can view and create transactions for their department
+- **SuperAdmin**: Full system access (email-locked to primary admin)
+- **Admins** (Denomination, Oversight, Campus, Stream, Council): Can manage their department and all child departments
+  - Multiple admins allowed per department (except SUPERADMIN and DENOMINATION_ADMIN)
+- **Leaders** (Denomination, Oversight, Campus, Stream, Council): Can submit expense requests for approval
+- **Multiple Roles**: Users can have multiple role-department combinations and switch between them
+
+> **📖 See**: [Role Management](./docs/roles/role-management.md) | [Multiple Admins](./docs/roles/multiple-admins.md) | [Multiple Roles](./docs/roles/multiple-roles.md)
 
 ### Transaction Locking
 - Transactions are automatically locked after the week ends
 - Locked transactions cannot be edited or deleted
 - Prevents historical data manipulation
 - Can be triggered via cron job: `/api/cron/lock-weeks`
+
+### Multi-Currency System
+- **Base Currencies**: Denomination and Oversight admins can select their department's base currency
+- **Automatic Conversion**: Transactions converted to user's contextual currency
+- **Exchange Rates**: System maintains rates between currencies
+- **Dynamic Calculation**: Conversions happen in real-time during data fetch
+- **Hierarchy**: Sub-departments inherit their parent's base currency unless explicitly set
+
+> **📖 See**: [Currency Architecture](./docs/architecture/currency-system-status.md) | [User Guide](./docs/guides/multi-currency-user-guide.md)
+
+### Communication Channels
+- **Authentication**: Email-based login with phone number as secondary identifier
+- **SMS Notifications**: Primary notification channel via SMSOptics (Ghana)
+  - Password reset codes
+  - Role assignment notifications
+  - Transaction alerts
+- **Push Notifications**: PWA push notifications for real-time updates
+  - Transaction approvals/rejections
+  - System alerts
+
+> **📖 See**: [Push Notifications](./docs/features/push-notifications.md) | [Phone Migration](./docs/migrations/phone-migration.md)
 
 ### File Uploads
 - Support for multiple file attachments per transaction
@@ -166,42 +252,97 @@ The system supports a 7-level hierarchy:
 ## API Routes
 
 ### Authentication
-- `POST /api/auth/signin` - Login
-- `POST /api/auth/signout` - Logout
+- `POST /api/auth/[...nextauth]` - NextAuth endpoints
+- `POST /api/auth/forgot-password` - Request password reset (SMS)
+- `POST /api/auth/reset-password` - Reset password with code
 
 ### Transactions
-- `GET /api/transactions` - List transactions
+- `GET /api/transactions` - List transactions (with currency conversion)
 - `POST /api/transactions` - Create transaction
 - `PUT /api/transactions` - Update transaction
 - `DELETE /api/transactions?id={id}` - Delete transaction
+- `POST /api/transactions/[id]/approve` - Approve/reject transaction
+- `POST /api/transactions/[id]/correct` - Correct transaction amount
 
 ### Departments
 - `GET /api/departments` - List departments
 - `POST /api/departments` - Create department
+- `GET /api/departments/[id]` - Get department details
+- `GET /api/departments/[id]/stats` - Get department statistics
 
 ### Users
 - `GET /api/users` - List users
 - `POST /api/users` - Create user
+- `PUT /api/users/[id]` - Update user
+- `GET /api/users/me` - Get current user with base currency
+- `PATCH /api/users/me` - Update current user (includes base currency)
+- `POST /api/users/select-role` - Switch active role
+
+### Currencies
+- `GET /api/currencies` - List all currencies
+- `POST /api/currencies` - Create currency
+- `PUT /api/currencies/[id]` - Update currency
+- `GET /api/exchange-rates` - List exchange rates
+- `POST /api/exchange-rates` - Create exchange rate
+- `POST /api/currencies/recalculate` - Recalculate transaction amounts
+
+### Admin
+- `GET /api/admin/base-currencies` - View department base currencies
+- `POST /api/admin/base-currencies` - Set base currency for department
+- `GET /api/admin/sms-templates` - Get SMS templates
+- `POST /api/admin/sms/send` - Send manual SMS
+
+### Notifications
+- `POST /api/notifications/subscribe` - Subscribe to push notifications
+- `DELETE /api/notifications/subscribe` - Unsubscribe
+- `POST /api/notifications/send` - Send push notification (admin only)
+
+### Audit
+- `GET /api/audit` - Get audit logs (superadmin only)
 
 ### Dashboard
-- `GET /api/dashboard/stats` - Get financial statistics
+- `GET /api/dashboard/stats` - Get financial statistics (currency-converted)
 
 ### File Upload
 - `POST /api/upload` - Upload file
+- `POST /api/users/upload-image` - Upload user avatar
+- `POST /api/profile/upload-image` - Upload profile image
+
+### Reports
+- `POST /api/reports/pdf` - Generate PDF report
 
 ### Cron Jobs
 - `GET /api/cron/lock-weeks` - Lock past weeks' transactions
 
+> **📝 Note**: All transaction and dashboard endpoints automatically convert amounts to user's contextual base currency
+
+> **🔐 For role information**, see [Role Management](./docs/roles/role-management.md) and [Multiple Admins](./docs/roles/multiple-admins.md)
+
 ## Database Schema
 
 ### Main Models
-- **Department**: Hierarchical organization structure
-- **User**: System users with roles
-- **Transaction**: Financial transactions
-- **File**: File attachments
-- **AuditLog**: System audit trail
+- **Department**: Hierarchical organization structure (5 levels: DENOMINATION, OVERSIGHT, CAMPUS, STREAM, COUNCIL)
+- **User**: System users with multiple roles
+- **UserRole**: Role-department assignments (many-to-many)
+- **Transaction**: Financial transactions with currency support
+- **Currency**: Supported currencies (USD, GHS, EUR, etc.)
+- **ExchangeRate**: Exchange rates between currencies
+- **DepartmentBaseCurrency**: Department currency preferences (typically set at Denomination/Oversight level)
+- **File**: File attachments for transactions
+- **AuditLog**: Enhanced audit trail with field-level changes
+- **PushSubscription**: Web push notification subscriptions
+- **SMSTemplate**: SMS message templates
+
+### Key Relationships
+- User ↔ UserRole ↔ Department (many-to-many via UserRole)
+- Transaction → Currency (original currency)
+- Transaction → Department (belongs to)
+- Department ↔ DepartmentBaseCurrency (optional base currency)
+- Currency ↔ ExchangeRate (bidirectional rates)
 
 See `prisma/schema.prisma` for complete schema definition.
+
+> **📖 See**: [Multi-Department Migration](./docs/migrations/multi-department-migration.md) for UserRole details
 
 ## Development
 
@@ -229,6 +370,13 @@ npm start
 | NEXTAUTH_SECRET | Secret for NextAuth | Yes |
 | NEXTAUTH_URL | Application URL | Yes |
 | CRON_SECRET | Secret for cron endpoints | Yes |
+| SMSOPTICS_API_KEY | SMSOptics API key for SMS | Yes |
+| SMSOPTICS_SENDER_ID | SMS sender ID (e.g., CI-OFFICE) | Yes |
+| NEXT_PUBLIC_VAPID_PUBLIC_KEY | VAPID public key for push notifications | Yes |
+| VAPID_PRIVATE_KEY | VAPID private key for push notifications | Yes |
+| VAPID_SUBJECT | Contact email for VAPID | Yes |
+
+> **💡 Tip**: Run `node scripts/generate-vapid-keys.js` to generate VAPID keys
 
 ## Security Considerations
 
@@ -240,16 +388,32 @@ npm start
 6. **Implement rate limiting** for API routes
 7. **Use environment-specific** `.env` files
 
+## Implemented Features ✅
+
+- [x] Multi-currency support with automatic conversion
+- [x] PDF report generation
+- [x] Export to CSV
+- [x] Advanced audit logging
+- [x] Push notifications (PWA)
+- [x] SMS notifications
+- [x] Offline support (PWA)
+- [x] Transaction approval workflow
+- [x] Multiple roles per user
+- [x] Role switching
+- [x] Department base currencies
+
 ## Future Enhancements
 
-- [ ] PDF report generation
-- [ ] Email notifications
 - [ ] Budget planning module
-- [ ] Advanced analytics with charts
-- [ ] Multi-currency support
-- [ ] Export to Excel/CSV
-- [ ] Mobile app
-- [ ] Two-factor authentication
+- [ ] Financial forecasting
+- [ ] Automated exchange rate updates
+- [ ] Mobile app (native)
+- [ ] Two-factor authentication (SMS-based)
+- [ ] Recurring transactions
+- [ ] Transaction templates
+- [ ] Advanced analytics dashboards
+- [ ] Department budgets and limits
+- [ ] Approval delegation
 
 ## License
 
