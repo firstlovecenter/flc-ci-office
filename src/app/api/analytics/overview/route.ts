@@ -42,10 +42,9 @@ export async function GET(request: Request) {
 
         // Build department filter based on user role
         let departmentIds: string[] | null = null;
-        if (departmentId) {
-            departmentIds = [departmentId];
-        } else if (normalizedRole !== 'SUPERADMIN') {
-            // Filter to user's department and below
+        
+        if (normalizedRole !== 'SUPERADMIN') {
+            // Non-superadmins are restricted to their tree
             const userDept = await prisma.user.findUnique({
                 where: { id: session.user.id },
                 include: { department: true }
@@ -53,7 +52,29 @@ export async function GET(request: Request) {
 
             if (userDept?.departmentId) {
                 const allSubDepts = await getAllSubDepartments(userDept.departmentId);
-                departmentIds = [userDept.departmentId, ...allSubDepts];
+                const allowedIds = [userDept.departmentId, ...allSubDepts];
+                
+                if (departmentId) {
+                    // User requested specific department - verify access
+                    if (allowedIds.includes(departmentId)) {
+                        departmentIds = [departmentId];
+                    } else {
+                        // Requested department is out of scope -> return forbidden or empty
+                        // Returning empty filter with ID='none' to match nothing
+                        departmentIds = ['__NO_ACCESS__']; 
+                    }
+                } else {
+                    // No specific department requested -> show all in scope
+                    departmentIds = allowedIds;
+                }
+            } else {
+                // User has no department -> see nothing
+                departmentIds = ['__NO_ACCESS__'];
+            }
+        } else {
+            // Superadmin
+            if (departmentId) {
+                departmentIds = [departmentId];
             }
         }
 

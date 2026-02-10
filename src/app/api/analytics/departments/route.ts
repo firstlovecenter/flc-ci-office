@@ -44,11 +44,34 @@ export async function GET(request: Request) {
         // Build level filter
         const levelFilter = level ? { level: level as any } : {};
 
+        // Build department scope filter based on user role
+        let allowedDepartmentIds: string[] | null = null;
+        if (normalizedRole !== 'SUPERADMIN') {
+            // Filter to user's department and below
+            const userDept = await prisma.user.findUnique({
+                where: { id: session.user.id },
+                include: { department: true }
+            });
+
+            if (userDept?.departmentId) {
+                const allSubDepts = await getAllSubDepartments(userDept.departmentId);
+                allowedDepartmentIds = [userDept.departmentId, ...allSubDepts];
+            } else {
+                // User has no department but is not superadmin? Should probably see nothing.
+                allowedDepartmentIds = []; 
+            }
+        }
+
+        const scopeFilter = allowedDepartmentIds
+            ? { id: { in: allowedDepartmentIds } }
+            : {};
+
         // Get departments with transaction aggregates
         const departments = await prisma.department.findMany({
             where: {
                 isActive: true,
-                ...levelFilter
+                ...levelFilter,
+                ...scopeFilter
             },
             include: {
                 transactions: {
@@ -156,4 +179,23 @@ export async function GET(request: Request) {
             { status: 500 }
         );
     }
+}
+
+// Helper function to get all sub-departments recursively
+async function getAllSubDepartments(departmentId: string): Promise<string[]> {
+    const children = await prisma.department.findMany({
+        where: { parentId: departmentId },
+        select: { id: true }
+    });
+
+    if (children.length === 0) {
+        return [];
+    }
+
+    const childIds = children.map((c: { id: string }) => c.id);
+    const subChildren = await Promise.all(
+        childIds.map((id: string) => getAllSubDepartments(id))
+    );
+
+    return [...childIds, ...subChildren.flat()];
 }

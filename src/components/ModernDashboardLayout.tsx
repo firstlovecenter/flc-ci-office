@@ -145,7 +145,6 @@ export default function ModernDashboardLayout({ children }: { children: React.Re
 
     return (
         <>
-        <PullToRefresh>
         <MainContainer>
             {/* Sticky TopBar - Outside ContentArea for proper sticky positioning */}
             <TopBar
@@ -236,11 +235,12 @@ export default function ModernDashboardLayout({ children }: { children: React.Re
                     </Box>
                 </TopBar>
 
-            <ContentArea>
-                {children}
-            </ContentArea>
+            <PullToRefresh>
+                <ContentArea>
+                    {children}
+                </ContentArea>
+            </PullToRefresh>
         </MainContainer>
-        </PullToRefresh>
 
             {/* Navigation Drawer */}
             <Drawer

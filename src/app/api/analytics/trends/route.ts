@@ -31,10 +31,32 @@ export async function GET(request: Request) {
         const period = searchParams.get('period') || 'monthly'; // monthly, weekly, daily
         const departmentId = searchParams.get('departmentId');
 
-        // Build department filter
+        // Build department scope based on user role
+        let scopeFilter = Prisma.empty;
+        
+        if (normalizedRole !== 'SUPERADMIN') {
+            const userDept = await prisma.user.findUnique({
+                where: { id: session.user.id },
+                include: { department: true }
+            });
+
+            if (userDept?.departmentId) {
+                const allSubDepts = await getAllSubDepartments(userDept.departmentId);
+                const allowedIds = [userDept.departmentId, ...allSubDepts];
+                scopeFilter = Prisma.sql`AND "departmentId" IN (${Prisma.join(allowedIds)})`;
+            } else {
+                // No department access -> return no data
+                scopeFilter = Prisma.sql`AND 1=0`;
+            }
+        }
+
+        // Build specific department filter
         const departmentFilter = departmentId
             ? Prisma.sql`AND "departmentId" = ${departmentId}`
             : Prisma.empty;
+
+        // Combine filters
+        const finalFilter = Prisma.sql`${scopeFilter} ${departmentFilter}`;
 
         let trendData;
 
@@ -56,7 +78,7 @@ export async function GET(request: Request) {
                     COUNT(*) as transactions
                 FROM "Transaction"
                 WHERE "createdAt" >= ${thirtyDaysAgo}
-                ${departmentFilter}
+                ${finalFilter}
                 GROUP BY date
                 ORDER BY date ASC
             `;
@@ -78,7 +100,7 @@ export async function GET(request: Request) {
                     COUNT(*) as transactions
                 FROM "Transaction"
                 WHERE "createdAt" >= ${twelveWeeksAgo}
-                ${departmentFilter}
+                ${finalFilter}
                 GROUP BY week
                 ORDER BY week ASC
             `;
@@ -100,7 +122,7 @@ export async function GET(request: Request) {
                     COUNT(*) as transactions
                 FROM "Transaction"
                 WHERE "createdAt" >= ${twelveMonthsAgo}
-                ${departmentFilter}
+                ${finalFilter}
                 GROUP BY month
                 ORDER BY month ASC
             `;
@@ -139,7 +161,7 @@ export async function GET(request: Request) {
             FROM "Transaction" t
             LEFT JOIN "Currency" c ON t."currencyId" = c.id
             WHERE t."currencyId" IS NOT NULL
-            ${departmentFilter}
+            ${finalFilter}
             GROUP BY c.code
             ORDER BY transaction_count DESC
             LIMIT 10
@@ -165,7 +187,7 @@ export async function GET(request: Request) {
                 SUM(CASE WHEN status = 'REJECTED' THEN 1 ELSE 0 END) as rejected
             FROM "Transaction"
             WHERE "createdAt" >= ${new Date(new Date().setMonth(new Date().getMonth() - 12))}
-            ${departmentFilter}
+            ${finalFilter}
             GROUP BY month
             ORDER BY month ASC
         `;
@@ -190,4 +212,23 @@ export async function GET(request: Request) {
             { status: 500 }
         );
     }
+}
+
+// Helper function to get all sub-departments recursively
+async function getAllSubDepartments(departmentId: string): Promise<string[]> {
+    const children = await prisma.department.findMany({
+        where: { parentId: departmentId },
+        select: { id: true }
+    });
+
+    if (children.length === 0) {
+        return [];
+    }
+
+    const childIds = children.map((c: { id: string }) => c.id);
+    const subChildren = await Promise.all(
+        childIds.map((id: string) => getAllSubDepartments(id))
+    );
+
+    return [...childIds, ...subChildren.flat()];
 }
