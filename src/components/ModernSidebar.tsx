@@ -160,11 +160,12 @@ export default function ModernSidebar({ userRole, userName, userImage, pendingCo
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
 
-    const isSuperAdmin = userRole === 'SUPERADMIN';
-    const isGlobalAdmin = userRole === 'DENOMINATION_ADMIN';
-    const isOversightAdmin = userRole === 'OVERSIGHT_ADMIN';
+    const normalizedRole = (userRole || '').toUpperCase();
+    const isSuperAdmin = normalizedRole === 'SUPERADMIN';
+    const isGlobalAdmin = normalizedRole === 'DENOMINATION_ADMIN';
+    const isOversightAdmin = normalizedRole === 'OVERSIGHT_ADMIN';
     const canManageCurrencies = isSuperAdmin || isGlobalAdmin;
-    const isAdmin = userRole?.includes('ADMIN');
+    const isAdmin = normalizedRole.includes('ADMIN');
 
     useEffect(() => {
         if (baseCurrencyDialogOpen) {
@@ -236,14 +237,16 @@ export default function ModernSidebar({ userRole, userName, userImage, pendingCo
 
     // Filter menu items based on user role - leaders don't see Users menu
     const leaderRoles = ['DENOMINATION_LEADER', 'OVERSIGHT_LEADER', 'CAMPUS_LEADER', 'STREAM_LEADER', 'COUNCIL_LEADER'];
-    const isLeader = leaderRoles.includes(userRole || '');
+    const isLeader = leaderRoles.includes(normalizedRole);
+    const hasAnalyticsAccess = isAdmin || ['DENOMINATION_LEADER', 'OVERSIGHT_LEADER', 'CAMPUS_LEADER'].includes(normalizedRole);
 
     const filteredMenuItems = menuItems.filter(item => {
         if (item.path === '/users' && isLeader) return false;
         if (item.superAdminOnly && !isSuperAdmin) return false;
+        if (item.path === '/analytics') return hasAnalyticsAccess;
         if (item.adminOnly && !isAdmin) return false;
         return true;
-    });;
+    });
 
     const filteredBottomItems = bottomMenuItems.filter(item => {
         if (item.superAdminOnly && !isSuperAdmin) return false;

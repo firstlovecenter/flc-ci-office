@@ -42,7 +42,7 @@ const DashboardStatCard = ({
         <Box
             sx={{
                 position: 'relative',
-                p: { xs: 2, sm: 2.5, md: 3 },
+                p: { xs: 1.5, sm: 2, md: 2.5 },
                 borderRadius: 3,
                 background: gradient,
                 overflow: 'hidden',
@@ -93,14 +93,14 @@ const DashboardStatCard = ({
                 }}
             />
             
-            <Stack spacing={{ xs: 1.5, sm: 2 }} sx={{ position: 'relative', zIndex: 1 }}>
+            <Stack spacing={{ xs: 1, sm: 1.25 }} sx={{ position: 'relative', zIndex: 1 }}>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <Typography 
                         variant="body2" 
                         sx={{ 
                             color: 'rgba(255, 255, 255, 0.9)',
                             fontWeight: 500,
-                            fontSize: { xs: '0.75rem', sm: '0.875rem' },
+                            fontSize: { xs: '0.7rem', sm: '0.8rem' },
                             letterSpacing: '0.5px',
                         }}
                     >
@@ -108,8 +108,8 @@ const DashboardStatCard = ({
                     </Typography>
                     <Box
                         sx={{
-                            width: { xs: 36, sm: 44 },
-                            height: { xs: 36, sm: 44 },
+                            width: { xs: 32, sm: 40 },
+                            height: { xs: 32, sm: 40 },
                             borderRadius: 2,
                             bgcolor: 'rgba(255, 255, 255, 0.2)',
                             backdropFilter: 'blur(10px)',
@@ -122,7 +122,7 @@ const DashboardStatCard = ({
                             }
                         }}
                     >
-                        <Icon sx={{ fontSize: { xs: 18, sm: 22 }, color: 'white' }} />
+                        <Icon sx={{ fontSize: { xs: 16, sm: 20 }, color: 'white' }} />
                     </Box>
                 </Box>
                 <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.5 }}>
@@ -131,7 +131,7 @@ const DashboardStatCard = ({
                             component="span" 
                             sx={{ 
                                 color: 'white', 
-                                fontSize: { xs: '0.85rem', sm: '1rem' },
+                                fontSize: { xs: '0.75rem', sm: '0.9rem' },
                                 fontWeight: 600,
                                 opacity: 0.9,
                                 mr: 0.25
@@ -146,7 +146,7 @@ const DashboardStatCard = ({
                         formatter={(val) => val.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         sx={{
                             color: 'white',
-                            fontSize: { xs: '1.25rem', sm: '1.5rem', md: '1.75rem' },
+                            fontSize: { xs: '1.1rem', sm: '1.35rem', md: '1.6rem' },
                             fontWeight: 700,
                             textShadow: '0 2px 4px rgba(0,0,0,0.1)',
                             letterSpacing: '-0.03em',

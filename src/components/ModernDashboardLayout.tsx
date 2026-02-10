@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { Box, Typography, Avatar, IconButton, useMediaQuery, useTheme, Badge, Drawer, List, ListItem, ListItemButton, ListItemIcon, ListItemText, Divider } from '@mui/material';
+import { Box, Typography, Avatar, IconButton, useTheme, Badge, Drawer, List, ListItem, ListItemButton, ListItemIcon, ListItemText, Divider, TextField, Button } from '@mui/material';
 import { styled, alpha } from '@mui/material/styles';
 import { useSession, signOut } from 'next-auth/react';
 import { usePathname, useRouter } from 'next/navigation';
@@ -9,18 +9,18 @@ import HomeIcon from '@mui/icons-material/Home';
 import ReceiptIcon from '@mui/icons-material/Receipt';
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
 import BusinessIcon from '@mui/icons-material/Business';
-import AccountCircleIcon from '@mui/icons-material/AccountCircle';
 import LightModeIcon from '@mui/icons-material/LightMode';
 import DarkModeIcon from '@mui/icons-material/DarkMode';
 import LogoutIcon from '@mui/icons-material/LogoutRounded';
 import MenuIcon from '@mui/icons-material/Menu';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import RefreshIcon from '@mui/icons-material/Refresh';
+import CloseIcon from '@mui/icons-material/Close';
+import SearchIcon from '@mui/icons-material/Search';
 import PendingActionsIcon from '@mui/icons-material/PendingActions';
 import AssessmentIcon from '@mui/icons-material/Assessment';
 import ShowChartIcon from '@mui/icons-material/ShowChart';
 import SmsIcon from '@mui/icons-material/Sms';
-import ModernSidebar from './ModernSidebar';
 import { useColorMode } from '@/app/providers';
 import RoleSwitcher from './RoleSwitcher';
 import PullToRefresh from './PullToRefresh';
@@ -38,16 +38,16 @@ const MainContainer = styled(Box)(({ theme }) => ({
 
 const ContentArea = styled(Box)(({ theme }) => ({
     flexGrow: 1,
-    marginLeft: 80, // Default for collapsed sidebar
-    padding: theme.spacing(4),
-    transition: 'margin-left 0.3s ease',
-    [theme.breakpoints.down('md')]: {
-        marginLeft: 0,
-        padding: theme.spacing(2),
-        paddingTop: 'calc(80px + env(safe-area-inset-top))', // Account for fixed TopBar height + safe area
-        paddingLeft: 'max(16px, env(safe-area-inset-left))',
-        paddingRight: 'max(16px, env(safe-area-inset-right))',
-        paddingBottom: 'max(16px, env(safe-area-inset-bottom))',
+    marginLeft: 0,
+    padding: theme.spacing(2),
+    paddingTop: 'calc(80px + env(safe-area-inset-top))', // Account for fixed TopBar height + safe area
+    paddingLeft: 'max(16px, env(safe-area-inset-left))',
+    paddingRight: 'max(16px, env(safe-area-inset-right))',
+    paddingBottom: 'max(16px, env(safe-area-inset-bottom))',
+    transition: 'padding 0.3s ease',
+    [theme.breakpoints.up('md')]: {
+        padding: theme.spacing(3),
+        paddingTop: 'calc(80px + env(safe-area-inset-top))',
     },
 }));
 
@@ -72,10 +72,10 @@ export default function ModernDashboardLayout({ children }: { children: React.Re
     const pathname = usePathname();
     const router = useRouter();
     const theme = useTheme();
-    const isMobile = useMediaQuery(theme.breakpoints.down('md'));
     const colorMode = useColorMode();
     const [pendingCounts, setPendingCounts] = useState({ approvals: 0, transactions: 0 });
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+    const [searchQuery, setSearchQuery] = useState('');
 
     useEffect(() => {
         if (session?.user) {
@@ -96,8 +96,9 @@ export default function ModernDashboardLayout({ children }: { children: React.Re
         }
     };
 
-    const isSuperAdmin = session?.user?.role === 'SUPERADMIN';
-    const userRole = session?.user?.role;
+    const normalizedRole = (session?.user?.role || '').toUpperCase();
+    const isSuperAdmin = normalizedRole === 'SUPERADMIN';
+    const userRole = normalizedRole || undefined;
     const leaderAndAdminRoles = [
         'DENOMINATION_ADMIN', 'DENOMINATION_LEADER',
         'OVERSIGHT_ADMIN', 'OVERSIGHT_LEADER',
@@ -107,12 +108,7 @@ export default function ModernDashboardLayout({ children }: { children: React.Re
     const isLeaderOrAdmin = userRole && leaderAndAdminRoles.includes(userRole);
     const isAdmin = userRole && userRole.endsWith('_ADMIN');
     const isLeader = userRole && userRole.endsWith('_LEADER');
-    
-    // Fix hydration mismatch by ensuring sidebar only renders on client
-    const [mounted, setMounted] = useState(false);
-    useEffect(() => {
-        setMounted(true);
-    }, []);
+    const hasAnalyticsAccess = isAdmin || isSuperAdmin || ['DENOMINATION_LEADER', 'OVERSIGHT_LEADER', 'CAMPUS_LEADER'].includes(userRole || '');
     
     const mobileMenuItems = [
         { text: 'Home', icon: <HomeIcon />, path: '/dashboard', show: true },
@@ -121,9 +117,8 @@ export default function ModernDashboardLayout({ children }: { children: React.Re
         { text: 'Transaction History', icon: <ReceiptIcon />, path: '/transactions', badge: pendingCounts.transactions, show: true },
         { text: 'Churches', icon: <BusinessIcon />, path: '/departments', show: isSuperAdmin || isLeaderOrAdmin },
         { text: 'Trends & Reports', icon: <AssessmentIcon />, path: '/reports', show: true },
-        { text: 'Analytics', icon: <ShowChartIcon />, path: '/analytics', show: isAdmin || isSuperAdmin },
+        { text: 'Analytics', icon: <ShowChartIcon />, path: '/analytics', show: hasAnalyticsAccess },
         { text: 'SMS Management', icon: <SmsIcon />, path: '/admin/sms', show: isSuperAdmin },
-        { text: 'Profile', icon: <AccountCircleIcon />, path: '/profile', show: true },
     ];
 
     const handleMenuItemClick = (path: string) => {
@@ -136,22 +131,24 @@ export default function ModernDashboardLayout({ children }: { children: React.Re
         signOut({ callbackUrl: '/auth/login' });
     };
 
+    const handleSearch = () => {
+        if (!searchQuery.trim()) return;
+        setMobileMenuOpen(false);
+        router.push(`/search?q=${encodeURIComponent(searchQuery)}`);
+    };
+    
+    const handleSearchKeyDown = (e: React.KeyboardEvent) => {
+        if (e.key === 'Enter') {
+            handleSearch();
+        }
+    };
+
     return (
         <>
         <PullToRefresh>
         <MainContainer>
-            {!isMobile && mounted && (
-                <ModernSidebar
-                    userRole={session?.user?.role}
-                    userName={session?.user?.name || undefined}
-                    userImage={session?.user?.image || undefined}
-                    pendingCounts={pendingCounts}
-                />
-            )}
-
-            {/* Mobile Sticky TopBar - Outside ContentArea for proper sticky positioning */}
-            {isMobile && (
-                <TopBar
+            {/* Sticky TopBar - Outside ContentArea for proper sticky positioning */}
+            <TopBar
                     sx={{
                         position: 'fixed',
                         top: 'env(safe-area-inset-top)',
@@ -165,8 +162,8 @@ export default function ModernDashboardLayout({ children }: { children: React.Re
                         alignItems: 'center',
                         justifyContent: 'space-between',
                         background: theme.palette.mode === 'dark'
-                            ? 'linear-gradient(180deg, rgba(15, 23, 42, 0.95) 0%, rgba(15, 23, 42, 0.85) 100%)'
-                            : 'linear-gradient(180deg, rgba(255, 255, 255, 0.95) 0%, rgba(255, 255, 255, 0.85) 100%)',
+                            ? 'rgba(15, 23, 42, 0.95)'
+                            : 'rgba(255, 255, 255, 0.95)',
                         backdropFilter: 'blur(10px)',
                         WebkitBackdropFilter: 'blur(10px)',
                         borderBottom: `1px solid ${theme.palette.mode === 'dark' 
@@ -177,22 +174,25 @@ export default function ModernDashboardLayout({ children }: { children: React.Re
                     <IconButton
                         onClick={() => setMobileMenuOpen(true)}
                         sx={{
-                            bgcolor: theme.palette.mode === 'dark' 
-                                ? 'rgba(255, 255, 255, 0.05)' 
-                                : 'rgba(0, 0, 0, 0.04)',
-                            backdropFilter: 'blur(10px)',
-                            WebkitBackdropFilter: 'blur(10px)',
+                            width: 45,
+                            height: 45,
+                            borderRadius: '10px',
+                            color: theme.palette.text.primary,
+                            bgcolor: 'transparent',
+                            border: `1px solid ${theme.palette.mode === 'dark' 
+                                ? 'rgba(255, 255, 255, 0.2)' 
+                                : 'rgba(0, 0, 0, 0.2)'}`,
                             '&:hover': {
                                 bgcolor: theme.palette.mode === 'dark' 
-                                    ? 'rgba(255, 255, 255, 0.1)' 
-                                    : 'rgba(0, 0, 0, 0.08)',
+                                    ? 'rgba(255, 255, 255, 0.05)' 
+                                    : 'rgba(0, 0, 0, 0.04)',
                             },
                         }}
                     >
-                        <MenuIcon />
+                        <MenuIcon sx={{ fontSize: 28 }} />
                     </IconButton>
 
-                    <Box sx={{ display: 'flex', gap: 1 }}>
+                    <Box sx={{ display: { xs: 'flex', md: 'none' }, gap: 1 }}>
                         <IconButton
                             onClick={() => router.back()}
                             sx={{
@@ -230,211 +230,68 @@ export default function ModernDashboardLayout({ children }: { children: React.Re
                         </IconButton>
                     </Box>
                 </TopBar>
-            )}
 
             <ContentArea>
-                {/* Desktop TopBar - Inside ContentArea */}
-                {!isMobile && (
-                <TopBar>
-                    <Box />
-                    
-                    <UserSection>
-                            <RoleSwitcher />
-                            
-                            <Box
-                                onClick={colorMode.toggleColorMode}
-                                sx={{
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    width: 44,
-                                    height: 44,
-                                    borderRadius: '12px',
-                                    cursor: 'pointer',
-                                    position: 'relative',
-                                    overflow: 'hidden',
-                                    background: theme.palette.mode === 'dark'
-                                        ? 'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)'
-                                        : 'linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%)',
-                                    boxShadow: theme.palette.mode === 'dark'
-                                        ? '0 4px 15px rgba(30, 64, 175, 0.3), inset 0 1px 0 rgba(255,255,255,0.1)'
-                                        : '0 4px 15px rgba(251, 146, 60, 0.3), inset 0 1px 0 rgba(255,255,255,0.5)',
-                                    transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
-                                    '&:hover': {
-                                        transform: 'scale(1.05)',
-                                        boxShadow: theme.palette.mode === 'dark'
-                                            ? '0 6px 20px rgba(30, 64, 175, 0.4)'
-                                            : '0 6px 20px rgba(251, 146, 60, 0.4)',
-                                    },
-                                    '&:active': {
-                                        transform: 'scale(0.95)',
-                                    },
-                                }}
-                                title={`Switch to ${theme.palette.mode === 'dark' ? 'light' : 'dark'} mode`}
-                            >
-                                {theme.palette.mode === 'dark' ? (
-                                    <DarkModeIcon sx={{ 
-                                        fontSize: 22, 
-                                        color: '#fbbf24',
-                                        filter: 'drop-shadow(0 0 6px rgba(251, 191, 36, 0.5))',
-                                    }} />
-                                ) : (
-                                    <LightModeIcon sx={{ 
-                                        fontSize: 22, 
-                                        color: '#f97316',
-                                        filter: 'drop-shadow(0 0 6px rgba(249, 115, 22, 0.5))',
-                                        animation: 'pulse 2s ease-in-out infinite',
-                                        '@keyframes pulse': {
-                                            '0%, 100%': { transform: 'scale(1)' },
-                                            '50%': { transform: 'scale(1.1)' },
-                                        },
-                                    }} />
-                                )}
-                            </Box>
-                            
-                            <Typography 
-                                variant="body2" 
-                                fontWeight={600} 
-                                color="text.primary"
-                                sx={{ display: { xs: 'none', md: 'block' } }}
-                            >
-                                {session?.user?.name || 'User'}
-                            </Typography>
-                            
-                            <Avatar
-                                src={session?.user?.image || undefined}
-                                sx={{
-                                    width: 40,
-                                    height: 40,
-                                    bgcolor: theme.palette.primary.main,
-                                    fontWeight: 700,
-                                    cursor: 'pointer',
-                                    border: `2px solid ${theme.palette.background.paper}`,
-                                    boxShadow: theme.palette.mode === 'dark'
-                                        ? `0 2px 8px ${alpha(theme.palette.primary.main, 0.3)}`
-                                        : `0 2px 8px ${alpha(theme.palette.primary.main, 0.2)}`,
-                                }}
-                                onClick={() => router.push('/profile')}
-                            >
-                                {session?.user?.name?.[0]?.toUpperCase() || 'U'}
-                            </Avatar>
-                        </UserSection>
-                </TopBar>
-                )}
-
                 {children}
             </ContentArea>
         </MainContainer>
         </PullToRefresh>
 
-            {/* Mobile Navigation Drawer */}
-            {isMobile && (
-                <Drawer
+            {/* Navigation Drawer */}
+            <Drawer
                     anchor="left"
                     open={mobileMenuOpen}
                     onClose={() => setMobileMenuOpen(false)}
                     PaperProps={{
                         sx: {
-                            width: 280,
+                            width: 320,
                             display: 'flex',
                             flexDirection: 'column',
+                            alignItems: 'center',
                             paddingTop: 'env(safe-area-inset-top)',
                             paddingBottom: 'env(safe-area-inset-bottom)',
-                            // iOS 26 Liquid Glass effect
-                            background: theme.palette.mode === 'dark'
-                                ? 'rgba(30, 41, 59, 0.95)'
-                                : 'rgba(255, 255, 255, 0.95)',
-                            backdropFilter: 'blur(40px) saturate(180%)',
-                            WebkitBackdropFilter: 'blur(40px) saturate(180%)',
-                            borderRight: `1px solid ${theme.palette.mode === 'dark' 
-                                ? 'rgba(255, 255, 255, 0.1)' 
-                                : 'rgba(0, 0, 0, 0.1)'}`,
+                            bgcolor: '#0f172a', // Dark background
+                            color: '#ffffff',
+                            borderRight: `1px solid rgba(255, 255, 255, 0.1)`,
                         }
                     }}
                 >
-                    {/* User Profile Section */}
-                    <Box
-                        sx={{
-                            p: 3,
-                            background: theme.palette.mode === 'dark'
-                                ? `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.2)} 0%, ${alpha(theme.palette.primary.dark, 0.2)} 100%)`
-                                : `linear-gradient(135deg, ${alpha(theme.palette.primary.light, 0.1)} 0%, ${alpha(theme.palette.primary.main, 0.1)} 100%)`,
-                            borderBottom: `1px solid ${theme.palette.mode === 'dark' 
-                                ? 'rgba(255, 255, 255, 0.1)' 
-                                : 'rgba(0, 0, 0, 0.1)'}`,
-                        }}
-                    >
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
-                            <Avatar
-                                src={session?.user?.image || undefined}
-                                sx={{
-                                    width: 56,
-                                    height: 56,
-                                    bgcolor: theme.palette.primary.main,
-                                    border: `2px solid ${theme.palette.background.paper}`,
-                                    boxShadow: theme.palette.mode === 'dark'
-                                        ? `0 4px 12px ${alpha(theme.palette.primary.main, 0.3)}`
-                                        : `0 4px 12px ${alpha(theme.palette.primary.main, 0.2)}`,
-                                }}
-                            >
-                                {session?.user?.name?.[0]?.toUpperCase() || 'U'}
-                            </Avatar>
-                            <Box>
-                                <Typography variant="subtitle1" fontWeight={700}>
-                                    {session?.user?.name || 'User'}
-                                </Typography>
-                                <Typography variant="caption" color="text.secondary">
-                                    {getDisplayRole(session?.user?.role)}
-                                </Typography>
-                            </Box>
-                        </Box>
-                        <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', mb: 1 }}>
-                            <Box sx={{ flex: 1 }}>
-                                <RoleSwitcher />
-                            </Box>
-                        </Box>
+                    {/* Close Button at Top Right */}
+                    <Box sx={{ width: '100%', display: 'flex', justifyContent: 'flex-end', p: 2 }}>
+                        <IconButton 
+                            onClick={() => setMobileMenuOpen(false)}
+                            sx={{ color: 'rgba(255, 255, 255, 0.7)' }}
+                        >
+                            <CloseIcon />
+                        </IconButton>
                     </Box>
 
-                    {/* Navigation Items - Scrollable */}
-                    <List sx={{ py: 2, flex: 1, overflowY: 'auto' }}>
+                    {/* Navigation Items - Centered, Outlined */}
+                    <List sx={{ width: '100%', px: 2, display: 'flex', flexDirection: 'column', gap: 0.8 }}>
                         {mobileMenuItems.filter(item => item.show).map((item) => (
                             <ListItem key={item.path} disablePadding>
                                 <ListItemButton
                                     onClick={() => handleMenuItemClick(item.path)}
-                                    selected={pathname === item.path}
+                                    // Removed selected state highlighting as requested
                                     sx={{
-                                        mx: 1,
-                                        mb: 0.5,
-                                        borderRadius: 2,
-                                        '&.Mui-selected': {
-                                            bgcolor: alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.2 : 0.1),
-                                            '&:hover': {
-                                                bgcolor: alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.3 : 0.15),
-                                            },
+                                        borderRadius: 1,
+                                        border: '1px solid',
+                                        borderColor: 'rgba(255, 255, 255, 0.3)',
+                                        color: '#ffffff',
+                                        py: 1,
+                                        justifyContent: 'center',
+                                        transition: 'all 0.2s',
+                                        '&:hover': {
+                                            bgcolor: 'rgba(255, 255, 255, 0.1)',
+                                            borderColor: '#ffffff',
                                         },
                                     }}
                                 >
-                                    <ListItemIcon
-                                        sx={{
-                                            color: pathname === item.path 
-                                                ? theme.palette.primary.main 
-                                                : theme.palette.text.secondary,
-                                        }}
-                                    >
-                                        {item.badge && item.badge > 0 ? (
-                                            <Badge 
-                                                badgeContent={item.badge} 
-                                                color="error"
-                                                max={99}
-                                            >
-                                                {item.icon}
-                                            </Badge>
-                                        ) : item.icon}
-                                    </ListItemIcon>
                                     <ListItemText 
                                         primary={item.text}
                                         primaryTypographyProps={{
-                                            fontWeight: pathname === item.path ? 700 : 500,
+                                            fontWeight: 600,
+                                            textAlign: 'center',
                                         }}
                                     />
                                 </ListItemButton>
@@ -442,52 +299,135 @@ export default function ModernDashboardLayout({ children }: { children: React.Re
                         ))}
                     </List>
 
-                    {/* Logout and Theme Switcher at Bottom */}
-                    <Box sx={{ borderTop: `1px solid ${theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)'}`, p: 1, display: 'flex', gap: 1 }}>
-                        <IconButton
-                            onClick={colorMode.toggleColorMode}
-                            sx={{
-                                flex: 1,
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                borderRadius: 2,
-                                bgcolor: theme.palette.mode === 'dark'
-                                    ? 'rgba(30, 64, 175, 0.2)'
-                                    : 'rgba(30, 64, 175, 0.1)',
-                                color: theme.palette.primary.main,
-                                transition: 'all 0.2s',
-                                '&:hover': {
-                                    bgcolor: theme.palette.mode === 'dark'
-                                        ? 'rgba(30, 64, 175, 0.3)'
-                                        : 'rgba(30, 64, 175, 0.15)',
-                                },
-                            }}
-                            title={`Switch to ${theme.palette.mode === 'dark' ? 'light' : 'dark'} mode`}
-                        >
-                            {theme.palette.mode === 'dark' ? (
-                                <DarkModeIcon sx={{ fontSize: 20 }} />
-                            ) : (
-                                <LightModeIcon sx={{ fontSize: 20 }} />
-                            )}
-                        </IconButton>
-                        <ListItemButton
-                            onClick={handleLogout}
-                            sx={{
-                                flex: 1,
-                                borderRadius: 2,
-                                color: theme.palette.error.main,
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                            }}
-                        >
-                            <LogoutIcon sx={{ mr: 1 }} />
-                            <span>Logout</span>
-                        </ListItemButton>
+                    {/* Search Bar */}
+                    <Box sx={{ width: '100%', px: 2, mb: 3 }}>
+                        <Box sx={{ display: 'flex', gap: 1 }}>
+                            <TextField
+                                placeholder="Search for anything..."
+                                fullWidth
+                                variant="outlined"
+                                size="small"
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                onKeyDown={handleSearchKeyDown}
+                                sx={{
+                                    '& .MuiOutlinedInput-root': {
+                                        bgcolor: 'rgba(255, 255, 255, 0.05)',
+                                        color: '#fff',
+                                        borderRadius: 1,
+                                        '& fieldset': {
+                                            borderColor: 'rgba(255, 255, 255, 0.2)',
+                                        },
+                                        '&:hover fieldset': {
+                                            borderColor: 'rgba(255, 255, 255, 0.4)',
+                                        },
+                                        '&.Mui-focused fieldset': {
+                                            borderColor: theme.palette.primary.main,
+                                        },
+                                    },
+                                    '& input::placeholder': {
+                                        color: 'rgba(255, 255, 255, 0.5)',
+                                    }
+                                }}
+                            />
+                            <Button
+                                variant="contained"
+                                color="success"
+                                onClick={handleSearch}
+                                sx={{ 
+                                    minWidth: 'auto', 
+                                    px: 2,
+                                    bgcolor: theme.palette.success.main,
+                                    '&:hover': { bgcolor: theme.palette.success.dark }
+                                }}
+                            >
+                                <SearchIcon />
+                            </Button>
+                        </Box>
+                    </Box>
+
+                    <Box sx={{ flex: 1 }} />
+
+                    {/* Bottom Profile Section */}
+                    <Box 
+                        sx={{ 
+                            width: '100%',
+                            p: 2,
+                            borderTop: '1px solid rgba(255, 255, 255, 0.1)',
+                            bgcolor: 'rgba(0, 0, 0, 0.2)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between'
+                        }}
+                    >
+                        {/* User Info */}
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }} onClick={() => router.push('/profile')}>
+                            <Avatar
+                                src={session?.user?.image || undefined}
+                                sx={{
+                                    width: 40,
+                                    height: 40,
+                                    bgcolor: theme.palette.primary.main,
+                                    border: '2px solid rgba(255, 255, 255, 0.1)',
+                                }}
+                            >
+                                {session?.user?.name?.[0]?.toUpperCase() || 'U'}
+                            </Avatar>
+                            <Box>
+                                <Typography variant="subtitle2" fontWeight={700} sx={{ color: '#fff', lineHeight: 1.2 }}>
+                                    {session?.user?.name || 'User'}
+                                </Typography>
+                                <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.5)' }}>
+                                    {session?.user?.email || getDisplayRole(session?.user?.role)}
+                                </Typography>
+                            </Box>
+                        </Box>
+
+                        <Box sx={{ display: 'flex', gap: 1 }}>
+                            {/* Theme Toggle */}
+                            <IconButton
+                                onClick={colorMode.toggleColorMode}
+                                sx={{
+                                    color: 'rgba(255, 255, 255, 0.7)',
+                                    border: '1px solid rgba(255, 255, 255, 0.1)',
+                                    borderRadius: 1.5,
+                                    width: 36,
+                                    height: 36,
+                                    '&:hover': {
+                                        bgcolor: 'rgba(255, 255, 255, 0.05)',
+                                        color: '#fff',
+                                    },
+                                }}
+                            >
+                                {theme.palette.mode === 'dark' ? (
+                                    <DarkModeIcon sx={{ fontSize: 20 }} />
+                                ) : (
+                                    <LightModeIcon sx={{ fontSize: 20 }} />
+                                )}
+                            </IconButton>
+
+                            {/* Logout Button */}
+                            <IconButton
+                                onClick={handleLogout}
+                                sx={{
+                                    color: theme.palette.error.light,
+                                    bgcolor: alpha(theme.palette.error.main, 0.15),
+                                    border: `1px solid ${alpha(theme.palette.error.main, 0.3)}`,
+                                    borderRadius: 1.5,
+                                    width: 36,
+                                    height: 36,
+                                    '&:hover': {
+                                        bgcolor: alpha(theme.palette.error.main, 0.25),
+                                        color: theme.palette.error.main,
+                                        borderColor: theme.palette.error.main,
+                                    },
+                                }}
+                            >
+                                <LogoutIcon sx={{ fontSize: 20 }} />
+                            </IconButton>
+                        </Box>
                     </Box>
                 </Drawer>
-            )}
         </>
     );
 }

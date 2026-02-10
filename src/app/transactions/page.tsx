@@ -98,7 +98,6 @@ function TransactionsPageContent() {
     const [currencies, setCurrencies] = useState<any[]>([]);
     const [department, setDepartment] = useState<any>(null);
     const [loading, setLoading] = useState(true);
-    const [searchTerm, setSearchTerm] = useState('');
     const [typeFilter, setTypeFilter] = useState('ALL');
     const [approvalFilter, setApprovalFilter] = useState('ALL'); // NEW: Filter by approval status
     const [correctDialog, setCorrectDialog] = useState<{ open: boolean; transaction: any }>({
@@ -108,6 +107,7 @@ function TransactionsPageContent() {
     const { data: session } = useSession();
     const searchParams = useSearchParams();
     const deptParam = searchParams?.get('dept');
+    const [searchTerm, setSearchTerm] = useState(searchParams?.get('search') || '');
 
     const isSuperAdmin = session?.user?.role === 'SUPERADMIN';
     const isAdmin = session?.user?.role && ['SUPERADMIN', 'DENOMINATION_ADMIN', 'OVERSIGHT_ADMIN', 'CAMPUS_ADMIN'].includes(session.user.role);
