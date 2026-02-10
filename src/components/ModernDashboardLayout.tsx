@@ -161,10 +161,10 @@ export default function ModernDashboardLayout({ children }: { children: React.Re
                         alignItems: 'center',
                         justifyContent: 'space-between',
                         background: theme.palette.mode === 'dark'
-                            ? 'rgba(15, 23, 42, 0.95)'
-                            : 'rgba(255, 255, 255, 0.95)',
-                        backdropFilter: 'blur(10px)',
-                        WebkitBackdropFilter: 'blur(10px)',
+                            ? 'rgba(15, 23, 42, 0.65)'
+                            : 'rgba(255, 255, 255, 0.65)',
+                        backdropFilter: 'blur(20px)',
+                        WebkitBackdropFilter: 'blur(20px)',
                         borderBottom: `1px solid ${theme.palette.mode === 'dark' 
                             ? 'rgba(255, 255, 255, 0.1)' 
                             : 'rgba(0, 0, 0, 0.1)'}`,
