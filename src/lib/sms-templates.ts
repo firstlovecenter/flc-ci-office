@@ -27,7 +27,7 @@ interface FirstRoleAssignmentSmsParams {
 
 export function generateFirstRoleAssignmentSms(params: FirstRoleAssignmentSmsParams): string {
     const { userName, resetLink } = params;
-    return `Welcome ${userName}! Welcome to CI OFFICE. Set your password here: ${resetLink}`;
+    return `Welcome ${userName}! to CI-OFFICE. Set your password here: ${resetLink}`;
 }
 
 interface RoleAssignmentSmsParams {
@@ -125,7 +125,7 @@ interface TransactionChargeSmsParams {
 
 export function generateTransactionChargeSms(params: TransactionChargeSmsParams): string {
     const { currency, chargeAmount, departmentName, transactionRef, description } = params;
-    return `DEBIT ALERT: Transaction charge of ${currency}${chargeAmount} has been applied to ${departmentName}. Ref: ${transactionRef}. Original: ${description}.`;
+    return `Transaction charge of ${currency}${chargeAmount} has been applied to ${departmentName}. Ref: ${transactionRef}. Original: ${description}.`;
 }
 
 interface PendingApprovalRequestSmsParams {
@@ -138,7 +138,7 @@ interface PendingApprovalRequestSmsParams {
 
 export function generatePendingApprovalRequestSms(params: PendingApprovalRequestSmsParams): string {
     const { userName, transactionType, currency, amount, description } = params;
-    return `NEW EXPENSE REQUEST: ${userName} submitted a ${transactionType} request of ${currency}${amount}. Description: ${description}. Please review.`;
+    return `${userName} submitted a ${transactionType} request of ${currency}${amount}. Ref: ${description}. Please review.`;
 }
 
 interface CorrectionNotificationSmsParams {
@@ -170,7 +170,7 @@ interface CreditAlertSmsParams {
 
 export function generateCreditAlertSms(params: CreditAlertSmsParams): string {
     const { currency, amount, departmentName, description, balance } = params;
-    return `CREDIT ALERT: ${currency}${amount} credited to your ${departmentName} account. Description: ${description}. Your new balance is ${currency}${balance}.`;
+    return `${currency}${amount} credited to your ${departmentName} account. Ref: ${description}. Your new balance is ${currency}${balance}.`;
 }
 
 interface DebitAlertSmsParams {
@@ -183,5 +183,5 @@ interface DebitAlertSmsParams {
 
 export function generateDebitAlertSms(params: DebitAlertSmsParams): string {
     const { currency, amount, departmentName, description, balance } = params;
-    return `DEBIT ALERT: ${currency}${amount} debited from your ${departmentName} account. Description: ${description}. Your new balance is ${currency}${balance}.`;
+    return `${currency}${amount} debited from your ${departmentName} account. Ref: ${description}. Your new balance is ${currency}${balance}.`;
 }
