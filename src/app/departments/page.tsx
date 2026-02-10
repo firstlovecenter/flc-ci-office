@@ -13,6 +13,7 @@ import {
     InputAdornment,
     IconButton,
     alpha,
+    useTheme,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import SearchIcon from '@mui/icons-material/Search';
@@ -21,7 +22,6 @@ import { useRouter } from 'next/navigation';
 import EditDepartmentDialog from '@/components/EditDepartmentDialog';
 import { formatDepartmentLevel } from '@/lib/utils';
 import { useToast } from '@/components/ToastProvider';
-import { GlassCard } from '@/components/ui';
 
 type Department = {
     id: string;
@@ -36,6 +36,7 @@ import { useSession } from 'next-auth/react';
 function DepartmentsPageContent() {
     const { data: session } = useSession();
     const router = useRouter();
+    const theme = useTheme();
     const searchParams = useSearchParams();
     const parentParam = searchParams?.get('parent');
     const { showSuccess, showError } = useToast();
@@ -294,9 +295,9 @@ function DepartmentsPageContent() {
                     mb: 3,
                     '& .MuiOutlinedInput-root': {
                         transition: 'all 0.2s',
-                        background: (theme) => `linear-gradient(135deg, ${alpha(theme.palette.background.paper, 0.4)} 0%, ${alpha(theme.palette.background.paper, 0.2)} 100%)`,
-                        backdropFilter: 'blur(20px)',
-                        boxShadow: '0 4px 20px rgba(0, 0, 0, 0.1)',
+                        background: 'background.paper',
+                        borderRadius: 3,
+                        boxShadow: 'none',
                         '&:hover': {
                             boxShadow: '0 8px 25px rgba(0, 0, 0, 0.15)',
                         },
@@ -316,15 +317,29 @@ function DepartmentsPageContent() {
                     const subDeptCount = dept._count?.children || 0;
                     
                     return (
-                        <GlassCard 
+                        <Card 
                             key={dept.id}
                             sx={{ 
                                 p: 0,
                                 borderRadius: 3,
+                                bgcolor: 'background.paper',
+                                border: '1px solid',
+                                borderColor: 'divider',
+                                boxShadow: 'none',
+                                transition: 'all 0.2s ease-in-out',
+                                '&:hover': {
+                                    borderColor: 'primary.main',
+                                    transform: 'translateY(-2px)',
+                                    boxShadow: '0 4px 12px rgba(0,0,0,0.05)'
+                                }
                             }}
                         >
                             <CardActionArea 
-                                onClick={() => router.push(`/departments/${dept.id}/dashboard`)}
+                                onClick={() => {
+                                    // Set the active department cookie
+                                    document.cookie = `activeDepartmentId=${dept.id}; path=/; max-age=86400`;
+                                    router.push('/departments/dashboard');
+                                }}
                                 sx={{ py: 2, px: 2.5 }}
                             >
                                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 2.5 }}>
@@ -333,10 +348,10 @@ function DepartmentsPageContent() {
                                         sx={{
                                             width: 50,
                                             height: 50,
-                                            background: (theme) => `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark} 100%)`,
+                                            bgcolor: alpha(theme.palette.primary.main, 0.1),
+                                            color: 'primary.main',
                                             fontSize: '1.25rem',
-                                            boxShadow: '0 4px 12px rgba(37, 99, 235, 0.3)',
-                                            border: '2px solid rgba(255,255,255,0.1)',
+                                            border: `1px solid ${alpha(theme.palette.primary.main, 0.2)}`,
                                         }}
                                     >
                                         {leader?.name?.[0]?.toUpperCase() || dept.name[0]?.toUpperCase() || 'D'}
@@ -391,7 +406,7 @@ function DepartmentsPageContent() {
                                     </Box>
                                 </Box>
                             </CardActionArea>
-                        </GlassCard>
+                        </Card>
                     );
                 })}
                 {filteredDepartments.length === 0 && !loading && (

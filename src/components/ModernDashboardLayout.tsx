@@ -192,7 +192,8 @@ export default function ModernDashboardLayout({ children }: { children: React.Re
                         <MenuIcon sx={{ fontSize: 28 }} />
                     </IconButton>
 
-                    <Box sx={{ display: { xs: 'flex', md: 'none' }, gap: 1 }}>
+                    <Box sx={{ display: { xs: 'flex', md: 'none' }, gap: 1, alignItems: 'center' }}>
+                        <RoleSwitcher />
                         <IconButton
                             onClick={() => router.back()}
                             sx={{
@@ -228,6 +229,10 @@ export default function ModernDashboardLayout({ children }: { children: React.Re
                         >
                             <RefreshIcon />
                         </IconButton>
+                    </Box>
+
+                    <Box sx={{ display: { xs: 'none', md: 'flex' }, gap: 2, alignItems: 'center' }}>
+                        <RoleSwitcher />
                     </Box>
                 </TopBar>
 
