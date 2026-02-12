@@ -7,7 +7,6 @@ const DYNAMIC_CACHE = 'flc-dynamic-v1';
 
 // Assets to cache immediately
 const STATIC_ASSETS = [
-  '/',
   '/offline',
   '/manifest.json',
   '/icon-192x192.png',
@@ -84,7 +83,36 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Static assets and pages - cache first, then network
+  // HTML pages (navigation requests) - network first, then cache
+  if (request.headers.get('accept').includes('text/html')) {
+    event.respondWith(
+      fetch(request)
+        .then((response) => {
+          // Clone the response
+          const responseClone = response.clone();
+          // Cache successful responses
+          if (response.status === 200) {
+            caches.open(DYNAMIC_CACHE).then((cache) => {
+              cache.put(request, responseClone);
+            });
+          }
+          return response;
+        })
+        .catch(() => {
+          // Return cached version if available
+          return caches.match(request).then((cachedResponse) => {
+            if (cachedResponse) {
+              return cachedResponse;
+            }
+            // If no cache, show offline page
+            return caches.match('/offline');
+          });
+        })
+    );
+    return;
+  }
+
+  // Static assets - cache first, then network
   event.respondWith(
     caches.match(request).then((cachedResponse) => {
       if (cachedResponse) {
