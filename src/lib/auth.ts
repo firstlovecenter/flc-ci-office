@@ -224,4 +224,23 @@ export const authOptions: NextAuthOptions = {
             return token;
         },
     },
+    events: {
+        async signIn({ user }) {
+            try {
+                await prisma.auditLog.create({
+                    data: {
+                        userId: user.id,
+                        actionType: 'LOGIN',
+                        entityType: 'User',
+                        entityId: user.id,
+                        description: 'User logged in',
+                        severity: 'LOW',
+                        success: true,
+                    },
+                });
+            } catch (error) {
+                console.error('Failed to log login event:', error);
+            }
+        },
+    },
 };

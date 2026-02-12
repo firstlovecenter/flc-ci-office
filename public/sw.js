@@ -1,4 +1,4 @@
-// Custom Service Worker for FLC CI Office
+// Custom Service Worker for CI Office
 // Handles push notifications, caching, and offline support
 
 const CACHE_NAME = 'flc-ci-office-v1';
@@ -125,7 +125,7 @@ self.addEventListener('push', (event) => {
   console.log('[SW] Push notification received');
   
   let data = {
-    title: 'FLC CI Office',
+    title: 'CI Office',
     body: 'New notification',
     icon: '/icon-192x192.png',
     badge: '/icon-192x192.png',

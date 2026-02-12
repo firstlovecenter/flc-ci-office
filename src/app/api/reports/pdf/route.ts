@@ -218,7 +218,7 @@ export async function POST(request: NextRequest) {
         };
 
         // Header
-        drawCenteredText('FLC CI Office', y, 20, boldFont);
+        drawCenteredText('CI Office', y, 20, boldFont);
         y -= 25;
         drawCenteredText('Bank Statement Report', y, 16, boldFont);
         y -= 20;

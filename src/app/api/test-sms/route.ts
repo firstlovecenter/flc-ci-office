@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
     // Send test SMS
     const success = await sendSms({
       to: formattedPhone,
-      message: 'Test SMS from FLC Accounts via SMSOptics',
+      message: 'Test SMS from CI Office via SMSOptics',
     });
 
     if (success) {

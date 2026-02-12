@@ -28,13 +28,17 @@ import {
     CardContent,
     Grid,
     CircularProgress,
+    CardActionArea,
     alpha,
     Skeleton,
+    useTheme,
+    useMediaQuery,
 } from '@mui/material';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import CancelIcon from '@mui/icons-material/Cancel';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import PendingActionsIcon from '@mui/icons-material/PendingActions';
+import BusinessIcon from '@mui/icons-material/Business';
 import { formatDepartmentLevel } from '@/lib/utils';
 import { useToast } from '@/components/ToastProvider';
 import { GlassCard, StatusChip, AnimatedCounter, TableRowSkeleton } from '@/components/ui';
@@ -65,6 +69,8 @@ export default function ApprovalsPage() {
     const { data: session } = useSession();
     const router = useRouter();
     const { showSuccess, showError: showErrorToast } = useToast();
+    const theme = useTheme();
+    const isMobile = useMediaQuery(theme.breakpoints.down('md'));
     const [transactions, setTransactions] = useState<Transaction[]>([]);
     const [historicalTransactions, setHistoricalTransactions] = useState<Transaction[]>([]);
     const [loading, setLoading] = useState(true);
@@ -280,18 +286,20 @@ export default function ApprovalsPage() {
                     <GlassCard 
                         variant="highlight"
                         sx={{
+                            p: 3,
                             background: 'linear-gradient(135deg, rgba(255, 152, 0, 0.1) 0%, rgba(245, 124, 0, 0.2) 100%)',
                             position: 'relative',
                             overflow: 'hidden',
                         }}
                     >
-                        <Box sx={{ position: 'relative', zIndex: 1 }}>
-                            <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                        <Box sx={{ position: 'relative', zIndex: 1, pr: 8 }}>
+                            <Typography variant="body2" color="text.secondary" sx={{ mb: 1, fontWeight: 600 }}>
                                 Pending Approvals
                             </Typography>
                             <AnimatedCounter
                                 value={transactions.length}
                                 duration={800}
+                                formatter={(val) => Math.floor(val).toLocaleString()}
                                 sx={{ 
                                     fontSize: '2rem', 
                                     fontWeight: 700,
@@ -316,13 +324,14 @@ export default function ApprovalsPage() {
                     <GlassCard 
                         variant="highlight"
                         sx={{
+                            p: 3,
                             background: 'linear-gradient(135deg, rgba(239, 83, 80, 0.1) 0%, rgba(198, 40, 40, 0.2) 100%)',
                             position: 'relative',
                             overflow: 'hidden',
                         }}
                     >
-                        <Box sx={{ position: 'relative', zIndex: 1 }}>
-                            <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                        <Box sx={{ position: 'relative', zIndex: 1, pr: 8 }}>
+                            <Typography variant="body2" color="text.secondary" sx={{ mb: 1, fontWeight: 600 }}>
                                 Total Amount
                             </Typography>
                             <AnimatedCounter
@@ -366,6 +375,71 @@ export default function ApprovalsPage() {
                     Pending Approvals
                 </Typography>
             </Box>
+            {isMobile ? (
+                <Stack spacing={2} sx={{ mb: 6 }}>
+                    {loading ? (
+                         // Skeleton loading for mobile
+                         [1, 2, 3].map((i) => (
+                             <GlassCard key={i} sx={{ p: 2 }}>
+                                 <Skeleton variant="text" width="60%" />
+                                 <Skeleton variant="rectangular" height={100} sx={{ mt: 1 }} />
+                             </GlassCard>
+                         ))
+                    ) : transactions.length === 0 ? (
+                        <GlassCard sx={{ p: 4, textAlign: 'center' }}>
+                            <Typography variant="body1" color="text.secondary">
+                                No pending transactions found
+                            </Typography>
+                        </GlassCard>
+                    ) : (
+                        transactions.map((transaction) => (
+                            <GlassCard 
+                                key={transaction.id} 
+                                sx={{ 
+                                    p: 0, 
+                                    position: 'relative', 
+                                    overflow: 'hidden',
+                                    transition: 'all 0.1s'
+                                }}
+                            >
+                                <CardActionArea 
+                                    onClick={() => handleViewDetails(transaction)}
+                                    sx={{ p: 2, width: '100%', height: '100%' }}
+                                >
+                                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                        <Box sx={{ minWidth: 0, flex: 1, mr: 2 }}>
+                                            <Typography variant="subtitle2" fontWeight={600} noWrap>
+                                                {transaction.description}
+                                            </Typography>
+                                            <Typography variant="caption" color="primary.main" fontWeight={600} display="block">
+                                                {transaction.department.name}
+                                            </Typography>
+                                            <Typography variant="caption" color="text.secondary">
+                                                {formatDate(transaction.createdAt)} • {transaction.user.name}
+                                            </Typography>
+                                        </Box>
+                                        <Box sx={{ textAlign: 'right' }}>
+                                            <Typography 
+                                                variant="body2" 
+                                                fontWeight={700}
+                                                color={transaction.type === 'INCOME' ? 'success.main' : 'error.main'}
+                                                sx={{ display: 'block', mb: 0.5 }}
+                                            >
+                                                {formatCurrency(transaction.amount, transaction.currency.symbol)}
+                                            </Typography>
+                                            <StatusChip 
+                                                label={transaction.type} 
+                                                status={transaction.type === 'INCOME' ? 'success' : 'error'}
+                                                size="small"
+                                            />
+                                        </Box>
+                                    </Box>
+                                </CardActionArea>
+                            </GlassCard>
+                        ))
+                    )}
+                </Stack>
+            ) : (
             <GlassCard sx={{ mb: 6, overflow: 'hidden' }}>
                 <TableContainer>
                     <Table>
@@ -483,6 +557,7 @@ export default function ApprovalsPage() {
                 </Table>
             </TableContainer>
             </GlassCard>
+            )}
 
             {/* Transaction Details Dialog */}
             <Dialog open={detailsOpen} onClose={() => setDetailsOpen(false)} maxWidth="sm" fullWidth>
@@ -534,8 +609,33 @@ export default function ApprovalsPage() {
                         </Box>
                     )}
                 </DialogContent>
-                <DialogActions>
-                    <Button onClick={() => setDetailsOpen(false)}>Close</Button>
+                <DialogActions sx={{ p: 2, gap: 1 }}>
+                    <Button onClick={() => setDetailsOpen(false)} color="inherit">Close</Button>
+                    {selectedTransaction?.status === 'PENDING' && (
+                        <>
+                            <Button 
+                                onClick={() => {
+                                    setDetailsOpen(false);
+                                    handleOpenApprovalDialog(selectedTransaction, 'reject');
+                                }} 
+                                variant="outlined" 
+                                color="error"
+                            >
+                                Reject
+                            </Button>
+                            <Button 
+                                onClick={() => {
+                                    setDetailsOpen(false);
+                                    handleOpenApprovalDialog(selectedTransaction, 'approve');
+                                }} 
+                                variant="contained" 
+                                color="success"
+                                autoFocus
+                            >
+                                Approve
+                            </Button>
+                        </>
+                    )}
                 </DialogActions>
             </Dialog>
 
@@ -635,7 +735,62 @@ export default function ApprovalsPage() {
                     </Typography>
                 </Box>
 
-                {historyLoading ? (
+                {isMobile ? (
+                    <Stack spacing={2}>
+                        {historyLoading ? (
+                            [1, 2, 3].map((i) => (
+                                <GlassCard key={i} sx={{ p: 2 }}>
+                                    <Skeleton variant="text" width="60%" />
+                                    <Skeleton variant="rectangular" height={80} sx={{ mt: 1 }} />
+                                </GlassCard>
+                            ))
+                        ) : historicalTransactions.length === 0 ? (
+                            <Alert severity="info" sx={{ borderRadius: 2 }}>
+                                No historical requests found.
+                            </Alert>
+                        ) : (
+                            historicalTransactions.map((transaction) => (
+                                <GlassCard 
+                                    key={transaction.id} 
+                                    sx={{ 
+                                        p: 2, 
+                                        position: 'relative', 
+                                        overflow: 'hidden',
+                                        '&:active': { bgcolor: 'action.hover' }
+                                    }}
+                                    onClick={() => {
+                                        setSelectedTransaction(transaction);
+                                        setDetailsOpen(true);
+                                    }}
+                                >
+                                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                        <Box sx={{ minWidth: 0, flex: 1, mr: 2 }}>
+                                            <Typography variant="subtitle2" fontWeight={600} noWrap>
+                                                {transaction.description}
+                                            </Typography>
+                                            <Typography variant="caption" color="text.secondary" display="block">
+                                                {transaction.department.name}
+                                            </Typography>
+                                            <Typography variant="caption" color="text.secondary">
+                                                {formatDate(transaction.createdAt)} • {transaction.user.name}
+                                            </Typography>
+                                        </Box>
+                                        <Box sx={{ textAlign: 'right' }}>
+                                            <Typography variant="body2" fontWeight={700}>
+                                                {formatCurrency(transaction.amount, transaction.currency.code)}
+                                            </Typography>
+                                            <StatusChip 
+                                                label={transaction.status}
+                                                status={transaction.status === 'APPROVED' ? 'success' : 'error'}
+                                                size="small"
+                                            />
+                                        </Box>
+                                    </Box>
+                                </GlassCard>
+                            ))
+                        )}
+                    </Stack>
+                ) : (historyLoading ? (
                     <GlassCard sx={{ overflow: 'hidden' }}>
                         <TableContainer>
                             <Table>
@@ -701,9 +856,9 @@ export default function ApprovalsPage() {
                                             </TableCell>
                                             <TableCell>
                                                 <Box>
-                                                    <Typography variant="body2">{transaction.user.name}</Typography>
-                                                    <Typography variant="caption" color="text.secondary">
-                                                        {transaction.department.name}
+                                                    <Typography variant="body2" fontWeight={600}>{transaction.user.name}</Typography>
+                                                    <Typography variant="caption" color="text.secondary" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                                        <BusinessIcon sx={{ fontSize: 14 }} /> {transaction.department.name}
                                                     </Typography>
                                                 </Box>
                                             </TableCell>
@@ -740,7 +895,7 @@ export default function ApprovalsPage() {
                             </Table>
                         </TableContainer>
                     </GlassCard>
-                )}
+                ))}
             </Box>
         </Box>
     );

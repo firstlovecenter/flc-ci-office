@@ -19,6 +19,15 @@ import {
     Select,
     MenuItem,
     TablePagination,
+    useTheme,
+    useMediaQuery,
+    Dialog,
+    DialogTitle,
+    DialogContent,
+    DialogActions,
+    Button,
+    Stack,
+    Grid,
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
 import { useSession } from 'next-auth/react';
@@ -44,6 +53,8 @@ type AuditLog = {
 export default function AuditPage() {
     const { data: session } = useSession();
     const router = useRouter();
+    const theme = useTheme();
+    const isMobile = useMediaQuery(theme.breakpoints.down('md'));
     const [logs, setLogs] = useState<AuditLog[]>([]);
     const [filteredLogs, setFilteredLogs] = useState<AuditLog[]>([]);
     const [loading, setLoading] = useState(true);
@@ -52,6 +63,8 @@ export default function AuditPage() {
     const [entityFilter, setEntityFilter] = useState('ALL');
     const [page, setPage] = useState(0);
     const [rowsPerPage, setRowsPerPage] = useState(25);
+    const [selectedLog, setSelectedLog] = useState<AuditLog | null>(null);
+    const [detailsOpen, setDetailsOpen] = useState(false);
 
     // Redirect non-superadmins
     useEffect(() => {
@@ -195,6 +208,68 @@ export default function AuditPage() {
             </GlassCard>
 
             {/* Audit Logs Table */}
+            {isMobile ? (
+                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                    {loading ? (
+                        <Typography variant="body1" color="text.secondary" align="center" sx={{ py: 4 }}>
+                             Loading audit logs...
+                        </Typography>
+                    ) : filteredLogs.length === 0 ? (
+                        <GlassCard sx={{ p: 4, textAlign: 'center' }}>
+                             <Typography variant="body1" color="text.secondary">
+                                 No audit logs found
+                             </Typography>
+                        </GlassCard>
+                    ) : (
+                        <>
+                        {filteredLogs
+                            .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
+                            .map((log) => (
+                                <GlassCard 
+                                    key={log.id} 
+                                    sx={{ 
+                                        p: 2,
+                                        position: 'relative', 
+                                        overflow: 'hidden',
+                                        '&:active': { bgcolor: 'action.hover' }
+                                    }}
+                                    onClick={() => {
+                                        setSelectedLog(log);
+                                        setDetailsOpen(true);
+                                    }}
+                                >
+                                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                        <Box sx={{ minWidth: 0, flex: 1, mr: 2 }}>
+                                            <Typography variant="subtitle2" fontWeight={600} noWrap>
+                                                {log.user?.name || 'Unknown'}
+                                            </Typography>
+                                            <Typography variant="caption" color="text.secondary">
+                                                {new Date(log.timestamp).toLocaleString()} • {log.entityType}
+                                            </Typography>
+                                        </Box>
+                                        <Chip
+                                            label={log.actionType}
+                                            color={getActionColor(log.actionType) as any}
+                                            size="small"
+                                        />
+                                    </Box>
+                                </GlassCard>
+                            ))
+                        }
+                         <TablePagination
+                            rowsPerPageOptions={[25, 50, 100]}
+                            component="div"
+                            count={filteredLogs.length}
+                            rowsPerPage={rowsPerPage}
+                            page={page}
+                            onPageChange={handleChangePage}
+                            onRowsPerPageChange={handleChangeRowsPerPage}
+                            labelRowsPerPage="Rows:"
+                        />
+                        </>
+                    )}
+                 </Box>
+            ) : (
             <TableContainer component={GlassCard}>
                 <Table>
                     <TableHead>
@@ -283,6 +358,75 @@ export default function AuditPage() {
                     onRowsPerPageChange={handleChangeRowsPerPage}
                 />
             </TableContainer>
+            )}
+
+            <Dialog open={detailsOpen} onClose={() => setDetailsOpen(false)} maxWidth="sm" fullWidth>
+                <DialogTitle>Audit Log Details</DialogTitle>
+                <DialogContent>
+                    {selectedLog && (
+                        <Box sx={{ pt: 2 }}>
+                            <Stack spacing={2}>
+                                <Box>
+                                    <Typography variant="caption" color="text.secondary">Action</Typography>
+                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                        <Typography variant="body1" fontWeight={600}>{selectedLog.actionType}</Typography>
+                                        <Chip
+                                            label={selectedLog.actionType}
+                                            color={getActionColor(selectedLog.actionType) as any}
+                                            size="small"
+                                        />
+                                    </Box>
+                                </Box>
+                                <Box>
+                                    <Typography variant="caption" color="text.secondary">User</Typography>
+                                    <Typography variant="body1">{selectedLog.user?.name || 'Unknown'}</Typography>
+                                    <Typography variant="caption">{selectedLog.user?.email}</Typography>
+                                </Box>
+                                <Box>
+                                    <Typography variant="caption" color="text.secondary">Date & Time</Typography>
+                                    <Typography variant="body1">
+                                        {new Date(selectedLog.timestamp).toLocaleString()}
+                                    </Typography>
+                                </Box>
+                                <Grid container spacing={2}>
+                                    <Grid size={6}>
+                                        <Typography variant="caption" color="text.secondary">Entity Type</Typography>
+                                        <Typography variant="body1">{selectedLog.entityType}</Typography>
+                                    </Grid>
+                                    <Grid size={6}>
+                                        <Typography variant="caption" color="text.secondary">Entity ID</Typography>
+                                        <Typography variant="body2" sx={{ fontFamily: 'monospace', wordBreak: 'break-all' }}>
+                                            {selectedLog.entityId}
+                                        </Typography>
+                                    </Grid>
+                                </Grid>
+                                {selectedLog.ipAddress && (
+                                    <Box>
+                                        <Typography variant="caption" color="text.secondary">IP Address</Typography>
+                                        <Typography variant="body1">{selectedLog.ipAddress}</Typography>
+                                    </Box>
+                                )}
+                                {(selectedLog.beforeData || selectedLog.afterData) && (
+                                    <Box>
+                                        <Typography variant="caption" color="text.secondary">Changes</Typography>
+                                        <Paper variant="outlined" sx={{ p: 2, bgcolor: 'background.default', mt: 1, maxHeight: 200, overflow: 'auto' }}>
+                                            <pre style={{ margin: 0, fontSize: '0.75rem' }}>
+                                                {JSON.stringify({ 
+                                                    before: selectedLog.beforeData, 
+                                                    after: selectedLog.afterData 
+                                                }, null, 2)}
+                                            </pre>
+                                        </Paper>
+                                    </Box>
+                                )}
+                            </Stack>
+                        </Box>
+                    )}
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={() => setDetailsOpen(false)}>Close</Button>
+                </DialogActions>
+            </Dialog>
         </Box>
     );
 }

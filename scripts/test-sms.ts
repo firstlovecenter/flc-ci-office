@@ -69,7 +69,7 @@ async function testSmsApi() {
   // Replace the phone number with an actual test number
   
   const testPhone = '0557382057'; // Replace with actual phone number
-  const testMessage = 'Test message from FLC Accounts system. Time: ' + new Date().toISOString();
+  const testMessage = 'Test message from CI Office system. Time: ' + new Date().toISOString();
   
   try {
     console.log(`   Sending to: ${testPhone}`);

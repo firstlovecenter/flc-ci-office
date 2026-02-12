@@ -266,25 +266,25 @@ export default function SMSManagementPage() {
             let preview = '';
             switch (selectedTemplate) {
                 case 'password_reset':
-                    preview = `FLC CI Office: Your password reset code is [CODE]. Valid for 24 hours. Go to ${baseUrl}/auth/reset-password and enter this code.`;
+                    preview = `CI Office: Your password reset code is [CODE]. Valid for 24 hours. Go to ${baseUrl}/auth/reset-password and enter this code.`;
                     break;
                 case 'first_role_assignment':
                     preview = `Welcome ${userName}! You've been assigned as ${selectedUser.roles?.[0] || 'MEMBER'} for ${userDepartment}. Set your password here: ${baseUrl}/auth/reset-password?code=[CODE]`;
                     break;
                 case 'role_assignment':
-                    preview = `FLC CI Office: Hello ${userName}, your role has been updated to ${selectedUser.roles?.[0] || 'MEMBER'} for ${userDepartment}.`;
+                    preview = `CI Office: Hello ${userName}, your role has been updated to ${selectedUser.roles?.[0] || 'MEMBER'} for ${userDepartment}.`;
                     break;
                 case 'transaction_notification':
-                    preview = `FLC CI: ${userName}, your transaction is now [STATUS].`;
+                    preview = `CI Office: ${userName}, your transaction is now [STATUS].`;
                     break;
                 case 'department_alert':
-                    preview = `FLC CI - ${userDepartment}: [CUSTOM MESSAGE]`;
+                    preview = `CI Office - ${userDepartment}: [CUSTOM MESSAGE]`;
                     break;
                 case 'week_lock_notification':
-                    preview = `FLC CI: Hello ${userName}, Week [WEEK] has been locked. No further changes can be made to transactions for this week.`;
+                    preview = `CI Office: Hello ${userName}, Week [WEEK] has been locked. No further changes can be made to transactions for this week.`;
                     break;
                 case 'approval_reminder':
-                    preview = `FLC CI: Hello ${userName}, you have pending transactions awaiting your approval. Visit ${baseUrl}/dashboard to review.`;
+                    preview = `CI Office: Hello ${userName}, you have pending transactions awaiting your approval. Visit ${baseUrl}/dashboard to review.`;
                     break;
             }
             setPreviewMessage(preview);
@@ -338,7 +338,7 @@ export default function SMSManagementPage() {
                     params = {
                         userName: selectedUser.name || 'User',
                         role: selectedUser.roles?.[0] || 'MEMBER',
-                        department: selectedUser.department?.name || 'FLC CI',
+                        department: selectedUser.department?.name || 'CI Office',
                         resetLink: `${baseUrl}/auth/reset-password?code=${setupCode}`,
                     };
                     break;
@@ -346,7 +346,7 @@ export default function SMSManagementPage() {
                     params = {
                         userName: selectedUser.name || 'User',
                         role: selectedUser.roles?.[0] || 'MEMBER',
-                        department: selectedUser.department?.name || 'FLC CI',
+                        department: selectedUser.department?.name || 'CI Office',
                     };
                     break;
                 case 'transaction_notification':
@@ -359,7 +359,7 @@ export default function SMSManagementPage() {
                     break;
                 case 'department_alert':
                     params = {
-                        departmentName: selectedUser.department?.name || 'FLC CI',
+                        departmentName: selectedUser.department?.name || 'CI Office',
                         message: 'Important notification - please check your account',
                     };
                     break;

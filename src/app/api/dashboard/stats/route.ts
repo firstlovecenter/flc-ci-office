@@ -17,6 +17,55 @@ export async function GET(request: Request) {
     }
 
     try {
+        // Special stats for Superadmin
+        if (session.user.role === 'SUPERADMIN') {
+             const today = new Date();
+             today.setHours(0, 0, 0, 0);
+
+             const [
+                 userCount, 
+                 departmentCount, 
+                 transactionCount, 
+                 pendingCount,
+                 activeDepartmentCount,
+                 activeCurrencyCount,
+                 todaysLoginCount,
+                 criticalErrorCount
+             ] = await Promise.all([
+                 prisma.user.count({ where: { archived: false } }),
+                 prisma.department.count(),
+                 prisma.transaction.count(),
+                 prisma.transaction.count({ where: { status: 'PENDING' } }),
+                 prisma.department.count({ where: { isActive: true } }),
+                 prisma.currency.count({ where: { isActive: true } }),
+                 prisma.auditLog.count({ 
+                     where: { 
+                         actionType: 'LOGIN',
+                         timestamp: { gte: today }
+                     } 
+                 }),
+                 prisma.auditLog.count({
+                     where: {
+                         severity: 'CRITICAL',
+                         timestamp: { gte: today } // Critical errors today
+                     }
+                 })
+             ]);
+
+             return NextResponse.json({
+                 superAdminStats: {
+                     users: userCount,
+                     departments: departmentCount,
+                     transactions: transactionCount,
+                     pendingApprovals: pendingCount,
+                     activeDepartments: activeDepartmentCount,
+                     activeCurrencies: activeCurrencyCount,
+                     todaysLogins: todaysLoginCount,
+                     criticalErrors: criticalErrorCount
+                 }
+             });
+        }
+
         let whereClause: any = {};
 
         // Determine which department to use for filtering

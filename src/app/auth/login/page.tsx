@@ -22,11 +22,11 @@ import {
 } from '@mui/material';
 import { GlassCard } from '@/components/ui';
 import Link from 'next/link';
+import Image from 'next/image';
 import EmailIcon from '@mui/icons-material/Email';
 import LockIcon from '@mui/icons-material/Lock';
 import Visibility from '@mui/icons-material/Visibility';
 import VisibilityOff from '@mui/icons-material/VisibilityOff';
-import ChurchIcon from '@mui/icons-material/Church';
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
 import SecurityIcon from '@mui/icons-material/Security';
 import SpeedIcon from '@mui/icons-material/Speed';
@@ -52,10 +52,14 @@ function LoginForm() {
     // Check for logout message
     useEffect(() => {
         const logout = searchParams.get('logout');
+        const reason = searchParams.get('reason');
+        
         if (logout === 'true') {
             setLogoutMessage('You have been successfully logged out.');
             // Clear the URL parameter after showing message
             setTimeout(() => setLogoutMessage(''), 5000);
+        } else if (reason === 'timeout') {
+            setLogoutMessage('Your session has expired due to inactivity. Please log in again.');
         }
     }, [searchParams]);
 
@@ -144,9 +148,17 @@ function LoginForm() {
                                     justifyContent: { xs: 'center', md: 'flex-start' },
                                     mb: 2 
                                 }}>
-                                    <ChurchIcon sx={{ fontSize: 48, color: 'primary.main', mr: 2 }} />
+                                    <Box sx={{ position: 'relative', width: 60, height: 60, mr: 2 }}>
+                                        <Image 
+                                            src="/flc-logo.webp" 
+                                            alt="CI Office Logo" 
+                                            fill 
+                                            style={{ objectFit: 'contain' }}
+                                            priority
+                                        />
+                                    </Box>
                                     <Typography variant="h3" component="h1" fontWeight={700} color="text.primary">
-                                        FLC CI Office
+                                        CI Office
                                     </Typography>
                                 </Box>
                                 {/* <Typography variant="h5" color="text.secondary" sx={{ mb: 3 }}>
@@ -256,7 +268,7 @@ function LoginForm() {
                                         autoFocus
                                         value={email}
                                         onChange={(e) => setEmail(e.target.value)}
-                                        placeholder="email@example.com or 0241234567"
+                                        placeholder="email or phone number"
                                         InputProps={{
                                             startAdornment: (
                                                 <InputAdornment position="start">

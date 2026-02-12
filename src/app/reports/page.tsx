@@ -25,6 +25,7 @@ import {
     IconButton,
     alpha,
     Grid,
+    useMediaQuery,
 } from '@mui/material';
 import { Download as DownloadIcon, Print as PrintIcon } from '@mui/icons-material';
 import { formatDepartmentLevel } from '@/lib/utils';
@@ -36,6 +37,7 @@ import { GlassCard } from '@/components/ui';
 function ReportsPageContent() {
     const theme = useTheme();
     const router = useRouter();
+    const isMobile = useMediaQuery(theme.breakpoints.down('md'));
     const { data: session } = useSession();
     const searchParams = useSearchParams();
     const deptParam = searchParams?.get('dept');
@@ -382,6 +384,66 @@ function ReportsPageContent() {
                     </Box>
                 </Box>
                 
+                {isMobile ? (
+                    <Box sx={{ p: 2 }}>
+                        {transactions.map((tx, index) => {
+                            const amount = Number(tx.amountInBase || tx.amount);
+                            const debit = tx.type === 'EXPENSE' ? amount : 0;
+                            const credit = tx.type === 'INCOME' ? amount : 0;
+                            runningBalance += credit - debit;
+                            
+                            return (
+                                <Box key={tx.id} sx={{ mb: 2, p: 2, bgcolor: (index % 2 === 0) ? 'action.hover' : 'background.paper', borderRadius: 2, border: 1, borderColor: 'divider' }}>
+                                    <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                                        <Typography variant="body2" fontWeight="bold">{new Date(tx.createdAt).toLocaleDateString()}</Typography>
+                                        <Typography variant="caption" color="text.secondary">{tx.department.name}</Typography>
+                                    </Box>
+                                    <Typography variant="body2" sx={{ mb: 1 }}>{tx.description}</Typography>
+                                    {tx.currency && baseCurrency && tx.currency.code !== baseCurrency.code && (
+                                         <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 1 }}>
+                                             (Original: {tx.currency.symbol}{Number(tx.amount).toLocaleString()} {tx.currency.code})
+                                         </Typography>
+                                    )}
+                                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                        <Box>
+                                            {debit > 0 && <Typography variant="body2" color="error.main">-{baseCurrency ? formatCurrency(debit, baseCurrency.code, baseCurrency.symbol) : formatCurrency(debit)}</Typography>}
+                                            {credit > 0 && <Typography variant="body2" color="success.main">+{baseCurrency ? formatCurrency(credit, baseCurrency.code, baseCurrency.symbol) : formatCurrency(credit)}</Typography>}
+                                        </Box>
+                                        <Box sx={{ textAlign: 'right' }}>
+                                            <Typography variant="caption" color="text.secondary">Balance</Typography>
+                                            <Typography variant="body2" fontWeight="bold" color={runningBalance >= 0 ? 'success.main' : 'error.main'}>
+                                                {baseCurrency ? formatCurrency(runningBalance, baseCurrency.code, baseCurrency.symbol) : formatCurrency(runningBalance)}
+                                            </Typography>
+                                        </Box>
+                                    </Box>
+                                </Box>
+                            );
+                        })}
+                        
+                        <Box sx={{ mt: 3, p: 2, bgcolor: 'action.selected', borderRadius: 2 }}>
+                             <Typography variant="subtitle1" fontWeight="bold" gutterBottom>Totals</Typography>
+                             <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                                 <Typography variant="body2">Expense</Typography>
+                                 <Typography variant="body2" color="error.main" fontWeight="bold">
+                                     {baseCurrency ? formatCurrency(stats.expense, baseCurrency.code, baseCurrency.symbol) : formatCurrency(stats.expense)}
+                                 </Typography>
+                             </Box>
+                             <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                                 <Typography variant="body2">Income</Typography>
+                                 <Typography variant="body2" color="success.main" fontWeight="bold">
+                                     {baseCurrency ? formatCurrency(stats.income, baseCurrency.code, baseCurrency.symbol) : formatCurrency(stats.income)}
+                                 </Typography>
+                             </Box>
+                             <Divider sx={{ my: 1 }} />
+                             <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                                 <Typography variant="body2" fontWeight="bold">Net</Typography>
+                                 <Typography variant="body2" fontWeight="bold">
+                                     {baseCurrency ? formatCurrency(stats.balance, baseCurrency.code, baseCurrency.symbol) : formatCurrency(stats.balance)}
+                                 </Typography>
+                             </Box>
+                        </Box>
+                    </Box>
+                ) : (
                 <Table size="small">
                     <TableHead>
                         <TableRow sx={{ bgcolor: 'primary.main' }}>
@@ -452,6 +514,7 @@ function ReportsPageContent() {
                         </TableRow>
                     </TableBody>
                 </Table>
+                )}
                 
                 {/* Closing Balance */}
                 <Box sx={{ p: 3, display: 'flex', justifyContent: 'space-between', borderTop: 2, borderColor: 'divider' }}>

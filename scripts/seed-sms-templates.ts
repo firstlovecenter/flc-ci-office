@@ -25,35 +25,35 @@ const smsTemplates = [
         key: 'TRANSACTION_APPROVED',
         name: 'Transaction Approved Notification',
         description: 'Sent to user when their transaction is approved',
-        template: 'APPROVED: Your {transactionType} request of {currency}{amount} has been approved.{chargeText} {departmentName} Balance: {currency}{balance}. - FLC Accounts',
+        template: 'APPROVED: Your {transactionType} request of {currency}{amount} has been approved.{chargeText} {departmentName} Balance: {currency}{balance}. - CI Office',
         variables: ['transactionType', 'currency', 'amount', 'chargeText', 'departmentName', 'balance']
     },
     {
         key: 'TRANSACTION_DECLINED',
         name: 'Transaction Declined Notification',
         description: 'Sent to user when their transaction is declined',
-        template: 'DECLINED: Your {transactionType} request of {currency}{amount} has been declined.{reasonText} - FLC Accounts',
+        template: 'DECLINED: Your {transactionType} request of {currency}{amount} has been declined.{reasonText} - CI Office',
         variables: ['transactionType', 'currency', 'amount', 'reasonText']
     },
     {
         key: 'TRANSACTION_CHARGE',
         name: 'Transaction Charge Alert',
         description: 'Sent to department leader when a transaction charge is applied',
-        template: 'DEBIT ALERT: Transaction charge of {currency}{chargeAmount} has been applied to {departmentName}. Ref: {transactionRef}. Original: {description}. - FLC Accounts',
+        template: 'DEBIT ALERT: Transaction charge of {currency}{chargeAmount} has been applied to {departmentName}. Ref: {transactionRef}. Original: {description}. - CI Office',
         variables: ['currency', 'chargeAmount', 'departmentName', 'transactionRef', 'description']
     },
     {
         key: 'PENDING_APPROVAL_REQUEST',
         name: 'Pending Approval Request',
         description: 'Sent to campus admin when a leader creates a pending transaction',
-        template: 'NEW APPROVAL REQUEST: {userName} submitted a {transactionType} request of {currency}{amount}. Description: {description}. Please review on FLC Accounts.',
+        template: 'NEW APPROVAL REQUEST: {userName} submitted a {transactionType} request of {currency}{amount}. Description: {description}. Please review on CI Office.',
         variables: ['userName', 'transactionType', 'currency', 'amount', 'description']
     },
     {
         key: 'CORRECTION_NOTIFICATION',
         name: 'Transaction Correction Notification',
         description: 'Sent to department leader when a transaction correction is created',
-        template: 'TRANSACTION CORRECTION: A {transactionType} in {departmentName} of {currency}{originalAmount} has been corrected to {currency}{newAmount}. {correctionType} adjustment: {currency}{adjustmentAmount}. Reason: {reason}. - FLC Accounts',
+        template: 'TRANSACTION CORRECTION: A {transactionType} in {departmentName} of {currency}{originalAmount} has been corrected to {currency}{newAmount}. {correctionType} adjustment: {currency}{adjustmentAmount}. Reason: {reason}. - CI Office',
         variables: ['transactionType', 'departmentName', 'currency', 'originalAmount', 'newAmount', 'correctionType', 'adjustmentAmount', 'reason']
     },
     {

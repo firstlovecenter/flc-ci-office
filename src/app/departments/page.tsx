@@ -340,23 +340,23 @@ function DepartmentsPageContent() {
                                     document.cookie = `activeDepartmentId=${dept.id}; path=/; max-age=86400`;
                                     router.push('/departments/dashboard');
                                 }}
-                                sx={{ py: 2, px: 2.5 }}
+                                sx={{ py: { xs: 1.5, md: 2 }, px: { xs: 2, md: 2.5 } }}
                             >
-                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2.5 }}>
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 1.5, md: 2.5 } }}>
                                     <Avatar
                                         src={leader?.image || undefined}
                                         sx={{
-                                            width: 50,
-                                            height: 50,
+                                            width: { xs: 40, md: 50 },
+                                            height: { xs: 40, md: 50 },
                                             bgcolor: alpha(theme.palette.primary.main, 0.1),
                                             color: 'primary.main',
-                                            fontSize: '1.25rem',
+                                            fontSize: { xs: '1rem', md: '1.25rem' },
                                             border: `1px solid ${alpha(theme.palette.primary.main, 0.2)}`,
                                         }}
                                     >
                                         {leader?.name?.[0]?.toUpperCase() || dept.name[0]?.toUpperCase() || 'D'}
                                     </Avatar>
-                                    <Box sx={{ flex: 1, minWidth: 0 }}>
+                                    <Box sx={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center', minHeight: { md: 48 } }}>
                                         <Typography 
                                             variant="subtitle1" 
                                             fontWeight={700}
@@ -364,14 +364,15 @@ function DepartmentsPageContent() {
                                                 overflow: 'hidden',
                                                 textOverflow: 'ellipsis',
                                                 whiteSpace: 'nowrap',
-                                                fontSize: '1.05rem',
-                                                mb: 0.5
+                                                fontSize: { xs: '0.95rem', md: '1.05rem' },
+                                                mb: 0.25,
+                                                lineHeight: 1.2
                                             }}
                                         >
-                                            {dept.name} <Box component="span" sx={{ color: 'text.secondary', fontWeight: 500, fontSize: '0.875rem' }}>{formatDepartmentLevel(dept.level)}</Box>
+                                            {dept.name} <Box component="span" sx={{ color: 'text.secondary', fontWeight: 500, fontSize: '0.75rem', ml: 0.5, opacity: 0.8 }}>{formatDepartmentLevel(dept.level)}</Box>
                                         </Typography>
                                         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, alignItems: 'center' }}>
-                                            {leader && (
+                                            {leader ? (
                                                 <Typography 
                                                     variant="body2" 
                                                     sx={{ 
@@ -379,26 +380,44 @@ function DepartmentsPageContent() {
                                                         fontWeight: 500,
                                                         display: 'flex',
                                                         alignItems: 'center',
-                                                        gap: 0.5
+                                                        gap: 0.5,
+                                                        fontSize: { xs: '0.8rem', md: '0.875rem' }
                                                     }}
                                                 >
                                                     {leader.name || leader.email}
                                                 </Typography>
+                                            ) : (
+                                                // Placeholder to maintain height uniformity if needed or just show nothing. 
+                                                // User wants uniformity regardless of presence.
+                                                // On desktop, if we want fixed height, we need a container with min-height.
+                                                // But usually leader is present.
+                                                <Typography variant="body2" color="text.disabled" sx={{ fontSize: { xs: '0.8rem', md: '0.875rem' }, fontStyle: 'italic' }}>
+                                                    No Leader Assigned
+                                                </Typography>
                                             )}
+                                            
+                                            {/* Admin - Desktop Only */}
                                             {admin && (
                                                 <Typography 
                                                     variant="body2" 
                                                     color="text.secondary"
+                                                    sx={{ display: { xs: 'none', md: 'flex' }, alignItems: 'center', fontSize: '0.875rem' }}
                                                 >
-                                                    {leader ? ' • ' : ''}<Box component="span" sx={{ color: 'warning.main', fontWeight: 500 }}>Admin:</Box> {admin.name || admin.email}
+                                                    <Box component="span" sx={{ mx: 0.5 }}>•</Box>
+                                                    <Box component="span" sx={{ color: 'warning.main', fontWeight: 500, mr: 0.5 }}>Admin:</Box> {admin.name || admin.email}
                                                 </Typography>
                                             )}
                                         </Box>
+                                        
+                                        {/* Subdept Count - Desktop Only to keep mobile minimal per request */}
                                         {subDeptCount > 0 && (
                                             <Typography 
                                                 variant="caption" 
                                                 color="text.secondary"
-                                                sx={{ mt: 0.5, display: 'block' }}
+                                                sx={{ 
+                                                    display: { xs: 'none', md: 'block' },
+                                                    mt: 0.5 
+                                                }}
                                             >
                                                 {subDeptCount} {getSubLevelName(dept.level)}
                                             </Typography>

@@ -7,25 +7,30 @@ import CssBaseline from '@mui/material/CssBaseline';
 import { SessionProvider } from 'next-auth/react';
 import { getDesignTokens } from '@/theme';
 import { ToastProvider } from '@/components/ToastProvider';
+import useMediaQuery from '@mui/material/useMediaQuery';
+import AutoLogout from '@/components/AutoLogout';
+
+export type ThemeMode = 'light' | 'dark' | 'system';
 
 interface ColorModeContextType {
     toggleColorMode: () => void;
-    mode: PaletteMode;
+    mode: ThemeMode;
 }
 
 const ColorModeContext = createContext<ColorModeContextType>({
     toggleColorMode: () => {},
-    mode: 'dark',
+    mode: 'system',
 });
 
 export const useColorMode = () => useContext(ColorModeContext);
 
 export function Providers({ children }: { children: React.ReactNode }) {
-    const [mode, setMode] = useState<PaletteMode>('dark');
+    const [mode, setMode] = useState<ThemeMode>('system');
+    const prefersDarkMode = useMediaQuery('(prefers-color-scheme: dark)');
 
     // Load theme preference from localStorage on mount
     useEffect(() => {
-        const savedMode = localStorage.getItem('themeMode') as PaletteMode;
+        const savedMode = localStorage.getItem('themeMode') as ThemeMode;
         if (savedMode) {
             setMode(savedMode);
         }
@@ -35,7 +40,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
         () => ({
             toggleColorMode: () => {
                 setMode((prevMode) => {
-                    const newMode = prevMode === 'light' ? 'dark' : 'light';
+                    const newMode = prevMode === 'light' ? 'dark' : prevMode === 'dark' ? 'system' : 'light';
                     localStorage.setItem('themeMode', newMode);
                     return newMode;
                 });
@@ -45,7 +50,14 @@ export function Providers({ children }: { children: React.ReactNode }) {
         [mode]
     );
 
-    const theme = useMemo(() => createTheme(getDesignTokens(mode)), [mode]);
+    const resolvedMode: PaletteMode = useMemo(() => {
+        if (mode === 'system') {
+            return prefersDarkMode ? 'dark' : 'light';
+        }
+        return mode;
+    }, [mode, prefersDarkMode]);
+
+    const theme = useMemo(() => createTheme(getDesignTokens(resolvedMode)), [resolvedMode]);
 
     return (
         <SessionProvider>
@@ -53,6 +65,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
                 <AppRouterCacheProvider>
                     <ThemeProvider theme={theme}>
                         <CssBaseline />
+                        <AutoLogout />
                         <ToastProvider>
                             {children}
                         </ToastProvider>

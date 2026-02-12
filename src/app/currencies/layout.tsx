@@ -1,7 +1,7 @@
 import ModernDashboardLayout from '@/components/ModernDashboardLayout';
 
 export const metadata = {
-    title: 'Currency Management - FLC CI Office',
+    title: 'Currency Management - CI Office',
     description: 'Manage currencies and exchange rates',
 };
 

@@ -12,13 +12,13 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  title: "FLC CI Office",
+  title: "CI Office",
   description: "Multi-level CI OFFICE and governance system",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "FLC CI Office",
+    title: "CI Office",
   },
   icons: {
     icon: [

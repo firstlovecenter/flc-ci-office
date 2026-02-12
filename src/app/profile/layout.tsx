@@ -1,7 +1,7 @@
 import ModernDashboardLayout from '@/components/ModernDashboardLayout';
 
 export const metadata = {
-    title: 'Profile - FLC CI Office',
+    title: 'Profile - CI Office',
     description: 'Manage your profile settings',
 };
 

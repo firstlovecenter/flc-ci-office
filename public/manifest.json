@@ -1,6 +1,6 @@
 {
-  "name": "FLC CI Office",
-  "short_name": "FLC CI",
+  "name": "CI Office",
+  "short_name": "CI Office",
   "description": "CI OFFICE system for managing finances across departments",
   "start_url": "/dashboard",
   "display": "standalone",

@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import ModernDashboardLayout from '@/components/ModernDashboardLayout';
 
 export const metadata: Metadata = {
-    title: 'Audit Trail - FLC CI Office',
+    title: 'Audit Trail - CI Office',
     description: 'View system audit logs',
 };
 

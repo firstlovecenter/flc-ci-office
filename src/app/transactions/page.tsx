@@ -24,9 +24,17 @@ import {
     Tooltip,
     Card,
     CardContent,
+    CardActionArea,
     alpha,
     Skeleton,
     useTheme,
+    useMediaQuery,
+    Dialog,
+    DialogTitle,
+    DialogContent,
+    DialogActions,
+    Stack,
+    Grid,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
@@ -104,10 +112,16 @@ function TransactionsPageContent() {
         open: false,
         transaction: null,
     });
+    const [detailsDialog, setDetailsDialog] = useState<{ open: boolean; transaction: any }>({
+        open: false,
+        transaction: null,
+    });
     const { data: session } = useSession();
     const searchParams = useSearchParams();
     const deptParam = searchParams?.get('dept');
     const [searchTerm, setSearchTerm] = useState(searchParams?.get('search') || '');
+    const theme = useTheme();
+    const isMobile = useMediaQuery(theme.breakpoints.down('md'));
 
     const isSuperAdmin = session?.user?.role === 'SUPERADMIN';
     const isAdmin = session?.user?.role && ['SUPERADMIN', 'DENOMINATION_ADMIN', 'OVERSIGHT_ADMIN', 'CAMPUS_ADMIN'].includes(session.user.role);
@@ -281,6 +295,14 @@ function TransactionsPageContent() {
 
     const handleCloseCorrect = () => {
         setCorrectDialog({ open: false, transaction: null });
+    };
+
+    const handleViewDetails = (transaction: any) => {
+        setDetailsDialog({ open: true, transaction });
+    };
+
+    const handleCloseDetails = () => {
+        setDetailsDialog({ open: false, transaction: null });
     };
 
     const handleSaveCorrect = () => {
@@ -593,6 +615,75 @@ function TransactionsPageContent() {
                 </Box>
             </GlassCard>
 
+            {isMobile ? (
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                    {filteredTransactions.map((tx, index) => {
+                         // Calculate running balance (from newest to current transaction)
+                         const runningBalance = filteredTransactions
+                             .slice(index)
+                             .reduce((balance, t) => {
+                                 if (t.status === 'APPROVED') {
+                                     return balance + (t.type === 'INCOME' ? Number(t.amountInBase || t.amount) : -Number(t.amountInBase || t.amount));
+                                 }
+                                 return balance;
+                             }, 0);
+                        
+                        return (
+                        <GlassCard 
+                            key={tx.id} 
+                            sx={{ 
+                                p: 0, // padding handled by CardActionArea content
+                                bgcolor: tx.status === 'PENDING' ? 'warning.light' : tx.status === 'REJECTED' ? 'error.light' : 'background.paper',
+                                opacity: tx.status !== 'APPROVED' ? 0.9 : 1,
+                                position: 'relative',
+                                overflow: 'hidden',
+                                transition: 'all 0.1s'
+                            }}
+                        >
+                            <CardActionArea 
+                                onClick={() => handleViewDetails(tx)}
+                                sx={{ p: 2, width: '100%', height: '100%' }}
+                            >
+                                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <Box sx={{ minWidth: 0, flex: 1, mr: 2 }}>
+                                        <Typography variant="subtitle2" fontWeight={600} noWrap>
+                                            {tx.description}
+                                        </Typography>
+                                        <Typography variant="caption" color="primary.main" fontWeight={600} display="block">
+                                            {tx.department.name}
+                                        </Typography>
+                                        <Typography variant="caption" color="text.secondary">
+                                            {new Date(tx.createdAt).toLocaleDateString()}
+                                        </Typography>
+                                    </Box>
+                                    <Box sx={{ textAlign: 'right' }}>
+                                        <Typography 
+                                            variant="body2" 
+                                            fontWeight={700}
+                                            color={tx.type === 'INCOME' ? 'success.main' : 'error.main'}
+                                            sx={{ display: 'block', mb: 0.5 }}
+                                        >
+                                            {tx.type === 'INCOME' ? '+' : '-'}{baseCurrency ? formatCurrency(Number(tx.amountInBase || tx.amount), baseCurrency.code, baseCurrency.symbol) : formatCurrency(Number(tx.amountInBase || tx.amount))}
+                                        </Typography>
+                                        <Chip 
+                                            label={tx.status} 
+                                            size="small" 
+                                            color={tx.status === 'APPROVED' ? 'success' : tx.status === 'PENDING' ? 'warning' : 'error'}
+                                            variant="outlined"
+                                            sx={{ height: 20, fontSize: '0.65rem' }}
+                                        />
+                                    </Box>
+                                </Box>
+                            </CardActionArea>
+                        </GlassCard>
+                    )})}
+                    {filteredTransactions.length === 0 && !loading && (
+                        <Typography variant="body1" color="text.secondary" align="center" sx={{ py: 4 }}>
+                            No transactions found
+                        </Typography>
+                    )}
+                </Box>
+            ) : (
             <GlassCard sx={{ overflow: 'hidden' }}>
                 <TableContainer sx={{ background: 'transparent' }}>
                 <Table size="small">
@@ -752,6 +843,103 @@ function TransactionsPageContent() {
                 </Table>
             </TableContainer>
             </GlassCard>
+            )}
+
+            <Dialog open={detailsDialog.open} onClose={handleCloseDetails} maxWidth="sm" fullWidth>
+                <DialogTitle>Transaction Details</DialogTitle>
+                <DialogContent>
+                    {detailsDialog.transaction && (
+                        <Box sx={{ pt: 2 }}>
+                            <Stack spacing={2}>
+                                <Box>
+                                    <Typography variant="caption" color="text.secondary">Description</Typography>
+                                    <Typography variant="body1" fontWeight={600}>{detailsDialog.transaction.description}</Typography>
+                                </Box>
+                                <Grid container spacing={2}>
+                                    <Grid size={6}>
+                                        <Typography variant="caption" color="text.secondary">Amount</Typography>
+                                        <Typography 
+                                            variant="h6" 
+                                            fontWeight={700}
+                                            color={detailsDialog.transaction.type === 'INCOME' ? 'success.main' : 'error.main'}
+                                        >
+                                            {detailsDialog.transaction.type === 'INCOME' ? '+' : '-'}
+                                            {baseCurrency ? formatCurrency(Number(detailsDialog.transaction.amountInBase || detailsDialog.transaction.amount), baseCurrency.code, baseCurrency.symbol) : formatCurrency(Number(detailsDialog.transaction.amountInBase || detailsDialog.transaction.amount))}
+                                        </Typography>
+                                    </Grid>
+                                    <Grid size={6}>
+                                        <Typography variant="caption" color="text.secondary">Status</Typography>
+                                        <Box>
+                                            <Chip 
+                                                label={detailsDialog.transaction.status} 
+                                                size="small" 
+                                                color={detailsDialog.transaction.status === 'APPROVED' ? 'success' : detailsDialog.transaction.status === 'PENDING' ? 'warning' : 'error'}
+                                            />
+                                        </Box>
+                                    </Grid>
+                                </Grid>
+                                <Box>
+                                    <Typography variant="caption" color="text.secondary">Department</Typography>
+                                    <Typography variant="body1">{detailsDialog.transaction.department?.name}</Typography>
+                                </Box>
+                                <Box>
+                                    <Typography variant="caption" color="text.secondary">Submitted By</Typography>
+                                    <Typography variant="body1">{detailsDialog.transaction.user?.name}</Typography>
+                                    <Typography variant="caption">{detailsDialog.transaction.user?.email}</Typography>
+                                </Box>
+                                <Box>
+                                    <Typography variant="caption" color="text.secondary">Date</Typography>
+                                    <Typography variant="body1">
+                                        {new Date(detailsDialog.transaction.createdAt).toLocaleString()}
+                                    </Typography>
+                                </Box>
+                                {detailsDialog.transaction.currency && detailsDialog.transaction.currency.code !== (baseCurrency?.code) && (
+                                    <Box>
+                                        <Typography variant="caption" color="text.secondary">Original Amount</Typography>
+                                        <Typography variant="body2">
+                                            {detailsDialog.transaction.currency.symbol}{Number(detailsDialog.transaction.amount).toLocaleString()} {detailsDialog.transaction.currency.code}
+                                        </Typography>
+                                    </Box>
+                                )}
+                                
+                                {isAdmin && (
+                                    <Box sx={{ display: 'flex', gap: 1, mt: 2, pt: 2, borderTop: 1, borderColor: 'divider' }}>
+                                        {(detailsDialog.transaction.status === 'APPROVED' || detailsDialog.transaction.status === 'REJECTED') && (
+                                            <Button
+                                                fullWidth
+                                                variant="outlined"
+                                                color="warning"
+                                                onClick={() => {
+                                                    handleCloseDetails();
+                                                    handleCorrect(detailsDialog.transaction);
+                                                }}
+                                            >
+                                                Correct Transaction
+                                            </Button>
+                                        )}
+                                        {isSuperAdmin && (
+                                            <Button
+                                                fullWidth
+                                                variant="outlined"
+                                                color="error"
+                                                onClick={() => {
+                                                    handleCloseDetails();
+                                                    handleDelete(detailsDialog.transaction.id, detailsDialog.transaction.description);
+                                                }}
+                                            >
+                                                Delete
+                                            </Button>
+                                        )}
+                                    </Box>
+                                )}
+                            </Stack>
+                        </Box>
+                    )}
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={handleCloseDetails}>Close</Button>
+                </DialogActions>
+            </Dialog>
 
             <CorrectTransactionDialog
                 open={correctDialog.open}

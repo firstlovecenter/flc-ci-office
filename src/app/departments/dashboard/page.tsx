@@ -5,6 +5,7 @@ import { Typography, Box, CircularProgress, Grid, Stack, CardActionArea, IconBut
 import { formatCurrency } from '@/lib/utils';
 import { GlassCard, SimpleStatCard } from '@/components/ui';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
+import TrendingDownIcon from '@mui/icons-material/TrendingDown';
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
 import ReceiptIcon from '@mui/icons-material/Receipt';
 import AssessmentIcon from '@mui/icons-material/Assessment';
@@ -119,20 +120,28 @@ export default function DepartmentDashboardPage() {
     };
 
     // Quick links for church dashboard
-    const quickLinks = useMemo(() => [
-        {
-            title: 'View Churches',
-            href: `/departments?parent=${departmentId}`,
-        },
-        {
-            title: 'Transactions History',
-            href: `/transactions?dept=${departmentId}`,
-        },
-        {
-            title: 'View Trends',
-            href: `/reports?dept=${departmentId}`,
-        },
-    ], [departmentId]);
+    const quickLinks = useMemo(() => {
+        const links = [];
+
+        if (department?.level && department.level !== 'COUNCIL') {
+            links.push({
+                title: 'View Churches',
+                href: `/departments?parent=${departmentId}`,
+            });
+        }
+
+        return [
+            ...links,
+            {
+                title: 'Transactions History',
+                href: `/transactions?dept=${departmentId}`,
+            },
+            {
+                title: 'View Trends',
+                href: `/reports?dept=${departmentId}`,
+            },
+        ];
+    }, [departmentId, department]);
 
     if (loading) {
         return (
@@ -158,7 +167,15 @@ export default function DepartmentDashboardPage() {
         return theme.palette.primary.main;
     };
 
-    // Leader-style stat cards: Account Balance + This Week's Income
+    const userRole = session?.user?.role;
+    // Admins and Oversight/Denomination Leaders get expanded stats
+    const isAdvancedView = userRole && (
+        userRole === 'SUPERADMIN' || 
+        userRole.includes('ADMIN') || 
+        ['DENOMINATION_LEADER', 'OVERSIGHT_LEADER'].includes(userRole)
+    );
+
+    // Default stat cards: Account Balance + This Week's Income
     const statCards = [
         {
             title: 'Account Balance',
@@ -175,6 +192,25 @@ export default function DepartmentDashboardPage() {
             currencySymbol: stats.currency.symbol
         }
     ];
+
+    if (isAdvancedView) {
+        statCards.push(
+            {
+                title: 'Total Inflows',
+                amount: stats.income,
+                icon: TrendingUpIcon,
+                color: theme.palette.info.main,
+                currencySymbol: stats.currency.symbol
+            },
+            {
+                title: 'Total Expenses',
+                amount: stats.expense,
+                icon: TrendingDownIcon,
+                color: theme.palette.error.main,
+                currencySymbol: stats.currency.symbol
+            }
+        );
+    }
 
     const handleRefresh = () => {
         fetchDepartment();
@@ -253,10 +289,10 @@ export default function DepartmentDashboardPage() {
                  </Box>
             </Box>
 
-            {/* Stats Grid - 2 cards like leader view */}
+            {/* Stats Grid - Adaptable based on count */}
             <Grid container spacing={{ xs: 1.5, sm: 3 }} sx={{ mb: { xs: 2, md: 4 } }}>
                 {statCards.map((card, index) => (
-                    <Grid size={{ xs: 6, md: 6 }} key={index}>
+                    <Grid size={{ xs: 6, md: 6, lg: statCards.length > 2 ? 3 : 6 }} key={index}>
                         <SimpleStatCard
                             title={card.title}
                             amount={card.amount}

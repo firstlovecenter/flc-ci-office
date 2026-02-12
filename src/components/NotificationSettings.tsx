@@ -123,7 +123,7 @@ export default function NotificationSettings() {
             // Send a test notification
             setTimeout(() => {
                 new Notification('Notifications Enabled!', {
-                    body: 'You will now receive push notifications from FLC CI Office',
+                    body: 'You will now receive push notifications from CI Office',
                     icon: '/icon-192x192.png',
                 });
             }, 500);
@@ -181,7 +181,7 @@ export default function NotificationSettings() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     title: 'Test Notification',
-                    body: 'This is a test push notification from FLC CI Office',
+                    body: 'This is a test push notification from CI Office',
                     url: '/dashboard',
                 }),
             });

@@ -26,6 +26,8 @@ import {
     Switch,
     FormControlLabel,
     Chip,
+    useTheme,
+    useMediaQuery,
 } from '@mui/material';
 import { GlassCard } from '@/components/ui';
 import AddIcon from '@mui/icons-material/Add';
@@ -54,6 +56,8 @@ interface ExchangeRate {
 export default function CurrenciesPage() {
     const { data: session } = useSession();
     const router = useRouter();
+    const theme = useTheme();
+    const isMobile = useMediaQuery(theme.breakpoints.down('md'));
     const [tab, setTab] = useState(0);
     const [currencies, setCurrencies] = useState<Currency[]>([]);
     const [exchangeRates, setExchangeRates] = useState<ExchangeRate[]>([]);
@@ -320,6 +324,59 @@ export default function CurrenciesPage() {
                         </Button>
                     </Box>
 
+                    {isMobile ? (
+                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                            {currencies.map((currency) => (
+                                <GlassCard 
+                                    key={currency.id} 
+                                    sx={{ 
+                                        p: 2,
+                                        '&:active': { bgcolor: 'action.hover' }
+                                    }}
+                                    onClick={() => handleEditCurrency(currency)}
+                                >
+                                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                            <Typography variant="subtitle1" fontWeight={700}>
+                                                {currency.code}
+                                            </Typography>
+                                            <Typography variant="body2" color="text.secondary">
+                                                {currency.name}
+                                            </Typography>
+                                        </Box>
+                                        <Typography variant="h6">
+                                            {currency.symbol}
+                                        </Typography>
+                                    </Box>
+                                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 1 }}>
+                                        <Box sx={{ display: 'flex', gap: 1 }}>
+                                            <Chip
+                                                label={currency.isActive ? 'Active' : 'Inactive'}
+                                                color={currency.isActive ? 'success' : 'default'}
+                                                size="small"
+                                            />
+                                            {currency.isBase && (
+                                                <Chip label="Base" color="primary" size="small" />
+                                            )}
+                                        </Box>
+                                        <Switch
+                                            checked={currency.isActive}
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleToggleActive(currency.id, currency.isActive);
+                                            }}
+                                            size="small"
+                                        />
+                                    </Box>
+                                </GlassCard>
+                            ))}
+                             {currencies.length === 0 && (
+                                <Typography variant="body1" color="text.secondary" align="center">
+                                    No currencies found
+                                </Typography>
+                            )}
+                        </Box>
+                    ) : (
                     <TableContainer component={GlassCard}>
                         <Table>
                             <TableHead>
@@ -380,6 +437,7 @@ export default function CurrenciesPage() {
                             </TableBody>
                         </Table>
                     </TableContainer>
+                    )}
                 </Box>
             )}
 

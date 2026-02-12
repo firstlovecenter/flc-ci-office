@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import Image from 'next/image';
 import { Box, Typography, Avatar, IconButton, useTheme, Badge, Drawer, List, ListItem, ListItemButton, ListItemIcon, ListItemText, Divider, TextField, Button } from '@mui/material';
 import { styled, alpha } from '@mui/material/styles';
 import { useSession, signOut } from 'next-auth/react';
@@ -11,6 +12,7 @@ import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
 import BusinessIcon from '@mui/icons-material/Business';
 import LightModeIcon from '@mui/icons-material/LightMode';
 import DarkModeIcon from '@mui/icons-material/DarkMode';
+import SettingsSystemDaydreamIcon from '@mui/icons-material/SettingsSystemDaydream';
 import LogoutIcon from '@mui/icons-material/LogoutRounded';
 import MenuIcon from '@mui/icons-material/Menu';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
@@ -21,6 +23,8 @@ import PendingActionsIcon from '@mui/icons-material/PendingActions';
 import AssessmentIcon from '@mui/icons-material/Assessment';
 import ShowChartIcon from '@mui/icons-material/ShowChart';
 import SmsIcon from '@mui/icons-material/Sms';
+import PeopleIcon from '@mui/icons-material/People';
+import MonetizationOnIcon from '@mui/icons-material/MonetizationOn';
 import { useColorMode } from '@/app/providers';
 import RoleSwitcher from './RoleSwitcher';
 import PullToRefresh from './PullToRefresh';
@@ -115,7 +119,9 @@ export default function ModernDashboardLayout({ children }: { children: React.Re
         { text: 'Approvals', icon: <PendingActionsIcon />, path: '/approvals', badge: pendingCounts.approvals, show: isAdmin || isSuperAdmin },
         { text: 'Request Expense', icon: <AddCircleOutlineIcon />, path: '/transactions/new', show: !isSuperAdmin },
         { text: 'Transaction History', icon: <ReceiptIcon />, path: '/transactions', badge: pendingCounts.transactions, show: true },
+        { text: 'Users', icon: <PeopleIcon />, path: '/users', show: isAdmin || isSuperAdmin },
         { text: 'Churches', icon: <BusinessIcon />, path: '/departments', show: isSuperAdmin || isLeaderOrAdmin },
+        { text: 'Currencies', icon: <MonetizationOnIcon />, path: '/currencies', show: isSuperAdmin || (userRole === 'DENOMINATION_ADMIN') },
         { text: 'Trends & Reports', icon: <AssessmentIcon />, path: '/reports', show: true },
         { text: 'Analytics', icon: <ShowChartIcon />, path: '/analytics', show: hasAnalyticsAccess },
         { text: 'SMS Management', icon: <SmsIcon />, path: '/admin/sms', show: isSuperAdmin },
@@ -170,26 +176,35 @@ export default function ModernDashboardLayout({ children }: { children: React.Re
                             : 'rgba(0, 0, 0, 0.1)'}`,
                     }}
                 >
-                    <IconButton
-                        onClick={() => setMobileMenuOpen(true)}
-                        sx={{
-                            width: 45,
-                            height: 45,
-                            borderRadius: '10px',
-                            color: theme.palette.text.primary,
-                            bgcolor: 'transparent',
-                            border: `1px solid ${theme.palette.mode === 'dark' 
-                                ? 'rgba(255, 255, 255, 0.2)' 
-                                : 'rgba(0, 0, 0, 0.2)'}`,
-                            '&:hover': {
-                                bgcolor: theme.palette.mode === 'dark' 
-                                    ? 'rgba(255, 255, 255, 0.05)' 
-                                    : 'rgba(0, 0, 0, 0.04)',
-                            },
-                        }}
-                    >
-                        <MenuIcon sx={{ fontSize: 28 }} />
-                    </IconButton>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                        <IconButton
+                            onClick={() => setMobileMenuOpen(true)}
+                            sx={{
+                                width: 45,
+                                height: 45,
+                                borderRadius: '10px',
+                                color: theme.palette.text.primary,
+                                bgcolor: 'transparent',
+                                border: `1px solid ${theme.palette.mode === 'dark' 
+                                    ? 'rgba(255, 255, 255, 0.2)' 
+                                    : 'rgba(0, 0, 0, 0.2)'}`,
+                                '&:hover': {
+                                    bgcolor: theme.palette.mode === 'dark' 
+                                        ? 'rgba(255, 255, 255, 0.05)' 
+                                        : 'rgba(0, 0, 0, 0.04)',
+                                },
+                            }}
+                        >
+                            <MenuIcon sx={{ fontSize: 28 }} />
+                        </IconButton>
+                        
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                            <Image src="/flc-logo.webp" alt="CI Office" width={32} height={32} />
+                            <Typography variant="h6" fontWeight="bold" sx={{ color: theme.palette.text.primary, display: { xs: 'none', sm: 'block' } }}>
+                                CI Office
+                            </Typography>
+                        </Box>
+                    </Box>
 
                     <Box sx={{ display: { xs: 'flex', md: 'none' }, gap: 1, alignItems: 'center' }}>
                         <RoleSwitcher />
@@ -255,17 +270,23 @@ export default function ModernDashboardLayout({ children }: { children: React.Re
                             alignItems: 'center',
                             paddingTop: 'env(safe-area-inset-top)',
                             paddingBottom: 'env(safe-area-inset-bottom)',
-                            bgcolor: '#0f172a', // Dark background
-                            color: '#ffffff',
-                            borderRight: `1px solid rgba(255, 255, 255, 0.1)`,
+                            bgcolor: theme.palette.background.paper,
+                            color: theme.palette.text.primary,
+                            borderRight: `1px solid ${theme.palette.divider}`,
                         }
                     }}
                 >
                     {/* Close Button at Top Right */}
-                    <Box sx={{ width: '100%', display: 'flex', justifyContent: 'flex-end', p: 2 }}>
+                    <Box sx={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', p: 2, pb: 1 }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                            <Image src="/flc-logo.webp" alt="CI Office" width={32} height={32} />
+                            <Typography variant="h6" fontWeight="bold">
+                                CI Office
+                            </Typography>
+                        </Box>
                         <IconButton 
                             onClick={() => setMobileMenuOpen(false)}
-                            sx={{ color: 'rgba(255, 255, 255, 0.7)' }}
+                            sx={{ color: theme.palette.text.secondary }}
                         >
                             <CloseIcon />
                         </IconButton>
@@ -281,19 +302,25 @@ export default function ModernDashboardLayout({ children }: { children: React.Re
                                     sx={{
                                         borderRadius: 1,
                                         border: '1px solid',
-                                        borderColor: 'rgba(255, 255, 255, 0.3)',
-                                        color: '#ffffff',
+                                        borderColor: theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.3)' : 'rgba(0, 0, 0, 0.1)',
+                                        color: theme.palette.text.primary,
                                         py: 1,
                                         justifyContent: 'center',
                                         transition: 'all 0.2s',
                                         '&:hover': {
-                                            bgcolor: 'rgba(255, 255, 255, 0.1)',
-                                            borderColor: '#ffffff',
+                                            bgcolor: theme.palette.action.hover,
+                                            borderColor: theme.palette.text.primary,
                                         },
                                     }}
                                 >
                                     <ListItemText 
-                                        primary={item.text}
+                                        primary={
+                                            item.badge && item.badge > 0 ? (
+                                                <Badge badgeContent={item.badge} color="error" sx={{ '& .MuiBadge-badge': { right: -15, top: 2 } }}>
+                                                    {item.text}
+                                                </Badge>
+                                            ) : item.text
+                                        }
                                         primaryTypographyProps={{
                                             fontWeight: 600,
                                             textAlign: 'center',
@@ -317,21 +344,21 @@ export default function ModernDashboardLayout({ children }: { children: React.Re
                                 onKeyDown={handleSearchKeyDown}
                                 sx={{
                                     '& .MuiOutlinedInput-root': {
-                                        bgcolor: 'rgba(255, 255, 255, 0.05)',
-                                        color: '#fff',
+                                        bgcolor: theme.palette.action.selected,
+                                        color: theme.palette.text.primary,
                                         borderRadius: 1,
                                         '& fieldset': {
-                                            borderColor: 'rgba(255, 255, 255, 0.2)',
+                                            borderColor: theme.palette.divider,
                                         },
                                         '&:hover fieldset': {
-                                            borderColor: 'rgba(255, 255, 255, 0.4)',
+                                            borderColor: theme.palette.text.primary,
                                         },
                                         '&.Mui-focused fieldset': {
                                             borderColor: theme.palette.primary.main,
                                         },
                                     },
                                     '& input::placeholder': {
-                                        color: 'rgba(255, 255, 255, 0.5)',
+                                        color: theme.palette.text.secondary,
                                     }
                                 }}
                             />
@@ -393,21 +420,24 @@ export default function ModernDashboardLayout({ children }: { children: React.Re
                             <IconButton
                                 onClick={colorMode.toggleColorMode}
                                 sx={{
-                                    color: 'rgba(255, 255, 255, 0.7)',
-                                    border: '1px solid rgba(255, 255, 255, 0.1)',
+                                    color: 'text.secondary',
+                                    border: '1px solid',
+                                    borderColor: 'divider',
                                     borderRadius: 1.5,
                                     width: 36,
                                     height: 36,
                                     '&:hover': {
-                                        bgcolor: 'rgba(255, 255, 255, 0.05)',
-                                        color: '#fff',
+                                        bgcolor: 'action.hover',
+                                        color: 'text.primary',
                                     },
                                 }}
                             >
-                                {theme.palette.mode === 'dark' ? (
+                                {colorMode.mode === 'dark' ? (
                                     <DarkModeIcon sx={{ fontSize: 20 }} />
-                                ) : (
+                                ) : colorMode.mode === 'light' ? (
                                     <LightModeIcon sx={{ fontSize: 20 }} />
+                                ) : (
+                                    <SettingsSystemDaydreamIcon sx={{ fontSize: 20 }} />
                                 )}
                             </IconButton>
 

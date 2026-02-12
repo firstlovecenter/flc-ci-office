@@ -15,14 +15,17 @@ import MonetizationOnIcon from '@mui/icons-material/MonetizationOn';
 import PendingActionsIcon from '@mui/icons-material/PendingActions';
 import SmsIcon from '@mui/icons-material/Sms';
 import ArrowForwardIosIcon from '@mui/icons-material/ArrowForwardIos';
+import SecurityIcon from '@mui/icons-material/Security';
+import VerifiedUserIcon from '@mui/icons-material/VerifiedUser';
+import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { Role } from '@prisma/client';
 import { BarChart, Bar, XAxis, Tooltip, ResponsiveContainer, Cell, LabelList } from 'recharts';
 import { AnimatedCounter, StatCardSkeleton, ChartSkeleton, GlassCard, SimpleStatCard } from '@/components/ui';
 
-// Dashboard-specific stat card with gradient
-const DashboardStatCard = ({ 
+// Gradient Dashboard Stat Card (Standard Style)
+const GradientStatCard = ({ 
     title, 
     amount, 
     icon: Icon, 
@@ -37,8 +40,6 @@ const DashboardStatCard = ({
     currencySymbol?: string;
     isBlinking?: boolean;
 }) => {
-    const theme = useTheme();
-    
     return (
         <Box
             sx={{
@@ -70,7 +71,6 @@ const DashboardStatCard = ({
                 },
             }}
         >
-            {/* Decorative circles */}
             <Box
                 sx={{
                     position: 'absolute',
@@ -159,10 +159,139 @@ const DashboardStatCard = ({
     );
 };
 
+// Minimalistic Dashboard Stat Card (SuperAdmin only)
+const MinimalStatCard = ({ 
+    title, 
+    amount, 
+    icon: Icon, 
+    color, 
+    currencySymbol,
+    isBlinking = false,
+    onClick
+}: { 
+    title: string; 
+    amount: number; 
+    icon: React.ElementType; 
+    gradient?: string;
+    color?: string;
+    currencySymbol?: string;
+    isBlinking?: boolean;
+    onClick?: () => void;
+}) => {
+    const theme = useTheme();
+    
+    return (
+        <Card
+            elevation={0}
+            onClick={onClick}
+            sx={{
+                p: 3,
+                height: '100%',
+                borderRadius: 4,
+                bgcolor: 'background.paper',
+                border: '1px solid',
+                borderColor: 'divider',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 2.5,
+                cursor: onClick ? 'pointer' : 'default',
+                transition: 'all 0.2s ease-in-out',
+                '&:hover': {
+                    borderColor: color || theme.palette.primary.main,
+                    transform: 'translateY(-2px)',
+                    boxShadow: `0 8px 24px ${alpha(color || theme.palette.primary.main, 0.1)}`,
+                },
+                ...(isBlinking && {
+                    '@keyframes pulse': {
+                        '0%': { boxShadow: `0 0 0 0 ${alpha(theme.palette.error.main, 0.4)}` },
+                        '70%': { boxShadow: `0 0 0 10px ${alpha(theme.palette.error.main, 0)}` },
+                        '100%': { boxShadow: `0 0 0 0 ${alpha(theme.palette.error.main, 0)}` }
+                    },
+                    animation: 'pulse 2s infinite'
+                })
+            }}
+        >
+            <ActionAreaWrapper hasAction={!!onClick}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2.5, width: '100%' }}>
+            <Box
+                sx={{
+                    width: 56,
+                    height: 56,
+                    borderRadius: 3,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    bgcolor: alpha(color || theme.palette.primary.main, 0.1),
+                    color: color || theme.palette.primary.main,
+                }}
+            >
+                <Icon sx={{ fontSize: 28 }} />
+            </Box>
+
+            <Box>
+                <Typography 
+                    variant="body2" 
+                    color="text.secondary" 
+                    fontWeight={600}
+                    sx={{ mb: 0.5, letterSpacing: '0.5px', textTransform: 'uppercase', fontSize: '0.75rem' }}
+                >
+                    {title}
+                </Typography>
+                
+                <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.5 }}>
+                    {currencySymbol && (
+                        <Typography 
+                            component="span" 
+                            variant="h5"
+                            color="text.secondary"
+                            fontWeight={500}
+                        >
+                            {currencySymbol}
+                        </Typography>
+                    )}
+                    <AnimatedCounter
+                        value={amount}
+                        duration={1000}
+                        formatter={(val) => val.toLocaleString('en-US', { minimumFractionDigits: currencySymbol ? 2 : 0, maximumFractionDigits: currencySymbol ? 2 : 0 })}
+                        sx={{
+                            fontSize: '1.75rem',
+                            fontWeight: 700,
+                            color: 'text.primary',
+                            lineHeight: 1.2
+                        }}
+                    />
+                </Box>
+            </Box>
+            </Box>
+            </ActionAreaWrapper>
+        </Card>
+    );
+};
+
+const ActionAreaWrapper = ({ hasAction, children }: { hasAction: boolean, children: React.ReactNode }) => {
+    return hasAction ? <CardActionArea sx={{ p: 0, height: '100%' }}>{children}</CardActionArea> : <>{children}</>;
+};
+
 // Simple stat card moved to components/ui/SimpleStatCard.tsx
 
 export default function DashboardPage() {
-    const [stats, setStats] = useState({ income: 0, expense: 0, balance: 0, weeklyIncome: 0, chartData: [] as { week: string; income: number; expense: number }[] });
+    const [stats, setStats] = useState({ 
+        income: 0, 
+        expense: 0, 
+        balance: 0, 
+        weeklyIncome: 0, 
+        chartData: [] as { week: string; income: number; expense: number }[],
+        superAdminStats: undefined as undefined | { 
+            users: number, 
+            departments: number, 
+            transactions: number, 
+            pendingApprovals: number,
+            activeDepartments: number,
+            activeCurrencies: number,
+            todaysLogins: number,
+            criticalErrors: number
+        }
+    });
     const [baseCurrency, setBaseCurrency] = useState<{ code: string; symbol: string } | null>(null);
     const [departmentName, setDepartmentName] = useState<string | null>(null);
     const [departmentLeader, setDepartmentLeader] = useState<{ name: string; image: string | null } | null>(null);
@@ -390,18 +519,83 @@ export default function DashboardPage() {
         return theme.palette.primary.main;
     };
 
-    const statCards = isLeader ? [
+    const statCards = isSuperAdmin && stats.superAdminStats ? [
+        {
+            title: 'Total Users',
+            amount: stats.superAdminStats.users,
+            icon: PeopleIcon,
+            gradient: 'linear-gradient(135deg, #42a5f5 0%, #1976d2 100%)',
+            color: theme.palette.primary.main,
+            isBlinking: false
+        },
+        {
+            title: 'Total Departments',
+            amount: stats.superAdminStats.departments,
+            icon: BusinessIcon,
+            gradient: 'linear-gradient(135deg, #ffa726 0%, #f57c00 100%)',
+            color: theme.palette.warning.main,
+            isBlinking: false
+        },
+        {
+            title: 'Total Transactions',
+            amount: stats.superAdminStats.transactions,
+            icon: ReceiptIcon,
+            gradient: 'linear-gradient(135deg, #26c6da 0%, #00acc1 100%)',
+            color: theme.palette.info.main,
+            isBlinking: false
+        },
+        {
+            title: 'Pending Approvals',
+            amount: stats.superAdminStats.pendingApprovals,
+            icon: PendingActionsIcon,
+            gradient: 'linear-gradient(135deg, #ef5350 0%, #e53935 100%)',
+            color: theme.palette.error.main,
+            isBlinking: stats.superAdminStats.pendingApprovals > 0
+        },
+        {
+            title: "Today's Logins",
+            amount: stats.superAdminStats.todaysLogins,
+            icon: VerifiedUserIcon,
+            gradient: 'linear-gradient(135deg, #66bb6a 0%, #43a047 100%)',
+            color: theme.palette.success.main,
+            isBlinking: false
+        },
+        {
+            title: 'Active Currencies',
+            amount: stats.superAdminStats.activeCurrencies,
+            icon: MonetizationOnIcon,
+            gradient: 'linear-gradient(135deg, #7e57c2 0%, #5e35b1 100%)',
+            color: theme.palette.secondary.main,
+            isBlinking: false
+        },
+        {
+            title: 'Critical Errors (Today)',
+            amount: stats.superAdminStats.criticalErrors,
+            icon: ErrorOutlineIcon,
+            gradient: 'linear-gradient(135deg, #FF5252 0%, #FF1744 100%)',
+            color: theme.palette.error.dark,
+            isBlinking: stats.superAdminStats.criticalErrors > 0
+        },
+        {
+            title: 'Active Departments',
+            amount: stats.superAdminStats.activeDepartments,
+            icon: BusinessIcon,
+            gradient: 'linear-gradient(135deg, #ab47bc 0%, #8e24aa 100%)',
+            color: theme.palette.secondary.dark,
+            isBlinking: false
+        }
+    ] : isLeader ? [
         {
             title: 'Account Balance',
-            amount: stats.balance,
+            amount: stats.balance || 0,
             icon: AccountBalanceWalletIcon,
             gradient: getGradient('balance', stats.balance),
             color: getStatColor('balance', stats.balance),
-            isBlinking: stats.balance < 5000
+            isBlinking: (stats.balance || 0) < 5000
         },
         {
             title: "This Week's Income",
-            amount: stats.weeklyIncome,
+            amount: stats.weeklyIncome || 0,
             icon: TrendingUpIcon,
             gradient: getGradient('weeklyIncome'),
             color: getStatColor('weeklyIncome'),
@@ -410,15 +604,15 @@ export default function DashboardPage() {
     ] : [
         {
             title: 'Account Balance',
-            amount: stats.balance,
+            amount: stats.balance || 0,
             icon: AccountBalanceWalletIcon,
             gradient: getGradient('balance', stats.balance),
             color: getStatColor('balance', stats.balance),
-            isBlinking: stats.balance < 5000
+            isBlinking: (stats.balance || 0) < 5000
         },
         {
             title: 'Total Inflows',
-            amount: stats.income,
+            amount: stats.income || 0,
             icon: TrendingUpIcon,
             gradient: getGradient('income'),
             color: getStatColor('income'),
@@ -426,7 +620,7 @@ export default function DashboardPage() {
         },
         {
             title: 'Total Expenses',
-            amount: stats.expense,
+            amount: stats.expense || 0,
             icon: TrendingDownIcon,
             gradient: getGradient('expense'),
             color: getStatColor('expense'),
@@ -608,181 +802,62 @@ export default function DashboardPage() {
                 </Box>
             </Box>
 
-            {/* SuperAdmin Management Cards */}
-            {isSuperAdmin ? (
-                <Grid container spacing={{ xs: 1.5, sm: 3 }} sx={{ mb: { xs: 2, md: 4 } }}>
-                    {[
-                        {
-                            title: 'User Management',
-                            description: 'Manage users, roles, and permissions',
-                            icon: PeopleIcon,
-                            href: '/users',
-                            gradient: 'linear-gradient(135deg, #42a5f5 0%, #1976d2 100%)',
-                        },
-                        {
-                            title: 'Department Management',
-                            description: 'Organize and manage departments',
-                            icon: BusinessIcon,
-                            href: '/departments',
-                            gradient: 'linear-gradient(135deg, #ffa726 0%, #f57c00 100%)',
-                        },
-                        {
-                            title: 'Transactions History',
-                            description: 'View and manage all transactions',
-                            icon: ReceiptIcon,
-                            href: '/transactions',
-                            gradient: 'linear-gradient(135deg, #26c6da 0%, #00acc1 100%)',
-                        },
-                        {
-                            title: 'Currency Management',
-                            description: 'Manage currencies and exchange rates',
-                            icon: MonetizationOnIcon,
-                            href: '/currencies',
-                            gradient: 'linear-gradient(135deg, #ef5350 0%, #e53935 100%)',
-                        },
-                        {
-                            title: 'Approvals',
-                            description: 'Review pending approvals',
-                            icon: PendingActionsIcon,
-                            href: '/approvals',
-                            gradient: 'linear-gradient(135deg, #66bb6a 0%, #43a047 100%)',
-                        },
-                        {
-                            title: 'View Trends',
-                            description: 'View system-wide trends',
-                            icon: AssessmentIcon,
-                            href: '/reports',
-                            gradient: 'linear-gradient(135deg, #ab47bc 0%, #8e24aa 100%)',
-                        },
-                        {
-                            title: 'SMS Management',
-                            description: 'Send SMS and manage notifications',
-                            icon: SmsIcon,
-                            href: '/admin/sms',
-                            gradient: 'linear-gradient(135deg, #7e57c2 0%, #5e35b1 100%)',
-                        },
-                    ].map((card, index) => {
-                        const Icon = card.icon;
+            {/* Dashboard Stats */}
+            <Grid container spacing={{ xs: 1.5, sm: 3 }} sx={{ mb: { xs: 2, md: 4 } }}>
+                {statCards
+                    .filter(card => card !== undefined)
+                    .map((card, index) => {
+                        const getRoute = (title: string) => {
+                            switch(title) {
+                                case 'Total Users': return '/users';
+                                case 'Total Departments': return '/departments';
+                                case 'Total Transactions': return '/transactions';
+                                case 'Pending Approvals': return '/approvals';
+                                case "Today's Logins": return '/audit';
+                                case 'Active Currencies': return '/currencies';
+                                case 'Critical Errors (Today)': return '/audit';
+                                case 'Active Departments': return '/departments';
+                                default: return undefined;
+                            }
+                        };
+                        const route = getRoute(card.title);
+
                         return (
-                            <Grid size={{ xs: 12, sm: 6, md: 4 }} key={card.title}>
-                                <Card
-                                    sx={{
-                                        height: '100%',
-                                        background: theme.palette.mode === 'dark' 
-                                            ? alpha(theme.palette.background.paper, 0.6) 
-                                            : theme.palette.background.paper,
-                                        backdropFilter: 'blur(20px)',
-                                        border: '1px solid',
-                                        borderColor: alpha(theme.palette.divider, 0.1),
-                                        transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                                        cursor: 'pointer',
-                                        overflow: 'hidden',
-                                        position: 'relative',
-                                        animation: `fadeInUp 0.5s ease-out ${index * 0.1}s both`,
-                                        '@keyframes fadeInUp': {
-                                            from: {
-                                                opacity: 0,
-                                                transform: 'translateY(20px)',
-                                            },
-                                            to: {
-                                                opacity: 1,
-                                                transform: 'translateY(0)',
-                                            },
-                                        },
-                                        '&:hover': {
-                                            transform: 'translateY(-8px) scale(1.02)',
-                                            boxShadow: '0 20px 40px rgba(0, 0, 0, 0.15)',
-                                            borderColor: 'transparent',
-                                            '& .icon-box': {
-                                                transform: 'scale(1.1) rotate(5deg)',
-                                            },
-                                            '&::after': {
-                                                opacity: 1,
-                                            },
-                                        },
-                                        '&::after': {
-                                            content: '""',
-                                            position: 'absolute',
-                                            top: 0,
-                                            left: 0,
-                                            right: 0,
-                                            height: 4,
-                                            background: card.gradient,
-                                            opacity: 0,
-                                            transition: 'opacity 0.3s ease',
-                                        },
-                                    }}
-                                >
-                                    <CardActionArea
-                                        onClick={() => router.push(card.href)}
-                                        sx={{
-                                            height: '100%',
-                                            p: { xs: 2, sm: 3 },
-                                            display: 'flex',
-                                            flexDirection: 'column',
-                                            alignItems: 'flex-start',
-                                            justifyContent: 'flex-start',
-                                        }}
-                                    >
-                                        <Box
-                                            className="icon-box"
-                                            sx={{
-                                                width: { xs: 48, sm: 56 },
-                                                height: { xs: 48, sm: 56 },
-                                                borderRadius: 2,
-                                                background: card.gradient,
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                justifyContent: 'center',
-                                                mb: 2,
-                                                boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
-                                                transition: 'transform 0.3s ease',
-                                            }}
-                                        >
-                                            <Icon sx={{ fontSize: { xs: 24, sm: 28 }, color: 'white' }} />
-                                        </Box>
-                                        <Typography variant="h6" fontWeight="700" sx={{ mb: 0.5, fontSize: { xs: '1rem', sm: '1.25rem' } }}>
-                                            {card.title}
-                                        </Typography>
-                                        <Typography variant="body2" color="text.secondary" sx={{ fontSize: { xs: '0.8rem', sm: '0.875rem' } }}>
-                                            {card.description}
-                                        </Typography>
-                                    </CardActionArea>
-                                </Card>
-                            </Grid>
-                        );
-                    })}
-                </Grid>
-            ) : (
-                /* Stats Grid for non-superadmin users */
-                <Grid container spacing={{ xs: 1.5, sm: 3 }} sx={{ mb: { xs: 2, md: 4 } }}>
-                    {statCards.map((card, index) => (
-                        <Grid size={{ xs: 6, sm: 6, lg: isLeader ? 6 : 4 }} key={index}>
+                        <Grid size={{ xs: 6, sm: 6, lg: isLeader ? 6 : (isSuperAdmin ? 3 : 4)}} key={index}>
                             {isLeader ? (
                                 <SimpleStatCard
                                     title={card.title}
                                     amount={card.amount}
                                     icon={card.icon}
-                                    color={card.color}
-                                    currencySymbol={baseCurrency?.symbol}
+                                    color={card.color || ''}
+                                    currencySymbol={isSuperAdmin ? '' : baseCurrency?.symbol}
                                 />
-                            ) : (
-                                <DashboardStatCard
+                            ) : isSuperAdmin ? (
+                                <MinimalStatCard
                                     title={card.title}
                                     amount={card.amount}
                                     icon={card.icon}
-                                    gradient={card.gradient}
+                                    color={card.color}
+                                    currencySymbol={''}
+                                    isBlinking={card.isBlinking}
+                                    onClick={route ? () => router.push(route) : undefined}
+                                />
+                            ) : (
+                                <GradientStatCard
+                                    title={card.title}
+                                    amount={card.amount}
+                                    icon={card.icon}
+                                    gradient={card.gradient || ''}
                                     currencySymbol={baseCurrency?.symbol}
                                     isBlinking={card.isBlinking}
                                 />
                             )}
                         </Grid>
-                    ))}
-                </Grid>
-            )}
+                    )})}
+            </Grid>
 
-            {/* Weekly Income Chart - Hidden for SuperAdmin */}
-            {!isSuperAdmin && stats.chartData && stats.chartData.length > 0 && (
+            {/* Weekly Income Chart */}
+            {stats.chartData && stats.chartData.length > 0 && (
                 isLeader ? (
                     <Card
                         sx={{
@@ -798,14 +873,19 @@ export default function DashboardPage() {
                         {renderChartContent()}
                     </Card>
                 ) : (
-                    <GlassCard
+                    <Card
+                        elevation={0}
                         sx={{
                             p: { xs: 2, sm: 3 },
                             mt: { xs: 2, md: 0 },
+                            bgcolor: 'background.paper',
+                            borderRadius: 4,
+                            border: '1px solid',
+                            borderColor: 'divider',
                         }}
                     >
                         {renderChartContent()}
-                    </GlassCard>
+                    </Card>
                 )
             )}
 
@@ -901,6 +981,7 @@ export default function DashboardPage() {
                                     </Typography>
                                 </Box>
                             </CardActionArea>
+
                         </Card>
                     )
                 ))}
