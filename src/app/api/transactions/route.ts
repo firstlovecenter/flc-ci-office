@@ -60,15 +60,9 @@ export async function GET(request: Request) {
             
             // Remove duplicates
             allDepartmentIds = [...new Set(allDepartmentIds)];
-        } else if (session.user.activeUserRoleId) {
-            // For non-pending queries, use active role's department
-            const activeRole = await prisma.userRole.findUnique({
-                where: { id: session.user.activeUserRoleId },
-                select: { departmentId: true },
-            });
-            if (activeRole?.departmentId) {
-                filterDepartmentId = activeRole.departmentId;
-            }
+        } else if (session.user.activeUserRole?.departmentId) {
+            // For non-pending queries, use active role's department from session
+            filterDepartmentId = session.user.activeUserRole.departmentId;
         }
 
         if (session.user.role !== 'SUPERADMIN') {

@@ -48,14 +48,12 @@ export async function GET(request: Request) {
         let allowedDepartmentIds: string[] | null = null;
         if (normalizedRole !== 'SUPERADMIN') {
             // Filter to user's department and below
-            const userDept = await prisma.user.findUnique({
-                where: { id: session.user.id },
-                include: { department: true }
-            });
+            // Use activeUserRole if available, otherwise use user's base department
+            const filterDepartmentId = session.user.activeUserRole?.departmentId || session.user.departmentId;
 
-            if (userDept?.departmentId) {
-                const allSubDepts = await getAllSubDepartments(userDept.departmentId);
-                allowedDepartmentIds = [userDept.departmentId, ...allSubDepts];
+            if (filterDepartmentId) {
+                const allSubDepts = await getAllSubDepartments(filterDepartmentId);
+                allowedDepartmentIds = [filterDepartmentId, ...allSubDepts];
             } else {
                 // User has no department but is not superadmin? Should probably see nothing.
                 allowedDepartmentIds = []; 

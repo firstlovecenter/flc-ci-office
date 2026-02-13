@@ -35,14 +35,12 @@ export async function GET(request: Request) {
         let scopeFilter = Prisma.empty;
         
         if (normalizedRole !== 'SUPERADMIN') {
-            const userDept = await prisma.user.findUnique({
-                where: { id: session.user.id },
-                include: { department: true }
-            });
+            // Use activeUserRole if available, otherwise use user's base department
+            const filterDepartmentId = session.user.activeUserRole?.departmentId || session.user.departmentId;
 
-            if (userDept?.departmentId) {
-                const allSubDepts = await getAllSubDepartments(userDept.departmentId);
-                const allowedIds = [userDept.departmentId, ...allSubDepts];
+            if (filterDepartmentId) {
+                const allSubDepts = await getAllSubDepartments(filterDepartmentId);
+                const allowedIds = [filterDepartmentId, ...allSubDepts];
                 scopeFilter = Prisma.sql`AND "departmentId" IN (${Prisma.join(allowedIds)})`;
             } else {
                 // No department access -> return no data

@@ -45,14 +45,12 @@ export async function GET(request: Request) {
         
         if (normalizedRole !== 'SUPERADMIN') {
             // Non-superadmins are restricted to their tree
-            const userDept = await prisma.user.findUnique({
-                where: { id: session.user.id },
-                include: { department: true }
-            });
+            // Use activeUserRole if available, otherwise use user's base department
+            const filterDepartmentId = session.user.activeUserRole?.departmentId || session.user.departmentId;
 
-            if (userDept?.departmentId) {
-                const allSubDepts = await getAllSubDepartments(userDept.departmentId);
-                const allowedIds = [userDept.departmentId, ...allSubDepts];
+            if (filterDepartmentId) {
+                const allSubDepts = await getAllSubDepartments(filterDepartmentId);
+                const allowedIds = [filterDepartmentId, ...allSubDepts];
                 
                 if (departmentId) {
                     // User requested specific department - verify access
