@@ -1,9 +1,9 @@
 // Custom Service Worker for CI Office
 // Handles push notifications, caching, and offline support
 
-const CACHE_NAME = 'flc-ci-office-v1';
-const STATIC_CACHE = 'flc-static-v1';
-const DYNAMIC_CACHE = 'flc-dynamic-v1';
+const CACHE_NAME = 'flc-ci-office-v2';
+const STATIC_CACHE = 'flc-static-v2';
+const DYNAMIC_CACHE = 'flc-dynamic-v2';
 
 // Assets to cache immediately
 const STATIC_ASSETS = [
@@ -27,15 +27,21 @@ self.addEventListener('install', (event) => {
   self.skipWaiting();
 });
 
-// Activate event - clean up old caches
+// Activate event - clean up old caches (including ones that may contain other users' data)
 self.addEventListener('activate', (event) => {
   console.log('[SW] Activating service worker...');
   event.waitUntil(
     caches.keys().then((cacheNames) => {
       return Promise.all(
         cacheNames.map((cacheName) => {
+          // Delete ALL old caches, not just unrecognized ones
           if (cacheName !== STATIC_CACHE && cacheName !== DYNAMIC_CACHE) {
             console.log('[SW] Deleting old cache:', cacheName);
+            return caches.delete(cacheName);
+          }
+          // Also purge current dynamic cache to clear any stale user-specific data
+          if (cacheName === DYNAMIC_CACHE) {
+            console.log('[SW] Purging dynamic cache to clear stale data');
             return caches.delete(cacheName);
           }
         })
@@ -60,25 +66,17 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // API requests - network first, then cache
+  // API requests - NEVER cache, always go to network
+  // API responses contain user-specific data and must not be shared across sessions
   if (url.pathname.startsWith('/api/')) {
     event.respondWith(
-      fetch(request)
-        .then((response) => {
-          // Clone the response
-          const responseClone = response.clone();
-          // Cache successful responses
-          if (response.status === 200) {
-            caches.open(DYNAMIC_CACHE).then((cache) => {
-              cache.put(request, responseClone);
-            });
-          }
-          return response;
-        })
-        .catch(() => {
-          // Return cached version if available
-          return caches.match(request);
-        })
+      fetch(request).catch(() => {
+        // If network fails, return a generic error response
+        return new Response(JSON.stringify({ error: 'You are offline' }), {
+          status: 503,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      })
     );
     return;
   }

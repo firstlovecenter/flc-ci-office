@@ -3,8 +3,11 @@ import { prisma } from '@/lib/prisma';
 import { DepartmentLevel } from '@prisma/client';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { getDescendantDepartmentIds } from '@/lib/departments';
+import { getDescendantDepartmentIds, hasDepartmentAccess } from '@/lib/departments';
 import { getISOWeek, getISOWeekYear, subWeeks } from 'date-fns';
+
+// Force dynamic rendering - data is user/role specific
+export const dynamic = 'force-dynamic';
 
 // Helper function to get start and end of current week (Monday to Sunday)
 function getCurrentWeekRange(): { start: Date; end: Date } {
@@ -35,6 +38,18 @@ export async function GET(
 
     try {
         const { id } = await params;
+
+        // Verify department access for non-superadmins
+        if (session.user.role !== 'SUPERADMIN') {
+            const filterDepartmentId = session.user.activeUserRole?.departmentId || session.user.departmentId;
+            const hasAccess = await hasDepartmentAccess(
+                { role: session.user.role, departmentId: filterDepartmentId },
+                id
+            );
+            if (!hasAccess) {
+                return new NextResponse('Forbidden', { status: 403 });
+            }
+        }
 
         // Get the department to determine its level
         const department = await prisma.department.findUnique({

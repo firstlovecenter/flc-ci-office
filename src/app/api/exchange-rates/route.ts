@@ -4,7 +4,8 @@ import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import crypto from 'crypto';
 
-export const revalidate = 60; // Revalidate every 60 seconds
+// Exchange rates are not user-specific, but we use force-dynamic to avoid stale data
+export const dynamic = 'force-dynamic';
 
 // Get all exchange rates
 export async function GET(req: NextRequest) {

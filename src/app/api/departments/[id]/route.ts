@@ -7,6 +7,9 @@ import { sendSms, formatGhanaPhone } from '@/lib/sms';
 import { generateFirstRoleAssignmentSms } from '@/lib/sms-templates';
 import crypto from 'crypto';
 
+// Force dynamic rendering - data is user/role specific
+export const dynamic = 'force-dynamic';
+
 export async function GET(
     request: Request,
     context: { params: Promise<{ id: string }> }
@@ -20,6 +23,18 @@ export async function GET(
     try {
         const params = await context.params;
         const departmentId = params.id;
+
+        // Verify department access for non-superadmins
+        if (session.user.role !== 'SUPERADMIN') {
+            const filterDepartmentId = session.user.activeUserRole?.departmentId || session.user.departmentId;
+            const hasAccess = await hasDepartmentAccess(
+                { role: session.user.role, departmentId: filterDepartmentId },
+                departmentId
+            );
+            if (!hasAccess) {
+                return new NextResponse('Forbidden', { status: 403 });
+            }
+        }
 
         const department = await prisma.department.findUnique({
             where: { id: departmentId },

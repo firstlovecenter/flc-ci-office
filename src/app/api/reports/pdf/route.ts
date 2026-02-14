@@ -4,7 +4,7 @@ import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { getUserBaseCurrency } from '@/lib/currency-conversion';
 import { convertToUserBaseCurrency } from '@/lib/currency-conversion';
-import { getDescendantDepartmentIds } from '@/lib/departments';
+import { getDescendantDepartmentIds, hasDepartmentAccess } from '@/lib/departments';
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
 import { formatCurrency, formatNumber, formatDepartmentLevel } from '@/lib/utils';
 
@@ -26,6 +26,23 @@ export async function POST(request: NextRequest) {
         }
 
         const { departmentId, startDate, endDate, reportType, includeSubDepartments = true } = body;
+
+        // Verify department access for non-superadmins
+        if (session.user.role !== 'SUPERADMIN') {
+            const filterDepartmentId = session.user.activeUserRole?.departmentId || session.user.departmentId;
+            
+            if (departmentId) {
+                const hasAccess = await hasDepartmentAccess(
+                    { role: session.user.role, departmentId: filterDepartmentId },
+                    departmentId
+                );
+                if (!hasAccess) {
+                    return NextResponse.json({ error: 'You do not have access to this department' }, { status: 403 });
+                }
+            } else if (!filterDepartmentId) {
+                return NextResponse.json({ error: 'No department access' }, { status: 403 });
+            }
+        }
 
         // Get user's base currency
         const userBaseCurrency = await getUserBaseCurrency(session.user.id);

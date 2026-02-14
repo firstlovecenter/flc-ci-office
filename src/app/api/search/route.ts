@@ -3,6 +3,9 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 
+// Force dynamic rendering - data is user/role specific
+export const dynamic = 'force-dynamic';
+
 async function getAllSubDepartments(departmentId: string): Promise<string[]> {
     const children = await prisma.department.findMany({
         where: { parentId: departmentId },

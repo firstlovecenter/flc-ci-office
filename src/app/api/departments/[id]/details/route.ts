@@ -2,7 +2,10 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { getDescendantDepartmentIds } from '@/lib/departments';
+import { getDescendantDepartmentIds, hasDepartmentAccess } from '@/lib/departments';
+
+// Force dynamic rendering - data is user/role specific
+export const dynamic = 'force-dynamic';
 
 export async function GET(
     request: Request,
@@ -16,6 +19,18 @@ export async function GET(
 
     try {
         const { id } = await params;
+
+        // Verify department access for non-superadmins
+        if (session.user.role !== 'SUPERADMIN') {
+            const filterDepartmentId = session.user.activeUserRole?.departmentId || session.user.departmentId;
+            const hasAccess = await hasDepartmentAccess(
+                { role: session.user.role, departmentId: filterDepartmentId },
+                id
+            );
+            if (!hasAccess) {
+                return new NextResponse('Forbidden', { status: 403 });
+            }
+        }
 
         // Get all descendant department IDs
         const descendantIds = await getDescendantDepartmentIds(id);
