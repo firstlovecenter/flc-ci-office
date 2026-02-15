@@ -415,6 +415,7 @@ export async function PUT(
                         message: smsContent,
                     });
                 } catch (notificationError) {
+                    console.error('Failed to send role notification SMS:', notificationError);
                 }
             }
         }

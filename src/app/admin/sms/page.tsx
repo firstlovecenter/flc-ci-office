@@ -200,6 +200,7 @@ export default function SMSManagementPage() {
                 setDbTemplates(data);
             }
         } catch (error) {
+            console.error('Failed to fetch SMS templates:', error);
         }
     };
 

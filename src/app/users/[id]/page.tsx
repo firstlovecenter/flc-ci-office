@@ -73,7 +73,7 @@ interface UserDetail {
 export default function UserDetailPage() {
     const params = useParams();
     const router = useRouter();
-    const { data: session } = useSession();
+    const { data: session, status } = useSession();
     const userId = params?.id as string;
     const [user, setUser] = useState<UserDetail | null>(null);
     const [loading, setLoading] = useState(true);
@@ -81,7 +81,9 @@ export default function UserDetailPage() {
     const [editDialogOpen, setEditDialogOpen] = useState(false);
 
     useEffect(() => {
-        if (!session) {
+        if (status === 'loading') return;
+        
+        if (status === 'unauthenticated' || !session) {
             router.push('/auth/login');
             return;
         }
@@ -102,7 +104,7 @@ export default function UserDetailPage() {
         if (userId) {
             fetchUser();
         }
-    }, [session, userId, router]);
+    }, [session, status, userId, router]);
 
     const fetchUser = async () => {
         try {

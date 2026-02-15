@@ -90,6 +90,7 @@ export default function PullToRefresh({ children, onRefresh }: PullToRefreshProp
                     window.location.reload();
                 }
             } catch (error) {
+                console.error('Pull-to-refresh failed:', error);
             } finally {
                 setIsRefreshing(false);
                 setPullDistance(0);

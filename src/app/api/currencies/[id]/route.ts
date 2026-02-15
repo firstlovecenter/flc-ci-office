@@ -33,74 +33,89 @@ export async function PUT(
             return new NextResponse('Currency not found', { status: 404 });
         }
 
-        // If setting as base currency, unset other base currencies
+        // If setting as base currency, wrap entire operation in a transaction
         if (isBase && !currency.isBase) {
-            await prisma.currency.updateMany({
-                where: { isBase: true, id: { not: params.id } },
-                data: { isBase: false },
-            });
-        }
+            const result = await prisma.$transaction(async (tx) => {
+                // Unset other base currencies
+                await tx.currency.updateMany({
+                    where: { isBase: true, id: { not: params.id } },
+                    data: { isBase: false },
+                });
 
-        const updatedCurrency = await prisma.currency.update({
-            where: { id: params.id },
-            data: {
-                name,
-                symbol,
-                isBase,
-            },
-        });
+                // Update this currency
+                const updatedCurrency = await tx.currency.update({
+                    where: { id: params.id },
+                    data: { name, symbol, isBase },
+                });
 
-        // If base currency changed, recalculate all transactions
-        if (isBase && !currency.isBase) {
-            // Get all exchange rates for conversion to new base currency
-            const exchangeRates = await prisma.exchangeRate.findMany({
-                include: {
-                    fromCurrency: true,
-                    toCurrency: true,
-                },
-            });
+                // Get all exchange rates for conversion to new base currency
+                const exchangeRates = await tx.exchangeRate.findMany({
+                    include: {
+                        fromCurrency: true,
+                        toCurrency: true,
+                    },
+                });
 
-            // Get all transactions
-            const transactions = await prisma.transaction.findMany({
-                where: { currencyId: { not: null } },
-                include: { currency: true },
-            });
+                // Get all transactions with currencies
+                const transactions = await tx.transaction.findMany({
+                    where: { currencyId: { not: null } },
+                    include: { currency: true },
+                });
 
-            // Recalculate each transaction
-            for (const tx of transactions) {
-                let newAmountInBase = Number(tx.amount);
+                // Batch recalculate amountInBase for all transactions
+                for (const txn of transactions) {
+                    let newAmountInBase = Number(txn.amount);
 
-                if (tx.currencyId === params.id) {
-                    // Transaction is in the new base currency - use original amount
-                    newAmountInBase = Number(tx.amount);
-                } else if (tx.currencyId) {
-                    // Transaction is in a different currency - convert to new base
-                    // Find exchange rate: transaction currency → new base currency
-                    let rate = exchangeRates.find(
-                        (r) => r.fromCurrency.id === tx.currencyId && r.toCurrency.id === params.id
-                    );
-
-                    if (rate) {
-                        // Direct rate found: txCurrency → newBase
-                        newAmountInBase = Number(tx.amount) * parseFloat(rate.rate.toString());
-                    } else {
-                        // Try reverse: newBase → txCurrency
-                        rate = exchangeRates.find(
-                            (r) => r.fromCurrency.id === params.id && r.toCurrency.id === tx.currencyId
+                    if (txn.currencyId === params.id) {
+                        newAmountInBase = Number(txn.amount);
+                    } else if (txn.currencyId) {
+                        let rate = exchangeRates.find(
+                            (r) => r.fromCurrency.id === txn.currencyId && r.toCurrency.id === params.id
                         );
+
                         if (rate) {
-                            // Invert the rate
-                            newAmountInBase = Number(tx.amount) / parseFloat(rate.rate.toString());
+                            newAmountInBase = Number(txn.amount) * parseFloat(rate.rate.toString());
+                        } else {
+                            rate = exchangeRates.find(
+                                (r) => r.fromCurrency.id === params.id && r.toCurrency.id === txn.currencyId
+                            );
+                            if (rate) {
+                                newAmountInBase = Number(txn.amount) / parseFloat(rate.rate.toString());
+                            }
+                            // If no rate found at all, log warning but keep original amount
                         }
                     }
+
+                    await tx.transaction.update({
+                        where: { id: txn.id },
+                        data: { amountInBase: newAmountInBase },
+                    });
                 }
 
-                await prisma.transaction.update({
-                    where: { id: tx.id },
-                    data: { amountInBase: newAmountInBase },
+                // Create audit log in same transaction
+                await tx.auditLog.create({
+                    data: {
+                        id: crypto.randomUUID(),
+                        userId: session.user.id,
+                        actionType: 'UPDATE',
+                        entityType: 'Currency',
+                        entityId: params.id,
+                        beforeData: currency as any,
+                        afterData: updatedCurrency as any,
+                    },
                 });
-            }
+
+                return updatedCurrency;
+            }, { timeout: 60000 }); // 60s timeout for large transaction sets
+
+            return NextResponse.json(result);
         }
+
+        // Non-base-currency update (simple case)
+        const updatedCurrency = await prisma.currency.update({
+            where: { id: params.id },
+            data: { name, symbol, isBase },
+        });
 
         // Create audit log
         await prisma.auditLog.create({
@@ -150,12 +165,9 @@ export async function PATCH(
             return new NextResponse('Currency not found', { status: 404 });
         }
 
-        // If setting as base currency, unset other base currencies
-        if (isBase && !currency.isBase) {
-            await prisma.currency.updateMany({
-                where: { isBase: true, id: { not: params.id } },
-                data: { isBase: false },
-            });
+        // Reject isBase changes via PATCH — use PUT instead which handles recalculation
+        if (isBase !== undefined && isBase !== currency.isBase) {
+            return new NextResponse('Cannot change base currency via PATCH. Use PUT to change base currency (triggers recalculation).', { status: 400 });
         }
 
         const updatedCurrency = await prisma.currency.update({
@@ -163,7 +175,6 @@ export async function PATCH(
             data: {
                 name: name || undefined,
                 symbol: symbol || undefined,
-                isBase: isBase !== undefined ? isBase : undefined,
                 isActive: isActive !== undefined ? isActive : undefined,
             },
         });

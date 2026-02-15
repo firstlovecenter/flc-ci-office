@@ -111,6 +111,7 @@ export default function CurrenciesPage() {
                 setCurrencies(data);
             }
         } catch (error) {
+            console.error('Failed to fetch currencies:', error);
         }
     };
 
@@ -122,6 +123,7 @@ export default function CurrenciesPage() {
                 setExchangeRates(data);
             }
         } catch (error) {
+            console.error('Failed to fetch exchange rates:', error);
         }
     };
 
@@ -134,6 +136,7 @@ export default function CurrenciesPage() {
                 setSystemBase(data.systemBase);
             }
         } catch (error) {
+            console.error('Failed to fetch base currencies:', error);
         }
     };
 
@@ -259,6 +262,7 @@ export default function CurrenciesPage() {
                 fetchCurrencies();
             }
         } catch (error) {
+            console.error('Failed to toggle currency status:', error);
         }
     };
 

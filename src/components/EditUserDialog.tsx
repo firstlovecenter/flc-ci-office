@@ -150,7 +150,7 @@ export default function EditUserDialog({
         }
     };
 
-    const isSuperAdminEmail = user?.email === 'skaduteye@gmail.com';
+    const isSuperAdminUser = session?.user?.role === 'SUPERADMIN' && user?.id === session?.user?.id;
 
     const handleSave = async () => {
         if (!name.trim()) {
@@ -335,8 +335,8 @@ export default function EditUserDialog({
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     sx={{ mb: 2 }}
-                    disabled={isSuperAdminEmail}
-                    helperText={isSuperAdminEmail ? 'Email cannot be changed for SUPERADMIN' : ''}
+                    disabled={isSuperAdminUser}
+                    helperText={isSuperAdminUser ? 'Email cannot be changed for SUPERADMIN' : ''}
                 />
 
                 <TextField

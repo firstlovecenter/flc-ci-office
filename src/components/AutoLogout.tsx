@@ -16,8 +16,6 @@ export default function AutoLogout() {
     const pathname = usePathname();
     const [showWarning, setShowWarning] = useState(false);
     const lastActivityRef = useRef(Date.now());
-    const timeoutIdRef = useRef<NodeJS.Timeout | null>(null);
-    const warningIntervalIdRef = useRef<NodeJS.Timeout | null>(null);
     const [timeLeft, setTimeLeft] = useState(60);
 
     const performLogout = useCallback(async () => {

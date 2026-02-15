@@ -100,7 +100,7 @@ function ResetPasswordForm() {
         >
           <GlassCard
             sx={{
-              p: 'flex',
+              p: 4,
               flexDirection: 'column',
               alignItems: 'center',
               width: '100%',

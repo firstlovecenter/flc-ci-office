@@ -378,6 +378,7 @@ export async function POST(request: Request) {
                             message: smsMessage,
                         });
                     } catch (smsError) {
+                        console.error('Failed to send SMS to admin:', smsError);
                     }
                 }
             }

@@ -146,7 +146,7 @@ function TransactionsPageContent() {
 
         document.addEventListener('visibilitychange', handleVisibilityChange);
         return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-    }, [deptParam]);
+    }, [deptParam, session?.user?.role]);
 
     useEffect(() => {
         filterTransactions();
@@ -160,6 +160,7 @@ function TransactionsPageContent() {
                 setCurrencies(data);
             }
         } catch (error) {
+            console.error('Failed to fetch currencies:', error);
         }
     };
 
@@ -200,6 +201,7 @@ function TransactionsPageContent() {
                 }
             }
         } catch (error) {
+            console.error('Failed to fetch base currency:', error);
         }
     };
 
@@ -220,6 +222,7 @@ function TransactionsPageContent() {
                 await fetchTransactions();
             }
         } catch (error) {
+            console.error('Failed to change base currency:', error);
         }
     };
 
@@ -232,6 +235,7 @@ function TransactionsPageContent() {
                 setDepartment(data);
             }
         } catch (error) {
+            console.error('Failed to fetch department:', error);
         }
     };
 
@@ -255,6 +259,7 @@ function TransactionsPageContent() {
                 setTransactions(data);
             }
         } catch (error) {
+            console.error('Failed to fetch transactions:', error);
         } finally {
             setLoading(false);
         }
@@ -617,16 +622,17 @@ function TransactionsPageContent() {
 
             {isMobile ? (
                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                    {filteredTransactions.map((tx, index) => {
-                         // Calculate running balance (from newest to current transaction)
-                         const runningBalance = filteredTransactions
-                             .slice(index)
-                             .reduce((balance, t) => {
-                                 if (t.status === 'APPROVED') {
-                                     return balance + (t.type === 'INCOME' ? Number(t.amountInBase || t.amount) : -Number(t.amountInBase || t.amount));
-                                 }
-                                 return balance;
-                             }, 0);
+                    {(() => {
+                        // Pre-compute running balances in a single O(n) pass (top to bottom)
+                        let cumulative = 0;
+                        const balances = filteredTransactions.map((tx) => {
+                            if (tx.status === 'APPROVED') {
+                                cumulative += tx.type === 'INCOME' ? Number(tx.amountInBase || tx.amount) : -Number(tx.amountInBase || tx.amount);
+                            }
+                            return cumulative;
+                        });
+                        return filteredTransactions.map((tx, index) => {
+                         const runningBalance = balances[index];
                         
                         return (
                         <GlassCard 
@@ -676,7 +682,8 @@ function TransactionsPageContent() {
                                 </Box>
                             </CardActionArea>
                         </GlassCard>
-                    )})}
+                    )})
+                    })()}
                     {filteredTransactions.length === 0 && !loading && (
                         <Typography variant="body1" color="text.secondary" align="center" sx={{ py: 4 }}>
                             No transactions found
@@ -698,16 +705,17 @@ function TransactionsPageContent() {
                         </TableRow>
                     </TableHead>
                     <TableBody>
-                        {filteredTransactions.map((tx, index) => {
-                            // Calculate running balance (from newest to current transaction)
-                            const runningBalance = filteredTransactions
-                                .slice(index)
-                                .reduce((balance, t) => {
-                                    if (t.status === 'APPROVED') {
-                                        return balance + (t.type === 'INCOME' ? Number(t.amountInBase || t.amount) : -Number(t.amountInBase || t.amount));
-                                    }
-                                    return balance;
-                                }, 0);
+                        {(() => {
+                            // Pre-compute running balances in a single O(n) pass (top to bottom)
+                            let cumulative = 0;
+                            const balances = filteredTransactions.map((tx) => {
+                                if (tx.status === 'APPROVED') {
+                                    cumulative += tx.type === 'INCOME' ? Number(tx.amountInBase || tx.amount) : -Number(tx.amountInBase || tx.amount);
+                                }
+                                return cumulative;
+                            });
+                            return filteredTransactions.map((tx, index) => {
+                            const runningBalance = balances[index];
 
                             return (
                             <TableRow 
@@ -829,7 +837,8 @@ function TransactionsPageContent() {
                                 )}
                             </TableRow>
                             );
-                        })}
+                        });
+                        })()}
                         {filteredTransactions.length === 0 && !loading && (
                             <TableRow>
                                 <TableCell colSpan={isAdmin ? 6 : 5} align="center" sx={{ py: 8 }}>

@@ -58,6 +58,7 @@ export default function NotificationSettings() {
                 setIsSubscribed(false);
             }
         } catch (error) {
+            console.error('Failed to check notification subscription:', error);
         } finally {
             setLoading(false);
         }

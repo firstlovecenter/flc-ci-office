@@ -24,12 +24,12 @@ export async function GET(request: Request) {
                 <div id="result"></div>
                 <script>
                     async function runFix() {
-                        document.getElementById('result').innerHTML = 'Running...';
+                        document.getElementById('result').textContent = 'Running...';
                         const response = await fetch('/api/transactions/fix-conversions', {
                             method: 'POST',
                         });
                         const data = await response.json();
-                        document.getElementById('result').innerHTML = '<pre>' + JSON.stringify(data, null, 2) + '</pre>';
+                        document.getElementById('result').textContent = JSON.stringify(data, null, 2);
                     }
                 </script>
             </body>

@@ -60,8 +60,8 @@ export async function POST(req: NextRequest) {
             return new NextResponse('From and to currencies must be different', { status: 400 });
         }
 
-        if (parseFloat(rate) <= 0) {
-            return new NextResponse('Exchange rate must be greater than 0', { status: 400 });
+        if (!rate || isNaN(parseFloat(rate)) || parseFloat(rate) <= 0) {
+            return new NextResponse('Exchange rate must be a valid number greater than 0', { status: 400 });
         }
 
         // Check if both currencies exist
@@ -86,59 +86,66 @@ export async function POST(req: NextRequest) {
 
         let exchangeRate;
         if (existing) {
-            // Update existing rate
-            exchangeRate = await prisma.exchangeRate.update({
-                where: { id: existing.id },
-                data: {
-                    rate,
-                    effectiveDate: effectiveDate ? new Date(effectiveDate) : new Date(),
-                    createdBy: session.user.id,
-                    updatedAt: new Date(),
-                },
-                include: {
-                    fromCurrency: true,
-                    toCurrency: true,
-                },
-            });
+            // Update existing rate - use transaction for atomicity
+            exchangeRate = await prisma.$transaction(async (tx) => {
+                const updated = await tx.exchangeRate.update({
+                    where: { id: existing.id },
+                    data: {
+                        rate,
+                        effectiveDate: effectiveDate ? new Date(effectiveDate) : new Date(),
+                        updatedAt: new Date(),
+                    },
+                    include: {
+                        fromCurrency: true,
+                        toCurrency: true,
+                    },
+                });
 
-            await prisma.auditLog.create({
-                data: {
-                    id: crypto.randomUUID(),
-                    userId: session.user.id,
-                    actionType: 'UPDATE',
-                    entityType: 'ExchangeRate',
-                    entityId: exchangeRate.id,
-                    beforeData: existing as any,
-                    afterData: exchangeRate as any,
-                },
+                await tx.auditLog.create({
+                    data: {
+                        id: crypto.randomUUID(),
+                        userId: session.user.id,
+                        actionType: 'UPDATE',
+                        entityType: 'ExchangeRate',
+                        entityId: updated.id,
+                        beforeData: existing as any,
+                        afterData: updated as any,
+                    },
+                });
+
+                return updated;
             });
         } else {
-            // Create new rate
-            exchangeRate = await prisma.exchangeRate.create({
-                data: {
-                    id: crypto.randomUUID(),
-                    fromCurrencyId,
-                    toCurrencyId,
-                    rate,
-                    effectiveDate: effectiveDate ? new Date(effectiveDate) : new Date(),
-                    createdBy: session.user.id,
-                    updatedAt: new Date(),
-                },
-                include: {
-                    fromCurrency: true,
-                    toCurrency: true,
-                },
-            });
+            // Create new rate - use transaction for atomicity
+            exchangeRate = await prisma.$transaction(async (tx) => {
+                const created = await tx.exchangeRate.create({
+                    data: {
+                        id: crypto.randomUUID(),
+                        fromCurrencyId,
+                        toCurrencyId,
+                        rate,
+                        effectiveDate: effectiveDate ? new Date(effectiveDate) : new Date(),
+                        createdBy: session.user.id,
+                        updatedAt: new Date(),
+                    },
+                    include: {
+                        fromCurrency: true,
+                        toCurrency: true,
+                    },
+                });
 
-            await prisma.auditLog.create({
-                data: {
-                    id: crypto.randomUUID(),
-                    userId: session.user.id,
-                    actionType: 'CREATE',
-                    entityType: 'ExchangeRate',
-                    entityId: exchangeRate.id,
-                    afterData: exchangeRate as any,
-                },
+                await tx.auditLog.create({
+                    data: {
+                        id: crypto.randomUUID(),
+                        userId: session.user.id,
+                        actionType: 'CREATE',
+                        entityType: 'ExchangeRate',
+                        entityId: created.id,
+                        afterData: created as any,
+                    },
+                });
+
+                return created;
             });
         }
 

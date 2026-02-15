@@ -67,6 +67,10 @@ export async function POST(req: NextRequest) {
                         );
                         if (rate) {
                             newAmountInBase = Number(tx.amount) / parseFloat(rate.rate.toString());
+                        } else {
+                            // No exchange rate found — flag this transaction as an error
+                            errors.push({ transactionId: tx.id, error: `No exchange rate found for currency ${tx.currency?.code || tx.currencyId} to base currency ${baseCurrency.code}` });
+                            continue; // Skip this transaction, don't corrupt it
                         }
                     } else {
                         newAmountInBase = Number(tx.amount) * parseFloat(rate.rate.toString());

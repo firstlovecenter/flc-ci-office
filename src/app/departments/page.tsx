@@ -73,6 +73,7 @@ function DepartmentsPageContent() {
                 setParentDepartment(data);
             }
         } catch (error) {
+            console.error('Failed to fetch parent department:', error);
         }
     };
 
@@ -98,6 +99,7 @@ function DepartmentsPageContent() {
                 }
             }
         } catch (error) {
+            console.error('Failed to fetch departments:', error);
         } finally {
             setLoading(false);
         }
@@ -116,6 +118,7 @@ function DepartmentsPageContent() {
                 setAllDepartments(data);
             }
         } catch (error) {
+            console.error('Failed to fetch all departments:', error);
         }
     };
 
@@ -337,7 +340,7 @@ function DepartmentsPageContent() {
                             <CardActionArea 
                                 onClick={() => {
                                     // Set the active department cookie
-                                    document.cookie = `activeDepartmentId=${dept.id}; path=/; max-age=86400`;
+                                    document.cookie = `activeDepartmentId=${dept.id}; path=/; max-age=86400; SameSite=Strict${window.location.protocol === 'https:' ? '; Secure' : ''}`;
                                     router.push('/departments/dashboard');
                                 }}
                                 sx={{ py: { xs: 1.5, md: 2 }, px: { xs: 2, md: 2.5 } }}

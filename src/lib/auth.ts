@@ -4,11 +4,62 @@ import bcrypt from 'bcryptjs';
 import { prisma } from '@/lib/prisma';
 import type { Role } from '@prisma/client';
 
+/**
+ * In-memory account lockout tracker.
+ * Tracks failed login attempts per identifier and locks accounts after 5 failures.
+ */
+const loginAttempts = new Map<string, { count: number; lockedUntil: number | null }>();
+
+const MAX_LOGIN_ATTEMPTS = 5;
+const LOCKOUT_DURATION_MS = 15 * 60 * 1000; // 15 minutes
+
+function checkAccountLockout(identifier: string): { locked: boolean; remainingMs?: number } {
+  const entry = loginAttempts.get(identifier);
+  if (!entry) return { locked: false };
+
+  if (entry.lockedUntil && Date.now() < entry.lockedUntil) {
+    return { locked: true, remainingMs: entry.lockedUntil - Date.now() };
+  }
+
+  // Lockout expired, reset
+  if (entry.lockedUntil && Date.now() >= entry.lockedUntil) {
+    loginAttempts.delete(identifier);
+    return { locked: false };
+  }
+
+  return { locked: false };
+}
+
+function recordFailedLogin(identifier: string): void {
+  const entry = loginAttempts.get(identifier) || { count: 0, lockedUntil: null };
+  entry.count++;
+
+  if (entry.count >= MAX_LOGIN_ATTEMPTS) {
+    entry.lockedUntil = Date.now() + LOCKOUT_DURATION_MS;
+  }
+
+  loginAttempts.set(identifier, entry);
+}
+
+function clearLoginAttempts(identifier: string): void {
+  loginAttempts.delete(identifier);
+}
+
+// Cleanup stale lockout entries every 30 minutes
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, entry] of loginAttempts) {
+    if (entry.lockedUntil && now > entry.lockedUntil) {
+      loginAttempts.delete(key);
+    }
+  }
+}, 30 * 60 * 1000).unref?.();
+
 export const authOptions: NextAuthOptions = {
     secret: process.env.NEXTAUTH_SECRET,
     session: {
         strategy: 'jwt',
-        maxAge: 30 * 24 * 60 * 60, // 30 days
+        maxAge: 7 * 24 * 60 * 60, // 7 days
     },
     pages: {
         signIn: '/auth/login',
@@ -27,6 +78,12 @@ export const authOptions: NextAuthOptions = {
                 }
 
                 const loginIdentifier = credentials.email.toLowerCase().trim();
+                
+                // Check account lockout
+                const lockout = checkAccountLockout(loginIdentifier);
+                if (lockout.locked) {
+                    throw new Error('Account temporarily locked due to too many failed login attempts. Please try again in 15 minutes.');
+                }
                 
                 // Determine if input is email or phone
                 const isEmail = loginIdentifier.includes('@');
@@ -55,10 +112,12 @@ export const authOptions: NextAuthOptions = {
                 });
 
                 if (!user) {
+                    recordFailedLogin(loginIdentifier);
                     return null;
                 }
 
                 if (!user.password) {
+                    recordFailedLogin(loginIdentifier);
                     return null;
                 }
 
@@ -66,8 +125,12 @@ export const authOptions: NextAuthOptions = {
                 const isValid = await bcrypt.compare(credentials.password, user.password);
 
                 if (!isValid) {
+                    recordFailedLogin(loginIdentifier);
                     return null;
                 }
+
+                // Successful login - clear any lockout tracking
+                clearLoginAttempts(loginIdentifier);
 
                 // SUPERADMIN users may not have UserRole entries (legacy setup)
                 // Check if user has a direct activeRole set

@@ -97,6 +97,7 @@ export default function ModernDashboardLayout({ children }: { children: React.Re
                 setPendingCounts(data);
             }
         } catch (error) {
+            console.error('Failed to fetch pending counts:', error);
         }
     };
 

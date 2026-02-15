@@ -217,6 +217,7 @@ function NewTransactionForm() {
                 setExchangeRate(null);
             }
         } catch (error) {
+            console.error('Failed to fetch exchange rate:', error);
         }
     };
 

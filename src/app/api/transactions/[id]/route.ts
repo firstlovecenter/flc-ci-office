@@ -6,7 +6,7 @@ import crypto from 'crypto';
 import { hasDepartmentAccess } from '@/lib/departments';
 import { sendSms } from '@/lib/sms';
 import { generateTransactionApprovedSms, generateTransactionDeclinedSms, generateTransactionChargeSms, generateCreditAlertSms, generateDebitAlertSms } from '@/lib/sms-templates';
-import { formatNumber } from '@/lib/utils';
+import { formatNumber, isWeekLocked } from '@/lib/utils';
 
 export async function PUT(
     request: Request,
@@ -47,6 +47,16 @@ export async function PUT(
             }
         }
 
+        // Check if transaction's week is locked (non-SUPERADMIN only)
+        if (session.user.role !== 'SUPERADMIN' && existingTransaction.weekNumber && existingTransaction.year) {
+            if (isWeekLocked(existingTransaction.weekNumber, existingTransaction.year)) {
+                return NextResponse.json(
+                    { error: 'This transaction belongs to a locked week and cannot be edited.' },
+                    { status: 403 }
+                );
+            }
+        }
+
         // Check if transaction is approved - only CAMPUS_ADMIN and above can edit
         if (existingTransaction.status === 'APPROVED') {
             const adminRoles = ['SUPERADMIN', 'DENOMINATION_ADMIN', 'OVERSIGHT_ADMIN', 'CAMPUS_ADMIN'];
@@ -59,12 +69,22 @@ export async function PUT(
         }
 
         // Validate that the user can update transaction for this department
-        const canAccess = await hasDepartmentAccess(session.user, departmentId);
-        if (!canAccess && session.user.role !== 'SUPERADMIN') {
-            return NextResponse.json(
-                { error: 'You do not have access to this department' },
-                { status: 403 }
-            );
+        // Check access to BOTH source department (current) and destination department (new)
+        if (session.user.role !== 'SUPERADMIN') {
+            const canAccessSource = await hasDepartmentAccess(session.user, existingTransaction.departmentId);
+            if (!canAccessSource) {
+                return NextResponse.json(
+                    { error: 'You do not have access to the transaction\'s current department' },
+                    { status: 403 }
+                );
+            }
+            const canAccessDest = await hasDepartmentAccess(session.user, departmentId);
+            if (!canAccessDest) {
+                return NextResponse.json(
+                    { error: 'You do not have access to the destination department' },
+                    { status: 403 }
+                );
+            }
         }
 
         // Calculate amount in base currency if using a different currency
@@ -309,12 +329,14 @@ export async function PATCH(
                                     message: smsMessage
                                 });
                             } catch (err) {
+                                console.error('Failed to send SMS to leader:', err);
                             }
                         }
                     }
                 }
             } catch (smsError) {
                 // Don't fail the request if SMS fails
+                console.error('SMS notification error:', smsError);
             }
         }
 

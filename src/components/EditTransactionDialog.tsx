@@ -196,6 +196,7 @@ export default function EditTransactionDialog({
                 setExchangeRate(null);
             }
         } catch (error) {
+            console.error('Failed to fetch exchange rate:', error);
         }
     };
 

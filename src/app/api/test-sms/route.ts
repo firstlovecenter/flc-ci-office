@@ -1,7 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { sendSms, checkSmsBalance, formatGhanaPhone, isSmsConfigured } from '@/lib/sms';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
+
+export const dynamic = 'force-dynamic';
 
 export async function POST(request: NextRequest) {
+  const session = await getServerSession(authOptions);
+  if (!session) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+  if (session.user.role !== 'SUPERADMIN') {
+    return NextResponse.json({ error: 'Forbidden - SUPERADMIN only' }, { status: 403 });
+  }
+
   try {
     const { phone, senderIdOverride } = await request.json();
 
@@ -57,6 +69,14 @@ export async function POST(request: NextRequest) {
 }
 
 export async function GET() {
+  const session = await getServerSession(authOptions);
+  if (!session) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+  if (session.user.role !== 'SUPERADMIN') {
+    return NextResponse.json({ error: 'Forbidden - SUPERADMIN only' }, { status: 403 });
+  }
+
   const balance = await checkSmsBalance();
   return NextResponse.json({
     message: 'POST to this endpoint with { "phone": "0XXXXXXXXX" }',

@@ -338,6 +338,7 @@ export async function PUT(
                             message: smsMessage,
                         });
                     } catch (smsError) {
+                        console.error('Failed to send SMS to new leader:', smsError);
                     }
                 }
 
@@ -467,6 +468,7 @@ export async function PUT(
                                 message: smsMessage,
                             });
                         } catch (smsError) {
+                            console.error('Failed to send SMS to new admin:', smsError);
                         }
                     }
 

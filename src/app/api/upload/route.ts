@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { writeFile, mkdir } from 'fs/promises';
 import path from 'path';
+import crypto from 'crypto';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 
@@ -23,7 +24,7 @@ export async function POST(request: Request) {
         const buffer = Buffer.from(bytes);
 
         // Create unique filename
-        const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1E9)}`;
+        const uniqueSuffix = `${Date.now()}-${crypto.randomBytes(8).toString('hex')}`;
         const filename = `${uniqueSuffix}-${file.name.replace(/[^a-zA-Z0-9.-]/g, '')}`;
 
         // Ensure uploads directory exists

@@ -353,20 +353,6 @@ function LoginForm() {
                                         {loading ? 'Signing in...' : 'Sign In'}
                                     </Button>
 
-                                    <Box sx={{ display: 'flex', justifyContent: 'center', mb: 3 }}>
-                                        <MuiLink
-                                            component={Link}
-                                            href="/auth/forgot-password"
-                                            variant="body2"
-                                            sx={{
-                                                textDecoration: 'none',
-                                                '&:hover': { textDecoration: 'underline' },
-                                            }}
-                                        >
-                                            Forgot your password?
-                                        </MuiLink>
-                                    </Box>
-
                                     <Divider sx={{ my: 3 }}>
                                         <Typography variant="body2" color="text.secondary">
                                             Secure Login

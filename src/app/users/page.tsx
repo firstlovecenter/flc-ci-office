@@ -36,6 +36,7 @@ function UsersPageContent() {
     const searchParams = useSearchParams();
     const deptParam = searchParams?.get('dept');
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const pendingImageRef = useRef<File | null>(null);
     const { showSuccess, showError } = useToast();
     const [users, setUsers] = useState<any[]>([]);
     const [departments, setDepartments] = useState<any[]>([]);
@@ -154,12 +155,15 @@ function UsersPageContent() {
         }
 
         // For new users, we'll store the file temporarily and upload after user creation
-        // For now, create a preview URL
+        // Revoke previous preview URL to prevent memory leak
+        if (formData.image && formData.image.startsWith('blob:')) {
+            URL.revokeObjectURL(formData.image);
+        }
         const previewUrl = URL.createObjectURL(file);
         setFormData({ ...formData, image: previewUrl });
         
         // Store the file for later upload
-        (window as any).__pendingUserImage = file;
+        pendingImageRef.current = file;
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -190,7 +194,7 @@ function UsersPageContent() {
             const newUser = await response.json();
 
             // If there's a pending image, upload it
-            const pendingImage = (window as any).__pendingUserImage;
+            const pendingImage = pendingImageRef.current;
             if (pendingImage && newUser.id) {
                 try {
                     const imageFormData = new FormData();
@@ -202,11 +206,16 @@ function UsersPageContent() {
                         body: imageFormData,
                     });
                 } catch (imgErr) {
+                    console.error('Failed to upload user image:', imgErr);
                 }
-                delete (window as any).__pendingUserImage;
+                pendingImageRef.current = null;
             }
 
             setOpen(false);
+            // Revoke blob URL to prevent memory leak
+            if (formData.image && formData.image.startsWith('blob:')) {
+                URL.revokeObjectURL(formData.image);
+            }
             setFormData({
                 title: '',
                 name: '',

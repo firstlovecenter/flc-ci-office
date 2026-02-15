@@ -4,7 +4,8 @@ import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import crypto from 'crypto';
 
-export const revalidate = 300; // Revalidate every 5 minutes (currencies change infrequently)
+// Force dynamic rendering - currencies are session-gated
+export const dynamic = 'force-dynamic';
 
 // Get all currencies
 export async function GET(req: NextRequest) {
@@ -63,12 +64,42 @@ export async function POST(req: NextRequest) {
             return new NextResponse('Currency code already exists', { status: 400 });
         }
 
-        // If this is marked as base currency, unset other base currencies
+        // If this is marked as base currency, unset other base currencies (atomic transaction)
         if (isBase) {
-            await prisma.currency.updateMany({
-                where: { isBase: true },
-                data: { isBase: false },
+            const currency = await prisma.$transaction(async (tx) => {
+                await tx.currency.updateMany({
+                    where: { isBase: true },
+                    data: { isBase: false },
+                });
+
+                const created = await tx.currency.create({
+                    data: {
+                        id: crypto.randomUUID(),
+                        code: code.toUpperCase(),
+                        name,
+                        symbol,
+                        isBase: true,
+                        isActive: true,
+                        updatedAt: new Date(),
+                    },
+                });
+
+                // Create audit log in same transaction
+                await tx.auditLog.create({
+                    data: {
+                        id: crypto.randomUUID(),
+                        userId: session.user.id,
+                        actionType: 'CREATE',
+                        entityType: 'Currency',
+                        entityId: created.id,
+                        afterData: created as any,
+                    },
+                });
+
+                return created;
             });
+
+            return NextResponse.json(currency);
         }
 
         const currency = await prisma.currency.create({
@@ -77,7 +108,7 @@ export async function POST(req: NextRequest) {
                 code: code.toUpperCase(),
                 name,
                 symbol,
-                isBase: isBase || false,
+                isBase: false,
                 isActive: true,
                 updatedAt: new Date(),
             },

@@ -81,6 +81,7 @@ export default function DepartmentDashboardPage() {
                 }
             }
         } catch (error) {
+            console.error('Failed to fetch department:', error);
         }
     };
 
@@ -92,6 +93,7 @@ export default function DepartmentDashboardPage() {
                 setStats(data);
             }
         } catch (error) {
+            console.error('Failed to fetch department stats:', error);
         } finally {
             setLoading(false);
         }
@@ -105,6 +107,7 @@ export default function DepartmentDashboardPage() {
                 setAllDepartments(data);
             }
         } catch (error) {
+            console.error('Failed to fetch all departments:', error);
         }
     };
 

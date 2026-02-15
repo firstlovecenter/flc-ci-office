@@ -25,8 +25,8 @@ export async function PUT(
             return new NextResponse('Exchange rate is required', { status: 400 });
         }
 
-        if (parseFloat(rate) <= 0) {
-            return new NextResponse('Exchange rate must be greater than 0', { status: 400 });
+        if (!rate || isNaN(parseFloat(rate)) || parseFloat(rate) <= 0) {
+            return new NextResponse('Exchange rate must be a valid number greater than 0', { status: 400 });
         }
 
         // Get existing exchange rate
@@ -43,36 +43,39 @@ export async function PUT(
             return new NextResponse('Forbidden - You can only edit exchange rates you created', { status: 403 });
         }
 
-        // Update the exchange rate
-        const updatedRate = await prisma.exchangeRate.update({
-            where: { id: params.id },
-            data: {
-                rate,
-                effectiveDate: effectiveDate ? new Date(effectiveDate) : existingRate.effectiveDate,
-            },
-            include: {
-                fromCurrency: true,
-                toCurrency: true,
-            },
-        });
+        // Update the exchange rate and create audit log atomically
+        const updatedRate = await prisma.$transaction(async (tx) => {
+            const updated = await tx.exchangeRate.update({
+                where: { id: params.id },
+                data: {
+                    rate,
+                    effectiveDate: effectiveDate ? new Date(effectiveDate) : existingRate.effectiveDate,
+                },
+                include: {
+                    fromCurrency: true,
+                    toCurrency: true,
+                },
+            });
 
-        // Create audit log
-        await prisma.auditLog.create({
-            data: {
-                id: crypto.randomUUID(),
-                userId: session.user.id,
-                actionType: 'UPDATE',
-                entityType: 'ExchangeRate',
-                entityId: params.id,
-                beforeData: {
-                    rate: existingRate.rate.toString(),
-                    effectiveDate: existingRate.effectiveDate.toISOString(),
+            await tx.auditLog.create({
+                data: {
+                    id: crypto.randomUUID(),
+                    userId: session.user.id,
+                    actionType: 'UPDATE',
+                    entityType: 'ExchangeRate',
+                    entityId: params.id,
+                    beforeData: {
+                        rate: existingRate.rate.toString(),
+                        effectiveDate: existingRate.effectiveDate.toISOString(),
+                    },
+                    afterData: {
+                        rate: updated.rate.toString(),
+                        effectiveDate: updated.effectiveDate.toISOString(),
+                    },
                 },
-                afterData: {
-                    rate: updatedRate.rate.toString(),
-                    effectiveDate: updatedRate.effectiveDate.toISOString(),
-                },
-            },
+            });
+
+            return updated;
         });
 
         return NextResponse.json(updatedRate);
@@ -112,20 +115,22 @@ export async function DELETE(
             return new NextResponse('Exchange rate not found', { status: 404 });
         }
 
-        await prisma.exchangeRate.delete({
-            where: { id: params.id },
-        });
+        // Delete exchange rate and create audit log atomically
+        await prisma.$transaction(async (tx) => {
+            await tx.exchangeRate.delete({
+                where: { id: params.id },
+            });
 
-        // Create audit log
-        await prisma.auditLog.create({
-            data: {
-                id: crypto.randomUUID(),
-                userId: session.user.id,
-                actionType: 'DELETE',
-                entityType: 'ExchangeRate',
-                entityId: params.id,
-                beforeData: exchangeRate as any,
-            },
+            await tx.auditLog.create({
+                data: {
+                    id: crypto.randomUUID(),
+                    userId: session.user.id,
+                    actionType: 'DELETE',
+                    entityType: 'ExchangeRate',
+                    entityId: params.id,
+                    beforeData: exchangeRate as any,
+                },
+            });
         });
 
         return NextResponse.json({ success: true });

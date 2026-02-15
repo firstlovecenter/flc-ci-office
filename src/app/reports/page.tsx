@@ -33,6 +33,7 @@ import { formatCurrency } from '@/lib/utils';
 import { BarChart, Bar, XAxis, Tooltip, ResponsiveContainer, Cell, LabelList } from 'recharts';
 import { useSession } from 'next-auth/react';
 import { GlassCard } from '@/components/ui';
+import { useToast } from '@/components/ToastProvider';
 
 function ReportsPageContent() {
     const theme = useTheme();
@@ -40,6 +41,7 @@ function ReportsPageContent() {
     const isMobile = useMediaQuery(theme.breakpoints.down('md'));
     const { data: session } = useSession();
     const searchParams = useSearchParams();
+    const { showError } = useToast();
     const deptParam = searchParams?.get('dept');
     
     const [departments, setDepartments] = useState<any[]>([]);
@@ -92,6 +94,7 @@ function ReportsPageContent() {
                 setFixedDepartment(data);
             }
         } catch (error) {
+            console.error('Failed to fetch fixed department:', error);
         }
     };
 
@@ -149,6 +152,7 @@ function ReportsPageContent() {
                 }
             }
         } catch (error) {
+            console.error('Failed to fetch user profile:', error);
         }
     };
 
@@ -260,7 +264,7 @@ function ReportsPageContent() {
     const handleDownloadPDF = async () => {
         // Check if we have necessary data for leaders
         if (isLeader && !userDepartmentId) {
-            alert('Please wait for user data to load, then try again.');
+            showError('Please wait for user data to load, then try again.');
             return;
         }
         
@@ -289,7 +293,7 @@ function ReportsPageContent() {
                 } catch (parseError) {
                     errorMessage = `Server error: ${response.status} ${response.statusText}`;
                 }
-                alert(`Failed to generate PDF: ${errorMessage}`);
+                showError(`Failed to generate PDF: ${errorMessage}`);
                 return;
             }
 
@@ -297,7 +301,7 @@ function ReportsPageContent() {
             
             // Check if the blob is actually a PDF
             if (blob.type !== 'application/pdf') {
-                alert('Failed to generate PDF: Invalid response format');
+                showError('Failed to generate PDF: Invalid response format');
                 return;
             }
 
@@ -310,7 +314,7 @@ function ReportsPageContent() {
             document.body.removeChild(a);
             window.URL.revokeObjectURL(url);
         } catch (error) {
-            alert(`Failed to download PDF: ${error instanceof Error ? error.message : 'Please try again.'}`);
+            showError(`Failed to download PDF: ${error instanceof Error ? error.message : 'Please try again.'}`);
         }
     };
 

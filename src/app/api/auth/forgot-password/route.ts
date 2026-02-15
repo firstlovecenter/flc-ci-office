@@ -3,9 +3,17 @@ import crypto from 'crypto';
 import { prisma } from '@/lib/prisma';
 import { sendSms, formatGhanaPhone } from '@/lib/sms';
 import { generatePasswordResetSms } from '@/lib/sms-templates';
+import { checkRateLimit, rateLimits, getClientIp, rateLimitResponse } from '@/lib/rate-limit';
 
 export async function POST(request: NextRequest) {
   try {
+    // Rate limit: 3 requests per 15 minutes per IP
+    const ip = getClientIp(request);
+    const rl = checkRateLimit(`forgot-password:${ip}`, rateLimits.forgotPassword);
+    if (!rl.success) {
+      return rateLimitResponse(rl);
+    }
+
     const { identifier } = await request.json();
 
     if (!identifier) {

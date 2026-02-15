@@ -22,6 +22,7 @@ import InfoIcon from '@mui/icons-material/Info';
 import DeleteIcon from '@mui/icons-material/Delete';
 import { useSession } from 'next-auth/react';
 import { GlassCard } from '@/components/ui';
+import { useToast } from '@/components/ToastProvider';
 
 interface Currency {
   id: string;
@@ -44,6 +45,7 @@ interface OversightDepartment {
 
 export default function BaseCurrenciesAdminPage() {
   const { data: session, status } = useSession();
+  const { showSuccess, showError } = useToast();
   const [departments, setDepartments] = useState<OversightDepartment[]>([]);
   const [systemBase, setSystemBase] = useState<Currency | null>(null);
   const [loading, setLoading] = useState(true);
@@ -92,9 +94,9 @@ export default function BaseCurrenciesAdminPage() {
 
       // Refresh the list
       await fetchBaseCurrencies();
-      alert('Base currency deleted successfully');
+      showSuccess('Base currency deleted successfully');
     } catch (err: any) {
-      alert(`Error: ${err.message}`);
+      showError(`Error: ${err.message}`);
     } finally {
       setDeletingId(null);
     }

@@ -269,5 +269,6 @@ export async function createBulkAuditLogs(
       data: auditLogs as any,
     });
   } catch (error) {
+    console.error('Failed to create batch audit logs:', error);
   }
 }

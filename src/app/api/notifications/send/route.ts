@@ -184,23 +184,33 @@ async function handleSMSRequest(body: any) {
         return NextResponse.json({ error: 'Department is required' }, { status: 400 });
       }
 
-      // Get all users in this department with phone numbers
-      const users = await prisma.user.findMany({
+      // Get all users in this department with phone numbers (via UserRoles for multi-role support)
+      const userRolesInDept = await prisma.userRole.findMany({
         where: {
           departmentId: departmentId,
-          phone: { not: "" },
         },
-        select: {
-          phone: true,
-          name: true,
+        include: {
+          user: {
+            select: {
+              id: true,
+              phone: true,
+              name: true,
+            },
+          },
         },
       });
 
-      recipients = users
-        .filter(u => u.phone)
-        .map(u => ({
-          phone: formatGhanaPhone(u.phone!) || '',
-          name: u.name || 'User',
+      // Deduplicate by user ID (a user might have multiple roles in same department)
+      const seenUserIds = new Set<string>();
+      recipients = userRolesInDept
+        .filter(ur => {
+          if (!ur.user.phone || seenUserIds.has(ur.user.id)) return false;
+          seenUserIds.add(ur.user.id);
+          return true;
+        })
+        .map(ur => ({
+          phone: formatGhanaPhone(ur.user.phone!) || '',
+          name: ur.user.name || 'User',
         }))
         .filter(r => r.phone);
     }

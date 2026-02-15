@@ -76,14 +76,19 @@ export async function POST(request: NextRequest) {
         }
         
         if (startDate && endDate) {
+            // Add 1 day to endDate to include the entire end day (endDate at midnight excludes the whole day)
+            const endDateInclusive = new Date(endDate);
+            endDateInclusive.setDate(endDateInclusive.getDate() + 1);
             whereClause.createdAt = {
                 gte: new Date(startDate),
-                lte: new Date(endDate),
+                lt: endDateInclusive,
             };
         } else if (startDate) {
             whereClause.createdAt = { gte: new Date(startDate) };
         } else if (endDate) {
-            whereClause.createdAt = { lte: new Date(endDate) };
+            const endDateInclusive = new Date(endDate);
+            endDateInclusive.setDate(endDateInclusive.getDate() + 1);
+            whereClause.createdAt = { lt: endDateInclusive };
         }
 
         const transactions = await prisma.transaction.findMany({

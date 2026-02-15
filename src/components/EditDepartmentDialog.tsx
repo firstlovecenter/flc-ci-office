@@ -183,6 +183,7 @@ export default function EditDepartmentDialog({
                 }
             }
         } catch (err) {
+            console.error('Failed to fetch department currency:', err);
         }
     };
 

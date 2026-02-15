@@ -18,6 +18,7 @@ export async function GET(request: Request) {
             orderBy: {
                 createdAt: 'desc',
             },
+            take: 200,
         });
 
         const rates = await prisma.exchangeRate.findMany({

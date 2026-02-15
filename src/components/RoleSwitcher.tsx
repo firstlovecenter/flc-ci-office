@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import {
@@ -31,6 +31,13 @@ export default function RoleSwitcher() {
     const [switching, setSwitching] = useState(false);
     const [userRoles, setUserRoles] = useState<UserRoleOption[]>([]);
     const [activeUserRoleId, setActiveUserRoleId] = useState<string | null>(null);
+    const switchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+    useEffect(() => {
+        return () => {
+            if (switchTimeoutRef.current) clearTimeout(switchTimeoutRef.current);
+        };
+    }, []);
 
     useEffect(() => {
         if (session?.user?.id) {
@@ -55,6 +62,7 @@ export default function RoleSwitcher() {
                 }
             }
         } catch (error) {
+            console.error('Failed to fetch user roles:', error);
         }
     };
 
@@ -89,11 +97,14 @@ export default function RoleSwitcher() {
             await update();
 
             // Wait a bit to ensure session is fully updated
-            await new Promise(resolve => setTimeout(resolve, 200));
+            await new Promise<void>((resolve) => {
+                switchTimeoutRef.current = setTimeout(() => resolve(), 200);
+            });
 
             // Force a full page reload to ensure all data refreshes with new role
             window.location.reload();
         } catch (error) {
+            console.error('Failed to switch role:', error);
             setSwitching(false);
         }
     };
