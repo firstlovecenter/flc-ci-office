@@ -397,40 +397,17 @@ export default function DashboardPage() {
                 href: '/transactions',
                 color: theme.palette.info.main,
                 bgColor: theme.palette.info.main + '15',
-                roles: null as Role[] | null // Available to all
+                roles: null as Role[] | null, // Available to all
+                excludeForLeaders: true // Hide from leaders — available in nav
             },
             {
-                title: 'Departments',
+                title: 'Churches',
                 icon: BusinessIcon,
                 href: '/departments',
                 color: theme.palette.warning.main,
                 bgColor: theme.palette.warning.main + '15',
                 roles: null as Role[] | null, // Available to all
                 excludeForLeaders: true // Hide from leaders
-            },
-            {
-                title: 'View Trends',
-                icon: AssessmentIcon,
-                href: '/reports',
-                color: theme.palette.secondary.main,
-                bgColor: theme.palette.secondary.main + '15',
-                roles: null as Role[] | null // Available to all
-            },
-            {
-                title: 'Manage Users',
-                icon: PeopleIcon,
-                href: '/users',
-                color: theme.palette.primary.main,
-                bgColor: theme.palette.primary.main + '15',
-                roles: [Role.SUPERADMIN, Role.DENOMINATION_ADMIN, Role.OVERSIGHT_ADMIN, Role.CAMPUS_ADMIN] as Role[]
-            },
-            {
-                title: 'Currencies',
-                icon: MonetizationOnIcon,
-                href: '/currencies',
-                color: theme.palette.error.main,
-                bgColor: theme.palette.error.main + '15',
-                roles: [Role.SUPERADMIN, Role.DENOMINATION_ADMIN] as Role[]
             }
         ];
 
@@ -625,6 +602,14 @@ export default function DashboardPage() {
             gradient: getGradient('expense'),
             color: getStatColor('expense'),
             isBlinking: false
+        },
+        {
+            title: "This Week's Income",
+            amount: stats.weeklyIncome || 0,
+            icon: TrendingUpIcon,
+            gradient: getGradient('weeklyIncome'),
+            color: getStatColor('weeklyIncome'),
+            isBlinking: false
         }
     ];
 
@@ -651,7 +636,7 @@ export default function DashboardPage() {
                         display: 'inline-block',
                     }}
                 />
-                Weekly Income ({isLeader ? 'Last 4 Weeks' : 'Last 12 Weeks'})
+                Weekly Income (Last 4 Weeks)
             </Typography>
             <Box sx={{ width: '100%', height: { xs: 280, sm: 320, md: 350 } }}>
                 <ResponsiveContainer width="100%" height="100%">
@@ -729,7 +714,22 @@ export default function DashboardPage() {
             {/* Header */}
             <Box sx={{ mb: { xs: 3, md: 4 } }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1 }}>
-                    {departmentLeader && !isSuperAdmin ? (
+                    {isSuperAdmin ? (
+                    <Box
+                        sx={{
+                            width: { xs: 40, sm: 48 },
+                            height: { xs: 40, sm: 48 },
+                            borderRadius: 2,
+                            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            boxShadow: '0 4px 14px rgba(102, 126, 234, 0.4)',
+                        }}
+                    >
+                        <BusinessIcon sx={{ fontSize: { xs: 22, sm: 26 }, color: 'white' }} />
+                    </Box>
+                    ) : departmentLeader ? (
                          <Avatar 
                             src={departmentLeader.image || undefined} 
                             alt={departmentLeader.name}
@@ -748,20 +748,15 @@ export default function DashboardPage() {
                             width: { xs: 40, sm: 48 },
                             height: { xs: 40, sm: 48 },
                             borderRadius: 2,
-                            background: isLeader ? 'transparent' : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                            border: isLeader ? '1px solid' : 'none',
-                            borderColor: isLeader ? 'divider' : 'transparent',
+                            background: 'transparent',
+                            border: '1px solid',
+                            borderColor: 'divider',
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
-                            boxShadow: isLeader ? 'none' : '0 4px 14px rgba(102, 126, 234, 0.4)',
                         }}
                     >
-                        {isSuperAdmin ? (
-                            <BusinessIcon sx={{ fontSize: { xs: 22, sm: 26 }, color: 'white' }} />
-                        ) : (
-                            <AccountBalanceWalletIcon sx={{ fontSize: { xs: 22, sm: 26 }, color: isLeader ? theme.palette.text.primary : 'white' }} />
-                        )}
+                        <AccountBalanceWalletIcon sx={{ fontSize: { xs: 22, sm: 26 }, color: theme.palette.text.primary }} />
                     </Box>
                     )}
                     <Box>
@@ -769,11 +764,11 @@ export default function DashboardPage() {
                             variant="h4" 
                             fontWeight="700" 
                             sx={{ 
-                                background: isLeader ? 'none' : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                                backgroundClip: isLeader ? 'border-box' : 'text',
-                                WebkitBackgroundClip: isLeader ? 'border-box' : 'text',
-                                WebkitTextFillColor: isLeader ? theme.palette.text.primary : 'transparent',
-                                color: isLeader ? 'text.primary' : 'inherit',
+                                background: isSuperAdmin ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' : 'none',
+                                backgroundClip: isSuperAdmin ? 'text' : 'border-box',
+                                WebkitBackgroundClip: isSuperAdmin ? 'text' : 'border-box',
+                                WebkitTextFillColor: isSuperAdmin ? 'transparent' : theme.palette.text.primary,
+                                color: isSuperAdmin ? 'inherit' : 'text.primary',
                                 fontSize: { xs: '1.25rem', sm: '1.75rem', md: '2rem' },
                                 letterSpacing: '-0.5px',
                             }}
@@ -823,16 +818,8 @@ export default function DashboardPage() {
                         const route = getRoute(card.title);
 
                         return (
-                        <Grid size={{ xs: 6, sm: 6, lg: isLeader ? 6 : (isSuperAdmin ? 3 : 4)}} key={index}>
-                            {isLeader ? (
-                                <SimpleStatCard
-                                    title={card.title}
-                                    amount={card.amount}
-                                    icon={card.icon}
-                                    color={card.color || ''}
-                                    currencySymbol={isSuperAdmin ? '' : baseCurrency?.symbol}
-                                />
-                            ) : isSuperAdmin ? (
+                        <Grid size={{ xs: 6, sm: 6, lg: isSuperAdmin ? 3 : 6 }} key={index}>
+                            {isSuperAdmin ? (
                                 <MinimalStatCard
                                     title={card.title}
                                     amount={card.amount}
@@ -843,13 +830,12 @@ export default function DashboardPage() {
                                     onClick={route ? () => router.push(route) : undefined}
                                 />
                             ) : (
-                                <GradientStatCard
+                                <SimpleStatCard
                                     title={card.title}
                                     amount={card.amount}
                                     icon={card.icon}
-                                    gradient={card.gradient || ''}
+                                    color={card.color || ''}
                                     currencySymbol={baseCurrency?.symbol}
-                                    isBlinking={card.isBlinking}
                                 />
                             )}
                         </Grid>
@@ -858,35 +844,20 @@ export default function DashboardPage() {
 
             {/* Weekly Income Chart */}
             {stats.chartData && stats.chartData.length > 0 && (
-                isLeader ? (
-                    <Card
-                        sx={{
-                            p: { xs: 2, sm: 3 },
-                            mt: { xs: 2, md: 0 },
-                            bgcolor: 'background.paper',
-                            borderRadius: 2,
-                            boxShadow: 'none',
-                            border: '1px solid',
-                            borderColor: 'divider',
-                        }}
-                    >
-                        {renderChartContent()}
-                    </Card>
-                ) : (
-                    <Card
-                        elevation={0}
-                        sx={{
-                            p: { xs: 2, sm: 3 },
-                            mt: { xs: 2, md: 0 },
-                            bgcolor: 'background.paper',
-                            borderRadius: 4,
-                            border: '1px solid',
-                            borderColor: 'divider',
-                        }}
-                    >
-                        {renderChartContent()}
-                    </Card>
-                )
+                <Card
+                    elevation={0}
+                    sx={{
+                        p: { xs: 2, sm: 3 },
+                        mt: { xs: 2, md: 0 },
+                        bgcolor: 'background.paper',
+                        borderRadius: 2,
+                        boxShadow: 'none',
+                        border: '1px solid',
+                        borderColor: 'divider',
+                    }}
+                >
+                    {renderChartContent()}
+                </Card>
             )}
 
             {/* Quick Links - Hidden for SuperAdmin */}
@@ -899,91 +870,47 @@ export default function DashboardPage() {
                     gap: 1.5
                 }}
             >
-                {quickLinks.map((link, index) => (
-                    isLeader ? (
-                        <Card
-                            key={link.title}
-                            elevation={0}
-                            onClick={() => router.push(link.href)}
-                            sx={{
-                                borderRadius: 3,
-                                border: `1px solid ${theme.palette.divider}`,
-                                bgcolor: 'background.paper',
-                                cursor: 'pointer',
-                                transition: 'all 0.2s ease-in-out',
-                                '&:hover': {
-                                    bgcolor: theme.palette.action.hover,
-                                    borderColor: link.color,
-                                    transform: 'translateX(4px)',
-                                }
-                            }}
-                        >
-                            <Box sx={{ p: 2, display: 'flex', alignItems: 'center', gap: 2 }}>
-                                <Box
-                                    sx={{
-                                        width: 44,
-                                        height: 44,
-                                        borderRadius: 2,
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                        bgcolor: alpha(link.color || theme.palette.primary.main, 0.1),
-                                        color: link.color,
-                                    }}
-                                >
-                                    <link.icon sx={{ fontSize: 24 }} />
-                                </Box>
-                                <Typography variant="subtitle1" fontWeight={600} color="text.primary">
-                                    {link.title}
-                                </Typography>
-                                <Box sx={{ ml: 'auto' }}>
-                                    <ArrowForwardIosIcon sx={{ fontSize: 16, color: 'text.disabled' }} />
-                                </Box>
+                {quickLinks.map((link) => (
+                    <Card
+                        key={link.title}
+                        elevation={0}
+                        onClick={() => router.push(link.href)}
+                        sx={{
+                            borderRadius: 3,
+                            border: `1px solid ${theme.palette.divider}`,
+                            bgcolor: 'background.paper',
+                            cursor: 'pointer',
+                            transition: 'all 0.2s ease-in-out',
+                            '&:hover': {
+                                bgcolor: theme.palette.action.hover,
+                                borderColor: link.color,
+                                transform: 'translateX(4px)',
+                            }
+                        }}
+                    >
+                        <Box sx={{ p: 2, display: 'flex', alignItems: 'center', gap: 2 }}>
+                            <Box
+                                sx={{
+                                    width: 44,
+                                    height: 44,
+                                    borderRadius: 2,
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    bgcolor: alpha(link.color || theme.palette.primary.main, 0.1),
+                                    color: link.color,
+                                }}
+                            >
+                                <link.icon sx={{ fontSize: 24 }} />
                             </Box>
-                        </Card>
-                    ) : (
-                        <Card
-                            key={link.title}
-                            sx={{
-                                position: 'relative',
-                                overflow: 'hidden',
-                                cursor: 'pointer',
-                                transition: 'all 0.3s ease',
-                                border: 'none',
-                                borderRadius: 3,
-                                background: `linear-gradient(135deg, ${link.color} 0%, ${alpha(link.color, 0.8)} 100%)`,
-                                boxShadow: `0 8px 16px ${alpha(link.color, 0.3)}`,
-                                '&:hover': {
-                                    transform: 'translateY(-4px)',
-                                    boxShadow: `0 12px 20px ${alpha(link.color, 0.4)}`,
-                                }
-                            }}
-                            onClick={() => router.push(link.href)}
-                        >
-                            <CardActionArea sx={{ p: 2.5, height: '100%' }}>
-                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                                    <Box 
-                                        sx={{ 
-                                            p: 1.5, 
-                                            borderRadius: '12px', 
-                                            bgcolor: 'rgba(255,255,255,0.2)',
-                                            backdropFilter: 'blur(4px)',
-                                            color: 'white',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'center'
-                                        }}
-                                    >
-                                        <link.icon sx={{ fontSize: 24 }} />
-                                    </Box>
-                                    <Typography variant="h6" fontWeight="600" sx={{ color: 'white', fontSize: '1rem', letterSpacing: '0.5px' }}>
-                                        {link.title}
-                                    </Typography>
-                                </Box>
-                            </CardActionArea>
-
-                        </Card>
-                    )
+                            <Typography variant="subtitle1" fontWeight={600} color="text.primary">
+                                {link.title}
+                            </Typography>
+                            <Box sx={{ ml: 'auto' }}>
+                                <ArrowForwardIosIcon sx={{ fontSize: 16, color: 'text.disabled' }} />
+                            </Box>
+                        </Box>
+                    </Card>
                 ))}
             </Box>
             )}
