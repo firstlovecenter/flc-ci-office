@@ -44,6 +44,9 @@ export default function CorrectTransactionDialog({
             fetchDepartments();
             // Reset department selection to original
             setNewDepartmentId('');
+            setNewAmount('');
+            setReason('');
+            setError('');
         }
     }, [open]);
 
@@ -55,7 +58,7 @@ export default function CorrectTransactionDialog({
                 setDepartments(data);
             }
         } catch (err) {
-            // Silently fail - department selector just won't populate
+            console.error('Failed to fetch departments:', err);
         }
     };
 
@@ -125,9 +128,11 @@ export default function CorrectTransactionDialog({
 
     const difference = calculateDifference();
     const hasTransaction = Boolean(transaction?.id);
-    const isDepartmentChange = newDepartmentId && newDepartmentId !== transaction?.departmentId;
+    const isDepartmentChange = newDepartmentId !== '' && newDepartmentId !== transaction?.departmentId;
+    const hasAmountChange = difference !== null && difference !== 0;
     const selectedDepartment = departments.find(d => d.id === newDepartmentId);
-    const hasAnyChange = (difference !== null && difference !== 0) || isDepartmentChange;
+    const hasAnyChange = hasAmountChange || isDepartmentChange;
+    const canSubmit = hasTransaction && !loading && hasAnyChange && reason.trim().length > 0;
 
     return (
         <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth>
@@ -270,7 +275,7 @@ export default function CorrectTransactionDialog({
                 <Button 
                     onClick={handleSubmit} 
                     variant="contained" 
-                    disabled={!hasTransaction || loading || !hasAnyChange || !reason.trim()}
+                    disabled={!canSubmit}
                 >
                     {loading ? 'Creating Correction...' : isDepartmentChange ? 'Transfer & Correct' : 'Create Correction'}
                 </Button>
