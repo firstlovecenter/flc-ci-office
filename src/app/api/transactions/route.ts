@@ -220,8 +220,13 @@ export async function POST(request: Request) {
             return new NextResponse('Unauthorized', { status: 403 });
         }
 
-        // Server-side time validation for expense requests (prevents client-side clock manipulation)
-        if (type === 'EXPENSE') {
+        // Determine if this is a leader role (time-restricted) or admin
+        const leaderRoles = ['DENOMINATION_LEADER', 'OVERSIGHT_LEADER', 'CAMPUS_LEADER', 'STREAM_LEADER', 'COUNCIL_LEADER'];
+        const isLeader = leaderRoles.includes(session.user.role);
+
+        // Server-side time validation for expense requests - only for leaders
+        // Admins can make requests anytime
+        if (type === 'EXPENSE' && isLeader) {
             const serverTime = new Date();
             const hour = serverTime.getHours();
             const day = serverTime.getDay();
@@ -276,9 +281,9 @@ export async function POST(request: Request) {
             amountInBase = amount * exchangeRate;
         }
 
-        // Determine if this is a leader role (requires approval) or admin (auto-approved)
-        const leaderRoles = ['DENOMINATION_LEADER', 'OVERSIGHT_LEADER', 'CAMPUS_LEADER', 'STREAM_LEADER', 'COUNCIL_LEADER'];
-        const isLeader = leaderRoles.includes(session.user.role);
+        // All roles except SUPERADMIN require approval
+        const isSuperAdmin = session.user.role === 'SUPERADMIN';
+        const needsApproval = !isSuperAdmin;
         
         // Leaders can only create expense requests, not income
         if (isLeader && type === 'INCOME') {
@@ -300,9 +305,9 @@ export async function POST(request: Request) {
                 year,
                 locked: false,
                 updatedAt: new Date(),
-                status: isLeader ? 'PENDING' : 'APPROVED',
-                approvedBy: isLeader ? null : session.user.id,
-                approvedAt: isLeader ? null : new Date(),
+                status: needsApproval ? 'PENDING' : 'APPROVED',
+                approvedBy: needsApproval ? null : session.user.id,
+                approvedAt: needsApproval ? null : new Date(),
                 files: {
                     create: files?.map((f: any) => ({
                         fileName: f.name,
@@ -330,8 +335,8 @@ export async function POST(request: Request) {
             },
         });
 
-        // Send SMS to campus admins if this is a pending transaction (created by leader)
-        if (isLeader && transaction.status === 'PENDING') {
+        // Send SMS to campus admins if this is a pending transaction (created by leader or admin)
+        if (transaction.status === 'PENDING') {
             try {
                 // Get the department with its hierarchy
                 const dept = await prisma.department.findUnique({
@@ -421,8 +426,7 @@ export async function POST(request: Request) {
             }
         }
 
-        // Send CREDIT/DEBIT ALERT to department leaders when approved transaction is created
-        // Always send to leader regardless of who created the transaction
+        // Send CREDIT/DEBIT ALERT to department leaders when auto-approved transaction is created (SUPERADMIN only)
         if (transaction.status === 'APPROVED') {
             try {
                 const alertType = type === 'INCOME' ? 'CREDIT' : 'DEBIT';

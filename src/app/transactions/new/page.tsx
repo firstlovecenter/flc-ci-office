@@ -36,6 +36,9 @@ function NewTransactionForm() {
     // Check if user is a leader
     const leaderRoles = ['DENOMINATION_LEADER', 'OVERSIGHT_LEADER', 'CAMPUS_LEADER', 'STREAM_LEADER', 'COUNCIL_LEADER'];
     const isLeader = session?.user?.role && leaderRoles.includes(session.user.role);
+    const isSuperAdmin = session?.user?.role === 'SUPERADMIN';
+    // All roles except SUPERADMIN need approval
+    const needsApproval = !isSuperAdmin;
     
     // Initialize type - will be set properly by useEffect once session loads
     const [type, setType] = useState<TransactionType>(() => {
@@ -262,8 +265,9 @@ function NewTransactionForm() {
 
         setLoading(true);
 
-        // Check time restriction for expense requests (6am - 3pm on weekdays, 6am - 7pm on Saturday)
-        if (type === 'EXPENSE') {
+        // Check time restriction for expense requests - only for leaders
+        // Admins can make requests anytime
+        if (type === 'EXPENSE' && isLeader) {
             const now = new Date();
             const hour = now.getHours();
             const day = now.getDay();
@@ -330,8 +334,10 @@ function NewTransactionForm() {
             if (result.newBalance !== undefined) {
                 const symbol = result.currency?.symbol || balanceCurrency?.symbol || '₵';
                 showSuccess(`Transaction created! New balance: ${symbol}${formatNumber(result.newBalance)}`);
+            } else if (needsApproval) {
+                showSuccess(type === 'EXPENSE' ? 'Expense request submitted for approval' : 'Transaction submitted for approval');
             } else {
-                showSuccess(type === 'EXPENSE' ? 'Expense request submitted for approval' : 'Transaction created successfully');
+                showSuccess('Transaction created successfully');
             }
 
             // Redirect back to department context if it exists
@@ -400,7 +406,7 @@ function NewTransactionForm() {
     return (
         <Box maxWidth="sm" sx={{ mx: 'auto' }}>
             <Typography variant="h4" gutterBottom>
-                {isLeader ? 'New Expense Request' : 'New Transaction'}
+                {isLeader ? 'New Expense Request' : needsApproval ? 'New Transaction Request' : 'New Transaction'}
             </Typography>
 
             {/* Show account balance for leaders */}
@@ -602,7 +608,7 @@ function NewTransactionForm() {
                             variant="contained" 
                             disabled={loading || profileLoading}
                         >
-                            {loading ? 'Submitting...' : isLeader ? 'Submit Expense Request' : 'Save Transaction'}
+                            {loading ? 'Submitting...' : isLeader ? 'Submit Expense Request' : needsApproval ? 'Submit for Approval' : 'Save Transaction'}
                         </Button>
                     </Box>
                 </form>
