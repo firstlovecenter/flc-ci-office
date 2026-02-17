@@ -101,7 +101,7 @@ export async function POST(
         if (isDepartmentChange) {
             // Step 1: Reverse the original transaction in the old department
             const reverseType = originalTransaction.type === 'INCOME' ? 'EXPENSE' : 'INCOME';
-            const reverseDescription = `DEPT TRANSFER: Reversed - moved to ${targetDepartment.name}. ${reason || 'Department correction'} - Ref: ${originalTransaction.id.substring(0, 8)}`;
+            const reverseDescription = `DEPT TRANSFER: Reversed - moved to ${targetDepartment.name}. Original: "${originalTransaction.description}". ${reason || 'Department correction'} - Ref: ${originalTransaction.id.substring(0, 8)}`;
 
             let reverseAmountInBase = originalAmount;
             if (originalTransaction.currencyId && originalTransaction.exchangeRate) {
@@ -134,7 +134,7 @@ export async function POST(
             });
 
             // Step 2: Create the transaction in the new department with the (possibly new) amount
-            const newDescription = `DEPT TRANSFER: From ${originalTransaction.department.name}. ${reason || 'Department correction'} - Ref: ${originalTransaction.id.substring(0, 8)}`;
+            const newDescription = `DEPT TRANSFER: From ${originalTransaction.department.name}. Original: "${originalTransaction.description}". ${reason || 'Department correction'} - Ref: ${originalTransaction.id.substring(0, 8)}`;
 
             let newAmountInBase = newAmountValue;
             if (originalTransaction.currencyId && originalTransaction.exchangeRate) {
