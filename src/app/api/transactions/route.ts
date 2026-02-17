@@ -290,6 +290,41 @@ export async function POST(request: Request) {
             return new NextResponse('Leaders cannot record income. Please contact an admin.', { status: 403 });
         }
 
+        // Server-side balance validation for expense requests
+        // Only allow expenses if the department has a positive balance at its own level
+        if (type === 'EXPENSE') {
+            const deptTransactions = await prisma.transaction.findMany({
+                where: {
+                    departmentId: departmentId, // Exact department only, no descendants
+                    status: 'APPROVED',
+                },
+                select: {
+                    type: true,
+                    amountInBase: true,
+                    amount: true,
+                },
+            });
+
+            const deptBalance = deptTransactions.reduce((sum, tx) => {
+                const txAmount = Number(tx.amountInBase || tx.amount);
+                return sum + (tx.type === 'INCOME' ? txAmount : -txAmount);
+            }, 0);
+
+            if (deptBalance <= 0) {
+                return NextResponse.json(
+                    { error: 'This church does not have a positive balance. Expense requests cannot be made for churches without a positive balance.' },
+                    { status: 400 }
+                );
+            }
+
+            if (amount > deptBalance) {
+                return NextResponse.json(
+                    { error: `Insufficient balance. The available balance is ${deptBalance.toFixed(2)}. You cannot request more than this amount.` },
+                    { status: 400 }
+                );
+            }
+        }
+
         const transaction = await prisma.transaction.create({
             data: {
                 id: crypto.randomUUID(),

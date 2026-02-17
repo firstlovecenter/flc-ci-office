@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
     Dialog,
     DialogTitle,
@@ -12,8 +12,12 @@ import {
     Box,
     Typography,
     InputAdornment,
+    FormControl,
+    InputLabel,
+    Select,
+    MenuItem,
 } from '@mui/material';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency, formatDepartmentLevel } from '@/lib/utils';
 
 interface CorrectTransactionDialogProps {
     open: boolean;
@@ -29,13 +33,36 @@ export default function CorrectTransactionDialog({
     onSuccess,
 }: CorrectTransactionDialogProps) {
     const [newAmount, setNewAmount] = useState('');
+    const [newDepartmentId, setNewDepartmentId] = useState('');
+    const [departments, setDepartments] = useState<any[]>([]);
     const [reason, setReason] = useState('');
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
 
+    useEffect(() => {
+        if (open) {
+            fetchDepartments();
+            // Reset department selection to original
+            setNewDepartmentId('');
+        }
+    }, [open]);
+
+    const fetchDepartments = async () => {
+        try {
+            const response = await fetch('/api/departments?all=true');
+            if (response.ok) {
+                const data = await response.json();
+                setDepartments(data);
+            }
+        } catch (err) {
+            // Silently fail - department selector just won't populate
+        }
+    };
+
     const handleClose = () => {
         if (!loading) {
             setNewAmount('');
+            setNewDepartmentId('');
             setReason('');
             setError('');
             onClose();
@@ -49,14 +76,16 @@ export default function CorrectTransactionDialog({
     };
 
     const handleSubmit = async () => {
-        if (!newAmount || !reason.trim()) {
-            setError('Please provide the new amount and reason for correction');
+        const hasAmountChange = newAmount && parseFloat(newAmount) !== parseFloat(transaction?.amount);
+        const hasDepartmentChange = newDepartmentId && newDepartmentId !== transaction?.departmentId;
+
+        if (!hasAmountChange && !hasDepartmentChange) {
+            setError('Please change the amount, department, or both');
             return;
         }
 
-        const diff = calculateDifference();
-        if (diff === 0) {
-            setError('New amount must be different from the original amount');
+        if (!reason.trim()) {
+            setError('Please provide a reason for the correction');
             return;
         }
 
@@ -64,15 +93,20 @@ export default function CorrectTransactionDialog({
         setError('');
 
         try {
+            const payload: any = { reason };
+            if (hasAmountChange) {
+                payload.newAmount = parseFloat(newAmount);
+            }
+            if (hasDepartmentChange) {
+                payload.newDepartmentId = newDepartmentId;
+            }
+
             const response = await fetch(`/api/transactions/${transaction.id}/correct`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({
-                    newAmount: parseFloat(newAmount),
-                    reason,
-                }),
+                body: JSON.stringify(payload),
             });
 
             if (!response.ok) {
@@ -91,6 +125,9 @@ export default function CorrectTransactionDialog({
 
     const difference = calculateDifference();
     const hasTransaction = Boolean(transaction?.id);
+    const isDepartmentChange = newDepartmentId && newDepartmentId !== transaction?.departmentId;
+    const selectedDepartment = departments.find(d => d.id === newDepartmentId);
+    const hasAnyChange = (difference !== null && difference !== 0) || isDepartmentChange;
 
     return (
         <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth>
@@ -109,7 +146,8 @@ export default function CorrectTransactionDialog({
                 )}
 
                 <Alert severity="info" sx={{ mb: 3 }}>
-                    This will create a new correction transaction that references the original. 
+                    This will create correction transaction(s) that reference the original. 
+                    You can change the amount, the department/church, or both.
                     The original transaction will remain unchanged.
                 </Alert>
 
@@ -128,16 +166,38 @@ export default function CorrectTransactionDialog({
                         <Typography variant="caption" color="text.secondary">
                             {transaction.description}
                         </Typography>
+                        <Typography variant="caption" display="block" color="text.secondary">
+                            Church: {transaction.department?.name}
+                        </Typography>
                     </Box>
                 )}
 
+                <FormControl fullWidth sx={{ mb: 3 }}>
+                    <InputLabel>Change Church (Optional)</InputLabel>
+                    <Select
+                        value={newDepartmentId}
+                        label="Change Church (Optional)"
+                        onChange={(e) => setNewDepartmentId(e.target.value)}
+                    >
+                        <MenuItem value="">
+                            <em>Keep original ({transaction?.department?.name})</em>
+                        </MenuItem>
+                        {departments
+                            .filter(d => d.id !== transaction?.departmentId)
+                            .map((dept) => (
+                                <MenuItem key={dept.id} value={dept.id}>
+                                    {dept.name} {formatDepartmentLevel(dept.level)}
+                                </MenuItem>
+                            ))}
+                    </Select>
+                </FormControl>
+
                 <TextField
                     fullWidth
-                    label="New Amount"
+                    label="New Amount (Optional if changing church)"
                     type="number"
                     value={newAmount}
                     onChange={(e) => setNewAmount(e.target.value)}
-                    required
                     sx={{ mb: 3 }}
                     InputProps={{
                         startAdornment: transaction?.currency?.symbol ? (
@@ -169,17 +229,37 @@ export default function CorrectTransactionDialog({
                     placeholder="Explain why this correction is needed..."
                 />
 
-                {difference !== null && difference !== 0 && (
-                    <Alert severity={difference > 0 ? 'success' : 'warning'} sx={{ mt: 2 }}>
-                        A {difference > 0 ? 'credit' : 'debit'} correction transaction of{' '}
-                        <strong>
-                            {formatCurrency(
-                                Math.abs(difference),
-                                transaction?.currency?.code,
-                                transaction?.currency?.symbol
-                            )}
-                        </strong>{' '}
-                        will be created. The department leader will receive an SMS notification.
+                {hasAnyChange && (
+                    <Alert severity={isDepartmentChange ? 'info' : (difference && difference > 0 ? 'success' : 'warning')} sx={{ mt: 2 }}>
+                        {isDepartmentChange && (
+                            <>
+                                Transaction will be moved from <strong>{transaction?.department?.name}</strong> to <strong>{selectedDepartment?.name}</strong>.
+                                {difference !== null && difference !== 0 && (
+                                    <> Amount will also be adjusted by{' '}
+                                    <strong>
+                                        {formatCurrency(
+                                            Math.abs(difference),
+                                            transaction?.currency?.code,
+                                            transaction?.currency?.symbol
+                                        )}
+                                    </strong>.</>
+                                )}
+                                {' '}Leaders of both churches will receive an SMS notification.
+                            </>
+                        )}
+                        {!isDepartmentChange && difference !== null && difference !== 0 && (
+                            <>
+                                A {difference > 0 ? 'credit' : 'debit'} correction transaction of{' '}
+                                <strong>
+                                    {formatCurrency(
+                                        Math.abs(difference),
+                                        transaction?.currency?.code,
+                                        transaction?.currency?.symbol
+                                    )}
+                                </strong>{' '}
+                                will be created. The department leader will receive an SMS notification.
+                            </>
+                        )}
                     </Alert>
                 )}
             </DialogContent>
@@ -190,9 +270,9 @@ export default function CorrectTransactionDialog({
                 <Button 
                     onClick={handleSubmit} 
                     variant="contained" 
-                    disabled={!hasTransaction || loading || !newAmount || !reason.trim()}
+                    disabled={!hasTransaction || loading || !hasAnyChange || !reason.trim()}
                 >
-                    {loading ? 'Creating Correction...' : 'Create Correction'}
+                    {loading ? 'Creating Correction...' : isDepartmentChange ? 'Transfer & Correct' : 'Create Correction'}
                 </Button>
             </DialogActions>
         </Dialog>

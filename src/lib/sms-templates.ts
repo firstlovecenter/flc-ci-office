@@ -160,6 +160,22 @@ export function generateCorrectionNotificationSms(params: CorrectionNotification
     return `CORRECTION: ${departmentName} ${transactionType} ${currency}${originalAmount} to ${currency}${newAmount}. ${correctionType}: ${currency}${adjustmentAmount}. ${shortReason}. Bal: ${currency}${balance}.`;
 }
 
+interface DepartmentTransferSmsParams {
+    transactionType: string;
+    currency: string;
+    amount: string;
+    fromDepartment: string;
+    toDepartment: string;
+    reason: string;
+    balance: string;
+}
+
+export function generateDepartmentTransferSms(params: DepartmentTransferSmsParams): string {
+    const { transactionType, currency, amount, fromDepartment, toDepartment, reason, balance } = params;
+    const shortReason = reason.length > 20 ? reason.substring(0, 20) + '...' : reason;
+    return `TRANSFER: ${transactionType} ${currency}${amount} moved from ${fromDepartment} to ${toDepartment}. ${shortReason}. Bal: ${currency}${balance}.`;
+}
+
 interface CreditAlertSmsParams {
     currency: string;
     amount: string;

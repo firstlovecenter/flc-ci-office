@@ -110,13 +110,23 @@ export async function GET(
             }
         }
 
-        // Get all transactions for this department and its descendants
-        const descendantIds = await getDescendantDepartmentIds(id);
+        // Check if we should only get transactions at the exact department level
+        const { searchParams } = new URL(request.url);
+        const exactLevel = searchParams.get('exactLevel') === 'true';
+
+        // Get all transactions for this department (and optionally its descendants)
+        let departmentIds: string[];
+        if (exactLevel) {
+            // Only transactions directly on this department, not from child departments
+            departmentIds = [id];
+        } else {
+            departmentIds = await getDescendantDepartmentIds(id);
+        }
 
         const transactions = await prisma.transaction.findMany({
             where: {
                 departmentId: {
-                    in: descendantIds,
+                    in: departmentIds,
                 },
                 status: 'APPROVED',
             },

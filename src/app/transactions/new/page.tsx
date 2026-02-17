@@ -105,12 +105,12 @@ function NewTransactionForm() {
         }
     }, [session, deptParam]);
 
-    // Fetch department balance when departmentId changes (for leaders)
+    // Fetch department balance when departmentId changes (for expense requests)
     useEffect(() => {
-        if (isLeader && departmentId) {
+        if (departmentId) {
             fetchDepartmentBalance(departmentId);
         }
-    }, [departmentId, isLeader]);
+    }, [departmentId]);
 
     useEffect(() => {
         // Fetch exchange rate when currency changes
@@ -132,7 +132,9 @@ function NewTransactionForm() {
     const fetchDepartmentBalance = async (deptId: string) => {
         setBalanceLoading(true);
         try {
-            const response = await fetch(`/api/departments/${deptId}/stats`);
+            // Use exactLevel=true to get balance only for this department's level,
+            // not including income accumulated from child departments
+            const response = await fetch(`/api/departments/${deptId}/stats?exactLevel=true`);
             if (response.ok) {
                 const data = await response.json();
                 setDepartmentBalance(data.balance);
@@ -281,11 +283,16 @@ function NewTransactionForm() {
             }
         }
 
-        // Check balance for leaders making expense requests
-        if (isLeader && type === 'EXPENSE' && departmentBalance !== null) {
+        // Check balance for expense requests (all roles)
+        if (type === 'EXPENSE' && departmentBalance !== null) {
+            if (departmentBalance <= 0) {
+                setError('This church does not have a positive balance. Expense requests cannot be made for churches without a positive balance.');
+                setLoading(false);
+                return;
+            }
             const requestAmount = parseFloat(amount);
             if (requestAmount > departmentBalance) {
-                setError(`Insufficient balance. Your available balance is ${balanceCurrency?.symbol || '₵'}${formatNumber(departmentBalance)}. You cannot request more than this amount.`);
+                setError(`Insufficient balance. The available balance is ${balanceCurrency?.symbol || '₵'}${formatNumber(departmentBalance)}. You cannot request more than this amount.`);
                 setLoading(false);
                 return;
             }
@@ -409,8 +416,8 @@ function NewTransactionForm() {
                 {isLeader ? 'New Expense Request' : needsApproval ? 'New Transaction Request' : 'New Transaction'}
             </Typography>
 
-            {/* Show account balance for leaders */}
-            {isLeader && (
+            {/* Show account balance for expense requests */}
+            {type === 'EXPENSE' && (
                 <GlassCard 
                     variant="highlight"
                     sx={{ 

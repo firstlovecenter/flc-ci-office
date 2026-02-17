@@ -5,7 +5,7 @@ import { authOptions } from '@/lib/auth';
 import { createAuditLog } from '@/lib/audit';
 import { formatCurrency, formatNumber } from '@/lib/utils';
 import { sendSms } from '@/lib/sms';
-import { generateCorrectionNotificationSms } from '@/lib/sms-templates';
+import { generateCorrectionNotificationSms, generateDepartmentTransferSms } from '@/lib/sms-templates';
 import crypto from 'crypto';
 
 export async function POST(
@@ -21,8 +21,12 @@ export async function POST(
     try {
         const params = await context.params;
         const body = await request.json();
-        const { newAmount, reason } = body;
+        const { newAmount, reason, newDepartmentId } = body;
         const originalTransactionId = params.id;
+
+        // Determine if this is a department change, amount change, or both
+        const isDepartmentChange = newDepartmentId && newDepartmentId !== '';
+        const isAmountChange = newAmount !== undefined && newAmount !== null;
 
         // Only admins can create corrections
         const adminRoles = ['SUPERADMIN', 'DENOMINATION_ADMIN', 'OVERSIGHT_ADMIN', 'CAMPUS_ADMIN'];
@@ -62,19 +66,223 @@ export async function POST(
             );
         }
 
+        // Validate the new department if provided
+        let newDepartment = null;
+        if (isDepartmentChange) {
+            newDepartment = await prisma.department.findUnique({
+                where: { id: newDepartmentId },
+                select: { id: true, name: true, level: true },
+            });
+            if (!newDepartment) {
+                return NextResponse.json(
+                    { error: 'New department not found' },
+                    { status: 404 }
+                );
+            }
+        }
+
         // Calculate the difference
         const originalAmount = Number(originalTransaction.amount);
-        const newAmountValue = Number(newAmount);
+        const newAmountValue = isAmountChange ? Number(newAmount) : originalAmount;
         const correctionAmount = newAmountValue - originalAmount;
 
-        if (correctionAmount === 0) {
+        if (correctionAmount === 0 && !isDepartmentChange) {
             return NextResponse.json(
-                { error: 'New amount is the same as the original amount' },
+                { error: 'No changes detected. Please change the amount or department.' },
                 { status: 400 }
             );
         }
 
-        // The correction should reverse part/all of the original and apply the difference
+        const targetDepartmentId = isDepartmentChange ? newDepartmentId : originalTransaction.departmentId;
+        const targetDepartment = isDepartmentChange ? newDepartment! : originalTransaction.department;
+
+        // Amount-only correction (no department change)
+        // Handle department change: reverse from old department, create in new department
+        if (isDepartmentChange) {
+            // Step 1: Reverse the original transaction in the old department
+            const reverseType = originalTransaction.type === 'INCOME' ? 'EXPENSE' : 'INCOME';
+            const reverseDescription = `DEPT TRANSFER: Reversed - moved to ${targetDepartment.name}. ${reason || 'Department correction'} - Ref: ${originalTransaction.id.substring(0, 8)}`;
+
+            let reverseAmountInBase = originalAmount;
+            if (originalTransaction.currencyId && originalTransaction.exchangeRate) {
+                reverseAmountInBase = originalAmount * Number(originalTransaction.exchangeRate);
+            }
+
+            const reversalTransaction = await prisma.transaction.create({
+                data: {
+                    id: crypto.randomUUID(),
+                    type: reverseType,
+                    amount: originalAmount,
+                    amountInBase: reverseAmountInBase,
+                    description: reverseDescription,
+                    departmentId: originalTransaction.departmentId,
+                    userId: session.user.id,
+                    currencyId: originalTransaction.currencyId,
+                    exchangeRate: originalTransaction.exchangeRate,
+                    status: 'APPROVED',
+                    approvedBy: session.user.id,
+                    approvedAt: new Date(),
+                    locked: false,
+                    weekNumber: originalTransaction.weekNumber,
+                    year: originalTransaction.year,
+                    updatedAt: new Date(),
+                },
+                include: {
+                    department: { select: { id: true, name: true, level: true } },
+                    currency: true,
+                },
+            });
+
+            // Step 2: Create the transaction in the new department with the (possibly new) amount
+            const newDescription = `DEPT TRANSFER: From ${originalTransaction.department.name}. ${reason || 'Department correction'} - Ref: ${originalTransaction.id.substring(0, 8)}`;
+
+            let newAmountInBase = newAmountValue;
+            if (originalTransaction.currencyId && originalTransaction.exchangeRate) {
+                newAmountInBase = newAmountValue * Number(originalTransaction.exchangeRate);
+            }
+
+            const newTransaction = await prisma.transaction.create({
+                data: {
+                    id: crypto.randomUUID(),
+                    type: originalTransaction.type,
+                    amount: newAmountValue,
+                    amountInBase: newAmountInBase,
+                    description: newDescription,
+                    departmentId: targetDepartmentId,
+                    userId: session.user.id,
+                    currencyId: originalTransaction.currencyId,
+                    exchangeRate: originalTransaction.exchangeRate,
+                    status: 'APPROVED',
+                    approvedBy: session.user.id,
+                    approvedAt: new Date(),
+                    locked: false,
+                    weekNumber: originalTransaction.weekNumber,
+                    year: originalTransaction.year,
+                    updatedAt: new Date(),
+                },
+                include: {
+                    department: { select: { id: true, name: true, level: true } },
+                    currency: true,
+                },
+            });
+
+            // Audit logs for both transactions
+            await createAuditLog({
+                userId: session.user.id,
+                actionType: 'CREATE',
+                entityType: 'Transaction',
+                entityId: reversalTransaction.id,
+                description: `Reversed transaction ${originalTransaction.id} for department transfer to ${targetDepartment.name}`,
+                beforeData: null,
+                afterData: reversalTransaction as any,
+                metadata: {
+                    originalTransactionId: originalTransaction.id,
+                    transferTo: targetDepartmentId,
+                    reason,
+                },
+                severity: 'HIGH',
+            });
+
+            await createAuditLog({
+                userId: session.user.id,
+                actionType: 'CREATE',
+                entityType: 'Transaction',
+                entityId: newTransaction.id,
+                description: `Created transfer transaction from ${originalTransaction.department.name} to ${targetDepartment.name}`,
+                beforeData: null,
+                afterData: newTransaction as any,
+                metadata: {
+                    originalTransactionId: originalTransaction.id,
+                    transferFrom: originalTransaction.departmentId,
+                    originalAmount,
+                    newAmount: newAmountValue,
+                    reason,
+                },
+                severity: 'HIGH',
+            });
+
+            // Send SMS to old department leader
+            try {
+                const oldLeaderRole = originalTransaction.department.level === 'DENOMINATION' ? 'DENOMINATION_LEADER' :
+                    originalTransaction.department.level === 'OVERSIGHT' ? 'OVERSIGHT_LEADER' :
+                    originalTransaction.department.level === 'CAMPUS' ? 'CAMPUS_LEADER' :
+                    originalTransaction.department.level === 'STREAM' ? 'STREAM_LEADER' :
+                    'COUNCIL_LEADER';
+
+                const oldLeaders = await prisma.userRole.findMany({
+                    where: { role: oldLeaderRole, departmentId: originalTransaction.departmentId },
+                    include: { user: { select: { phone: true, name: true, archived: true } } },
+                });
+
+                const oldDeptTransactions = await prisma.transaction.findMany({
+                    where: { departmentId: originalTransaction.departmentId, status: 'APPROVED' },
+                    select: { type: true, amountInBase: true, amount: true },
+                });
+                const oldBalance = oldDeptTransactions.reduce((sum, tx) => {
+                    const txAmount = Number(tx.amountInBase || tx.amount);
+                    return sum + (tx.type === 'INCOME' ? txAmount : -txAmount);
+                }, 0);
+
+                const currencySymbol = originalTransaction.currency?.symbol || '$';
+                for (const lr of oldLeaders.filter(ur => ur.user.phone && !ur.user.archived)) {
+                    const sms = generateDepartmentTransferSms({
+                        transactionType: originalTransaction.type.toLowerCase(),
+                        currency: currencySymbol,
+                        amount: formatNumber(originalAmount),
+                        fromDepartment: originalTransaction.department.name,
+                        toDepartment: targetDepartment.name,
+                        reason: reason || 'Department correction',
+                        balance: formatNumber(oldBalance),
+                    });
+                    await sendSms({ to: lr.user.phone!, message: sms }).catch(() => {});
+                }
+            } catch (e) { /* Don't fail on SMS */ }
+
+            // Send SMS to new department leader
+            try {
+                const newLeaderRole = targetDepartment.level === 'DENOMINATION' ? 'DENOMINATION_LEADER' :
+                    targetDepartment.level === 'OVERSIGHT' ? 'OVERSIGHT_LEADER' :
+                    targetDepartment.level === 'CAMPUS' ? 'CAMPUS_LEADER' :
+                    targetDepartment.level === 'STREAM' ? 'STREAM_LEADER' :
+                    'COUNCIL_LEADER';
+
+                const newLeaders = await prisma.userRole.findMany({
+                    where: { role: newLeaderRole, departmentId: targetDepartmentId },
+                    include: { user: { select: { phone: true, name: true, archived: true } } },
+                });
+
+                const newDeptTransactions = await prisma.transaction.findMany({
+                    where: { departmentId: targetDepartmentId, status: 'APPROVED' },
+                    select: { type: true, amountInBase: true, amount: true },
+                });
+                const newBalance = newDeptTransactions.reduce((sum, tx) => {
+                    const txAmount = Number(tx.amountInBase || tx.amount);
+                    return sum + (tx.type === 'INCOME' ? txAmount : -txAmount);
+                }, 0);
+
+                const currencySymbol = originalTransaction.currency?.symbol || '$';
+                for (const lr of newLeaders.filter(ur => ur.user.phone && !ur.user.archived)) {
+                    const sms = generateDepartmentTransferSms({
+                        transactionType: originalTransaction.type.toLowerCase(),
+                        currency: currencySymbol,
+                        amount: formatNumber(newAmountValue),
+                        fromDepartment: originalTransaction.department.name,
+                        toDepartment: targetDepartment.name,
+                        reason: reason || 'Department correction',
+                        balance: formatNumber(newBalance),
+                    });
+                    await sendSms({ to: lr.user.phone!, message: sms }).catch(() => {});
+                }
+            } catch (e) { /* Don't fail on SMS */ }
+
+            return NextResponse.json({
+                success: true,
+                originalTransaction,
+                reversalTransaction,
+                newTransaction,
+                message: `Transaction transferred from ${originalTransaction.department.name} to ${targetDepartment.name}${correctionAmount !== 0 ? ` with amount adjusted to ${formatCurrency(newAmountValue, originalTransaction.currency?.code, originalTransaction.currency?.symbol)}` : ''}.`,
+            });
+        }
         // For EXPENSE: if new < original, we need to CREDIT back (INCOME)
         // For EXPENSE: if new > original, we need to DEBIT more (EXPENSE)
         // For INCOME: if new < original, we need to DEBIT back (EXPENSE)
