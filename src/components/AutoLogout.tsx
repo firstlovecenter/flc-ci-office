@@ -17,15 +17,32 @@ export default function AutoLogout() {
     const [showWarning, setShowWarning] = useState(false);
     const lastActivityRef = useRef(Date.now());
     const [timeLeft, setTimeLeft] = useState(60);
+    const isLoggingOutRef = useRef(false); // Flag to prevent duplicate logout calls
 
     const performLogout = useCallback(async () => {
-        if (status === 'authenticated') {
+        // Prevent duplicate logout calls
+        if (isLoggingOutRef.current || status !== 'authenticated') {
+            return;
+        }
+        
+        isLoggingOutRef.current = true;
+        
+        try {
             await signOut({ redirect: false });
             router.push('/auth/login?reason=timeout');
+        } catch (error) {
+            console.error('Error during logout:', error);
+            // Reset flag on error to allow retry
+            isLoggingOutRef.current = false;
         }
     }, [status, router]);
 
     const checkActivity = useCallback(() => {
+        // Skip if already logging out or not authenticated
+        if (isLoggingOutRef.current || status !== 'authenticated') {
+            return;
+        }
+
         const now = Date.now();
         const timeSinceLastActivity = now - lastActivityRef.current;
 
@@ -41,7 +58,7 @@ export default function AutoLogout() {
                 setShowWarning(false);
             }
         }
-    }, [performLogout, showWarning]);
+    }, [performLogout, showWarning, status]);
 
     const resetTimer = useCallback(() => {
         lastActivityRef.current = Date.now();
@@ -86,6 +103,13 @@ export default function AutoLogout() {
             clearInterval(intervalId);
         };
     }, [status, pathname, checkActivity, resetTimer]);
+
+    // Reset logout flag when session status changes
+    useEffect(() => {
+        if (status !== 'authenticated') {
+            isLoggingOutRef.current = false;
+        }
+    }, [status]);
 
     if (!showWarning) return null;
 

@@ -59,8 +59,11 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
     const theme = useMemo(() => createTheme(getDesignTokens(resolvedMode)), [resolvedMode]);
 
+    // Session refresh interval in seconds - revalidate session every 60 seconds
+    const SESSION_REFRESH_INTERVAL_SECONDS = 60;
+
     return (
-        <SessionProvider>
+        <SessionProvider refetchInterval={SESSION_REFRESH_INTERVAL_SECONDS} refetchOnWindowFocus={true}>
             <ColorModeContext.Provider value={colorMode}>
                 <AppRouterCacheProvider>
                     <ThemeProvider theme={theme}>

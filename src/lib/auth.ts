@@ -194,6 +194,32 @@ export const authOptions: NextAuthOptions = {
     callbacks: {
         async session({ session, token }) {
             if (token) {
+                // Validate that the user still exists and is active
+                // This check happens on every session access
+                try {
+                    const user = await prisma.user.findUnique({
+                        where: { email: token.email as string },
+                        select: { 
+                            id: true, 
+                            archived: true,
+                        },
+                    });
+                    
+                    // If user doesn't exist or is archived, throw error to invalidate session
+                    // This will cause NextAuth to clear the session on the client side
+                    if (!user || user.archived) {
+                        console.log('Session invalidated: User is archived or deleted');
+                        throw new Error('User account is no longer active');
+                    }
+                } catch (error) {
+                    if (error instanceof Error && error.message === 'User account is no longer active') {
+                        // Re-throw our intentional error to invalidate the session
+                        throw error;
+                    }
+                    // For other errors, log but continue with session to avoid breaking the app
+                    console.error('Error checking user status in session callback:', error);
+                }
+                
                 session.user.id = token.id as string;
                 session.user.name = token.name as string;
                 session.user.email = token.email as string;
@@ -244,7 +270,7 @@ export const authOptions: NextAuthOptions = {
                     },
                 });
                 
-                if (updatedUser) {
+                if (updatedUser && !updatedUser.archived) {
                     const allRoles = updatedUser.userRoles.map(ur => ur.role).filter((r): r is Role => r !== null);
                     const isSuperUserOnUpdate = updatedUser.activeRole === 'SUPERADMIN' || updatedUser.activeRole === 'DENOMINATION_ADMIN';
                     
@@ -303,6 +329,26 @@ export const authOptions: NextAuthOptions = {
                 });
             } catch (error) {
                 console.error('Failed to log login event:', error);
+            }
+        },
+        async signOut({ token }) {
+            try {
+                // Log the logout event for audit trail
+                if (token?.id) {
+                    await prisma.auditLog.create({
+                        data: {
+                            userId: token.id as string,
+                            actionType: 'LOGOUT',
+                            entityType: 'User',
+                            entityId: token.id as string,
+                            description: 'User logged out',
+                            severity: 'LOW',
+                            success: true,
+                        },
+                    });
+                }
+            } catch (error) {
+                console.error('Failed to log logout event:', error);
             }
         },
     },
