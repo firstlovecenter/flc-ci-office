@@ -223,6 +223,23 @@ export const authOptions: NextAuthOptions = {
                 token.activeUserRole = user.activeUserRole;
             }
             
+            // Validate user still exists and is not archived on every token refresh
+            // This ensures sessions are invalidated if user is deleted/archived
+            if (token.email && !user) {
+                const existingUser = await prisma.user.findUnique({
+                    where: { email: token.email as string },
+                    select: { 
+                        id: true, 
+                        archived: true,
+                    },
+                });
+                
+                // If user doesn't exist or is archived, invalidate the session
+                if (!existingUser || existingUser.archived) {
+                    return null;
+                }
+            }
+            
             // Handle session update (e.g., when switching roles)
             // This runs when update() is called from the client
             if (trigger === 'update') {
@@ -244,43 +261,46 @@ export const authOptions: NextAuthOptions = {
                     },
                 });
                 
-                if (updatedUser) {
-                    const allRoles = updatedUser.userRoles.map(ur => ur.role).filter((r): r is Role => r !== null);
-                    const isSuperUserOnUpdate = updatedUser.activeRole === 'SUPERADMIN' || updatedUser.activeRole === 'DENOMINATION_ADMIN';
+                // If user no longer exists or is archived, invalidate the session
+                if (!updatedUser || updatedUser.archived) {
+                    return null;
+                }
+                
+                const allRoles = updatedUser.userRoles.map(ur => ur.role).filter((r): r is Role => r !== null);
+                const isSuperUserOnUpdate = updatedUser.activeRole === 'SUPERADMIN' || updatedUser.activeRole === 'DENOMINATION_ADMIN';
+                
+                // Always update name and image
+                token.name = updatedUser.name;
+                token.picture = updatedUser.image;
+                
+                if (isSuperUserOnUpdate) {
+                    token.id = updatedUser.id;
+                    token.role = updatedUser.activeRole as string;
+                    token.roles = allRoles.length > 0 ? allRoles : [updatedUser.activeRole as string];
+                    token.departmentId = updatedUser.departmentId;
+                    token.departmentLevel = updatedUser.department?.level || undefined;
+                    token.departmentName = updatedUser.department?.name;
+                    token.activeUserRoleId = updatedUser.activeUserRoleId || null;
+                    token.activeUserRole = updatedUser.activeUserRole ? {
+                        id: updatedUser.activeUserRole.id,
+                        role: updatedUser.activeUserRole.role as string,
+                        departmentId: updatedUser.activeUserRole.departmentId,
+                    } : null;
+                } else {
+                    const activeRole = updatedUser.activeUserRole || updatedUser.userRoles[0];
                     
-                    // Always update name and image
-                    token.name = updatedUser.name;
-                    token.picture = updatedUser.image;
-                    
-                    if (isSuperUserOnUpdate) {
-                        token.id = updatedUser.id;
-                        token.role = updatedUser.activeRole as string;
-                        token.roles = allRoles.length > 0 ? allRoles : [updatedUser.activeRole as string];
-                        token.departmentId = updatedUser.departmentId;
-                        token.departmentLevel = updatedUser.department?.level || undefined;
-                        token.departmentName = updatedUser.department?.name;
-                        token.activeUserRoleId = updatedUser.activeUserRoleId || null;
-                        token.activeUserRole = updatedUser.activeUserRole ? {
-                            id: updatedUser.activeUserRole.id,
-                            role: updatedUser.activeUserRole.role as string,
-                            departmentId: updatedUser.activeUserRole.departmentId,
-                        } : null;
-                    } else {
-                        const activeRole = updatedUser.activeUserRole || updatedUser.userRoles[0];
-                        
-                        token.id = updatedUser.id;
-                        token.role = activeRole?.role || 'COUNCIL_LEADER';
-                        token.roles = allRoles;
-                        token.departmentId = activeRole?.departmentId;
-                        token.departmentLevel = activeRole?.department?.level || undefined;
-                        token.departmentName = activeRole?.department?.name || undefined;
-                        token.activeUserRoleId = activeRole?.id || null;
-                        token.activeUserRole = activeRole ? {
-                            id: activeRole.id,
-                            role: activeRole.role as string,
-                            departmentId: activeRole.departmentId,
-                        } : null;
-                    }
+                    token.id = updatedUser.id;
+                    token.role = activeRole?.role || 'COUNCIL_LEADER';
+                    token.roles = allRoles;
+                    token.departmentId = activeRole?.departmentId;
+                    token.departmentLevel = activeRole?.department?.level || undefined;
+                    token.departmentName = activeRole?.department?.name || undefined;
+                    token.activeUserRoleId = activeRole?.id || null;
+                    token.activeUserRole = activeRole ? {
+                        id: activeRole.id,
+                        role: activeRole.role as string,
+                        departmentId: activeRole.departmentId,
+                    } : null;
                 }
             }
             
@@ -303,6 +323,26 @@ export const authOptions: NextAuthOptions = {
                 });
             } catch (error) {
                 console.error('Failed to log login event:', error);
+            }
+        },
+        async signOut({ token }) {
+            try {
+                // Log the logout event for audit trail
+                if (token?.id) {
+                    await prisma.auditLog.create({
+                        data: {
+                            userId: token.id as string,
+                            actionType: 'LOGOUT',
+                            entityType: 'User',
+                            entityId: token.id as string,
+                            description: 'User logged out',
+                            severity: 'LOW',
+                            success: true,
+                        },
+                    });
+                }
+            } catch (error) {
+                console.error('Failed to log logout event:', error);
             }
         },
     },

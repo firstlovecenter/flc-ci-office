@@ -60,7 +60,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
     const theme = useMemo(() => createTheme(getDesignTokens(resolvedMode)), [resolvedMode]);
 
     return (
-        <SessionProvider>
+        <SessionProvider refetchInterval={60} refetchOnWindowFocus={true}>
             <ColorModeContext.Provider value={colorMode}>
                 <AppRouterCacheProvider>
                     <ThemeProvider theme={theme}>
