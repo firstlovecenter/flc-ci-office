@@ -194,6 +194,27 @@ export const authOptions: NextAuthOptions = {
     callbacks: {
         async session({ session, token }) {
             if (token) {
+                // Validate that the user still exists and is active
+                // This check happens on every session access
+                try {
+                    const user = await prisma.user.findUnique({
+                        where: { email: token.email as string },
+                        select: { 
+                            id: true, 
+                            archived: true,
+                        },
+                    });
+                    
+                    // If user doesn't exist or is archived, return null to invalidate session
+                    if (!user || user.archived) {
+                        console.log('Session invalidated: User is archived or deleted');
+                        return null as any; // Force session to be invalid
+                    }
+                } catch (error) {
+                    console.error('Error checking user status in session callback:', error);
+                    // In case of error, continue with session to avoid breaking the app
+                }
+                
                 session.user.id = token.id as string;
                 session.user.name = token.name as string;
                 session.user.email = token.email as string;
@@ -223,23 +244,6 @@ export const authOptions: NextAuthOptions = {
                 token.activeUserRole = user.activeUserRole;
             }
             
-            // Validate user still exists and is not archived on every token refresh
-            // This ensures sessions are invalidated if user is deleted/archived
-            if (token.email && !user) {
-                const existingUser = await prisma.user.findUnique({
-                    where: { email: token.email as string },
-                    select: { 
-                        id: true, 
-                        archived: true,
-                    },
-                });
-                
-                // If user doesn't exist or is archived, invalidate the session
-                if (!existingUser || existingUser.archived) {
-                    return null;
-                }
-            }
-            
             // Handle session update (e.g., when switching roles)
             // This runs when update() is called from the client
             if (trigger === 'update') {
@@ -261,46 +265,43 @@ export const authOptions: NextAuthOptions = {
                     },
                 });
                 
-                // If user no longer exists or is archived, invalidate the session
-                if (!updatedUser || updatedUser.archived) {
-                    return null;
-                }
-                
-                const allRoles = updatedUser.userRoles.map(ur => ur.role).filter((r): r is Role => r !== null);
-                const isSuperUserOnUpdate = updatedUser.activeRole === 'SUPERADMIN' || updatedUser.activeRole === 'DENOMINATION_ADMIN';
-                
-                // Always update name and image
-                token.name = updatedUser.name;
-                token.picture = updatedUser.image;
-                
-                if (isSuperUserOnUpdate) {
-                    token.id = updatedUser.id;
-                    token.role = updatedUser.activeRole as string;
-                    token.roles = allRoles.length > 0 ? allRoles : [updatedUser.activeRole as string];
-                    token.departmentId = updatedUser.departmentId;
-                    token.departmentLevel = updatedUser.department?.level || undefined;
-                    token.departmentName = updatedUser.department?.name;
-                    token.activeUserRoleId = updatedUser.activeUserRoleId || null;
-                    token.activeUserRole = updatedUser.activeUserRole ? {
-                        id: updatedUser.activeUserRole.id,
-                        role: updatedUser.activeUserRole.role as string,
-                        departmentId: updatedUser.activeUserRole.departmentId,
-                    } : null;
-                } else {
-                    const activeRole = updatedUser.activeUserRole || updatedUser.userRoles[0];
+                if (updatedUser && !updatedUser.archived) {
+                    const allRoles = updatedUser.userRoles.map(ur => ur.role).filter((r): r is Role => r !== null);
+                    const isSuperUserOnUpdate = updatedUser.activeRole === 'SUPERADMIN' || updatedUser.activeRole === 'DENOMINATION_ADMIN';
                     
-                    token.id = updatedUser.id;
-                    token.role = activeRole?.role || 'COUNCIL_LEADER';
-                    token.roles = allRoles;
-                    token.departmentId = activeRole?.departmentId;
-                    token.departmentLevel = activeRole?.department?.level || undefined;
-                    token.departmentName = activeRole?.department?.name || undefined;
-                    token.activeUserRoleId = activeRole?.id || null;
-                    token.activeUserRole = activeRole ? {
-                        id: activeRole.id,
-                        role: activeRole.role as string,
-                        departmentId: activeRole.departmentId,
-                    } : null;
+                    // Always update name and image
+                    token.name = updatedUser.name;
+                    token.picture = updatedUser.image;
+                    
+                    if (isSuperUserOnUpdate) {
+                        token.id = updatedUser.id;
+                        token.role = updatedUser.activeRole as string;
+                        token.roles = allRoles.length > 0 ? allRoles : [updatedUser.activeRole as string];
+                        token.departmentId = updatedUser.departmentId;
+                        token.departmentLevel = updatedUser.department?.level || undefined;
+                        token.departmentName = updatedUser.department?.name;
+                        token.activeUserRoleId = updatedUser.activeUserRoleId || null;
+                        token.activeUserRole = updatedUser.activeUserRole ? {
+                            id: updatedUser.activeUserRole.id,
+                            role: updatedUser.activeUserRole.role as string,
+                            departmentId: updatedUser.activeUserRole.departmentId,
+                        } : null;
+                    } else {
+                        const activeRole = updatedUser.activeUserRole || updatedUser.userRoles[0];
+                        
+                        token.id = updatedUser.id;
+                        token.role = activeRole?.role || 'COUNCIL_LEADER';
+                        token.roles = allRoles;
+                        token.departmentId = activeRole?.departmentId;
+                        token.departmentLevel = activeRole?.department?.level || undefined;
+                        token.departmentName = activeRole?.department?.name || undefined;
+                        token.activeUserRoleId = activeRole?.id || null;
+                        token.activeUserRole = activeRole ? {
+                            id: activeRole.id,
+                            role: activeRole.role as string,
+                            departmentId: activeRole.departmentId,
+                        } : null;
+                    }
                 }
             }
             
