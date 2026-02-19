@@ -205,14 +205,19 @@ export const authOptions: NextAuthOptions = {
                         },
                     });
                     
-                    // If user doesn't exist or is archived, return null to invalidate session
+                    // If user doesn't exist or is archived, throw error to invalidate session
+                    // This will cause NextAuth to clear the session on the client side
                     if (!user || user.archived) {
                         console.log('Session invalidated: User is archived or deleted');
-                        return null as any; // Force session to be invalid
+                        throw new Error('User account is no longer active');
                     }
                 } catch (error) {
+                    if (error instanceof Error && error.message === 'User account is no longer active') {
+                        // Re-throw our intentional error to invalidate the session
+                        throw error;
+                    }
+                    // For other errors, log but continue with session to avoid breaking the app
                     console.error('Error checking user status in session callback:', error);
-                    // In case of error, continue with session to avoid breaking the app
                 }
                 
                 session.user.id = token.id as string;
