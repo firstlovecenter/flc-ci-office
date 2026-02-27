@@ -8,6 +8,17 @@ export function getCurrentWeek() {
     };
 }
 
+/**
+ * Get the ISO week number and year for a specific date.
+ * Used when creating/editing transactions with a custom date.
+ */
+export function getWeekFromDate(date: Date) {
+    return {
+        weekNumber: getISOWeek(date),
+        year: getISOWeekYear(date),
+    };
+}
+
 export function formatCurrency(amount: number | string, currencyCode: string = 'GHS', currencySymbol?: string) {
     if (currencySymbol) {
         // Use custom symbol if provided

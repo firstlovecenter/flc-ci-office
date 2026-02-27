@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import crypto from 'crypto';
-import { getCurrentWeek, formatNumber } from '@/lib/utils';
+import { getCurrentWeek, getWeekFromDate, formatNumber } from '@/lib/utils';
 import { sendSms } from '@/lib/sms';
 import { generatePendingApprovalRequestSms, generateCreditAlertSms, generateDebitAlertSms } from '@/lib/sms-templates';
 import { getDescendantDepartmentIds, hasDepartmentAccess } from '@/lib/departments';
@@ -211,8 +211,23 @@ export async function POST(request: Request) {
 
     try {
         const body = await request.json();
-        const { type, amount, description, departmentId, files, currencyId, exchangeRate } = body;
-        const { weekNumber, year } = getCurrentWeek();
+        const { type, amount, description, departmentId, files, currencyId, exchangeRate, date } = body;
+        
+        // If a custom date is provided, compute week number from that date
+        // Otherwise use current week
+        let weekNumber: number;
+        let year: number;
+        let transactionDate: Date | undefined;
+        if (date) {
+            transactionDate = new Date(date);
+            const weekInfo = getWeekFromDate(transactionDate);
+            weekNumber = weekInfo.weekNumber;
+            year = weekInfo.year;
+        } else {
+            const weekInfo = getCurrentWeek();
+            weekNumber = weekInfo.weekNumber;
+            year = weekInfo.year;
+        }
 
         // Validate that the user can create transaction for this department
         const canAccess = await hasDepartmentAccess(session.user, departmentId);
@@ -249,6 +264,14 @@ export async function POST(request: Request) {
         });
 
         if (department) {
+            // Oversight and above levels (DENOMINATION, OVERSIGHT) do not record transactions
+            if (department.level && ['DENOMINATION', 'OVERSIGHT'].includes(department.level)) {
+                return NextResponse.json(
+                    { error: 'Transactions cannot be recorded for Denomination or Oversight level departments.' },
+                    { status: 400 }
+                );
+            }
+
             const oversightRoles = ['OVERSIGHT_ADMIN', 'OVERSIGHT_LEADER', 'CAMPUS_ADMIN', 'CAMPUS_LEADER', 'STREAM_LEADER', 'COUNCIL_LEADER', 'STREAM_ADMIN', 'COUNCIL_ADMIN'];
             const requiresBaseCurrency = oversightRoles.includes(session.user.role);
 
@@ -281,9 +304,11 @@ export async function POST(request: Request) {
             amountInBase = amount * exchangeRate;
         }
 
-        // All roles except SUPERADMIN require approval
+        // All roles except SUPERADMIN require approval for EXPENSE transactions
+        // All INCOME transactions are auto-approved (no approval needed)
         const isSuperAdmin = session.user.role === 'SUPERADMIN';
-        const needsApproval = !isSuperAdmin;
+        const isIncomeTransaction = type === 'INCOME';
+        const needsApproval = !isSuperAdmin && !isIncomeTransaction;
         
         // Leaders can only create expense requests, not income
         if (isLeader && type === 'INCOME') {
@@ -339,6 +364,7 @@ export async function POST(request: Request) {
                 weekNumber,
                 year,
                 locked: false,
+                ...(transactionDate ? { createdAt: transactionDate } : {}),
                 updatedAt: new Date(),
                 status: needsApproval ? 'PENDING' : 'APPROVED',
                 approvedBy: needsApproval ? null : session.user.id,
@@ -645,6 +671,12 @@ export async function PUT(request: Request) {
             return new NextResponse('Not Found', { status: 404 });
         }
 
+        // Leaders cannot edit transactions at all
+        const leaderRolesCheck = ['DENOMINATION_LEADER', 'OVERSIGHT_LEADER', 'CAMPUS_LEADER', 'STREAM_LEADER', 'COUNCIL_LEADER'];
+        if (leaderRolesCheck.includes(session.user.role)) {
+            return new NextResponse('Leaders are not permitted to edit transactions', { status: 403 });
+        }
+
         // Check permissions
         const canAccess = await hasDepartmentAccess(session.user, transaction.departmentId);
         if (!canAccess) {
@@ -653,15 +685,19 @@ export async function PUT(request: Request) {
 
         // Check locking
         if (transaction.locked) { // Check DB flag
-            return new NextResponse('Transaction is locked', { status: 400 });
+            if (session.user.role !== 'SUPERADMIN') {
+                return new NextResponse('Transaction is locked', { status: 400 });
+            }
         }
 
-        // We also need to check if the week is logically locked, even if DB flag isn't set yet
-        // (e.g. if the cron job hasn't run, or just logic based)
-        // Importing isWeekLocked locally to avoid circular deps if any (none here)
+        // Check if the week is logically locked
         const { isWeekLocked } = await import('@/lib/utils');
         if (isWeekLocked(transaction.weekNumber, transaction.year)) {
-            return new NextResponse('Week is locked', { status: 400 });
+            // Only oversight admin and above can edit past-week transactions
+            const oversightAndAboveRoles = ['SUPERADMIN', 'DENOMINATION_ADMIN', 'OVERSIGHT_ADMIN'];
+            if (!oversightAndAboveRoles.includes(session.user.role)) {
+                return new NextResponse('Week is locked. Only Oversight Admin and above can edit past-week transactions.', { status: 400 });
+            }
         }
 
         // Calculate amount in base currency if using a different currency
@@ -746,12 +782,17 @@ export async function DELETE(request: Request) {
 
         // Check locking
         if (transaction.locked) {
-            return new NextResponse('Transaction is locked', { status: 400 });
+            if (session.user.role !== 'SUPERADMIN') {
+                return new NextResponse('Transaction is locked', { status: 400 });
+            }
         }
 
-        const { isWeekLocked } = await import('@/lib/utils');
-        if (isWeekLocked(transaction.weekNumber, transaction.year)) {
-            return new NextResponse('Week is locked', { status: 400 });
+        const { isWeekLocked: isWeekLockedFn } = await import('@/lib/utils');
+        if (isWeekLockedFn(transaction.weekNumber, transaction.year)) {
+            const oversightAndAboveRoles = ['SUPERADMIN', 'DENOMINATION_ADMIN', 'OVERSIGHT_ADMIN'];
+            if (!oversightAndAboveRoles.includes(session.user.role)) {
+                return new NextResponse('Week is locked. Only Oversight Admin and above can delete past-week transactions.', { status: 400 });
+            }
         }
 
         await prisma.transaction.delete({

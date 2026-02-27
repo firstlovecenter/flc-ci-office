@@ -37,8 +37,6 @@ function NewTransactionForm() {
     const leaderRoles = ['DENOMINATION_LEADER', 'OVERSIGHT_LEADER', 'CAMPUS_LEADER', 'STREAM_LEADER', 'COUNCIL_LEADER'];
     const isLeader = session?.user?.role && leaderRoles.includes(session.user.role);
     const isSuperAdmin = session?.user?.role === 'SUPERADMIN';
-    // All roles except SUPERADMIN need approval
-    const needsApproval = !isSuperAdmin;
     
     // Initialize type - will be set properly by useEffect once session loads
     const [type, setType] = useState<TransactionType>(() => {
@@ -58,12 +56,16 @@ function NewTransactionForm() {
     const [userProfile, setUserProfile] = useState<any>(null);
     const [exchangeRate, setExchangeRate] = useState<number | null>(null);
     const [files, setFiles] = useState<File[]>([]);
+    const [transactionDate, setTransactionDate] = useState(new Date().toISOString().split('T')[0]);
     const [error, setError] = useState('');
     const [profileLoading, setProfileLoading] = useState(true);
     const [loading, setLoading] = useState(false);
     const [departmentBalance, setDepartmentBalance] = useState<number | null>(null);
     const [balanceCurrency, setBalanceCurrency] = useState<{ code: string; symbol: string } | null>(null);
     const [balanceLoading, setBalanceLoading] = useState(false);
+
+    // Income transactions are always auto-approved, expense needs approval (unless superadmin)
+    const needsApproval = !isSuperAdmin && type !== 'INCOME';
 
     useEffect(() => {
         // Only set type once session has loaded
@@ -313,6 +315,7 @@ function NewTransactionForm() {
                 departmentId,
                 currencyId: currencyId || null,
                 exchangeRate: exchangeRate || null,
+                date: transactionDate ? new Date(transactionDate).toISOString() : undefined,
                 files: uploadedFiles,
             };
 
@@ -524,6 +527,17 @@ function NewTransactionForm() {
                         }
                     />
 
+                    <TextField
+                        fullWidth
+                        label="Transaction Date"
+                        type="date"
+                        value={transactionDate}
+                        onChange={(e) => setTransactionDate(e.target.value)}
+                        required
+                        sx={{ mb: 3 }}
+                        InputLabelProps={{ shrink: true }}
+                    />
+
                     <FormControl fullWidth sx={{ mb: 3 }}>
                         <InputLabel id="description-type-label">Description Type</InputLabel>
                         <Select
@@ -569,7 +583,9 @@ function NewTransactionForm() {
                                 onChange={(e) => setDepartmentId(e.target.value)}
                                 required
                             >
-                                {departments.map((dept) => (
+                                {departments
+                                    .filter((dept) => !['DENOMINATION', 'OVERSIGHT'].includes(dept.level))
+                                    .map((dept) => (
                                     <MenuItem key={dept.id} value={dept.id}>
                                         {dept.name} {formatDepartmentLevel(dept.level)}
                                     </MenuItem>

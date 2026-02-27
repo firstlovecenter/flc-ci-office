@@ -6,7 +6,7 @@ import crypto from 'crypto';
 import { hasDepartmentAccess } from '@/lib/departments';
 import { sendSms } from '@/lib/sms';
 import { generateTransactionApprovedSms, generateTransactionDeclinedSms, generateTransactionChargeSms, generateCreditAlertSms, generateDebitAlertSms } from '@/lib/sms-templates';
-import { formatNumber, isWeekLocked } from '@/lib/utils';
+import { formatNumber, isWeekLocked, getWeekFromDate } from '@/lib/utils';
 
 export async function PUT(
     request: Request,
@@ -36,6 +36,15 @@ export async function PUT(
             );
         }
 
+        // Leaders cannot edit transactions at all
+        const leaderRoles = ['DENOMINATION_LEADER', 'OVERSIGHT_LEADER', 'CAMPUS_LEADER', 'STREAM_LEADER', 'COUNCIL_LEADER'];
+        if (leaderRoles.includes(session.user.role)) {
+            return NextResponse.json(
+                { error: 'Leaders are not permitted to edit transactions.' },
+                { status: 403 }
+            );
+        }
+
         // Check if transaction is locked
         if (existingTransaction.locked) {
             // Only superadmin can edit locked transactions
@@ -47,13 +56,17 @@ export async function PUT(
             }
         }
 
-        // Check if transaction's week is locked (non-SUPERADMIN only)
-        if (session.user.role !== 'SUPERADMIN' && existingTransaction.weekNumber && existingTransaction.year) {
+        // Check if transaction's week is locked
+        // Only OVERSIGHT_ADMIN and above can edit past-week transactions
+        if (existingTransaction.weekNumber && existingTransaction.year) {
             if (isWeekLocked(existingTransaction.weekNumber, existingTransaction.year)) {
-                return NextResponse.json(
-                    { error: 'This transaction belongs to a locked week and cannot be edited.' },
-                    { status: 403 }
-                );
+                const oversightAndAboveRoles = ['SUPERADMIN', 'DENOMINATION_ADMIN', 'OVERSIGHT_ADMIN'];
+                if (!oversightAndAboveRoles.includes(session.user.role)) {
+                    return NextResponse.json(
+                        { error: 'This transaction belongs to a locked week and cannot be edited. Only Oversight Admin and above can edit past-week transactions.' },
+                        { status: 403 }
+                    );
+                }
             }
         }
 
@@ -93,6 +106,14 @@ export async function PUT(
             amountInBase = amount * exchangeRate;
         }
 
+        // If date is provided, recalculate week number and year from the new date
+        let weekData: { weekNumber?: number; year?: number } = {};
+        if (date) {
+            const newDate = new Date(date);
+            const weekInfo = getWeekFromDate(newDate);
+            weekData = { weekNumber: weekInfo.weekNumber, year: weekInfo.year };
+        }
+
         // Update the transaction
         const updatedTransaction = await prisma.transaction.update({
             where: { id: transactionId },
@@ -105,6 +126,7 @@ export async function PUT(
                 exchangeRate: exchangeRate || null,
                 amountInBase: amountInBase,
                 ...(date ? { createdAt: new Date(date) } : {}),
+                ...weekData,
                 updatedAt: new Date(),
                 ...(files && files.length > 0 ? {
                     files: {

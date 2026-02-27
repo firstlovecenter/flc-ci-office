@@ -65,19 +65,25 @@ export default function EditTransactionDialog({
             
             // Parse description for preset
             const desc = transaction.description || '';
-            if (desc.startsWith('HR - ')) {
-                setDescriptionPreset('HR');
-                setDescription(desc.substring(5));
-            } else if (desc.startsWith('Ministry expense - ')) {
-                setDescriptionPreset('Ministry expense');
-                setDescription(desc.substring(19));
-            } else if (desc === 'HR') {
-                setDescriptionPreset('HR');
-                setDescription('');
-            } else if (desc === 'Ministry expense') {
-                setDescriptionPreset('Ministry expense');
-                setDescription('');
-            } else {
+            const incomePresets = ['Tithe', 'Offering', 'Donation', 'Pledge', 'Seed', 'Special Offering'];
+            const expensePresets = ['HR', 'Ministry expense', 'Bussing', 'Construction'];
+            const allPresets = [...incomePresets, ...expensePresets];
+            
+            let foundPreset = false;
+            for (const preset of allPresets) {
+                if (desc === preset) {
+                    setDescriptionPreset(preset);
+                    setDescription('');
+                    foundPreset = true;
+                    break;
+                } else if (desc.startsWith(preset + ' - ')) {
+                    setDescriptionPreset(preset);
+                    setDescription(desc.substring(preset.length + 3));
+                    foundPreset = true;
+                    break;
+                }
+            }
+            if (!foundPreset) {
                 setDescriptionPreset('');
                 setDescription(desc);
             }
@@ -367,10 +373,16 @@ export default function EditTransactionDialog({
                         disabled={transaction?.locked && !isSuperAdmin}
                     >
                         <MenuItem value="">Custom</MenuItem>
-                        <MenuItem value="HR">HR</MenuItem>
-                        <MenuItem value="Ministry expense">Ministry expense</MenuItem>
-                        <MenuItem value="Bussing">Bussing</MenuItem>
-                        <MenuItem value="Construction">Construction</MenuItem>
+                        {type === 'EXPENSE' && <MenuItem value="HR">HR</MenuItem>}
+                        {type === 'EXPENSE' && <MenuItem value="Ministry expense">Ministry expense</MenuItem>}
+                        {type === 'EXPENSE' && <MenuItem value="Bussing">Bussing</MenuItem>}
+                        {type === 'EXPENSE' && <MenuItem value="Construction">Construction</MenuItem>}
+                        {type === 'INCOME' && <MenuItem value="Tithe">Tithe</MenuItem>}
+                        {type === 'INCOME' && <MenuItem value="Offering">Offering</MenuItem>}
+                        {type === 'INCOME' && <MenuItem value="Donation">Donation</MenuItem>}
+                        {type === 'INCOME' && <MenuItem value="Pledge">Pledge</MenuItem>}
+                        {type === 'INCOME' && <MenuItem value="Seed">Seed</MenuItem>}
+                        {type === 'INCOME' && <MenuItem value="Special Offering">Special Offering</MenuItem>}
                     </Select>
                 </FormControl>
 
@@ -408,7 +420,9 @@ export default function EditTransactionDialog({
                         disabled={transaction?.locked && !isSuperAdmin}
                         required
                     >
-                        {departments.map((dept) => (
+                        {departments
+                            .filter((dept) => !['DENOMINATION', 'OVERSIGHT'].includes(dept.level))
+                            .map((dept) => (
                             <MenuItem key={dept.id} value={dept.id}>
                                 {dept.name} ({formatDepartmentLevel(dept.level)})
                             </MenuItem>

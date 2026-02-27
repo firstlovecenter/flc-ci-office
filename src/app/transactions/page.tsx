@@ -44,11 +44,13 @@ import AttachFileIcon from '@mui/icons-material/AttachFile';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import CancelIcon from '@mui/icons-material/Cancel';
 import EditNoteIcon from '@mui/icons-material/EditNote';
+import EditIcon from '@mui/icons-material/Edit';
 import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
 import Link from 'next/link';
-import { formatCurrency, formatDepartmentLevel } from '@/lib/utils';
+import { formatCurrency, formatDepartmentLevel, isWeekLocked } from '@/lib/utils';
 import { useSession } from 'next-auth/react';
 import CorrectTransactionDialog from '@/components/CorrectTransactionDialog';
+import EditTransactionDialog from '@/components/EditTransactionDialog';
 import { useToast } from '@/components/ToastProvider';
 import { AnimatedCounter, GlassCard, StatusChip, TableRowSkeleton } from '@/components/ui';
 
@@ -109,6 +111,10 @@ function TransactionsPageContent() {
     const [typeFilter, setTypeFilter] = useState('ALL');
     const [approvalFilter, setApprovalFilter] = useState('ALL'); // NEW: Filter by approval status
     const [correctDialog, setCorrectDialog] = useState<{ open: boolean; transaction: any }>({
+        open: false,
+        transaction: null,
+    });
+    const [editDialog, setEditDialog] = useState<{ open: boolean; transaction: any }>({
         open: false,
         transaction: null,
     });
@@ -300,6 +306,41 @@ function TransactionsPageContent() {
 
     const handleCloseCorrect = () => {
         setCorrectDialog({ open: false, transaction: null });
+    };
+
+    const handleEdit = (transaction: any) => {
+        setEditDialog({ open: true, transaction });
+    };
+
+    const handleCloseEdit = () => {
+        setEditDialog({ open: false, transaction: null });
+    };
+
+    const handleSaveEdit = () => {
+        showSuccess('Transaction updated successfully');
+        fetchTransactions();
+    };
+
+    /**
+     * Determine if a transaction can be edited by the current user.
+     * - Leaders cannot edit transactions at all
+     * - Locked transactions can only be edited by SUPERADMIN
+     * - Transactions from previous weeks can only be edited by OVERSIGHT_ADMIN and above
+     */
+    const canEditTransaction = (tx: any): boolean => {
+        // Leaders cannot edit transactions
+        if (isLeader) return false;
+        // Must be an admin
+        if (!isAdmin) return false;
+        // Locked transactions - only superadmin
+        if (tx.locked && !isSuperAdmin) return false;
+        // Week lock check - oversight admin and above can edit past weeks
+        const oversightAndAboveRoles = ['SUPERADMIN', 'DENOMINATION_ADMIN', 'OVERSIGHT_ADMIN'];
+        const canEditPastWeeks = session?.user?.role && oversightAndAboveRoles.includes(session.user.role);
+        if (tx.weekNumber && tx.year && isWeekLocked(tx.weekNumber, tx.year) && !canEditPastWeeks) {
+            return false;
+        }
+        return true;
     };
 
     const handleViewDetails = (transaction: any) => {
@@ -801,6 +842,22 @@ function TransactionsPageContent() {
                                 {isAdmin && (
                                 <TableCell align="center">
                                     <Box sx={{ display: 'flex', gap: 1, justifyContent: 'center' }}>
+                                        {/* Edit button for transactions that can be edited */}
+                                        {canEditTransaction(tx) && (
+                                            <Tooltip title="Edit Transaction">
+                                                <IconButton
+                                                    size="small"
+                                                    color="primary"
+                                                    onClick={() => handleEdit(tx)}
+                                                    sx={{
+                                                        '&:hover': { bgcolor: 'primary.dark', color: 'white' }
+                                                    }}
+                                                >
+                                                    <EditIcon fontSize="small" />
+                                                </IconButton>
+                                            </Tooltip>
+                                        )}
+
                                         {/* Correct button for approved/rejected transactions (admins only) */}
                                         {(tx.status === 'APPROVED' || tx.status === 'REJECTED') && isAdmin && (
                                             <Tooltip title="Create Correction">
@@ -912,7 +969,20 @@ function TransactionsPageContent() {
                                 )}
                                 
                                 {isAdmin && (
-                                    <Box sx={{ display: 'flex', gap: 1, mt: 2, pt: 2, borderTop: 1, borderColor: 'divider' }}>
+                                    <Box sx={{ display: 'flex', gap: 1, mt: 2, pt: 2, borderTop: 1, borderColor: 'divider', flexWrap: 'wrap' }}>
+                                        {canEditTransaction(detailsDialog.transaction) && (
+                                            <Button
+                                                fullWidth
+                                                variant="outlined"
+                                                color="primary"
+                                                onClick={() => {
+                                                    handleCloseDetails();
+                                                    handleEdit(detailsDialog.transaction);
+                                                }}
+                                            >
+                                                Edit Transaction
+                                            </Button>
+                                        )}
                                         {(detailsDialog.transaction.status === 'APPROVED' || detailsDialog.transaction.status === 'REJECTED') && (
                                             <Button
                                                 fullWidth
@@ -955,6 +1025,15 @@ function TransactionsPageContent() {
                 transaction={correctDialog.transaction}
                 onClose={handleCloseCorrect}
                 onSuccess={handleSaveCorrect}
+            />
+
+            <EditTransactionDialog
+                open={editDialog.open}
+                transaction={editDialog.transaction}
+                onClose={handleCloseEdit}
+                onSave={handleSaveEdit}
+                isSuperAdmin={isSuperAdmin}
+                userRole={session?.user?.role}
             />
         </Box>
     );
