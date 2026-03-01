@@ -136,7 +136,7 @@ function NewTransactionForm() {
         try {
             // Use exactLevel=true to get balance only for this department's level,
             // not including income accumulated from child departments
-            const response = await fetch(`/api/departments/${deptId}/stats?exactLevel=true`);
+            const response = await fetch(`/api/departments/${deptId}/stats?exactLevel=true`, { cache: 'no-store' });
             if (response.ok) {
                 const data = await response.json();
                 setDepartmentBalance(data.balance);

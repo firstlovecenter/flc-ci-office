@@ -101,7 +101,7 @@ function ReportsPageContent() {
     const fetchChartDataForDept = async (deptId: string) => {
         setChartLoading(true);
         try {
-            const response = await fetch(`/api/departments/${deptId}/stats`);
+            const response = await fetch(`/api/departments/${deptId}/stats`, { cache: 'no-store' });
             if (response.ok) {
                 const data = await response.json();
                 if (data.chartData) {
@@ -171,7 +171,7 @@ function ReportsPageContent() {
     const fetchChartData = async () => {
         setChartLoading(true);
         try {
-            const response = await fetch('/api/dashboard/stats');
+            const response = await fetch('/api/dashboard/stats', { cache: 'no-store' });
             if (response.ok) {
                 const data = await response.json();
                 if (data.chartData) {

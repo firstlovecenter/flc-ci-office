@@ -152,13 +152,17 @@ export async function GET(
         let weeklyIncome = 0;
         const currentWeek = getCurrentWeekRange();
 
-        // Initialize weekly chart data (last 4 weeks) using date-fns for proper week calculation
+        // Initialize weekly chart data using date-fns for proper week calculation
+        // Support pagination: chartOffset=0 is current 4 weeks, chartOffset=1 is previous 4 weeks, etc.
+        const chartOffset = Math.max(0, parseInt(searchParams.get('chartOffset') || '0', 10) || 0);
+        const weeksBack = chartOffset * 4;
+        
         const chartData: { week: string; weekNum: number; year: number; income: number; expense: number }[] = [];
         const now = new Date();
         
         // Use subWeeks to properly calculate weeks going back (handles year boundaries correctly)
         for (let i = 3; i >= 0; i--) {
-            const weekDate = subWeeks(now, i);
+            const weekDate = subWeeks(now, i + weeksBack);
             const weekNum = getISOWeek(weekDate);
             const weekYear = getISOWeekYear(weekDate);
             
@@ -196,29 +200,32 @@ export async function GET(
 
             if (t.type === 'INCOME') {
                 income += convertedAmount;
-                // Check if this week
-                const txDate = new Date(t.createdAt);
-                if (txDate >= currentWeek.start && txDate <= currentWeek.end) {
+                // Check if this week using weekNumber/year fields
+                const currentWeekNum = getISOWeek(now);
+                const currentYear = getISOWeekYear(now);
+                if ((t as any).weekNumber === currentWeekNum && (t as any).year === currentYear) {
                     weeklyIncome += convertedAmount;
                 }
             } else if (t.type === 'EXPENSE') {
                 expense += convertedAmount;
             }
 
-            // Add to chart data using ISO week numbers from date-fns
-            const txDate = new Date(t.createdAt);
-            const txWeek = getISOWeek(txDate);
-            const txYear = getISOWeekYear(txDate);
+            // Add to chart data using transaction's weekNumber/year fields
+            // These fields reflect the intended week (which may differ from createdAt if backdated)
+            const txWeek = (t as any).weekNumber;
+            const txYear = (t as any).year;
             
-            // Find matching chart bucket
-            for (let i = 0; i < 4; i++) {
-                if (chartData[i].weekNum === txWeek && chartData[i].year === txYear) {
-                    if (t.type === 'INCOME') {
-                        chartData[i].income += convertedAmount;
-                    } else if (t.type === 'EXPENSE') {
-                        chartData[i].expense += convertedAmount;
+            if (txWeek && txYear) {
+                // Find matching chart bucket
+                for (let i = 0; i < 4; i++) {
+                    if (chartData[i].weekNum === txWeek && chartData[i].year === txYear) {
+                        if (t.type === 'INCOME') {
+                            chartData[i].income += convertedAmount;
+                        } else if (t.type === 'EXPENSE') {
+                            chartData[i].expense += convertedAmount;
+                        }
+                        break;
                     }
-                    break;
                 }
             }
         }
@@ -240,6 +247,10 @@ export async function GET(
             } : {
                 code: 'GHS',
                 symbol: '₵',
+            },
+        }, {
+            headers: {
+                'Cache-Control': 'private, no-store, no-cache, must-revalidate',
             },
         });
     } catch (error) {

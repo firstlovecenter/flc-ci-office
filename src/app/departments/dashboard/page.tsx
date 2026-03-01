@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useRef } from 'react';
 import { Typography, Box, CircularProgress, Grid, Stack, CardActionArea, IconButton, useTheme, alpha, Avatar, Card } from '@mui/material';
 import { formatCurrency } from '@/lib/utils';
 import { GlassCard, SimpleStatCard } from '@/components/ui';
@@ -11,6 +11,8 @@ import ReceiptIcon from '@mui/icons-material/Receipt';
 import AssessmentIcon from '@mui/icons-material/Assessment';
 import PendingActionsIcon from '@mui/icons-material/PendingActions';
 import EditIcon from '@mui/icons-material/Edit';
+import ArrowBackIosNewIcon from '@mui/icons-material/ArrowBackIosNew';
+import ArrowForwardIosIcon from '@mui/icons-material/ArrowForwardIos';
 import { useRouter } from 'next/navigation';
 import EditDepartmentDialog from '@/components/EditDepartmentDialog';
 import { useSession } from 'next-auth/react';
@@ -37,6 +39,9 @@ export default function DepartmentDashboardPage() {
         currency: { code: 'GHS', symbol: '₵' }
     });
     const [loading, setLoading] = useState(true);
+    const [chartOffset, setChartOffset] = useState(0);
+    const [chartLoading, setChartLoading] = useState(false);
+    const chartCache = useRef<Map<number, { week: string; income: number; expense: number }[]>>(new Map());
 
     // Initial check for cookie
     useEffect(() => {
@@ -65,6 +70,13 @@ export default function DepartmentDashboardPage() {
         }
     }, [departmentId]);
 
+    // Refetch chart data when offset changes
+    useEffect(() => {
+        if (departmentId) {
+            fetchStats(chartOffset);
+        }
+    }, [chartOffset, departmentId]);
+
     const fetchDepartment = async () => {
         try {
             const response = await fetch(`/api/departments/${departmentId}`);
@@ -85,17 +97,30 @@ export default function DepartmentDashboardPage() {
         }
     };
 
-    const fetchStats = async () => {
+    const fetchStats = async (offset?: number) => {
+        const currentOffset = offset ?? chartOffset;
+        // Show cached chart data instantly if available
+        const cached = chartCache.current.get(currentOffset);
+        if (cached) {
+            setStats(prev => ({ ...prev, chartData: cached }));
+        } else {
+            setChartLoading(true);
+        }
         try {
-            const response = await fetch(`/api/departments/${departmentId}/stats`);
+            const response = await fetch(`/api/departments/${departmentId}/stats?chartOffset=${currentOffset}`, { cache: 'no-store' });
             if (response.ok) {
                 const data = await response.json();
+                // Cache the chart data for this offset
+                if (data.chartData) {
+                    chartCache.current.set(currentOffset, data.chartData);
+                }
                 setStats(data);
             }
         } catch (error) {
             console.error('Failed to fetch department stats:', error);
         } finally {
             setLoading(false);
+            setChartLoading(false);
         }
     };
 
@@ -321,9 +346,9 @@ export default function DepartmentDashboardPage() {
                 }}
             >
                 <Typography variant="h6" fontWeight="700" sx={{ mb: { xs: 2, sm: 3 }, fontSize: { xs: '0.95rem', sm: '1.1rem' } }}>
-                    Weekly Income (Last 4 Weeks)
+                    {chartOffset === 0 ? 'Weekly Income & Expense (Last 4 Weeks)' : 'Weekly Income & Expense'}
                 </Typography>
-                <Box sx={{ width: '100%', height: { xs: 280, sm: 320, md: 350 } }}>
+                <Box sx={{ width: '100%', height: { xs: 280, sm: 320, md: 350 }, opacity: chartLoading ? 0.5 : 1, transition: 'opacity 0.2s' }}>
                     <ResponsiveContainer width="100%" height="100%">
                         <BarChart
                             data={stats.chartData}
@@ -390,6 +415,36 @@ export default function DepartmentDashboardPage() {
                             </Bar>
                         </BarChart>
                     </ResponsiveContainer>
+                </Box>
+                {/* Navigation Arrows */}
+                <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 2, mt: 1.5 }}>
+                    <IconButton
+                        size="small"
+                        onClick={() => setChartOffset(prev => prev + 1)}
+                        disabled={chartLoading}
+                        sx={{
+                            bgcolor: alpha(theme.palette.primary.main, 0.08),
+                            '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.16) },
+                            '&.Mui-disabled': { bgcolor: alpha(theme.palette.action.disabled, 0.04) },
+                        }}
+                    >
+                        <ArrowBackIosNewIcon sx={{ fontSize: 18 }} />
+                    </IconButton>
+                    <Typography variant="body2" color="text.secondary" sx={{ fontSize: { xs: '0.75rem', sm: '0.85rem' }, minWidth: 80, textAlign: 'center' }}>
+                        {chartOffset === 0 ? 'Current' : `${chartOffset * 4} weeks ago`}
+                    </Typography>
+                    <IconButton
+                        size="small"
+                        onClick={() => setChartOffset(prev => Math.max(0, prev - 1))}
+                        disabled={chartOffset === 0 || chartLoading}
+                        sx={{
+                            bgcolor: alpha(theme.palette.primary.main, 0.08),
+                            '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.16) },
+                            '&.Mui-disabled': { bgcolor: alpha(theme.palette.action.disabled, 0.04) },
+                        }}
+                    >
+                        <ArrowForwardIosIcon sx={{ fontSize: 18 }} />
+                    </IconButton>
                 </Box>
             </Card>
             )}

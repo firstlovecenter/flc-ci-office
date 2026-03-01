@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useState, useMemo, useCallback } from 'react';
-import { Typography, Box, CircularProgress, Grid, Stack, useTheme, Card, CardActionArea, Skeleton, alpha, Avatar } from '@mui/material';
+import { useEffect, useState, useMemo, useCallback, useRef } from 'react';
+import { Typography, Box, CircularProgress, Grid, Stack, useTheme, Card, CardActionArea, Skeleton, alpha, Avatar, IconButton } from '@mui/material';
 import { formatCurrency } from '@/lib/utils';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import TrendingDownIcon from '@mui/icons-material/TrendingDown';
@@ -15,6 +15,7 @@ import MonetizationOnIcon from '@mui/icons-material/MonetizationOn';
 import PendingActionsIcon from '@mui/icons-material/PendingActions';
 import SmsIcon from '@mui/icons-material/Sms';
 import ArrowForwardIosIcon from '@mui/icons-material/ArrowForwardIos';
+import ArrowBackIosNewIcon from '@mui/icons-material/ArrowBackIosNew';
 import SecurityIcon from '@mui/icons-material/Security';
 import VerifiedUserIcon from '@mui/icons-material/VerifiedUser';
 import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline';
@@ -296,6 +297,9 @@ export default function DashboardPage() {
     const [departmentName, setDepartmentName] = useState<string | null>(null);
     const [departmentLeader, setDepartmentLeader] = useState<{ name: string; image: string | null } | null>(null);
     const [loading, setLoading] = useState(true);
+    const [chartOffset, setChartOffset] = useState(0);
+    const [chartLoading, setChartLoading] = useState(false);
+    const chartCache = useRef<Map<number, { week: string; income: number; expense: number }[]>>(new Map());
     const { data: session } = useSession();
     const theme = useTheme();
     const router = useRouter();
@@ -337,19 +341,32 @@ export default function DashboardPage() {
         }
     }, []);
 
-    const fetchStats = useCallback(async () => {
+    const fetchStats = useCallback(async (offset?: number) => {
+        const currentOffset = offset ?? chartOffset;
+        // Show cached chart data instantly if available
+        const cached = chartCache.current.get(currentOffset);
+        if (cached) {
+            setStats(prev => ({ ...prev, chartData: cached }));
+        } else {
+            setChartLoading(true);
+        }
         try {
-            const response = await fetch('/api/dashboard/stats');
+            const response = await fetch(`/api/dashboard/stats?chartOffset=${currentOffset}`, { cache: 'no-store' });
             if (response.ok) {
                 const data = await response.json();
+                // Cache the chart data for this offset
+                if (data.chartData) {
+                    chartCache.current.set(currentOffset, data.chartData);
+                }
                 setStats(data);
             }
         } catch (error) {
             // Silent error handling
         } finally {
             setLoading(false);
+            setChartLoading(false);
         }
-    }, []);
+    }, [chartOffset]);
 
     useEffect(() => {
         fetchBaseCurrency();
@@ -366,6 +383,11 @@ export default function DashboardPage() {
         document.addEventListener('visibilitychange', handleVisibilityChange);
         return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
     }, [fetchBaseCurrency, fetchStats]);
+
+    // Refetch chart data when offset changes
+    useEffect(() => {
+        fetchStats(chartOffset);
+    }, [chartOffset]);
 
     // Memoize quick links to avoid recalculating on every render
     const quickLinks = useMemo(() => {
@@ -636,9 +658,9 @@ export default function DashboardPage() {
                         display: 'inline-block',
                     }}
                 />
-                Weekly Income (Last 4 Weeks)
+                {chartOffset === 0 ? 'Weekly Income & Expense (Last 4 Weeks)' : 'Weekly Income & Expense'}
             </Typography>
-            <Box sx={{ width: '100%', height: { xs: 280, sm: 320, md: 350 } }}>
+            <Box sx={{ width: '100%', height: { xs: 280, sm: 320, md: 350 }, position: 'relative', opacity: chartLoading ? 0.5 : 1, transition: 'opacity 0.2s' }}>
                 <ResponsiveContainer width="100%" height="100%">
                     <BarChart
                         data={stats.chartData}
@@ -705,6 +727,36 @@ export default function DashboardPage() {
                         </Bar>
                     </BarChart>
                 </ResponsiveContainer>
+            </Box>
+            {/* Navigation Arrows */}
+            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 2, mt: 1.5 }}>
+                <IconButton
+                    size="small"
+                    onClick={() => setChartOffset(prev => prev + 1)}
+                    disabled={chartLoading}
+                    sx={{
+                        bgcolor: alpha(theme.palette.primary.main, 0.08),
+                        '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.16) },
+                        '&.Mui-disabled': { bgcolor: alpha(theme.palette.action.disabled, 0.04) },
+                    }}
+                >
+                    <ArrowBackIosNewIcon sx={{ fontSize: 18 }} />
+                </IconButton>
+                <Typography variant="body2" color="text.secondary" sx={{ fontSize: { xs: '0.75rem', sm: '0.85rem' }, minWidth: 80, textAlign: 'center' }}>
+                    {chartOffset === 0 ? 'Current' : `${chartOffset * 4} weeks ago`}
+                </Typography>
+                <IconButton
+                    size="small"
+                    onClick={() => setChartOffset(prev => Math.max(0, prev - 1))}
+                    disabled={chartOffset === 0 || chartLoading}
+                    sx={{
+                        bgcolor: alpha(theme.palette.primary.main, 0.08),
+                        '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.16) },
+                        '&.Mui-disabled': { bgcolor: alpha(theme.palette.action.disabled, 0.04) },
+                    }}
+                >
+                    <ArrowForwardIosIcon sx={{ fontSize: 18 }} />
+                </IconButton>
             </Box>
         </>
     );
