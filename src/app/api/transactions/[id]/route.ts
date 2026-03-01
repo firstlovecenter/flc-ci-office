@@ -5,7 +5,7 @@ import { authOptions } from '@/lib/auth';
 import crypto from 'crypto';
 import { hasDepartmentAccess } from '@/lib/departments';
 import { sendSms } from '@/lib/sms';
-import { generateTransactionApprovedSms, generateTransactionDeclinedSms, generateTransactionChargeSms, generateCreditAlertSms, generateDebitAlertSms } from '@/lib/sms-templates';
+import { generateTransactionApprovedSms, generateTransactionDeclinedSms, generateTransactionChargeSms, generateCreditAlertSms, generateDebitAlertSms, generateTransactionEditNotificationSms } from '@/lib/sms-templates';
 import { formatNumber, isWeekLocked, getWeekFromDate } from '@/lib/utils';
 
 export async function PUT(
@@ -36,18 +36,17 @@ export async function PUT(
             );
         }
 
-        // Leaders cannot edit transactions at all
-        const leaderRoles = ['DENOMINATION_LEADER', 'OVERSIGHT_LEADER', 'CAMPUS_LEADER', 'STREAM_LEADER', 'COUNCIL_LEADER'];
-        if (leaderRoles.includes(session.user.role)) {
+        // Only admins can edit transactions
+        const adminRoles = ['SUPERADMIN', 'DENOMINATION_ADMIN', 'OVERSIGHT_ADMIN', 'CAMPUS_ADMIN', 'STREAM_ADMIN', 'COUNCIL_ADMIN'];
+        if (!adminRoles.includes(session.user.role)) {
             return NextResponse.json(
-                { error: 'Leaders are not permitted to edit transactions.' },
+                { error: 'Only admins can edit transactions.' },
                 { status: 403 }
             );
         }
 
-        // Check if transaction is locked
+        // Check if transaction is locked - only superadmin can edit locked transactions
         if (existingTransaction.locked) {
-            // Only superadmin can edit locked transactions
             if (session.user.role !== 'SUPERADMIN') {
                 return NextResponse.json(
                     { error: 'This transaction is locked. Only superadmins can edit locked transactions.' },
@@ -56,33 +55,20 @@ export async function PUT(
             }
         }
 
-        // Check if transaction's week is locked
-        // Only OVERSIGHT_ADMIN and above can edit past-week transactions
+        // Check if transaction's week is locked - only oversight and above can edit past-week transactions
         if (existingTransaction.weekNumber && existingTransaction.year) {
             if (isWeekLocked(existingTransaction.weekNumber, existingTransaction.year)) {
                 const oversightAndAboveRoles = ['SUPERADMIN', 'DENOMINATION_ADMIN', 'OVERSIGHT_ADMIN'];
                 if (!oversightAndAboveRoles.includes(session.user.role)) {
                     return NextResponse.json(
-                        { error: 'This transaction belongs to a locked week and cannot be edited. Only Oversight Admin and above can edit past-week transactions.' },
+                        { error: 'This transaction belongs to a locked week. Only Oversight Admin and above can edit past-week transactions.' },
                         { status: 403 }
                     );
                 }
             }
         }
 
-        // Check if transaction is approved - only CAMPUS_ADMIN and above can edit
-        if (existingTransaction.status === 'APPROVED') {
-            const adminRoles = ['SUPERADMIN', 'DENOMINATION_ADMIN', 'OVERSIGHT_ADMIN', 'CAMPUS_ADMIN'];
-            if (!adminRoles.includes(session.user.role)) {
-                return NextResponse.json(
-                    { error: 'Only Campus Admin and above can edit approved transactions' },
-                    { status: 403 }
-                );
-            }
-        }
-
-        // Validate that the user can update transaction for this department
-        // Check access to BOTH source department (current) and destination department (new)
+        // Validate department access for non-superadmin
         if (session.user.role !== 'SUPERADMIN') {
             const canAccessSource = await hasDepartmentAccess(session.user, existingTransaction.departmentId);
             if (!canAccessSource) {
@@ -155,9 +141,76 @@ export async function PUT(
                 actionType: 'UPDATE',
                 entityType: 'Transaction',
                 entityId: transactionId,
-                afterData: { description, type, amount, departmentId, locked: existingTransaction.locked },
+                beforeData: {
+                    type: existingTransaction.type,
+                    amount: Number(existingTransaction.amount),
+                    description: existingTransaction.description,
+                    departmentId: existingTransaction.departmentId,
+                    createdAt: existingTransaction.createdAt,
+                },
+                afterData: { description, type, amount, departmentId, ...(date ? { createdAt: new Date(date) } : {}), locked: existingTransaction.locked },
             },
         });
+
+        // Detect what changed (for SMS notification)
+        const amountChanged = Number(existingTransaction.amount) !== Number(amount);
+        const typeChanged = existingTransaction.type !== type;
+        const descriptionChanged = existingTransaction.description !== description;
+        const departmentChanged = existingTransaction.departmentId !== departmentId;
+        const currencyChanged = (existingTransaction.currencyId || null) !== (currencyId || null);
+        const dateChanged = date ? new Date(date).toDateString() !== new Date(existingTransaction.createdAt).toDateString() : false;
+
+        const nonDateFieldChanged = amountChanged || typeChanged || descriptionChanged || departmentChanged || currencyChanged;
+
+        // Send SMS to department leaders if anything other than date changed
+        if (nonDateFieldChanged) {
+            try {
+                // Build a human-readable changes summary
+                const changesList: string[] = [];
+                if (amountChanged) changesList.push(`Amount: ${Number(existingTransaction.amount)} → ${amount}`);
+                if (typeChanged) changesList.push(`Type: ${existingTransaction.type} → ${type}`);
+                if (descriptionChanged) changesList.push(`Desc updated`);
+                if (departmentChanged) changesList.push(`Dept changed`);
+                if (currencyChanged) changesList.push(`Currency changed`);
+                const changesSummary = changesList.join(', ');
+
+                // Determine the department(s) whose leaders need to be notified
+                const departmentIds = new Set([existingTransaction.departmentId]);
+                if (departmentChanged) departmentIds.add(departmentId);
+
+                for (const deptId of departmentIds) {
+                    const dept = await prisma.department.findUnique({
+                        where: { id: deptId },
+                        select: { id: true, name: true, level: true },
+                    });
+                    if (!dept || !dept.level) continue;
+
+                    const leaderRole = dept.level === 'DENOMINATION' ? 'DENOMINATION_LEADER' :
+                        dept.level === 'OVERSIGHT' ? 'OVERSIGHT_LEADER' :
+                        dept.level === 'CAMPUS' ? 'CAMPUS_LEADER' :
+                        dept.level === 'STREAM' ? 'STREAM_LEADER' :
+                        'COUNCIL_LEADER';
+
+                    const leaders = await prisma.userRole.findMany({
+                        where: { role: leaderRole, departmentId: deptId },
+                        include: { user: { select: { phone: true, name: true, archived: true } } },
+                    });
+
+                    const smsMessage = generateTransactionEditNotificationSms({
+                        departmentName: dept.name,
+                        description: existingTransaction.description || description,
+                        changes: changesSummary,
+                        editedBy: session.user.name || 'Admin',
+                    });
+
+                    for (const lr of leaders.filter(ur => ur.user.phone && !ur.user.archived)) {
+                        await sendSms({ to: lr.user.phone!, message: smsMessage }).catch(() => {});
+                    }
+                }
+            } catch (smsError) {
+                // Don't fail the request if SMS fails
+            }
+        }
 
         return NextResponse.json(updatedTransaction);
     } catch (error) {

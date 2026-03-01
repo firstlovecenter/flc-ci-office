@@ -23,6 +23,7 @@ import PendingActionsIcon from '@mui/icons-material/PendingActions';
 import AssessmentIcon from '@mui/icons-material/Assessment';
 import ShowChartIcon from '@mui/icons-material/ShowChart';
 import SmsIcon from '@mui/icons-material/Sms';
+import LockIcon from '@mui/icons-material/Lock';
 import PeopleIcon from '@mui/icons-material/People';
 import MonetizationOnIcon from '@mui/icons-material/MonetizationOn';
 import { useColorMode } from '@/app/providers';
@@ -126,6 +127,7 @@ export default function ModernDashboardLayout({ children }: { children: React.Re
         { text: 'Trends & Reports', icon: <AssessmentIcon />, path: '/reports', show: true },
         { text: 'Analytics', icon: <ShowChartIcon />, path: '/analytics', show: hasAnalyticsAccess },
         { text: 'SMS Management', icon: <SmsIcon />, path: '/admin/sms', show: isSuperAdmin },
+        { text: 'Lock Transactions', icon: <LockIcon />, path: '/admin/lock-transactions', show: isSuperAdmin },
     ];
 
     const handleMenuItemClick = (path: string) => {

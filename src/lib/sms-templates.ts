@@ -201,3 +201,16 @@ export function generateDebitAlertSms(params: DebitAlertSmsParams): string {
     const { currency, amount, departmentName, description, balance } = params;
     return `${currency}${amount} debited from your ${departmentName} account. Ref: ${description}. Your new balance is ${currency}${balance}.`;
 }
+
+interface TransactionEditNotificationSmsParams {
+    departmentName: string;
+    description: string;
+    changes: string;
+    editedBy: string;
+}
+
+export function generateTransactionEditNotificationSms(params: TransactionEditNotificationSmsParams): string {
+    const { departmentName, description, changes, editedBy } = params;
+    const shortDesc = description.length > 25 ? description.substring(0, 25) + '...' : description;
+    return `EDIT ALERT: "${shortDesc}" in ${departmentName} was modified by ${editedBy}. Changes: ${changes}.`;
+}
