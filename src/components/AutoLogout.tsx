@@ -1,108 +1,64 @@
 'use client';
 
-import { useEffect, useState, useRef, useCallback } from 'react';
+import { useEffect, useRef, useCallback } from 'react';
 import { useSession, signOut } from 'next-auth/react';
 import { useRouter, usePathname } from 'next/navigation';
-import { Dialog, DialogTitle, DialogContent, DialogActions, Button, Typography, Alert } from '@mui/material';
 
-// 5 minutes in milliseconds
-const INACTIVITY_LIMIT = 5 * 60 * 1000; 
-// Show warning 1 minute before timeout
-const WARNING_THRESHOLD = 1 * 60 * 1000; 
+// Session durations in milliseconds
+const REGULAR_SESSION_DURATION = 30 * 60 * 1000; // 30 minutes
+const SUPERADMIN_SESSION_DURATION = 12 * 60 * 60 * 1000; // 12 hours
 
 export default function AutoLogout() {
     const { data: session, status } = useSession();
     const router = useRouter();
     const pathname = usePathname();
-    const [showWarning, setShowWarning] = useState(false);
-    const lastActivityRef = useRef(Date.now());
-    const [timeLeft, setTimeLeft] = useState(60);
-    const isLoggingOutRef = useRef(false); // Flag to prevent duplicate logout calls
+    const isLoggingOutRef = useRef(false);
 
     const performLogout = useCallback(async () => {
-        // Prevent duplicate logout calls
         if (isLoggingOutRef.current || status !== 'authenticated') {
             return;
         }
-        
+
         isLoggingOutRef.current = true;
-        
+
         try {
             await signOut({ redirect: false });
             router.push('/auth/login?reason=timeout');
         } catch (error) {
             console.error('Error during logout:', error);
-            // Reset flag on error to allow retry
             isLoggingOutRef.current = false;
         }
     }, [status, router]);
 
-    const checkActivity = useCallback(() => {
-        // Skip if already logging out or not authenticated
-        if (isLoggingOutRef.current || status !== 'authenticated') {
-            return;
-        }
-
-        const now = Date.now();
-        const timeSinceLastActivity = now - lastActivityRef.current;
-
-        if (timeSinceLastActivity >= INACTIVITY_LIMIT) {
-            performLogout();
-        } else if (timeSinceLastActivity >= INACTIVITY_LIMIT - WARNING_THRESHOLD) {
-            if (!showWarning) {
-                setShowWarning(true);
-            }
-            setTimeLeft(Math.ceil((INACTIVITY_LIMIT - timeSinceLastActivity) / 1000));
-        } else {
-            if (showWarning) {
-                setShowWarning(false);
-            }
-        }
-    }, [performLogout, showWarning, status]);
-
-    const resetTimer = useCallback(() => {
-        lastActivityRef.current = Date.now();
-        if (showWarning) {
-            setShowWarning(false);
-        }
-    }, [showWarning]);
-
     useEffect(() => {
-        // Only track activity if user is authenticated and not on public pages
         if (status !== 'authenticated' || pathname?.startsWith('/auth')) {
             return;
         }
 
-        const events = [
-            'mousedown', 
-            'mousemove', 
-            'keydown', 
-            'scroll', 
-            'touchstart',
-            'click'
-        ];
+        const loginAt = session?.user?.loginAt;
+        if (!loginAt) return;
 
-        // Reset timer on user interaction
-        const handleInteraction = () => {
-            resetTimer();
+        const isSuperAdmin = session?.user?.role === 'SUPERADMIN';
+        const maxDuration = isSuperAdmin ? SUPERADMIN_SESSION_DURATION : REGULAR_SESSION_DURATION;
+
+        const checkExpiry = () => {
+            if (isLoggingOutRef.current) return;
+            const elapsed = Date.now() - loginAt;
+            if (elapsed >= maxDuration) {
+                performLogout();
+            }
         };
 
-        // Add event listeners
-        events.forEach(event => {
-            window.addEventListener(event, handleInteraction);
-        });
+        // Check immediately in case already expired
+        checkExpiry();
 
-        // Set up the periodic check
-        const intervalId = setInterval(checkActivity, 1000);
+        // Then check every 10 seconds
+        const intervalId = setInterval(checkExpiry, 10 * 1000);
 
-        // Cleanup
         return () => {
-            events.forEach(event => {
-                window.removeEventListener(event, handleInteraction);
-            });
             clearInterval(intervalId);
         };
-    }, [status, pathname, checkActivity, resetTimer]);
+    }, [status, pathname, session?.user?.loginAt, session?.user?.role, performLogout]);
 
     // Reset logout flag when session status changes
     useEffect(() => {
@@ -111,36 +67,5 @@ export default function AutoLogout() {
         }
     }, [status]);
 
-    if (!showWarning) return null;
-
-    return (
-        <Dialog open={showWarning} disableEscapeKeyDown>
-            <DialogTitle color="warning.main">Session Timeout Warning</DialogTitle>
-            <DialogContent>
-                <Alert severity="warning" sx={{ mb: 2 }}>
-                    Your session will expire in {timeLeft} seconds due to inactivity.
-                </Alert>
-                <Typography>
-                    Please move your mouse or click anywhere to stay signed in.
-                </Typography>
-            </DialogContent>
-            <DialogActions>
-                <Button 
-                    onClick={() => performLogout()} 
-                    color="error" 
-                    variant="outlined"
-                >
-                    Logout Now
-                </Button>
-                <Button 
-                    onClick={resetTimer} 
-                    color="primary" 
-                    variant="contained" 
-                    autoFocus
-                >
-                    Stay Signed In
-                </Button>
-            </DialogActions>
-        </Dialog>
-    );
+    return null;
 }

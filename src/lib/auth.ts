@@ -59,7 +59,7 @@ export const authOptions: NextAuthOptions = {
     secret: process.env.NEXTAUTH_SECRET,
     session: {
         strategy: 'jwt',
-        maxAge: 7 * 24 * 60 * 60, // 7 days
+        maxAge: 12 * 60 * 60, // 12 hours (max session for superadmin)
     },
     pages: {
         signIn: '/auth/login',
@@ -231,6 +231,7 @@ export const authOptions: NextAuthOptions = {
                 session.user.departmentName = token.departmentName as string;
                 session.user.activeUserRoleId = token.activeUserRoleId as string | null;
                 session.user.activeUserRole = token.activeUserRole as any;
+                session.user.loginAt = token.loginAt as number;
             }
             return session;
         },
@@ -247,6 +248,19 @@ export const authOptions: NextAuthOptions = {
                 token.departmentName = user.departmentName;
                 token.activeUserRoleId = user.activeUserRoleId;
                 token.activeUserRole = user.activeUserRole;
+                token.loginAt = Date.now();
+            }
+
+            // Check role-based session expiry
+            // SUPERADMIN: 12 hours, all others: 30 minutes
+            if (token.loginAt) {
+                const elapsed = Date.now() - (token.loginAt as number);
+                const isSuperAdmin = token.role === 'SUPERADMIN';
+                const maxDuration = isSuperAdmin ? 12 * 60 * 60 * 1000 : 30 * 60 * 1000;
+                if (elapsed > maxDuration) {
+                    // Return empty token to force session invalidation
+                    return {} as any;
+                }
             }
             
             // Handle session update (e.g., when switching roles)

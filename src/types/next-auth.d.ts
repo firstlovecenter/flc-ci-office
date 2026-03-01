@@ -15,6 +15,7 @@ declare module 'next-auth' {
                 role: string;
                 departmentId: string;
             } | null;
+            loginAt?: number;
         } & DefaultSession['user'];
     }
 
@@ -48,5 +49,6 @@ declare module 'next-auth/jwt' {
             role: string;
             departmentId: string;
         } | null;
+        loginAt?: number;
     }
 }
