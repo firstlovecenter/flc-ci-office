@@ -471,6 +471,25 @@ function NewTransactionForm() {
 
                     {!isLeader && (
                         <FormControl fullWidth sx={{ mb: 3 }}>
+                            <InputLabel>Church</InputLabel>
+                            <Select
+                                value={departmentId}
+                                label="Church"
+                                onChange={(e) => setDepartmentId(e.target.value)}
+                                required
+                            >
+                                {departments
+                                    .map((dept) => (
+                                    <MenuItem key={dept.id} value={dept.id}>
+                                        {dept.name} {formatDepartmentLevel(dept.level)}
+                                    </MenuItem>
+                                ))}
+                            </Select>
+                        </FormControl>
+                    )}
+
+                    {!isLeader && (
+                        <FormControl fullWidth sx={{ mb: 3 }}>
                             <InputLabel>Type</InputLabel>
                             <Select
                                 value={type}
@@ -573,54 +592,6 @@ function NewTransactionForm() {
                         sx={{ mb: 3 }}
                         placeholder={type === 'EXPENSE' ? "What is this expense for?" : "Additional details about this income (optional)"}
                     />
-
-                    {!isLeader && (
-                        <FormControl fullWidth sx={{ mb: 3 }}>
-                            <InputLabel>Church</InputLabel>
-                            <Select
-                                value={departmentId}
-                                label="Church"
-                                onChange={(e) => setDepartmentId(e.target.value)}
-                                required
-                            >
-                                {departments
-                                    .filter((dept) => !['DENOMINATION', 'OVERSIGHT'].includes(dept.level))
-                                    .map((dept) => (
-                                    <MenuItem key={dept.id} value={dept.id}>
-                                        {dept.name} {formatDepartmentLevel(dept.level)}
-                                    </MenuItem>
-                                ))}
-                            </Select>
-                        </FormControl>
-                    )}
-
-                    <Box sx={{ mb: 3 }}>
-                        <Button
-                            variant="outlined"
-                            component="label"
-                            fullWidth
-                        >
-                            Upload Files
-                            <input
-                                type="file"
-                                hidden
-                                multiple
-                                onChange={handleFileSelect}
-                            />
-                        </Button>
-                        {files.length > 0 && (
-                            <Box sx={{ mt: 2 }}>
-                                <Typography variant="subtitle2" gutterBottom>
-                                    Selected Files:
-                                </Typography>
-                                {files.map((file, index) => (
-                                    <Typography key={index} variant="body2" color="text.secondary">
-                                        {file.name}
-                                    </Typography>
-                                ))}
-                            </Box>
-                        )}
-                    </Box>
 
                     <Box sx={{ display: 'flex', gap: 2, justifyContent: 'flex-end' }}>
                         <Button onClick={() => router.back()} disabled={loading}>

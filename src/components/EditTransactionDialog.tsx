@@ -311,6 +311,24 @@ export default function EditTransactionDialog({
                 )}
 
                 <FormControl fullWidth sx={{ mb: 3, mt: 2 }}>
+                    <InputLabel>Church</InputLabel>
+                    <Select
+                        value={departmentId}
+                        label="Church"
+                        onChange={(e) => setDepartmentId(e.target.value)}
+                        disabled={transaction?.locked && !isSuperAdmin}
+                        required
+                    >
+                        {departments
+                            .map((dept) => (
+                            <MenuItem key={dept.id} value={dept.id}>
+                                {dept.name} ({formatDepartmentLevel(dept.level)})
+                            </MenuItem>
+                        ))}
+                    </Select>
+                </FormControl>
+
+                <FormControl fullWidth sx={{ mb: 3 }}>
                     <InputLabel>Type</InputLabel>
                     <Select
                         value={type}
@@ -410,54 +428,6 @@ export default function EditTransactionDialog({
                     disabled={transaction?.locked && !isSuperAdmin}
                     InputLabelProps={{ shrink: true }}
                 />
-
-                <FormControl fullWidth sx={{ mb: 3 }}>
-                    <InputLabel>Department</InputLabel>
-                    <Select
-                        value={departmentId}
-                        label="Department"
-                        onChange={(e) => setDepartmentId(e.target.value)}
-                        disabled={transaction?.locked && !isSuperAdmin}
-                        required
-                    >
-                        {departments
-                            .filter((dept) => !['DENOMINATION', 'OVERSIGHT'].includes(dept.level))
-                            .map((dept) => (
-                            <MenuItem key={dept.id} value={dept.id}>
-                                {dept.name} ({formatDepartmentLevel(dept.level)})
-                            </MenuItem>
-                        ))}
-                    </Select>
-                </FormControl>
-
-                <Box sx={{ mb: 3 }}>
-                    <Button
-                        variant="outlined"
-                        component="label"
-                        fullWidth
-                        disabled={transaction?.locked && !isSuperAdmin}
-                    >
-                        Upload Files
-                        <input
-                            type="file"
-                            hidden
-                            multiple
-                            onChange={handleFileSelect}
-                        />
-                    </Button>
-                    {files.length > 0 && (
-                        <Box sx={{ mt: 2 }}>
-                            <Typography variant="subtitle2" gutterBottom>
-                                Selected Files:
-                            </Typography>
-                            {files.map((file, index) => (
-                                <Typography key={index} variant="body2" color="text.secondary">
-                                    {file.name}
-                                </Typography>
-                            ))}
-                        </Box>
-                    )}
-                </Box>
             </DialogContent>
             <DialogActions sx={{ px: 3, pb: 3 }}>
                 <Button onClick={onClose} disabled={loading}>

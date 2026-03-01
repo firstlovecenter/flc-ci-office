@@ -264,14 +264,6 @@ export async function POST(request: Request) {
         });
 
         if (department) {
-            // Oversight and above levels (DENOMINATION, OVERSIGHT) do not record transactions
-            if (department.level && ['DENOMINATION', 'OVERSIGHT'].includes(department.level)) {
-                return NextResponse.json(
-                    { error: 'Transactions cannot be recorded for Denomination or Oversight level departments.' },
-                    { status: 400 }
-                );
-            }
-
             const oversightRoles = ['OVERSIGHT_ADMIN', 'OVERSIGHT_LEADER', 'CAMPUS_ADMIN', 'CAMPUS_LEADER', 'STREAM_LEADER', 'COUNCIL_LEADER', 'STREAM_ADMIN', 'COUNCIL_ADMIN'];
             const requiresBaseCurrency = oversightRoles.includes(session.user.role);
 
