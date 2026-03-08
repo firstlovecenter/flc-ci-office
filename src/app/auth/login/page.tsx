@@ -42,9 +42,11 @@ function LoginForm() {
     const [showPassword, setShowPassword] = useState(false);
     const [logoutMessage, setLogoutMessage] = useState('');
 
-    // Check if user is already logged in and redirect
+    // Check if user is already logged in and redirect.
+    // Only redirect if the session contains a real user id — a phantom
+    // session (expired JWT with empty data) should NOT redirect.
     useEffect(() => {
-        if (status === 'authenticated' && session) {
+        if (status === 'authenticated' && session?.user?.id) {
             router.push('/dashboard');
         }
     }, [status, session, router]);

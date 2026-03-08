@@ -35,7 +35,15 @@ export default function AutoLogout() {
         }
 
         const loginAt = session?.user?.loginAt;
-        if (!loginAt) return;
+
+        // Phantom session: authenticated status but no real user data.
+        // This can happen when the JWT was invalidated server-side but
+        // the cookie hasn't been cleared yet.  Force a proper sign-out
+        // so the cookie is removed.
+        if (!loginAt || !session?.user?.id) {
+            performLogout();
+            return;
+        }
 
         const checkExpiry = () => {
             if (isLoggingOutRef.current) return;
@@ -54,7 +62,7 @@ export default function AutoLogout() {
         return () => {
             clearInterval(intervalId);
         };
-    }, [status, pathname, session?.user?.loginAt, performLogout]);
+    }, [status, pathname, session?.user?.loginAt, session?.user?.id, performLogout]);
 
     // Reset logout flag when session status changes
     useEffect(() => {

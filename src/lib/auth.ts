@@ -194,6 +194,12 @@ export const authOptions: NextAuthOptions = {
     callbacks: {
         async session({ session, token }) {
             if (token) {
+                // If the token was marked expired or lacks essential fields,
+                // throw immediately so NextAuth returns no session to the client.
+                if ((token as any).expired || !token.id || !token.email) {
+                    throw new Error('Session expired or invalid');
+                }
+
                 // Validate that the user still exists and is active
                 // This check happens on every session access
                 try {
@@ -212,8 +218,11 @@ export const authOptions: NextAuthOptions = {
                         throw new Error('User account is no longer active');
                     }
                 } catch (error) {
-                    if (error instanceof Error && error.message === 'User account is no longer active') {
-                        // Re-throw our intentional error to invalidate the session
+                    if (error instanceof Error && (
+                        error.message === 'User account is no longer active' ||
+                        error.message === 'Session expired or invalid'
+                    )) {
+                        // Re-throw our intentional errors to invalidate the session
                         throw error;
                     }
                     // For other errors, log but continue with session to avoid breaking the app
@@ -236,6 +245,12 @@ export const authOptions: NextAuthOptions = {
             return session;
         },
         async jwt({ token, user, trigger, session }) {
+            // If the token was previously invalidated (no id) and this isn't
+            // a fresh sign-in, keep it invalidated so the phantom can't recover.
+            if (!token.id && !user) {
+                return { expired: true } as any;
+            }
+
             if (user) {
                 token.id = user.id;
                 token.name = user.name;
@@ -256,8 +271,9 @@ export const authOptions: NextAuthOptions = {
                 const elapsed = Date.now() - (token.loginAt as number);
                 const maxDuration = 4 * 60 * 60 * 1000; // 4 hours
                 if (elapsed > maxDuration) {
-                    // Return empty token to force session invalidation
-                    return {} as any;
+                    // Return a clearly-marked expired token so subsequent
+                    // requests don't accidentally treat it as valid.
+                    return { expired: true } as any;
                 }
             }
             
