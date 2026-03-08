@@ -22,7 +22,7 @@ Users with deleted or archived accounts could maintain active sessions indefinit
 - Added session validation in `session()` callback
 - Checks user existence and archived status on every session access
 - Throws error to invalidate session if user is inactive
-- Sessions are validated every 60 seconds
+- Sessions are validated every 5 minutes
 
 **Verification:**  
 - CodeQL scan: ✅ No alerts
@@ -64,9 +64,9 @@ Multiple simultaneous logout attempts could cause unexpected behavior or duplica
 ### Security Controls Implemented
 
 #### Authentication & Session Management
-- ✅ Session validation on every access (60-second intervals)
+- ✅ Session validation on every access (5-minute intervals)
 - ✅ Automatic session invalidation for archived users
-- ✅ Inactivity timeout (5 minutes)
+- ✅ Unified session timeout (4 hours for all users)
 - ✅ Session refresh on window focus
 - ✅ Complete audit trail (login & logout)
 
@@ -91,7 +91,7 @@ Multiple simultaneous logout attempts could cause unexpected behavior or duplica
 
 2. **Unauthorized Access by Deleted Users**  
    - **Risk:** HIGH  
-   - **Mitigation:** Automatic session invalidation within 60 seconds  
+   - **Mitigation:** Automatic session invalidation within 5 minutes  
    - **Status:** ✅ MITIGATED
 
 3. **Audit Log Bypass**  
@@ -101,7 +101,7 @@ Multiple simultaneous logout attempts could cause unexpected behavior or duplica
 
 4. **Session State Inconsistency**  
    - **Risk:** MEDIUM  
-   - **Mitigation:** Periodic refresh + window focus validation  
+   - **Mitigation:** Periodic refresh + window focus validation + 4-hour session timeout  
    - **Status:** ✅ MITIGATED
 
 ### Security Best Practices Applied
@@ -116,7 +116,7 @@ Multiple simultaneous logout attempts could cause unexpected behavior or duplica
 
 | Control | Performance Impact | Security Benefit | Decision |
 |---------|-------------------|------------------|----------|
-| 60s session validation | ~0.1ms per check | Detects stale sessions | ✅ Implemented |
+| 5-min session validation | ~0.1ms per check | Detects stale sessions | ✅ Implemented |
 | Window focus refresh | ~500 bytes network | Prevents tab-switching bypass | ✅ Implemented |
 | Logout audit logging | ~1ms DB write | Complete audit trail | ✅ Implemented |
 
@@ -125,7 +125,7 @@ Multiple simultaneous logout attempts could cause unexpected behavior or duplica
 ### Compliance Considerations
 
 #### SOC 2 / ISO 27001
-- ✅ Session timeout implemented (5 minutes)
+- ✅ Session timeout implemented (4 hours)
 - ✅ Complete audit trail of authentication events
 - ✅ Automated access revocation for terminated accounts
 
@@ -180,7 +180,7 @@ Multiple simultaneous logout attempts could cause unexpected behavior or duplica
 
 All identified security issues have been addressed with appropriate controls:
 
-1. ✅ **Stale sessions** are now detected and invalidated within 60 seconds
+1. ✅ **Stale sessions** are now detected and invalidated within 5 minutes
 2. ✅ **Deleted/archived users** are automatically logged out
 3. ✅ **Complete audit trail** ensures accountability
 4. ✅ **Race conditions** in logout process are prevented

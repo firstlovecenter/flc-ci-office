@@ -177,14 +177,14 @@ events: {
 
 **Changes:**
 ```typescript
-<SessionProvider refetchInterval={60} refetchOnWindowFocus={true}>
+<SessionProvider refetchInterval={300} refetchOnWindowFocus={true}>
     <AutoLogout />
     {children}
 </SessionProvider>
 ```
 
 **Benefits:**
-- Session is revalidated every 60 seconds
+- Session is revalidated every 5 minutes
 - Session is revalidated when user returns to the window
 - Client-side session status stays in sync with server
 - Stale sessions are detected and cleared automatically
@@ -200,10 +200,10 @@ events: {
 6. Session is refreshed every 60 seconds
 7. Logout event is logged when user signs out
 
-### Auto-Logout on Inactivity
-1. AutoLogout component tracks user activity
-2. After 5 minutes of inactivity, warning shown (1 minute before timeout)
-3. After 6 minutes total, `performLogout()` is called
+### Auto-Logout on Session Expiry
+1. AutoLogout component checks session age every 10 seconds
+2. At 3 hours 55 minutes (5 minutes before expiry), warning is shown
+3. At 4 hours, `performLogout()` is called
 4. Race condition flag prevents duplicate logout calls
 5. User is redirected to login with `?reason=timeout` parameter
 6. Logout event is logged to audit trail
@@ -217,7 +217,7 @@ events: {
 6. Prevents "phantom sessions" where UI shows logged in but user doesn't exist
 
 ### Session Refresh
-1. Every 60 seconds, SessionProvider calls `/api/auth/session`
+1. Every 5 minutes, SessionProvider calls `/api/auth/session`
 2. Session callback validates user still exists and is active
 3. If invalid, session is cleared
 4. Client-side session state is updated
@@ -233,11 +233,11 @@ events: {
   - [ ] Verify session is created
   - [ ] Check audit log shows LOGIN event
 
-- [ ] **Auto Logout on Inactivity**
+- [ ] **Auto Logout on Session Expiry**
   - [ ] Login successfully
-  - [ ] Don't interact with app for 5 minutes
-  - [ ] Warning dialog appears at 5-minute mark
-  - [ ] Session expires at 6-minute mark
+  - [ ] Wait 4 hours without re-logging in
+  - [ ] Warning dialog appears at 5-minute-before-expiry mark
+  - [ ] Session expires at 4-hour mark
   - [ ] Redirected to login with timeout message
   - [ ] Check audit log shows LOGOUT event
 
@@ -278,27 +278,27 @@ events: {
 ## Configuration
 
 ### Session Duration
-- **JWT Max Age**: 7 days (`maxAge: 7 * 24 * 60 * 60`)
-- **Inactivity Timeout**: 5 minutes (`INACTIVITY_LIMIT = 5 * 60 * 1000`)
-- **Warning Threshold**: 1 minute before timeout (`WARNING_THRESHOLD = 1 * 60 * 1000`)
-- **Session Refresh**: Every 60 seconds (`refetchInterval={60}`)
+- **JWT Max Age**: 4 hours (`maxAge: 4 * 60 * 60`)
+- **Session Timeout**: 4 hours for all users (`SESSION_DURATION = 4 * 60 * 60 * 1000`)
+- **Warning Threshold**: 5 minutes before timeout (`WARNING_THRESHOLD = 5 * 60 * 1000`)
+- **Session Refresh**: Every 5 minutes (`refetchInterval={300}`)
 
 ### Adjusting Timeouts
 
-To change the inactivity timeout, edit `/src/components/AutoLogout.tsx`:
+To change the session timeout, edit `/src/components/AutoLogout.tsx`:
 
 ```typescript
-// Change from 5 minutes to 10 minutes
-const INACTIVITY_LIMIT = 10 * 60 * 1000; 
-// Warning shown 1 minute before (at 9 minutes)
-const WARNING_THRESHOLD = 1 * 60 * 1000;
+// Change from 4 hours to 8 hours
+const SESSION_DURATION = 8 * 60 * 60 * 1000;
+// Warning shown 5 minutes before expiry
+const WARNING_THRESHOLD = 5 * 60 * 1000;
 ```
 
 To change the session refresh interval, edit `/src/app/providers.tsx`:
 
 ```typescript
-// Change from 60 seconds to 120 seconds
-<SessionProvider refetchInterval={120} refetchOnWindowFocus={true}>
+// Change from 5 minutes to 10 minutes
+<SessionProvider refetchInterval={600} refetchOnWindowFocus={true}>
 ```
 
 ## Performance Considerations
@@ -314,9 +314,9 @@ To change the session refresh interval, edit `/src/app/providers.tsx`:
 - **Impact**: Negligible - simple timestamp comparison
 
 ### Network
-- **Session Refresh**: One API call every 60 seconds
+- **Session Refresh**: One API call every 5 minutes
 - **Payload Size**: ~500 bytes (session data)
-- **Impact**: Minimal - equivalent to heartbeat ping
+- **Impact**: Minimal — equivalent to a periodic heartbeat ping
 
 ## Security Improvements
 
@@ -324,7 +324,7 @@ To change the session refresh interval, edit `/src/app/providers.tsx`:
 2. **Complete Audit Trail**: All login/logout events are logged
 3. **Race Condition Protection**: Prevents duplicate logout operations
 4. **Stale Session Detection**: Regular validation prevents phantom sessions
-5. **Inactivity Timeout**: Automatic logout after 5 minutes of inactivity
+5. **Unified Session Timeout**: Automatic logout after 4 hours for all users
 
 ## Migration Notes
 
@@ -348,7 +348,7 @@ If issues occur:
 
 ## Known Limitations
 
-1. **Session validation frequency**: Limited to 60-second intervals to balance security and performance
+1. **Session validation frequency**: Limited to 5-minute intervals to balance security and performance
 2. **Database dependency**: Session validation requires database access on every session check
 3. **Network dependency**: Session refresh requires network connectivity
 

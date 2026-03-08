@@ -59,8 +59,10 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
     const theme = useMemo(() => createTheme(getDesignTokens(resolvedMode)), [resolvedMode]);
 
-    // Session refresh interval in seconds - revalidate session every 60 seconds
-    const SESSION_REFRESH_INTERVAL_SECONDS = 60;
+    // Session refresh interval in seconds — revalidate session every 5 minutes.
+    // With a 4-hour session window, 5-minute checks are sufficient to detect
+    // stale/invalid sessions without generating excessive network traffic.
+    const SESSION_REFRESH_INTERVAL_SECONDS = 300;
 
     return (
         <SessionProvider refetchInterval={SESSION_REFRESH_INTERVAL_SECONDS} refetchOnWindowFocus={true}>
