@@ -59,7 +59,7 @@ export const authOptions: NextAuthOptions = {
     secret: process.env.NEXTAUTH_SECRET,
     session: {
         strategy: 'jwt',
-        maxAge: 12 * 60 * 60, // 12 hours (max session for superadmin)
+        maxAge: 4 * 60 * 60, // 4 hours for all users
     },
     pages: {
         signIn: '/auth/login',
@@ -251,12 +251,10 @@ export const authOptions: NextAuthOptions = {
                 token.loginAt = Date.now();
             }
 
-            // Check role-based session expiry
-            // SUPERADMIN: 12 hours, all others: 30 minutes
+            // Check session expiry — 4 hours for all users
             if (token.loginAt) {
                 const elapsed = Date.now() - (token.loginAt as number);
-                const isSuperAdmin = token.role === 'SUPERADMIN';
-                const maxDuration = isSuperAdmin ? 12 * 60 * 60 * 1000 : 30 * 60 * 1000;
+                const maxDuration = 4 * 60 * 60 * 1000; // 4 hours
                 if (elapsed > maxDuration) {
                     // Return empty token to force session invalidation
                     return {} as any;

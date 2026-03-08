@@ -20,8 +20,8 @@ Successfully fixed critical session management issues that were causing:
 - Improved error handling to differentiate intentional vs. unintentional errors
 
 **Impact:**
-- Sessions are now validated on every access (~60 seconds with refetch interval)
-- Deleted/archived users are automatically logged out within 60 seconds
+- Sessions are now validated on every access (~5 minutes with refetch interval)
+- Deleted/archived users are automatically logged out within 5 minutes
 - Complete audit trail of login/logout events
 - Prevents "phantom sessions" where UI shows logged in but user doesn't exist
 
@@ -43,12 +43,12 @@ Successfully fixed critical session management issues that were causing:
 **Lines changed:** ~5 additions
 
 **What was fixed:**
-- Added `SESSION_REFRESH_INTERVAL_SECONDS = 60` constant
+- Added `SESSION_REFRESH_INTERVAL_SECONDS = 300` constant
 - Added `refetchInterval` to SessionProvider
 - Added `refetchOnWindowFocus` to SessionProvider
 
 **Impact:**
-- Client-side session is revalidated every 60 seconds
+- Client-side session is revalidated every 5 minutes
 - Session is also revalidated when user returns to window/tab
 - Client-side session status stays in sync with server-side reality
 - Stale sessions are detected and cleared automatically
@@ -93,9 +93,9 @@ Successfully fixed critical session management issues that were causing:
    - Check audit log for LOGIN event
 
 2. **Auto-Logout on Inactivity**
-   - Don't interact for 5 minutes
-   - Verify warning appears at 5-minute mark
-   - Verify logout happens at 6-minute mark
+   - Login with test credentials
+   - Verify warning appears 5 minutes before the 4-hour session expires
+   - Verify logout happens at the 4-hour mark
    - Check redirect to login with timeout message
    - Verify LOGOUT event in audit log
 
@@ -107,7 +107,7 @@ Successfully fixed critical session management issues that were causing:
 4. **Archived User Detection**
    - Login successfully
    - Archive user (in admin panel)
-   - Wait up to 60 seconds
+   - Wait up to 5 minutes
    - Verify automatic logout occurs
 
 5. **Window Focus Refresh**
@@ -126,13 +126,13 @@ Successfully fixed critical session management issues that were causing:
 
 ### Server-Side
 - **Session validation query:** ~0.1ms per session access
-- **Query frequency:** Once per 60 seconds per active user
+- **Query frequency:** Once per 5 minutes per active user
 - **Database impact:** Minimal - lightweight query on indexed email field
 
 ### Client-Side
 - **Activity tracking:** Negligible - simple event listeners
 - **Timer check:** Minimal - runs every 1 second with timestamp comparison
-- **Session refresh:** ~500 bytes payload every 60 seconds
+- **Session refresh:** ~500 bytes payload every 5 minutes
 
 ### Overall Impact
 **Estimated performance impact:** < 1% overhead
@@ -144,7 +144,7 @@ Successfully fixed critical session management issues that were causing:
 2. ✅ **Complete Audit Trail** - All login/logout events tracked
 3. ✅ **Race Condition Protection** - Prevents duplicate operations
 4. ✅ **Stale Session Detection** - Regular validation prevents phantom sessions
-5. ✅ **Inactivity Timeout** - Automatic logout after 5 minutes
+5. ✅ **Inactivity Timeout** - Automatic logout after 4 hours for all users
 
 ## Deployment Notes
 
@@ -195,8 +195,8 @@ If issues occur:
 
 | Metric | Before | After | Status |
 |--------|--------|-------|--------|
-| Session validation on access | ❌ No | ✅ Yes (every 60s) | Fixed |
-| Archived user auto-logout | ❌ No | ✅ Yes (within 60s) | Fixed |
+| Session validation on access | ❌ No | ✅ Yes (every 5 min) | Fixed |
+| Archived user auto-logout | ❌ No | ✅ Yes (within 5 min) | Fixed |
 | Logout audit trail | ⚠️ Partial | ✅ Complete | Fixed |
 | Race condition protection | ❌ No | ✅ Yes | Fixed |
 | Phantom session prevention | ❌ No | ✅ Yes | Fixed |

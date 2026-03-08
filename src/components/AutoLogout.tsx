@@ -4,9 +4,8 @@ import { useEffect, useRef, useCallback } from 'react';
 import { useSession, signOut } from 'next-auth/react';
 import { useRouter, usePathname } from 'next/navigation';
 
-// Session durations in milliseconds
-const REGULAR_SESSION_DURATION = 30 * 60 * 1000; // 30 minutes
-const SUPERADMIN_SESSION_DURATION = 12 * 60 * 60 * 1000; // 12 hours
+// Session duration in milliseconds — 4 hours for all users
+const SESSION_DURATION = 4 * 60 * 60 * 1000; // 4 hours
 
 export default function AutoLogout() {
     const { data: session, status } = useSession();
@@ -38,13 +37,10 @@ export default function AutoLogout() {
         const loginAt = session?.user?.loginAt;
         if (!loginAt) return;
 
-        const isSuperAdmin = session?.user?.role === 'SUPERADMIN';
-        const maxDuration = isSuperAdmin ? SUPERADMIN_SESSION_DURATION : REGULAR_SESSION_DURATION;
-
         const checkExpiry = () => {
             if (isLoggingOutRef.current) return;
             const elapsed = Date.now() - loginAt;
-            if (elapsed >= maxDuration) {
+            if (elapsed >= SESSION_DURATION) {
                 performLogout();
             }
         };
@@ -58,7 +54,7 @@ export default function AutoLogout() {
         return () => {
             clearInterval(intervalId);
         };
-    }, [status, pathname, session?.user?.loginAt, session?.user?.role, performLogout]);
+    }, [status, pathname, session?.user?.loginAt, performLogout]);
 
     // Reset logout flag when session status changes
     useEffect(() => {
