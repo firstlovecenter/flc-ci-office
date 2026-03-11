@@ -5,7 +5,7 @@ import { authOptions } from '@/lib/auth';
 import crypto from 'crypto';
 import { hasDepartmentAccess } from '@/lib/departments';
 import { sendSms } from '@/lib/sms';
-import { generateTransactionApprovedSms, generateTransactionDeclinedSms, generateTransactionChargeSms, generateCreditAlertSms, generateDebitAlertSms, generateTransactionEditNotificationSms } from '@/lib/sms-templates';
+import { generateTransactionApprovedSms, generateTransactionDeclinedSms, generateTransactionChargeSms, generateCreditAlertSms, generateDebitAlertSms, generateTransactionEditNotificationSms, generateTransactionUnapprovedSms } from '@/lib/sms-templates';
 import { formatNumber, isWeekLocked, getWeekFromDate } from '@/lib/utils';
 
 export async function PUT(
@@ -238,7 +238,7 @@ export async function PATCH(
         const transactionId = params.id;
 
         // Validate status
-        if (!['APPROVED', 'REJECTED'].includes(status)) {
+        if (!['APPROVED', 'REJECTED', 'PENDING'].includes(status)) {
             return new NextResponse('Invalid status', { status: 400 });
         }
 
@@ -256,15 +256,10 @@ export async function PATCH(
             return new NextResponse('Transaction not found', { status: 404 });
         }
 
-        // Check if transaction is already approved or declined
-        if (transaction.status !== 'PENDING') {
-            return new NextResponse(`Transaction already ${transaction.status.toLowerCase()}`, { status: 400 });
-        }
-
         // Check if user has permission (must be admin role)
         const adminRoles = ['CAMPUS_ADMIN', 'OVERSIGHT_ADMIN', 'DENOMINATION_ADMIN', 'SUPERADMIN'];
         if (!adminRoles.includes(session.user.role)) {
-            return new NextResponse('Only admins can approve/reject transactions', { status: 403 });
+            return new NextResponse('Only admins can approve/reject/unapprove transactions', { status: 403 });
         }
 
         // Check if the admin has access to this department
@@ -281,6 +276,40 @@ export async function PATCH(
             }
         }
 
+        // Workflow guards:
+        // - Approve/reject can only happen from pending
+        // - Unapprove can only happen from approved and only if no newer transaction exists in that church
+        if (status === 'PENDING') {
+            if (transaction.status !== 'APPROVED') {
+                return new NextResponse('Only approved transactions can be unapproved', { status: 400 });
+            }
+
+            const newerDepartmentTransaction = await prisma.transaction.findFirst({
+                where: {
+                    departmentId: transaction.departmentId,
+                    id: { not: transaction.id },
+                    createdAt: { gt: transaction.createdAt },
+                },
+                select: {
+                    id: true,
+                    description: true,
+                    createdAt: true,
+                },
+                orderBy: {
+                    createdAt: 'asc',
+                },
+            });
+
+            if (newerDepartmentTransaction) {
+                return new NextResponse(
+                    'Cannot unapprove this transaction because the church already has newer transactions. Statement order must remain intact.',
+                    { status: 400 }
+                );
+            }
+        } else if (transaction.status !== 'PENDING') {
+            return new NextResponse(`Transaction already ${transaction.status.toLowerCase()}`, { status: 400 });
+        }
+
         // Update transaction status
         let finalApprovedAmount = transaction.amount;
         if (status === 'APPROVED' && approvedAmount !== undefined) {
@@ -292,11 +321,11 @@ export async function PATCH(
             data: {
                 status,
                 amount: status === 'APPROVED' && approvedAmount !== undefined ? approvedAmount : transaction.amount,
-                approvedBy: status === 'APPROVED' ? session.user.id : undefined,
-                approvedAt: status === 'APPROVED' ? new Date() : undefined,
-                rejectedBy: status === 'REJECTED' ? session.user.id : undefined,
-                rejectedAt: status === 'REJECTED' ? new Date() : undefined,
-                rejectionReason: status === 'REJECTED' ? rejectionReason : undefined,
+                approvedBy: status === 'APPROVED' ? session.user.id : null,
+                approvedAt: status === 'APPROVED' ? new Date() : null,
+                rejectedBy: status === 'REJECTED' ? session.user.id : null,
+                rejectedAt: status === 'REJECTED' ? new Date() : null,
+                rejectionReason: status === 'REJECTED' ? rejectionReason : null,
             },
             include: {
                 department: {
@@ -428,6 +457,7 @@ export async function PATCH(
                     approvedBy: status === 'APPROVED' ? session.user.id : undefined,
                     rejectedBy: status === 'REJECTED' ? session.user.id : undefined,
                     rejectionReason: status === 'REJECTED' ? rejectionReason : undefined,
+                    unapprovedBy: status === 'PENDING' ? session.user.id : undefined,
                 },
             },
         });
@@ -470,7 +500,7 @@ export async function PATCH(
                         departmentName: updatedTransaction.department.name,
                         balance: balance.toFixed(2),
                     });
-                } else {
+                } else if (status === 'REJECTED') {
                     const reasonText = rejectionReason ? ` Reason: ${rejectionReason}` : '';
                     smsMessage = await generateTransactionDeclinedSms({
                         transactionType,
@@ -480,15 +510,64 @@ export async function PATCH(
                     });
                 }
                 
-                console.log(`[SMS] Sending ${status} notification to transaction creator: ${updatedTransaction.user.phone}`);
-                const sent = await sendSms({
-                    to: updatedTransaction.user.phone,
-                    message: smsMessage
-                });
-                console.log(`[SMS] Transaction ${status} notification: ${sent ? 'SUCCESS' : 'FAILED'}`);
+                if (smsMessage) {
+                    console.log(`[SMS] Sending ${status} notification to transaction creator: ${updatedTransaction.user.phone}`);
+                    const sent = await sendSms({
+                        to: updatedTransaction.user.phone,
+                        message: smsMessage
+                    });
+                    console.log(`[SMS] Transaction ${status} notification: ${sent ? 'SUCCESS' : 'FAILED'}`);
+                }
             } catch (smsError) {
                 // Don't fail the request if SMS fails
                 console.error('[SMS] Error sending approval/decline notification:', smsError);
+            }
+        }
+
+        // Send unapprove alert SMS to department leaders
+        if (status === 'PENDING') {
+            try {
+                const leaderRole = updatedTransaction.department.level === 'DENOMINATION' ? 'DENOMINATION_LEADER' :
+                                  updatedTransaction.department.level === 'OVERSIGHT' ? 'OVERSIGHT_LEADER' :
+                                  updatedTransaction.department.level === 'CAMPUS' ? 'CAMPUS_LEADER' :
+                                  updatedTransaction.department.level === 'STREAM' ? 'STREAM_LEADER' :
+                                  'COUNCIL_LEADER';
+
+                const departmentLeaderRoles = await prisma.userRole.findMany({
+                    where: {
+                        role: leaderRole,
+                        departmentId: updatedTransaction.department.id,
+                    },
+                    include: {
+                        user: {
+                            select: {
+                                phone: true,
+                                archived: true,
+                            },
+                        },
+                    },
+                });
+
+                const activeLeaders = departmentLeaderRoles.filter(ur => ur.user.phone && !ur.user.archived);
+                if (activeLeaders.length > 0) {
+                    const currencySymbol = updatedTransaction.currency?.symbol || '$';
+                    const transactionType = updatedTransaction.type === 'EXPENSE' ? 'expense' : 'income';
+                    const smsMessage = generateTransactionUnapprovedSms({
+                        transactionType,
+                        currency: currencySymbol,
+                        amount: updatedTransaction.amount.toFixed(2),
+                    });
+
+                    for (const leader of activeLeaders) {
+                        await sendSms({
+                            to: leader.user.phone!,
+                            message: smsMessage,
+                        }).catch(() => {});
+                    }
+                }
+            } catch (smsError) {
+                // Don't fail the request if SMS fails
+                console.error('[SMS] Error sending unapprove notification to leaders:', smsError);
             }
         }
 

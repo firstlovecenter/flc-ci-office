@@ -115,6 +115,17 @@ export function generateTransactionDeclinedSms(params: TransactionDeclinedSmsPar
     return `Your ${transactionType} request of ${currency}${amount} has been declined.${reasonText} Contact the office for details`;
 }
 
+interface TransactionUnapprovedSmsParams {
+    transactionType: string;
+    currency: string;
+    amount: string;
+}
+
+export function generateTransactionUnapprovedSms(params: TransactionUnapprovedSmsParams): string {
+    const { transactionType, currency, amount } = params;
+    return `A previously approved ${transactionType} of ${currency}${amount} has been unapproved and moved back to pending review.`;
+}
+
 interface TransactionChargeSmsParams {
     currency: string;
     chargeAmount: string;

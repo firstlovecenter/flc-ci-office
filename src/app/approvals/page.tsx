@@ -37,6 +37,7 @@ import {
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import CancelIcon from '@mui/icons-material/Cancel';
 import VisibilityIcon from '@mui/icons-material/Visibility';
+import UndoIcon from '@mui/icons-material/Undo';
 import PendingActionsIcon from '@mui/icons-material/PendingActions';
 import BusinessIcon from '@mui/icons-material/Business';
 import { formatDepartmentLevel } from '@/lib/utils';
@@ -196,6 +197,46 @@ export default function ApprovalsPage() {
             }
         } catch (error) {
             const errorMsg = `Failed to ${actionType} transaction`;
+            setError(errorMsg);
+            showErrorToast(errorMsg);
+        } finally {
+            setProcessing(false);
+        }
+    };
+
+    const handleUnapprove = async (transaction: Transaction) => {
+        if (transaction.status !== 'APPROVED') return;
+
+        const confirmed = confirm(
+            `Unapprove this transaction?\n\n"${transaction.description}"\n\nIt will move back to pending and is allowed only if this church has no newer transaction.`
+        );
+        if (!confirmed) return;
+
+        setProcessing(true);
+        setError('');
+
+        try {
+            const response = await fetch(`/api/transactions/${transaction.id}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ status: 'PENDING' }),
+            });
+
+            if (response.ok) {
+                const message = 'Transaction unapproved and moved back to pending';
+                setSuccess(message);
+                showSuccess(message);
+                setDetailsOpen(false);
+                fetchPendingTransactions();
+                fetchHistoricalTransactions();
+            } else {
+                const errorText = await response.text();
+                const errorMsg = errorText || 'Failed to unapprove transaction';
+                setError(errorMsg);
+                showErrorToast(errorMsg);
+            }
+        } catch {
+            const errorMsg = 'Failed to unapprove transaction';
             setError(errorMsg);
             showErrorToast(errorMsg);
         } finally {
@@ -636,6 +677,17 @@ export default function ApprovalsPage() {
                             </Button>
                         </>
                     )}
+                    {selectedTransaction?.status === 'APPROVED' && (
+                        <Button
+                            onClick={() => handleUnapprove(selectedTransaction)}
+                            variant="outlined"
+                            color="warning"
+                            startIcon={<UndoIcon />}
+                            disabled={processing}
+                        >
+                            Unapprove
+                        </Button>
+                    )}
                 </DialogActions>
             </Dialog>
 
@@ -874,20 +926,38 @@ export default function ApprovalsPage() {
                                                 </Typography>
                                             </TableCell>
                                             <TableCell>
-                                                <Button
-                                                    size="small"
-                                                    variant="outlined"
-                                                    sx={{ 
-                                                        borderRadius: 2,
-                                                        textTransform: 'none',
-                                                    }}
-                                                    onClick={() => {
-                                                        setSelectedTransaction(transaction);
-                                                        setDetailsOpen(true);
-                                                    }}
-                                                >
-                                                    View Details
-                                                </Button>
+                                                <Stack direction="row" spacing={1}>
+                                                    <Button
+                                                        size="small"
+                                                        variant="outlined"
+                                                        sx={{ 
+                                                            borderRadius: 2,
+                                                            textTransform: 'none',
+                                                        }}
+                                                        onClick={() => {
+                                                            setSelectedTransaction(transaction);
+                                                            setDetailsOpen(true);
+                                                        }}
+                                                    >
+                                                        View Details
+                                                    </Button>
+                                                    {transaction.status === 'APPROVED' && (
+                                                        <Button
+                                                            size="small"
+                                                            variant="outlined"
+                                                            color="warning"
+                                                            startIcon={<UndoIcon />}
+                                                            sx={{ 
+                                                                borderRadius: 2,
+                                                                textTransform: 'none',
+                                                            }}
+                                                            onClick={() => handleUnapprove(transaction)}
+                                                            disabled={processing}
+                                                        >
+                                                            Unapprove
+                                                        </Button>
+                                                    )}
+                                                </Stack>
                                             </TableCell>
                                         </TableRow>
                                     ))}
