@@ -44,7 +44,6 @@ import AttachFileIcon from '@mui/icons-material/AttachFile';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import CancelIcon from '@mui/icons-material/Cancel';
 import EditIcon from '@mui/icons-material/Edit';
-import UndoIcon from '@mui/icons-material/Undo';
 import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
 import Link from 'next/link';
 import { formatCurrency, formatDepartmentLevel, isWeekLocked } from '@/lib/utils';
@@ -353,33 +352,6 @@ function TransactionsPageContent() {
             }
         } catch (error) {
             showError('Error deleting transaction');
-        }
-    };
-
-    const handleUnapprove = async (tx: any) => {
-        if (tx.status !== 'APPROVED') return;
-
-        const ok = confirm(
-            `Unapprove this transaction?\n\n"${tx.description}"\n\nThis will move it back to PENDING and recalculate the statement.\nIt is only allowed if this church has no newer transaction.`
-        );
-        if (!ok) return;
-
-        try {
-            const response = await fetch(`/api/transactions/${tx.id}`, {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ status: 'PENDING' }),
-            });
-
-            if (response.ok) {
-                showSuccess('Transaction unapproved and moved back to pending');
-                fetchTransactions();
-            } else {
-                const errorText = await response.text();
-                showError(errorText || 'Failed to unapprove transaction');
-            }
-        } catch (error) {
-            showError('Error unapproving transaction');
         }
     };
 
@@ -867,21 +839,6 @@ function TransactionsPageContent() {
                                             </Tooltip>
                                         )}
 
-                                        {isAdmin && tx.status === 'APPROVED' && (
-                                            <Tooltip title="Unapprove">
-                                                <IconButton
-                                                    size="small"
-                                                    color="warning"
-                                                    onClick={() => handleUnapprove(tx)}
-                                                    sx={{
-                                                        '&:hover': { bgcolor: 'warning.dark', color: 'white' }
-                                                    }}
-                                                >
-                                                    <UndoIcon fontSize="small" />
-                                                </IconButton>
-                                            </Tooltip>
-                                        )}
-
                                         {/* Delete button for superadmin only */}
                                         {isSuperAdmin && (
                                             <Tooltip title="Delete">
@@ -989,20 +946,6 @@ function TransactionsPageContent() {
                                                 }}
                                             >
                                                 Edit Transaction
-                                            </Button>
-                                        )}
-                                        {detailsDialog.transaction.status === 'APPROVED' && (
-                                            <Button
-                                                fullWidth
-                                                variant="outlined"
-                                                color="warning"
-                                                onClick={() => {
-                                                    const tx = detailsDialog.transaction;
-                                                    handleCloseDetails();
-                                                    handleUnapprove(tx);
-                                                }}
-                                            >
-                                                Unapprove
                                             </Button>
                                         )}
                                         {isSuperAdmin && (
