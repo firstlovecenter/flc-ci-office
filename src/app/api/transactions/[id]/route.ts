@@ -412,7 +412,9 @@ export async function PATCH(
                     
                     for (const leader of leaders) {
                         try {
-                            if (leader.phone) await sendSms({ to: leader.phone, message: smsMessage });
+                            if (leader.phone) {
+                                await sendSms({ to: leader.phone, message: smsMessage }).catch(() => false);
+                            }
                             if (leader.email) {
                                 const { subject, html } = generateTransactionChargeEmail({
                                     recipientName: leader.name || 'Leader',
@@ -452,8 +454,8 @@ export async function PATCH(
             },
         });
 
-        // Send SMS notification to the user who created the transaction
-        if (updatedTransaction.user.phone) {
+        // Send notification to the user who created the transaction
+        if (updatedTransaction.user.phone || updatedTransaction.user.email) {
             try {
                 const currencySymbol = updatedTransaction.currency?.symbol || '$';
                 const transactionType = updatedTransaction.type === 'EXPENSE' ? 'expense' : 'income';
@@ -500,12 +502,14 @@ export async function PATCH(
                     });
                 }
                 
-                console.log(`[SMS] Sending ${status} notification to transaction creator: ${updatedTransaction.user.phone}`);
-                const sent = await sendSms({
-                    to: updatedTransaction.user.phone,
-                    message: smsMessage
-                });
-                console.log(`[SMS] Transaction ${status} notification: ${sent ? 'SUCCESS' : 'FAILED'}`);
+                if (updatedTransaction.user.phone) {
+                    console.log(`[SMS] Sending ${status} notification to transaction creator: ${updatedTransaction.user.phone}`);
+                    const sent = await sendSms({
+                        to: updatedTransaction.user.phone,
+                        message: smsMessage
+                    }).catch(() => false);
+                    console.log(`[SMS] Transaction ${status} notification: ${sent ? 'SUCCESS' : 'FAILED'}`);
+                }
 
                 // Send email in addition to SMS
                 if (updatedTransaction.user.email) {
@@ -628,7 +632,7 @@ export async function PATCH(
                         try {
                             if (leader.phone) {
                                 console.log(`[SMS] Sending ${updatedTransaction.type === 'INCOME' ? 'credit' : 'debit'} alert to leader: ${leader.phone}`);
-                                await sendSms({ to: leader.phone, message: alertMessage });
+                                await sendSms({ to: leader.phone, message: alertMessage }).catch(() => false);
                             }
                             if (leader.email) {
                                 const alertEmailFn = updatedTransaction.type === 'INCOME' ? generateCreditAlertEmail : generateDebitAlertEmail;

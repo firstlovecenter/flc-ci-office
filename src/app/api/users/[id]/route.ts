@@ -367,7 +367,7 @@ export async function PUT(
             const phoneNumber = updateData.phone || targetUser?.phone;
             const needsPasswordCreation = isFirstRoleAssignment || (isReassignmentAfterRemoval && !targetUser.password);
             
-            if (phoneNumber && hasRolesNow && needsPasswordCreation) {
+            if (hasRolesNow && needsPasswordCreation) {
                 try {
                     // First role assignment: Send password creation SMS
                     const resetToken = crypto.randomBytes(32).toString('hex');
@@ -404,7 +404,6 @@ export async function PUT(
                         select: { name: true },
                     });
 
-                    const formattedPhone = formatGhanaPhone(phoneNumber);
                     const smsContent = await generateFirstRoleAssignmentSms({
                         userName: name || email || 'User',
                         role: primaryRolePair.role,
@@ -412,10 +411,15 @@ export async function PUT(
                         resetLink,
                     });
 
-                    const smsSent = await sendSms({
-                        to: formattedPhone,
-                        message: smsContent,
-                    });
+                    if (phoneNumber) {
+                        const formattedPhone = formatGhanaPhone(phoneNumber);
+                        if (formattedPhone) {
+                            await sendSms({
+                                to: formattedPhone,
+                                message: smsContent,
+                            }).catch(() => false);
+                        }
+                    }
 
                     // Send welcome email in addition to SMS
                     const userEmail = email || updatedUser.email;

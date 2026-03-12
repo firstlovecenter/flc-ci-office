@@ -42,9 +42,9 @@ export async function POST(request: NextRequest) {
     });
 
     // Always return success to prevent user enumeration
-    if (!user || !user.phone) {
+    if (!user) {
       return NextResponse.json({
-        message: 'If an account exists with this information, a password reset SMS has been sent.',
+        message: 'If an account exists with this information, password reset instructions have been sent.',
       });
     }
 
@@ -78,22 +78,32 @@ export async function POST(request: NextRequest) {
     // Generate 6-digit code for SMS (easier to type than full token)
     const resetCode = token.substring(0, 6).toUpperCase();
 
+    let smsSent = false;
+    let emailSent = false;
+
     // Send SMS with reset code only (no URL to avoid truncation)
-    const formattedPhone = formatGhanaPhone(user.phone);
-    const smsContent = await generatePasswordResetSms({
-      resetCode: resetCode,
-      expirationMinutes: 15, // OTP validity window
-      // Don't include resetUrl - SMS links often get truncated
-    });
+    if (user.phone) {
+      const formattedPhone = formatGhanaPhone(user.phone);
+      if (formattedPhone) {
+        const smsContent = await generatePasswordResetSms({
+          resetCode: resetCode,
+          expirationMinutes: 15, // OTP validity window
+          // Don't include resetUrl - SMS links often get truncated
+        });
 
-    const smsSent = await sendSms({
-      to: formattedPhone,
-      message: smsContent,
-    });
+        smsSent = await sendSms({
+          to: formattedPhone,
+          message: smsContent,
+        });
+      }
+    }
 
-    // Send email in parallel if user has an email address
+    // Send email if user has an email address
     if (user.email) {
-      const baseUrl = process.env.NEXTAUTH_URL || '';
+      const baseUrl =
+        process.env.APP_URL ||
+        process.env.NEXTAUTH_URL ||
+        (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL.replace(/^https?:\/\//, '')}` : '');
       const resetUrl = baseUrl ? `${baseUrl}/auth/reset-password?token=${token}` : undefined;
       const { subject, html } = generatePasswordResetEmail({
         userName: user.name || undefined,
@@ -102,18 +112,18 @@ export async function POST(request: NextRequest) {
         expirationHours: 12,
         otpExpirationMinutes: 15,
       });
-      sendEmail({ to: user.email, subject, html }).catch(() => {});
+      emailSent = await sendEmail({ to: user.email, subject, html });
     }
 
-    if (!smsSent) {
+    if (!smsSent && !emailSent) {
       return NextResponse.json(
-        { error: 'Failed to send password reset SMS. Please check that your phone number is correct or contact support.' },
+        { error: 'Failed to send password reset instructions. Please contact support.' },
         { status: 500 }
       );
     }
 
     return NextResponse.json({
-      message: 'If an account exists with this information, a password reset SMS has been sent.',
+      message: 'If an account exists with this information, password reset instructions have been sent.',
     });
   } catch (error) {
     return NextResponse.json(

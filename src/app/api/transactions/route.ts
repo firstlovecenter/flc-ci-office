@@ -465,7 +465,7 @@ export async function POST(request: Request) {
                     for (const admin of campusAdmins) {
                         try {
                             if (admin.phone) {
-                                const sent = await sendSms({ to: admin.phone, message: smsMessage });
+                                const sent = await sendSms({ to: admin.phone, message: smsMessage }).catch(() => false);
                                 console.log(`[SMS] Sent to ${admin.phone}: ${sent ? 'SUCCESS' : 'FAILED'}`);
                             }
                             const { subject, html } = generatePendingApprovalEmail({
@@ -587,7 +587,7 @@ export async function POST(request: Request) {
                     for (const leader of leaders) {
                         try {
                             if (leader.phone) {
-                                const sent = await sendSms({ to: leader.phone, message: smsMessage });
+                                const sent = await sendSms({ to: leader.phone, message: smsMessage }).catch(() => false);
                                 console.log(`[SMS] ${alertType} alert to ${leader.phone}: ${sent ? 'SUCCESS' : 'FAILED'}`);
                             }
                             const alertEmailFn = type === 'INCOME' ? generateCreditAlertEmail : generateDebitAlertEmail;

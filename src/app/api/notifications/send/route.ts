@@ -143,7 +143,7 @@ async function handleSMSRequest(body: any) {
   }
 
   try {
-    let recipients: { phone: string; email?: string; name: string }[] = [];
+    let recipients: { phone?: string; email?: string; name: string }[] = [];
 
     if (recipientType === 'individual') {
       if (!phoneNumber) {
@@ -181,13 +181,12 @@ async function handleSMSRequest(body: any) {
       });
 
       recipients = userRoles
-        .filter(ur => ur.user.phone)
         .map(ur => ({
-          phone: formatGhanaPhone(ur.user.phone!) || '',
+          phone: ur.user.phone ? formatGhanaPhone(ur.user.phone) || undefined : undefined,
           email: ur.user.email || undefined,
           name: ur.user.name || 'User',
         }))
-        .filter(r => r.phone);
+        .filter(r => r.phone || r.email);
     } else if (recipientType === 'department') {
       if (!departmentId) {
         return NextResponse.json({ error: 'Department is required' }, { status: 400 });
@@ -214,50 +213,53 @@ async function handleSMSRequest(body: any) {
       const seenUserIds = new Set<string>();
       recipients = userRolesInDept
         .filter(ur => {
-          if (!ur.user.phone || seenUserIds.has(ur.user.id)) return false;
+          if (seenUserIds.has(ur.user.id)) return false;
           seenUserIds.add(ur.user.id);
           return true;
         })
         .map(ur => ({
-          phone: formatGhanaPhone(ur.user.phone!) || '',
+          phone: ur.user.phone ? formatGhanaPhone(ur.user.phone) || undefined : undefined,
           email: ur.user.email || undefined,
           name: ur.user.name || 'User',
         }))
-        .filter(r => r.phone);
+        .filter(r => r.phone || r.email);
     }
 
     if (recipients.length === 0) {
       return NextResponse.json({ 
-        error: 'No recipients found with valid phone numbers' 
+        error: 'No recipients found with valid contact details' 
       }, { status: 400 });
     }
-
-    // Build email template once
-    const { subject, html: emailHtml } = generateGeneralNotificationEmail({
-      recipientName: 'Member',
-      title: 'CI-OFFICE Notification',
-      message,
-    });
 
     // Send SMS and email to all recipients
     const results = await Promise.allSettled(
       recipients.map(async recipient => {
-        const smsResult = await sendSms({ to: recipient.phone, message });
-        // Fire-and-forget email
+        let smsResult = false;
+        let emailResult = false;
+
+        if (recipient.phone) {
+          smsResult = await sendSms({ to: recipient.phone, message }).catch(() => false);
+        }
+
         if (recipient.email) {
           const { subject: s, html } = generateGeneralNotificationEmail({
             recipientName: recipient.name,
             title: 'CI-OFFICE Notification',
             message,
           });
-          sendEmail({ to: recipient.email, subject: s, html }).catch(() => {});
+          emailResult = await sendEmail({ to: recipient.email, subject: s, html }).catch(() => false);
         }
-        return smsResult;
+
+        return { smsResult, emailResult };
       })
     );
 
-    const successful = results.filter(r => r.status === 'fulfilled' && r.value === true).length;
+    const successful = results.filter(r =>
+      r.status === 'fulfilled' && (r.value.smsResult || r.value.emailResult)
+    ).length;
     const failed = results.length - successful;
+    const smsSent = results.filter(r => r.status === 'fulfilled' && r.value.smsResult).length;
+    const emailSent = results.filter(r => r.status === 'fulfilled' && r.value.emailResult).length;
 
     return NextResponse.json({
       success: true,
@@ -265,6 +267,8 @@ async function handleSMSRequest(body: any) {
       sent: successful,
       failed: failed,
       total: recipients.length,
+      smsSent,
+      emailSent,
     });
   } catch (error: any) {
     return NextResponse.json({ 
