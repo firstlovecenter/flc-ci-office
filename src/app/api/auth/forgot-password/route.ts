@@ -51,7 +51,7 @@ export async function POST(request: NextRequest) {
     // Generate secure random token
     const token = crypto.randomBytes(32).toString('hex');
     const expiresAt = new Date();
-    expiresAt.setHours(expiresAt.getHours() + 24); // 24 hours expiration
+    expiresAt.setHours(expiresAt.getHours() + 12); // 12 hours expiration for reset link
 
     // Invalidate any existing unused tokens for this user
     await prisma.passwordReset.updateMany({
@@ -82,7 +82,7 @@ export async function POST(request: NextRequest) {
     const formattedPhone = formatGhanaPhone(user.phone);
     const smsContent = await generatePasswordResetSms({
       resetCode: resetCode,
-      expirationMinutes: 1440, // 24 hours in minutes
+      expirationMinutes: 15, // OTP validity window
       // Don't include resetUrl - SMS links often get truncated
     });
 
@@ -99,7 +99,8 @@ export async function POST(request: NextRequest) {
         userName: user.name || undefined,
         resetCode,
         resetUrl,
-        expirationHours: 24,
+        expirationHours: 12,
+        otpExpirationMinutes: 15,
       });
       sendEmail({ to: user.email, subject, html }).catch(() => {});
     }

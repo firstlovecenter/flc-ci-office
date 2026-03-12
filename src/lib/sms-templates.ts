@@ -14,8 +14,10 @@ interface PasswordResetSmsParams {
 
 export function generatePasswordResetSms(params: PasswordResetSmsParams): string {
     const { resetCode, expirationMinutes = 30 } = params;
-    const hours = Math.round(expirationMinutes / 60);
-    return `Your password reset code is ${resetCode}. Valid for ${hours} hours. If you did not request this, please ignore.`;
+    const validityText = expirationMinutes < 60
+        ? `${expirationMinutes} minute${expirationMinutes !== 1 ? 's' : ''}`
+        : `${Math.round(expirationMinutes / 60)} hour${Math.round(expirationMinutes / 60) !== 1 ? 's' : ''}`;
+    return `Your password reset code is ${resetCode}. Valid for ${validityText}. If you did not request this, please ignore.`;
 }
 
 interface FirstRoleAssignmentSmsParams {

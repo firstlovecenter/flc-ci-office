@@ -52,6 +52,17 @@ export async function POST(request: NextRequest) {
       passwordReset = allResets.find(reset => 
         reset.token.toUpperCase().startsWith(token.toUpperCase())
       );
+
+      // OTP code is stricter than link expiry: valid for only 15 minutes from creation.
+      if (passwordReset) {
+        const otpExpiry = new Date(passwordReset.createdAt.getTime() + 15 * 60 * 1000);
+        if (new Date() > otpExpiry) {
+          return NextResponse.json(
+            { error: 'This reset code has expired. Please request a new one.' },
+            { status: 400 }
+          );
+        }
+      }
     } else {
       // Full token provided - direct lookup
       passwordReset = await prisma.passwordReset.findUnique({

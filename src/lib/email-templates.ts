@@ -100,6 +100,26 @@ function divider(): string {
   return `<div class="div"></div>`;
 }
 
+function getAppBaseUrl(): string | undefined {
+  const configured = process.env.APP_URL || process.env.NEXTAUTH_URL;
+  if (configured) {
+    return configured.replace(/\/+$/, '');
+  }
+
+  const vercelUrl = process.env.VERCEL_URL;
+  if (vercelUrl) {
+    const normalized = vercelUrl.replace(/^https?:\/\//, '').replace(/\/+$/, '');
+    return `https://${normalized}`;
+  }
+
+  return undefined;
+}
+
+function appCtaButton(text = 'Open CI-OFFICE', style: BtnStyle = 'primary'): string {
+  const appUrl = getAppBaseUrl();
+  return appUrl ? ctaButton(text, appUrl, style) : '';
+}
+
 // ─── 1. Password Reset ────────────────────────────────────────────────────────
 
 interface PasswordResetEmailParams {
@@ -107,32 +127,34 @@ interface PasswordResetEmailParams {
   resetCode: string;
   resetUrl?: string;
   expirationHours?: number;
+  otpExpirationMinutes?: number;
 }
 
 export function generatePasswordResetEmail(
   params: PasswordResetEmailParams,
 ): { subject: string; html: string } {
-  const { userName, resetCode, resetUrl, expirationHours = 24 } = params;
+  const { userName, resetCode, resetUrl, expirationHours = 12, otpExpirationMinutes = 15 } = params;
   const name = userName || 'there';
 
   const content = `
     ${heading(
       'Security',
       'Password Reset Requested',
-      `Hi ${name}, we received a request to reset your CI&#8209;OFFICE password.`,
+      `Hi ${name}, we received a request to reset your password.`,
     )}
     ${otpBlock(resetCode)}
     ${resetUrl ? ctaButton('Reset My Password', resetUrl) : ''}
     ${divider()}
     <p class="helper">
-      This code expires in <strong>${expirationHours} hour${expirationHours !== 1 ? 's' : ''}</strong>.
+      This code expires in <strong>${otpExpirationMinutes} minute${otpExpirationMinutes !== 1 ? 's' : ''}</strong>.
+      ${resetUrl ? `The reset link expires in <strong>${expirationHours} hour${expirationHours !== 1 ? 's' : ''}</strong>.` : ''}
       If you didn&rsquo;t request a password reset, no action is needed &mdash; your account remains secure.
     </p>`;
 
   return {
-    subject: 'Your CI-OFFICE password reset code',
+    subject: 'Your password reset code',
     html: emailLayout(content, {
-      preheader: `Your password reset code is ${resetCode}. It expires in ${expirationHours} hours.`,
+      preheader: `Your password reset code is ${resetCode}. Code expires in ${otpExpirationMinutes} minutes.${resetUrl ? ` Link expires in ${expirationHours} hours.` : ''}`,
     }),
   };
 }
@@ -203,7 +225,8 @@ export function generateRoleAssignmentEmail(
       ['New role',    `${pill(roleDisplay, 'blue')}`],
       ['Department',  department],
     ])}
-    ${infoBox('Log in to CI&#8209;OFFICE to explore your updated access and permissions.', 'blue')}`;
+    ${infoBox('Log in to CI&#8209;OFFICE to explore your updated access and permissions.', 'blue')}
+    ${appCtaButton('Open CI-OFFICE')}`;
 
   return {
     subject: `CI-OFFICE — your role has been updated`,
@@ -248,7 +271,8 @@ export function generateTransactionApprovedEmail(
       ['Department',          departmentName],
       ...(chargeAmount ? [['Transaction charge', `${currency}${chargeAmount}`] as [string, string]] : []),
     ])}
-    ${balanceCallout(currency, balance)}`;
+    ${balanceCallout(currency, balance)}
+    ${appCtaButton('View Dashboard')}`;
 
   return {
     subject: `Transaction approved — ${currency}${amount}`,
@@ -290,7 +314,8 @@ export function generateTransactionDeclinedEmail(
     ${reason
       ? infoBox(`<strong>Reason:</strong> ${reason}`, 'red')
       : infoBox('No reason was provided. Please contact the approving administrator for details.', 'amber')}
-    <p style="margin-top:20px;">If you believe this is an error, please contact the office and quote the details above.</p>`;
+    <p style="margin-top:20px;">If you believe this is an error, please contact the office and quote the details above.</p>
+    ${appCtaButton('Open CI-OFFICE')}`;
 
   return {
     subject: `Transaction declined — ${currency}${amount}`,
@@ -328,7 +353,8 @@ export function generateTransactionChargeEmail(
       ['Reference',             transactionRef],
       ['Original transaction',  description],
     ])}
-    ${infoBox('This charge is automatically applied as part of the transaction processing. Contact the office if you have questions.', 'amber')}`;
+    ${infoBox('This charge is automatically applied as part of the transaction processing. Contact the office if you have questions.', 'amber')}
+    ${appCtaButton('Review in CI-OFFICE')}`;
 
   return {
     subject: `Charge notice — ${currency}${chargeAmount} deducted`,
@@ -368,7 +394,8 @@ export function generatePendingApprovalEmail(
       ['Description',   description],
       ...(departmentName ? [['Department', departmentName] as [string, string]] : []),
     ])}
-    ${infoBox('Please log in to CI&#8209;OFFICE to approve or decline this transaction.', 'amber')}`;
+    ${infoBox('Please log in to CI&#8209;OFFICE to approve or decline this transaction.', 'amber')}
+    ${appCtaButton('Open Approvals', 'amber')}`;
 
   return {
     subject: `Approval needed — ${currency}${amount} ${typeLabel}`,
@@ -405,7 +432,8 @@ export function generateCreditAlertEmail(
       ['Department',  departmentName],
       ['Description', description],
     ])}
-    ${balanceCallout(currency, balance)}`;
+    ${balanceCallout(currency, balance)}
+    ${appCtaButton('View Dashboard')}`;
 
   return {
     subject: `Credit alert — +${currency}${amount} to ${departmentName}`,
@@ -442,7 +470,8 @@ export function generateDebitAlertEmail(
       ['Department',  departmentName],
       ['Description', description],
     ])}
-    ${balanceCallout(currency, balance)}`;
+    ${balanceCallout(currency, balance)}
+    ${appCtaButton('View Dashboard')}`;
 
   return {
     subject: `Debit alert — -${currency}${amount} from ${departmentName}`,
@@ -479,7 +508,8 @@ export function generateTransactionEditEmail(
       ['Changes',     changes],
       ['Edited by',   editedBy],
     ])}
-    ${infoBox('If you didn&rsquo;t expect this change or believe it&rsquo;s incorrect, please contact a system administrator right away.', 'blue')}`;
+    ${infoBox('If you didn&rsquo;t expect this change or believe it&rsquo;s incorrect, please contact a system administrator right away.', 'blue')}
+    ${appCtaButton('Review Transaction')}`;
 
   return {
     subject: `Transaction edited in ${departmentName}`,
@@ -530,7 +560,8 @@ export function generateCorrectionEmail(
       ['Corrected amount',`${currency}${newAmount}`],
       ['Reason',          reason],
     ])}
-    ${balanceCallout(currency, balance)}`;
+    ${balanceCallout(currency, balance)}
+    ${appCtaButton('Open CI-OFFICE')}`;
 
   return {
     subject: `Transaction correction in ${departmentName}`,
@@ -570,7 +601,8 @@ export function generateDepartmentTransferEmail(
     ${dataTable([
       ['Reason', reason],
     ])}
-    ${balanceCallout(currency, balance)}`;
+    ${balanceCallout(currency, balance)}
+    ${appCtaButton('View Department Dashboard')}`;
 
   return {
     subject: `Department transfer — ${currency}${amount} ${typeLabel}`,
@@ -595,7 +627,8 @@ export function generateGeneralNotificationEmail(
 
   const content = `
     ${heading('Notification', title, `Hi ${recipientName}, you have a new message from CI&#8209;OFFICE.`)}
-    ${infoBox(message, 'blue')}`;
+    ${infoBox(message, 'blue')}
+    ${appCtaButton('Open CI-OFFICE')}`;
 
   return {
     subject: title,
