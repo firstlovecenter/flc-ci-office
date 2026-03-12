@@ -268,7 +268,7 @@ export function emailLayout(content: string, options?: EmailLayoutOptions): stri
       <span class="logo-mark">CI</span>
       <span class="hdr-text">
         <h1>CI-OFFICE</h1>
-        <p>Church Integrated Office</p>
+        <p>Church Income Office</p>
       </span>
     </div>
     <div class="accent"></div>
@@ -282,7 +282,7 @@ export function emailLayout(content: string, options?: EmailLayoutOptions): stri
     <div class="ftr">
       <div class="ftr-brand"><span>CI&#8202;&#183;&#8202;OFFICE</span></div>
       <p>This is an automated notification. Please do not reply to this email.</p>
-      <p>&copy; ${year} CI-OFFICE &nbsp;&middot;&nbsp; Church Integrated Office. All rights reserved.</p>
+      <p>&copy; ${year} CI-OFFICE &nbsp;&middot;&nbsp; Church Income Office. All rights reserved.</p>
     </div>
 
   </div>
