@@ -6,6 +6,8 @@ import crypto from 'crypto';
 import { hasDepartmentAccess } from '@/lib/departments';
 import { sendSms } from '@/lib/sms';
 import { generateTransactionApprovedSms, generateTransactionDeclinedSms, generateTransactionChargeSms, generateCreditAlertSms, generateDebitAlertSms, generateTransactionEditNotificationSms } from '@/lib/sms-templates';
+import { sendEmail } from '@/lib/email';
+import { generateTransactionApprovedEmail, generateTransactionDeclinedEmail, generateTransactionChargeEmail, generateCreditAlertEmail, generateDebitAlertEmail, generateTransactionEditEmail } from '@/lib/email-templates';
 import { formatNumber, isWeekLocked, getWeekFromDate } from '@/lib/utils';
 
 export async function PUT(
@@ -193,7 +195,7 @@ export async function PUT(
 
                     const leaders = await prisma.userRole.findMany({
                         where: { role: leaderRole, departmentId: deptId },
-                        include: { user: { select: { phone: true, name: true, archived: true } } },
+                        include: { user: { select: { phone: true, email: true, name: true, archived: true } } },
                     });
 
                     const smsMessage = generateTransactionEditNotificationSms({
@@ -203,8 +205,17 @@ export async function PUT(
                         editedBy: session.user.name || 'Admin',
                     });
 
-                    for (const lr of leaders.filter(ur => ur.user.phone && !ur.user.archived)) {
-                        await sendSms({ to: lr.user.phone!, message: smsMessage }).catch(() => {});
+                    const { subject: editSubject, html: editHtml } = generateTransactionEditEmail({
+                        recipientName: 'Leader',
+                        departmentName: dept.name,
+                        description: existingTransaction.description || description,
+                        changes: changesSummary,
+                        editedBy: session.user.name || 'Admin',
+                    });
+
+                    for (const lr of leaders.filter(ur => !ur.user.archived)) {
+                        if (lr.user.phone) await sendSms({ to: lr.user.phone!, message: smsMessage }).catch(() => {});
+                        if (lr.user.email) sendEmail({ to: lr.user.email, subject: editSubject, html: editHtml.replace('Hello Leader,', `Hello ${lr.user.name || 'Leader'},`) }).catch(() => {});
                     }
                 }
             } catch (smsError) {
@@ -374,6 +385,7 @@ export async function PATCH(
                         user: {
                             select: {
                                 phone: true,
+                                email: true,
                                 name: true,
                                 archived: true,
                             },
@@ -381,31 +393,39 @@ export async function PATCH(
                     },
                 });
 
-                // Filter active users with phone numbers
+                // Filter active users
                 const leaders = departmentLeaderRoles
-                    .filter(ur => ur.user.phone && !ur.user.archived)
-                    .map(ur => ({ phone: ur.user.phone!, name: ur.user.name }));
+                    .filter(ur => !ur.user.archived)
+                    .map(ur => ({ phone: ur.user.phone, email: ur.user.email, name: ur.user.name }));
 
                 if (leaders.length > 0) {
                     const currencySymbol = updatedTransaction.currency?.symbol || '$';
+                    const chargeRef = transaction.id.substring(0, 8);
+                    const chargeDesc = transaction.description.substring(0, 25) + (transaction.description.length > 25 ? '...' : '');
                     const smsMessage = await generateTransactionChargeSms({
                         currency: currencySymbol,
                         chargeAmount: formatNumber(chargeAmount),
                         departmentName: transaction.department.name,
-                        transactionRef: transaction.id.substring(0, 8),
-                        description: transaction.description.substring(0, 25) + (transaction.description.length > 25 ? '...' : ''),
+                        transactionRef: chargeRef,
+                        description: chargeDesc,
                     });
                     
                     for (const leader of leaders) {
-                        if (leader.phone) {
-                            try {
-                                await sendSms({
-                                    to: leader.phone,
-                                    message: smsMessage
+                        try {
+                            if (leader.phone) await sendSms({ to: leader.phone, message: smsMessage });
+                            if (leader.email) {
+                                const { subject, html } = generateTransactionChargeEmail({
+                                    recipientName: leader.name || 'Leader',
+                                    currency: currencySymbol,
+                                    chargeAmount: formatNumber(chargeAmount),
+                                    departmentName: transaction.department.name,
+                                    transactionRef: chargeRef,
+                                    description: chargeDesc,
                                 });
-                            } catch (err) {
-                                console.error('Failed to send SMS to leader:', err);
+                                sendEmail({ to: leader.email, subject, html }).catch(() => {});
                             }
+                        } catch (err) {
+                            console.error('Failed to send charge notification to leader:', err);
                         }
                     }
                 }
@@ -486,6 +506,39 @@ export async function PATCH(
                     message: smsMessage
                 });
                 console.log(`[SMS] Transaction ${status} notification: ${sent ? 'SUCCESS' : 'FAILED'}`);
+
+                // Send email in addition to SMS
+                if (updatedTransaction.user.email) {
+                    const chargeAmountNum = charges && parseFloat(charges) > 0 ? parseFloat(charges) : 0;
+                    if (status === 'APPROVED') {
+                        const deptTx = await prisma.transaction.findMany({
+                            where: { departmentId: updatedTransaction.department.id, status: 'APPROVED' },
+                            select: { type: true, amountInBase: true, amount: true },
+                        });
+                        const bal = deptTx.reduce((s, tx) => s + (tx.type === 'INCOME' ? Number(tx.amountInBase || tx.amount) : -Number(tx.amountInBase || tx.amount)), 0);
+                        const { subject, html } = generateTransactionApprovedEmail({
+                            userName: updatedTransaction.user.name || 'User',
+                            transactionType,
+                            currency: currencySymbol,
+                            amount: updatedTransaction.amount.toFixed(2),
+                            chargeAmount: chargeAmountNum > 0 ? chargeAmountNum.toFixed(2) : undefined,
+                            departmentName: updatedTransaction.department.name,
+                            balance: bal.toFixed(2),
+                            description: updatedTransaction.description || undefined,
+                        });
+                        sendEmail({ to: updatedTransaction.user.email, subject, html }).catch(() => {});
+                    } else {
+                        const { subject, html } = generateTransactionDeclinedEmail({
+                            userName: updatedTransaction.user.name || 'User',
+                            transactionType,
+                            currency: currencySymbol,
+                            amount: updatedTransaction.amount.toFixed(2),
+                            reason: rejectionReason || undefined,
+                            description: updatedTransaction.description || undefined,
+                        });
+                        sendEmail({ to: updatedTransaction.user.email, subject, html }).catch(() => {});
+                    }
+                }
             } catch (smsError) {
                 // Don't fail the request if SMS fails
                 console.error('[SMS] Error sending approval/decline notification:', smsError);
@@ -512,6 +565,7 @@ export async function PATCH(
                         user: {
                             select: {
                                 phone: true,
+                                email: true,
                                 name: true,
                                 archived: true,
                             },
@@ -519,10 +573,10 @@ export async function PATCH(
                     },
                 });
 
-                // Filter active users with phone numbers
+                // Filter active users
                 const leaders = departmentLeaderRoles
-                    .filter(ur => ur.user.phone && !ur.user.archived)
-                    .map(ur => ({ phone: ur.user.phone!, name: ur.user.name }));
+                    .filter(ur => !ur.user.archived)
+                    .map(ur => ({ phone: ur.user.phone, email: ur.user.email, name: ur.user.name }));
 
                 if (leaders.length > 0) {
                     // Calculate the department balance
@@ -545,37 +599,51 @@ export async function PATCH(
 
                     const currencySymbol = updatedTransaction.currency?.symbol || '$';
                     const transactionDescription = updatedTransaction.description || (updatedTransaction.type === 'INCOME' ? 'Income' : 'Expense');
+                    const descShort = transactionDescription.substring(0, 30) + (transactionDescription.length > 30 ? '...' : '');
+                    const txAmount = formatNumber(Number(updatedTransaction.amount));
+                    const balStr = formatNumber(balance);
 
                     // Generate credit or debit alert based on transaction type
                     let alertMessage: string;
                     if (updatedTransaction.type === 'INCOME') {
                         alertMessage = await generateCreditAlertSms({
                             currency: currencySymbol,
-                            amount: formatNumber(Number(updatedTransaction.amount)),
-                            description: transactionDescription.substring(0, 30) + (transactionDescription.length > 30 ? '...' : ''),
+                            amount: txAmount,
+                            description: descShort,
                             departmentName: updatedTransaction.department.name,
-                            balance: formatNumber(balance),
+                            balance: balStr,
                         });
                     } else {
                         alertMessage = await generateDebitAlertSms({
                             currency: currencySymbol,
-                            amount: formatNumber(Number(updatedTransaction.amount)),
-                            description: transactionDescription.substring(0, 30) + (transactionDescription.length > 30 ? '...' : ''),
+                            amount: txAmount,
+                            description: descShort,
                             departmentName: updatedTransaction.department.name,
-                            balance: formatNumber(balance),
+                            balance: balStr,
                         });
                     }
 
                     // Send to all leaders
                     for (const leader of leaders) {
                         try {
-                            console.log(`[SMS] Sending ${updatedTransaction.type === 'INCOME' ? 'credit' : 'debit'} alert to leader: ${leader.phone}`);
-                            await sendSms({
-                                to: leader.phone,
-                                message: alertMessage
-                            });
+                            if (leader.phone) {
+                                console.log(`[SMS] Sending ${updatedTransaction.type === 'INCOME' ? 'credit' : 'debit'} alert to leader: ${leader.phone}`);
+                                await sendSms({ to: leader.phone, message: alertMessage });
+                            }
+                            if (leader.email) {
+                                const alertEmailFn = updatedTransaction.type === 'INCOME' ? generateCreditAlertEmail : generateDebitAlertEmail;
+                                const { subject, html } = alertEmailFn({
+                                    recipientName: leader.name || 'Leader',
+                                    currency: currencySymbol,
+                                    amount: txAmount,
+                                    departmentName: updatedTransaction.department.name,
+                                    description: descShort,
+                                    balance: balStr,
+                                });
+                                sendEmail({ to: leader.email, subject, html }).catch(() => {});
+                            }
                         } catch (err) {
-                            console.error(`[SMS] Failed to send alert to leader ${leader.phone}:`, err);
+                            console.error(`[SMS] Failed to send alert to leader:`, err);
                         }
                     }
                 }

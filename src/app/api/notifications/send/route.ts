@@ -4,6 +4,8 @@ import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import * as webpush from 'web-push';
 import { sendSms, formatGhanaPhone } from '@/lib/sms';
+import { sendEmail } from '@/lib/email';
+import { generateGeneralNotificationEmail } from '@/lib/email-templates';
 import { Role } from '@prisma/client';
 
 // Configure web-push with VAPID keys
@@ -141,7 +143,7 @@ async function handleSMSRequest(body: any) {
   }
 
   try {
-    let recipients: { phone: string; name: string }[] = [];
+    let recipients: { phone: string; email?: string; name: string }[] = [];
 
     if (recipientType === 'individual') {
       if (!phoneNumber) {
@@ -151,13 +153,18 @@ async function handleSMSRequest(body: any) {
       if (!formattedPhone) {
         return NextResponse.json({ error: 'Invalid phone number format' }, { status: 400 });
       }
-      recipients.push({ phone: formattedPhone, name: 'Individual' });
+      // Try to find user by phone to get their email
+      const userByPhone = await prisma.user.findFirst({
+        where: { phone: phoneNumber },
+        select: { email: true, name: true },
+      });
+      recipients.push({ phone: formattedPhone, email: userByPhone?.email || undefined, name: userByPhone?.name || 'Individual' });
     } else if (recipientType === 'role') {
       if (!role) {
         return NextResponse.json({ error: 'Role is required' }, { status: 400 });
       }
       
-      // Get all users with this role and phone numbers
+      // Get all users with this role and phone/email
       const userRoles = await prisma.userRole.findMany({
         where: {
           role: role as Role,
@@ -166,6 +173,7 @@ async function handleSMSRequest(body: any) {
           user: {
             select: {
               phone: true,
+              email: true,
               name: true,
             },
           },
@@ -176,6 +184,7 @@ async function handleSMSRequest(body: any) {
         .filter(ur => ur.user.phone)
         .map(ur => ({
           phone: formatGhanaPhone(ur.user.phone!) || '',
+          email: ur.user.email || undefined,
           name: ur.user.name || 'User',
         }))
         .filter(r => r.phone);
@@ -184,7 +193,7 @@ async function handleSMSRequest(body: any) {
         return NextResponse.json({ error: 'Department is required' }, { status: 400 });
       }
 
-      // Get all users in this department with phone numbers (via UserRoles for multi-role support)
+      // Get all users in this department (via UserRoles for multi-role support)
       const userRolesInDept = await prisma.userRole.findMany({
         where: {
           departmentId: departmentId,
@@ -194,13 +203,14 @@ async function handleSMSRequest(body: any) {
             select: {
               id: true,
               phone: true,
+              email: true,
               name: true,
             },
           },
         },
       });
 
-      // Deduplicate by user ID (a user might have multiple roles in same department)
+      // Deduplicate by user ID
       const seenUserIds = new Set<string>();
       recipients = userRolesInDept
         .filter(ur => {
@@ -210,6 +220,7 @@ async function handleSMSRequest(body: any) {
         })
         .map(ur => ({
           phone: formatGhanaPhone(ur.user.phone!) || '',
+          email: ur.user.email || undefined,
           name: ur.user.name || 'User',
         }))
         .filter(r => r.phone);
@@ -221,14 +232,28 @@ async function handleSMSRequest(body: any) {
       }, { status: 400 });
     }
 
-    // Send SMS to all recipients
+    // Build email template once
+    const { subject, html: emailHtml } = generateGeneralNotificationEmail({
+      recipientName: 'Member',
+      title: 'CI-OFFICE Notification',
+      message,
+    });
+
+    // Send SMS and email to all recipients
     const results = await Promise.allSettled(
-      recipients.map(recipient =>
-        sendSms({
-          to: recipient.phone,
-          message: message,
-        })
-      )
+      recipients.map(async recipient => {
+        const smsResult = await sendSms({ to: recipient.phone, message });
+        // Fire-and-forget email
+        if (recipient.email) {
+          const { subject: s, html } = generateGeneralNotificationEmail({
+            recipientName: recipient.name,
+            title: 'CI-OFFICE Notification',
+            message,
+          });
+          sendEmail({ to: recipient.email, subject: s, html }).catch(() => {});
+        }
+        return smsResult;
+      })
     );
 
     const successful = results.filter(r => r.status === 'fulfilled' && r.value === true).length;
@@ -236,14 +261,14 @@ async function handleSMSRequest(body: any) {
 
     return NextResponse.json({
       success: true,
-      message: `SMS sent to ${successful} of ${recipients.length} recipient(s)`,
+      message: `Notification sent to ${successful} of ${recipients.length} recipient(s)`,
       sent: successful,
       failed: failed,
       total: recipients.length,
     });
   } catch (error: any) {
     return NextResponse.json({ 
-      error: 'Failed to send SMS: ' + error.message 
+      error: 'Failed to send notification: ' + error.message 
     }, { status: 500 });
   }
 }

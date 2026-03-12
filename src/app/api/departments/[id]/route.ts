@@ -5,6 +5,8 @@ import { authOptions } from '@/lib/auth';
 import { hasDepartmentAccess, getLeaderRoleForLevel, getAdminRoleForLevel } from '@/lib/departments';
 import { sendSms, formatGhanaPhone } from '@/lib/sms';
 import { generateFirstRoleAssignmentSms } from '@/lib/sms-templates';
+import { sendEmail } from '@/lib/email';
+import { generateFirstRoleAssignmentEmail } from '@/lib/email-templates';
 import crypto from 'crypto';
 
 // Force dynamic rendering - data is user/role specific
@@ -340,6 +342,17 @@ export async function PUT(
                     } catch (smsError) {
                         console.error('Failed to send SMS to new leader:', smsError);
                     }
+
+                    // Send welcome email
+                    if (newLeader.email) {
+                        const { subject, html } = generateFirstRoleAssignmentEmail({
+                            userName: newLeader.name || 'User',
+                            role: leaderRole,
+                            department: name,
+                            resetLink,
+                        });
+                        sendEmail({ to: newLeader.email, subject, html }).catch(() => {});
+                    }
                 }
 
                 // Audit the leader change
@@ -469,6 +482,17 @@ export async function PUT(
                             });
                         } catch (smsError) {
                             console.error('Failed to send SMS to new admin:', smsError);
+                        }
+
+                        // Send welcome email
+                        if (newAdmin.email) {
+                            const { subject, html } = generateFirstRoleAssignmentEmail({
+                                userName: newAdmin.name || 'User',
+                                role: adminRole,
+                                department: name,
+                                resetLink,
+                            });
+                            sendEmail({ to: newAdmin.email, subject, html }).catch(() => {});
                         }
                     }
 

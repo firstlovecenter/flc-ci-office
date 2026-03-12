@@ -3,6 +3,8 @@ import crypto from 'crypto';
 import { prisma } from '@/lib/prisma';
 import { sendSms, formatGhanaPhone } from '@/lib/sms';
 import { generatePasswordResetSms } from '@/lib/sms-templates';
+import { sendEmail } from '@/lib/email';
+import { generatePasswordResetEmail } from '@/lib/email-templates';
 import { checkRateLimit, rateLimits, getClientIp, rateLimitResponse } from '@/lib/rate-limit';
 
 export async function POST(request: NextRequest) {
@@ -88,6 +90,19 @@ export async function POST(request: NextRequest) {
       to: formattedPhone,
       message: smsContent,
     });
+
+    // Send email in parallel if user has an email address
+    if (user.email) {
+      const baseUrl = process.env.NEXTAUTH_URL || '';
+      const resetUrl = baseUrl ? `${baseUrl}/auth/reset-password?token=${token}` : undefined;
+      const { subject, html } = generatePasswordResetEmail({
+        userName: user.name || undefined,
+        resetCode,
+        resetUrl,
+        expirationHours: 24,
+      });
+      sendEmail({ to: user.email, subject, html }).catch(() => {});
+    }
 
     if (!smsSent) {
       return NextResponse.json(

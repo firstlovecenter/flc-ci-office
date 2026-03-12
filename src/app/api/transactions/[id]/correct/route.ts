@@ -6,6 +6,8 @@ import { createAuditLog } from '@/lib/audit';
 import { formatCurrency, formatNumber } from '@/lib/utils';
 import { sendSms } from '@/lib/sms';
 import { generateCorrectionNotificationSms, generateDepartmentTransferSms } from '@/lib/sms-templates';
+import { sendEmail } from '@/lib/email';
+import { generateCorrectionEmail, generateDepartmentTransferEmail } from '@/lib/email-templates';
 import crypto from 'crypto';
 
 export async function POST(
@@ -52,6 +54,7 @@ export async function POST(
                     select: {
                         id: true,
                         name: true,
+                        email: true,
                         phone: true,
                     },
                 },
@@ -211,7 +214,7 @@ export async function POST(
 
                 const oldLeaders = await prisma.userRole.findMany({
                     where: { role: oldLeaderRole, departmentId: originalTransaction.departmentId },
-                    include: { user: { select: { phone: true, name: true, archived: true } } },
+                    include: { user: { select: { phone: true, email: true, name: true, archived: true } } },
                 });
 
                 const oldDeptTransactions = await prisma.transaction.findMany({
@@ -224,7 +227,7 @@ export async function POST(
                 }, 0);
 
                 const currencySymbol = originalTransaction.currency?.symbol || '$';
-                for (const lr of oldLeaders.filter(ur => ur.user.phone && !ur.user.archived)) {
+                for (const lr of oldLeaders.filter(ur => !ur.user.archived)) {
                     const sms = generateDepartmentTransferSms({
                         transactionType: originalTransaction.type.toLowerCase(),
                         currency: currencySymbol,
@@ -234,7 +237,20 @@ export async function POST(
                         reason: reason || 'Department correction',
                         balance: formatNumber(oldBalance),
                     });
-                    await sendSms({ to: lr.user.phone!, message: sms }).catch(() => {});
+                    if (lr.user.phone) await sendSms({ to: lr.user.phone!, message: sms }).catch(() => {});
+                    if (lr.user.email) {
+                        const { subject, html } = generateDepartmentTransferEmail({
+                            recipientName: lr.user.name || 'Leader',
+                            transactionType: originalTransaction.type.toLowerCase(),
+                            currency: currencySymbol,
+                            amount: formatNumber(originalAmount),
+                            fromDepartment: originalTransaction.department.name,
+                            toDepartment: targetDepartment.name,
+                            reason: reason || 'Department correction',
+                            balance: formatNumber(oldBalance),
+                        });
+                        sendEmail({ to: lr.user.email, subject, html }).catch(() => {});
+                    }
                 }
             } catch (e) { /* Don't fail on SMS */ }
 
@@ -248,7 +264,7 @@ export async function POST(
 
                 const newLeaders = await prisma.userRole.findMany({
                     where: { role: newLeaderRole, departmentId: targetDepartmentId },
-                    include: { user: { select: { phone: true, name: true, archived: true } } },
+                    include: { user: { select: { phone: true, email: true, name: true, archived: true } } },
                 });
 
                 const newDeptTransactions = await prisma.transaction.findMany({
@@ -261,7 +277,7 @@ export async function POST(
                 }, 0);
 
                 const currencySymbol = originalTransaction.currency?.symbol || '$';
-                for (const lr of newLeaders.filter(ur => ur.user.phone && !ur.user.archived)) {
+                for (const lr of newLeaders.filter(ur => !ur.user.archived)) {
                     const sms = generateDepartmentTransferSms({
                         transactionType: originalTransaction.type.toLowerCase(),
                         currency: currencySymbol,
@@ -271,7 +287,20 @@ export async function POST(
                         reason: reason || 'Department correction',
                         balance: formatNumber(newBalance),
                     });
-                    await sendSms({ to: lr.user.phone!, message: sms }).catch(() => {});
+                    if (lr.user.phone) await sendSms({ to: lr.user.phone!, message: sms }).catch(() => {});
+                    if (lr.user.email) {
+                        const { subject, html } = generateDepartmentTransferEmail({
+                            recipientName: lr.user.name || 'Leader',
+                            transactionType: originalTransaction.type.toLowerCase(),
+                            currency: currencySymbol,
+                            amount: formatNumber(newAmountValue),
+                            fromDepartment: originalTransaction.department.name,
+                            toDepartment: targetDepartment.name,
+                            reason: reason || 'Department correction',
+                            balance: formatNumber(newBalance),
+                        });
+                        sendEmail({ to: lr.user.email, subject, html }).catch(() => {});
+                    }
                 }
             } catch (e) { /* Don't fail on SMS */ }
 
@@ -362,21 +391,21 @@ export async function POST(
                               originalTransaction.department.level === 'STREAM' ? 'STREAM_LEADER' :
                               'COUNCIL_LEADER';
 
-            const departmentLeader = await prisma.user.findFirst({
+            const departmentLeaders = await prisma.userRole.findMany({
                 where: {
-                    userRoles: {
-                        some: {
-                            role: leaderRole,
-                            departmentId: originalTransaction.departmentId,
-                        },
-                    },
+                    role: leaderRole,
+                    departmentId: originalTransaction.departmentId,
                 },
-                select: {
-                    phone: true,
+                include: {
+                    user: {
+                        select: { phone: true, email: true, name: true, archived: true },
+                    },
                 },
             });
 
-            if (departmentLeader?.phone) {
+            const activeLeaders = departmentLeaders.filter(ur => !ur.user.archived);
+
+            if (activeLeaders.length > 0) {
                 // Calculate department balance after this correction
                 const departmentTransactions = await prisma.transaction.findMany({
                     where: {
@@ -396,7 +425,7 @@ export async function POST(
                 }, 0);
 
                 const currencySymbol = originalTransaction.currency?.symbol || '$';
-                const smsMessage = await generateCorrectionNotificationSms({
+                const correctionParams = {
                     transactionType: originalTransaction.type.toLowerCase(),
                     departmentName: originalTransaction.department.name,
                     currency: currencySymbol,
@@ -406,12 +435,19 @@ export async function POST(
                     adjustmentAmount: formatNumber(absoluteCorrectionAmount),
                     reason: reason || 'Amount adjustment',
                     balance: formatNumber(balance),
-                });
+                };
+                const smsMessage = await generateCorrectionNotificationSms(correctionParams);
                 
-                await sendSms({
-                    to: departmentLeader.phone,
-                    message: smsMessage
-                });
+                for (const lr of activeLeaders) {
+                    if (lr.user.phone) await sendSms({ to: lr.user.phone, message: smsMessage }).catch(() => {});
+                    if (lr.user.email) {
+                        const { subject, html } = generateCorrectionEmail({
+                            recipientName: lr.user.name || 'Leader',
+                            ...correctionParams,
+                        });
+                        sendEmail({ to: lr.user.email, subject, html }).catch(() => {});
+                    }
+                }
             }
         } catch (smsError) {
             // Don't fail the request if SMS fails

@@ -6,6 +6,8 @@ import crypto from 'crypto';
 import { getCurrentWeek, getWeekFromDate, formatNumber } from '@/lib/utils';
 import { sendSms } from '@/lib/sms';
 import { generatePendingApprovalRequestSms, generateCreditAlertSms, generateDebitAlertSms } from '@/lib/sms-templates';
+import { sendEmail } from '@/lib/email';
+import { generatePendingApprovalEmail, generateCreditAlertEmail, generateDebitAlertEmail } from '@/lib/email-templates';
 import { getDescendantDepartmentIds, hasDepartmentAccess } from '@/lib/departments';
 import { getUserBaseCurrency, convertToUserBaseCurrency } from '@/lib/currency-conversion';
 
@@ -429,6 +431,7 @@ export async function POST(request: Request) {
                         user: {
                             select: {
                                 phone: true,
+                                email: true,
                                 name: true,
                                 archived: true,
                             },
@@ -436,15 +439,17 @@ export async function POST(request: Request) {
                     },
                 });
 
-                // Filter to active users with phone numbers and extract unique users
+                // Filter to active users and extract unique users
                 const campusAdmins = campusAdminRoles
-                    .filter(ur => ur.user.phone && !ur.user.archived)
-                    .map(ur => ({ phone: ur.user.phone!, name: ur.user.name }))
-                    .filter((admin, index, self) => 
-                        index === self.findIndex(a => a.phone === admin.phone)
-                    );
+                    .filter(ur => !ur.user.archived)
+                    .reduce((acc: { phone: string | null; email: string; name: string | null }[], ur) => {
+                        if (!acc.find(a => a.email === ur.user.email)) {
+                            acc.push({ phone: ur.user.phone, email: ur.user.email, name: ur.user.name });
+                        }
+                        return acc;
+                    }, []);
 
-                // Send SMS to all campus admins
+                // Send SMS and email to all campus admins
                 if (campusAdmins.length > 0) {
                     const currencySymbol = transaction.currency?.symbol || '$';
                     const smsMessage = await generatePendingApprovalRequestSms({
@@ -458,16 +463,23 @@ export async function POST(request: Request) {
                     console.log(`[SMS] Sending pending approval SMS to ${campusAdmins.length} campus admin(s)`);
                     
                     for (const admin of campusAdmins) {
-                        if (admin.phone) {
-                            try {
-                                const sent = await sendSms({
-                                    to: admin.phone,
-                                    message: smsMessage
-                                });
+                        try {
+                            if (admin.phone) {
+                                const sent = await sendSms({ to: admin.phone, message: smsMessage });
                                 console.log(`[SMS] Sent to ${admin.phone}: ${sent ? 'SUCCESS' : 'FAILED'}`);
-                            } catch (err) {
-                                console.error(`[SMS] Error sending to ${admin.phone}:`, err);
                             }
+                            const { subject, html } = generatePendingApprovalEmail({
+                                adminName: admin.name || 'Admin',
+                                submittedBy: session.user.name || 'A user',
+                                transactionType: type.toLowerCase(),
+                                currency: currencySymbol,
+                                amount: formatNumber(amount),
+                                description,
+                                departmentName: transaction.department?.name,
+                            });
+                            sendEmail({ to: admin.email, subject, html }).catch(() => {});
+                        } catch (err) {
+                            console.error(`[SMS] Error sending to ${admin.email}:`, err);
                         }
                     }
                 } else {
@@ -504,6 +516,7 @@ export async function POST(request: Request) {
                         user: {
                             select: {
                                 phone: true,
+                                email: true,
                                 name: true,
                                 archived: true,
                             },
@@ -511,13 +524,15 @@ export async function POST(request: Request) {
                     },
                 });
 
-                // Filter active users with phone numbers
+                // Filter active users, deduplicate by email
                 const leaders = departmentLeaderRoles
-                    .filter(ur => ur.user.phone && !ur.user.archived)
-                    .map(ur => ({ phone: ur.user.phone!, name: ur.user.name }))
-                    .filter((leader, index, self) => 
-                        index === self.findIndex(l => l.phone === leader.phone)
-                    );
+                    .filter(ur => !ur.user.archived)
+                    .reduce((acc: { phone: string | null; email: string; name: string | null }[], ur) => {
+                        if (!acc.find(l => l.email === ur.user.email)) {
+                            acc.push({ phone: ur.user.phone, email: ur.user.email, name: ur.user.name });
+                        }
+                        return acc;
+                    }, []);
 
                 console.log(`[SMS] Found ${leaders.length} leader(s) for ${alertType} alert`);
 
@@ -542,40 +557,51 @@ export async function POST(request: Request) {
 
                     const currencySymbol = transaction.currency?.symbol || '₵';
                     const descText = description || (type === 'INCOME' ? 'Income' : 'Expense');
+                    const descShort = descText.substring(0, 40) + (descText.length > 40 ? '...' : '');
+                    const amtStr = formatNumber(amount);
+                    const balStr = formatNumber(balance);
+                    const deptName = transaction.department.name;
                     
                     // Generate appropriate alert message based on transaction type
                     let smsMessage: string;
                     if (type === 'INCOME') {
                         smsMessage = await generateCreditAlertSms({
                             currency: currencySymbol,
-                            amount: formatNumber(amount),
-                            departmentName: transaction.department.name,
-                            description: descText.substring(0, 40) + (descText.length > 40 ? '...' : ''),
-                            balance: formatNumber(balance),
+                            amount: amtStr,
+                            departmentName: deptName,
+                            description: descShort,
+                            balance: balStr,
                         });
                     } else {
                         smsMessage = await generateDebitAlertSms({
                             currency: currencySymbol,
-                            amount: formatNumber(amount),
-                            departmentName: transaction.department.name,
-                            description: descText.substring(0, 40) + (descText.length > 40 ? '...' : ''),
-                            balance: formatNumber(balance),
+                            amount: amtStr,
+                            departmentName: deptName,
+                            description: descShort,
+                            balance: balStr,
                         });
                     }
                     
                     console.log(`[SMS] Sending ${alertType} alert to ${leaders.length} leader(s): ${smsMessage}`);
                     
                     for (const leader of leaders) {
-                        if (leader.phone) {
-                            try {
-                                const sent = await sendSms({
-                                    to: leader.phone,
-                                    message: smsMessage
-                                });
+                        try {
+                            if (leader.phone) {
+                                const sent = await sendSms({ to: leader.phone, message: smsMessage });
                                 console.log(`[SMS] ${alertType} alert to ${leader.phone}: ${sent ? 'SUCCESS' : 'FAILED'}`);
-                            } catch (err) {
-                                console.error(`[SMS] Error sending ${alertType} alert to ${leader.phone}:`, err);
                             }
+                            const alertEmailFn = type === 'INCOME' ? generateCreditAlertEmail : generateDebitAlertEmail;
+                            const { subject, html } = alertEmailFn({
+                                recipientName: leader.name || 'Leader',
+                                currency: currencySymbol,
+                                amount: amtStr,
+                                departmentName: deptName,
+                                description: descShort,
+                                balance: balStr,
+                            });
+                            sendEmail({ to: leader.email, subject, html }).catch(() => {});
+                        } catch (err) {
+                            console.error(`[SMS] Error sending ${alertType} alert to leader:`, err);
                         }
                     }
                 } else {
