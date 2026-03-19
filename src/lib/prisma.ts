@@ -1,10 +1,11 @@
+import './env'; // Validate required environment variables at startup
 import { PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { Pool } from 'pg';
 
 const globalForPrisma = global as unknown as { prisma: PrismaClient };
 
-const pool = new Pool({ 
+const pool = new Pool({
     connectionString: process.env.DATABASE_URL,
     max: 20, // Maximum pool size
     idleTimeoutMillis: 30000,

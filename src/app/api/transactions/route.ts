@@ -5,9 +5,17 @@ import { authOptions } from '@/lib/auth';
 import crypto from 'crypto';
 import { getCurrentWeek, getWeekFromDate, formatNumber } from '@/lib/utils';
 import { sendSms } from '@/lib/sms';
-import { generatePendingApprovalRequestSms, generateCreditAlertSms, generateDebitAlertSms } from '@/lib/sms-templates';
+import {
+    generatePendingApprovalRequestSms,
+    generateCreditAlertSms,
+    generateDebitAlertSms,
+} from '@/lib/sms-templates';
 import { sendEmail } from '@/lib/email';
-import { generatePendingApprovalEmail, generateCreditAlertEmail, generateDebitAlertEmail } from '@/lib/email-templates';
+import {
+    generatePendingApprovalEmail,
+    generateCreditAlertEmail,
+    generateDebitAlertEmail,
+} from '@/lib/email-templates';
 import { getDescendantDepartmentIds, hasDepartmentAccess } from '@/lib/departments';
 import { getUserBaseCurrency, convertToUserBaseCurrency } from '@/lib/currency-conversion';
 
@@ -28,6 +36,10 @@ export async function GET(request: Request) {
     const exactDepartment = searchParams.get('exactDepartment') === 'true';
     const status = searchParams.get('status');
 
+    // Pagination
+    const page = Math.max(1, parseInt(searchParams.get('page') ?? '1', 10) || 1);
+    const limit = Math.min(200, Math.max(1, parseInt(searchParams.get('limit') ?? '50', 10) || 50));
+
     try {
         const whereClause: any = {};
 
@@ -36,16 +48,16 @@ export async function GET(request: Request) {
         // For other queries, use the activeUserRole's department for context-specific filtering
         let filterDepartmentId = session.user.departmentId;
         let allDepartmentIds: string[] = [];
-        
+
         if (status === 'PENDING' && session.user.role !== 'SUPERADMIN') {
             // For approvals, aggregate all departments from all user roles
             const userRoles = await prisma.userRole.findMany({
-                where: { 
+                where: {
                     userId: session.user.id,
                 },
                 select: { departmentId: true },
             });
-            
+
             // Get descendants for each role's department
             for (const role of userRoles) {
                 if (role.departmentId) {
@@ -53,13 +65,13 @@ export async function GET(request: Request) {
                     allDepartmentIds.push(...descendants);
                 }
             }
-            
+
             // Also include user's base department
             if (filterDepartmentId) {
                 const baseDescendants = await getDescendantDepartmentIds(filterDepartmentId);
                 allDepartmentIds.push(...baseDescendants);
             }
-            
+
             // Remove duplicates
             allDepartmentIds = [...new Set(allDepartmentIds)];
         } else if (session.user.activeUserRole?.departmentId) {
@@ -73,9 +85,12 @@ export async function GET(request: Request) {
             }
 
             // Use aggregated departments for pending queries, otherwise use standard filtering
-            const allowedIds = allDepartmentIds.length > 0 
-                ? allDepartmentIds 
-                : (filterDepartmentId ? await getDescendantDepartmentIds(filterDepartmentId) : []);
+            const allowedIds =
+                allDepartmentIds.length > 0
+                    ? allDepartmentIds
+                    : filterDepartmentId
+                      ? await getDescendantDepartmentIds(filterDepartmentId)
+                      : [];
 
             if (departmentId) {
                 // If specific department requested, verify access
@@ -124,52 +139,58 @@ export async function GET(request: Request) {
             whereClause.status = status;
         }
 
-        const transactions = await prisma.transaction.findMany({
-            where: whereClause,
-            include: {
-                department: {
-                    select: {
-                        id: true,
-                        name: true,
-                        level: true,
+        const [total, transactions] = await Promise.all([
+            prisma.transaction.count({ where: whereClause }),
+            prisma.transaction.findMany({
+                where: whereClause,
+                include: {
+                    department: {
+                        select: {
+                            id: true,
+                            name: true,
+                            level: true,
+                        },
+                    },
+                    user: {
+                        select: {
+                            id: true,
+                            name: true,
+                            email: true,
+                        },
+                    },
+                    currency: {
+                        select: {
+                            id: true,
+                            code: true,
+                            name: true,
+                            symbol: true,
+                            isBase: true,
+                        },
+                    },
+                    files: {
+                        select: {
+                            id: true,
+                            fileName: true,
+                            fileUrl: true,
+                            fileMime: true,
+                        },
                     },
                 },
-                user: {
-                    select: {
-                        id: true,
-                        name: true,
-                        email: true,
-                    },
+                orderBy: {
+                    createdAt: 'desc',
                 },
-                currency: {
-                    select: {
-                        id: true,
-                        code: true,
-                        name: true,
-                        symbol: true,
-                        isBase: true,
-                    },
-                },
-                files: {
-                    select: {
-                        id: true,
-                        fileName: true,
-                        fileUrl: true,
-                        fileMime: true,
-                    },
-                },
-            },
-            orderBy: {
-                createdAt: 'desc',
-            },
-            take: 500, // Limit results for performance
-        });
+                skip: (page - 1) * limit,
+                take: limit,
+            }),
+        ]);
 
         // Get user's base currency and exchange rates
         const userBaseCurrency = await getUserBaseCurrency(session.user.id);
-        
+
+        const pagination = { page, limit, total, totalPages: Math.ceil(total / limit) };
+
         if (!userBaseCurrency) {
-            return NextResponse.json(transactions);
+            return NextResponse.json({ data: transactions, ...pagination });
         }
 
         const exchangeRates = await prisma.exchangeRate.findMany({
@@ -180,27 +201,27 @@ export async function GET(request: Request) {
         });
 
         // Add converted amount to each transaction
-        const transactionsWithConversion = transactions.map(tx => {
+        const transactionsWithConversion = transactions.map((tx) => {
             const currencyId = tx.currencyId || userBaseCurrency.id;
             const convertedAmount = convertToUserBaseCurrency(
                 Number(tx.amount),
                 currencyId,
                 userBaseCurrency.id,
-                exchangeRates
+                exchangeRates,
             );
-            
+
             return {
                 ...tx,
                 amountInBase: convertedAmount,
             };
         });
 
-        return NextResponse.json(transactionsWithConversion);
+        return NextResponse.json({ data: transactionsWithConversion, ...pagination });
     } catch (error) {
-        return new NextResponse(JSON.stringify({ error: error instanceof Error ? error.message : 'Internal Error' }), { 
-            status: 500,
-            headers: { 'Content-Type': 'application/json' }
-        });
+        return NextResponse.json(
+            { error: error instanceof Error ? error.message : 'Internal server error' },
+            { status: 500 },
+        );
     }
 }
 
@@ -213,8 +234,9 @@ export async function POST(request: Request) {
 
     try {
         const body = await request.json();
-        const { type, amount, description, departmentId, files, currencyId, exchangeRate, date } = body;
-        
+        const { type, amount, description, departmentId, files, currencyId, exchangeRate, date } =
+            body;
+
         // If a custom date is provided, compute week number from that date
         // Otherwise use current week
         let weekNumber: number;
@@ -238,7 +260,13 @@ export async function POST(request: Request) {
         }
 
         // Determine if this is a leader role (time-restricted) or admin
-        const leaderRoles = ['DENOMINATION_LEADER', 'OVERSIGHT_LEADER', 'CAMPUS_LEADER', 'STREAM_LEADER', 'COUNCIL_LEADER'];
+        const leaderRoles = [
+            'DENOMINATION_LEADER',
+            'OVERSIGHT_LEADER',
+            'CAMPUS_LEADER',
+            'STREAM_LEADER',
+            'COUNCIL_LEADER',
+        ];
         const isLeader = leaderRoles.includes(session.user.role);
 
         // Server-side time validation for expense requests - only for leaders
@@ -249,12 +277,14 @@ export async function POST(request: Request) {
             const day = serverTime.getDay();
             const isSaturday = day === 6;
             const maxHour = isSaturday ? 19 : 15;
-            
+
             if (hour < 6 || hour >= maxHour) {
                 const timeRange = isSaturday ? '6:00 AM and 7:00 PM' : '6:00 AM and 3:00 PM';
                 return NextResponse.json(
-                    { error: `Expense requests can only be made between ${timeRange}. Actual time is ${serverTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}` },
-                    { status: 400 }
+                    {
+                        error: `Expense requests can only be made between ${timeRange}. Actual time is ${serverTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}`,
+                    },
+                    { status: 400 },
                 );
             }
         }
@@ -262,11 +292,37 @@ export async function POST(request: Request) {
         // Validate base currency is set for oversight and below departments
         const department = await prisma.department.findUnique({
             where: { id: departmentId },
-            select: { level: true, id: true, name: true, parent: { select: { id: true, level: true, parent: { select: { id: true, level: true, parent: { select: { id: true, level: true } } } } } } }
+            select: {
+                level: true,
+                id: true,
+                name: true,
+                parent: {
+                    select: {
+                        id: true,
+                        level: true,
+                        parent: {
+                            select: {
+                                id: true,
+                                level: true,
+                                parent: { select: { id: true, level: true } },
+                            },
+                        },
+                    },
+                },
+            },
         });
 
         if (department) {
-            const oversightRoles = ['OVERSIGHT_ADMIN', 'OVERSIGHT_LEADER', 'CAMPUS_ADMIN', 'CAMPUS_LEADER', 'STREAM_LEADER', 'COUNCIL_LEADER', 'STREAM_ADMIN', 'COUNCIL_ADMIN'];
+            const oversightRoles = [
+                'OVERSIGHT_ADMIN',
+                'OVERSIGHT_LEADER',
+                'CAMPUS_ADMIN',
+                'CAMPUS_LEADER',
+                'STREAM_LEADER',
+                'COUNCIL_LEADER',
+                'STREAM_ADMIN',
+                'COUNCIL_ADMIN',
+            ];
             const requiresBaseCurrency = oversightRoles.includes(session.user.role);
 
             if (requiresBaseCurrency) {
@@ -284,8 +340,10 @@ export async function POST(request: Request) {
 
                     if (!deptBaseCurrency) {
                         return NextResponse.json(
-                            { error: `Base currency must be set for ${oversightDept.name || 'your oversight department'} before transactions can be recorded. Please contact your Oversight Admin to set the base currency.` },
-                            { status: 400 }
+                            {
+                                error: `Base currency must be set for ${oversightDept.name || 'your oversight department'} before transactions can be recorded. Please contact your Oversight Admin to set the base currency.`,
+                            },
+                            { status: 400 },
                         );
                     }
                 }
@@ -303,10 +361,12 @@ export async function POST(request: Request) {
         const isSuperAdmin = session.user.role === 'SUPERADMIN';
         const isIncomeTransaction = type === 'INCOME';
         const needsApproval = !isSuperAdmin && !isIncomeTransaction;
-        
+
         // Leaders can only create expense requests, not income
         if (isLeader && type === 'INCOME') {
-            return new NextResponse('Leaders cannot record income. Please contact an admin.', { status: 403 });
+            return new NextResponse('Leaders cannot record income. Please contact an admin.', {
+                status: 403,
+            });
         }
 
         // Server-side balance validation for expense requests
@@ -331,15 +391,19 @@ export async function POST(request: Request) {
 
             if (deptBalance <= 0) {
                 return NextResponse.json(
-                    { error: 'This church does not have a positive balance. Expense requests cannot be made for churches without a positive balance.' },
-                    { status: 400 }
+                    {
+                        error: 'This church does not have a positive balance. Expense requests cannot be made for churches without a positive balance.',
+                    },
+                    { status: 400 },
                 );
             }
 
             if (amount > deptBalance) {
                 return NextResponse.json(
-                    { error: `Insufficient balance. The available balance is ${deptBalance.toFixed(2)}. You cannot request more than this amount.` },
-                    { status: 400 }
+                    {
+                        error: `Insufficient balance. The available balance is ${deptBalance.toFixed(2)}. You cannot request more than this amount.`,
+                    },
+                    { status: 400 },
                 );
             }
         }
@@ -364,12 +428,13 @@ export async function POST(request: Request) {
                 approvedBy: needsApproval ? null : session.user.id,
                 approvedAt: needsApproval ? null : new Date(),
                 files: {
-                    create: files?.map((f: any) => ({
-                        fileName: f.name,
-                        fileUrl: f.url,
-                        fileMime: f.mime,
-                        uploadedBy: session.user.id,
-                    })) || [],
+                    create:
+                        files?.map((f: any) => ({
+                            fileName: f.name,
+                            fileUrl: f.url,
+                            fileMime: f.mime,
+                            uploadedBy: session.user.id,
+                        })) || [],
                 },
             },
             include: {
@@ -401,12 +466,12 @@ export async function POST(request: Request) {
                             include: {
                                 parent: {
                                     include: {
-                                        parent: true
-                                    }
-                                }
-                            }
-                        }
-                    }
+                                        parent: true,
+                                    },
+                                },
+                            },
+                        },
+                    },
                 });
 
                 // Build array of department IDs in the hierarchy (from current up to campus level)
@@ -441,13 +506,23 @@ export async function POST(request: Request) {
 
                 // Filter to active users and extract unique users
                 const campusAdmins = campusAdminRoles
-                    .filter(ur => !ur.user.archived)
-                    .reduce((acc: { phone: string | null; email: string; name: string | null }[], ur) => {
-                        if (!acc.find(a => a.email === ur.user.email)) {
-                            acc.push({ phone: ur.user.phone, email: ur.user.email, name: ur.user.name });
-                        }
-                        return acc;
-                    }, []);
+                    .filter((ur) => !ur.user.archived)
+                    .reduce(
+                        (
+                            acc: { phone: string | null; email: string; name: string | null }[],
+                            ur,
+                        ) => {
+                            if (!acc.find((a) => a.email === ur.user.email)) {
+                                acc.push({
+                                    phone: ur.user.phone,
+                                    email: ur.user.email,
+                                    name: ur.user.name,
+                                });
+                            }
+                            return acc;
+                        },
+                        [],
+                    );
 
                 // Send SMS and email to all campus admins
                 if (campusAdmins.length > 0) {
@@ -459,14 +534,21 @@ export async function POST(request: Request) {
                         amount: formatNumber(amount),
                         description: description,
                     });
-                    
-                    console.log(`[SMS] Sending pending approval SMS to ${campusAdmins.length} campus admin(s)`);
-                    
+
+                    console.log(
+                        `[SMS] Sending pending approval SMS to ${campusAdmins.length} campus admin(s)`,
+                    );
+
                     for (const admin of campusAdmins) {
                         try {
                             if (admin.phone) {
-                                const sent = await sendSms({ to: admin.phone, message: smsMessage }).catch(() => false);
-                                console.log(`[SMS] Sent to ${admin.phone}: ${sent ? 'SUCCESS' : 'FAILED'}`);
+                                const sent = await sendSms({
+                                    to: admin.phone,
+                                    message: smsMessage,
+                                }).catch(() => false);
+                                console.log(
+                                    `[SMS] Sent to ${admin.phone}: ${sent ? 'SUCCESS' : 'FAILED'}`,
+                                );
                             }
                             const { subject, html } = generatePendingApprovalEmail({
                                 adminName: admin.name || 'Admin',
@@ -483,7 +565,9 @@ export async function POST(request: Request) {
                         }
                     }
                 } else {
-                    console.log('[SMS] No campus admins with phone numbers found for approval notification');
+                    console.log(
+                        '[SMS] No campus admins with phone numbers found for approval notification',
+                    );
                 }
             } catch (smsError) {
                 // Don't fail the request if SMS fails
@@ -495,16 +579,25 @@ export async function POST(request: Request) {
         if (transaction.status === 'APPROVED') {
             try {
                 const alertType = type === 'INCOME' ? 'CREDIT' : 'DEBIT';
-                console.log(`[SMS] Processing ${alertType} alert for ${type.toLowerCase()} transaction in ${transaction.department.name}`);
-                
-                // Find the department leader based on department level
-                const leaderRole = transaction.department.level === 'DENOMINATION' ? 'DENOMINATION_LEADER' :
-                                  transaction.department.level === 'OVERSIGHT' ? 'OVERSIGHT_LEADER' :
-                                  transaction.department.level === 'CAMPUS' ? 'CAMPUS_LEADER' :
-                                  transaction.department.level === 'STREAM' ? 'STREAM_LEADER' :
-                                  'COUNCIL_LEADER';
+                console.log(
+                    `[SMS] Processing ${alertType} alert for ${type.toLowerCase()} transaction in ${transaction.department.name}`,
+                );
 
-                console.log(`[SMS] Looking for ${leaderRole} in department ${transaction.departmentId}`);
+                // Find the department leader based on department level
+                const leaderRole =
+                    transaction.department.level === 'DENOMINATION'
+                        ? 'DENOMINATION_LEADER'
+                        : transaction.department.level === 'OVERSIGHT'
+                          ? 'OVERSIGHT_LEADER'
+                          : transaction.department.level === 'CAMPUS'
+                            ? 'CAMPUS_LEADER'
+                            : transaction.department.level === 'STREAM'
+                              ? 'STREAM_LEADER'
+                              : 'COUNCIL_LEADER';
+
+                console.log(
+                    `[SMS] Looking for ${leaderRole} in department ${transaction.departmentId}`,
+                );
 
                 // Get department leaders - this will find users with leader role even if they have other roles
                 const departmentLeaderRoles = await prisma.userRole.findMany({
@@ -526,13 +619,23 @@ export async function POST(request: Request) {
 
                 // Filter active users, deduplicate by email
                 const leaders = departmentLeaderRoles
-                    .filter(ur => !ur.user.archived)
-                    .reduce((acc: { phone: string | null; email: string; name: string | null }[], ur) => {
-                        if (!acc.find(l => l.email === ur.user.email)) {
-                            acc.push({ phone: ur.user.phone, email: ur.user.email, name: ur.user.name });
-                        }
-                        return acc;
-                    }, []);
+                    .filter((ur) => !ur.user.archived)
+                    .reduce(
+                        (
+                            acc: { phone: string | null; email: string; name: string | null }[],
+                            ur,
+                        ) => {
+                            if (!acc.find((l) => l.email === ur.user.email)) {
+                                acc.push({
+                                    phone: ur.user.phone,
+                                    email: ur.user.email,
+                                    name: ur.user.name,
+                                });
+                            }
+                            return acc;
+                        },
+                        [],
+                    );
 
                 console.log(`[SMS] Found ${leaders.length} leader(s) for ${alertType} alert`);
 
@@ -557,11 +660,12 @@ export async function POST(request: Request) {
 
                     const currencySymbol = transaction.currency?.symbol || '₵';
                     const descText = description || (type === 'INCOME' ? 'Income' : 'Expense');
-                    const descShort = descText.substring(0, 40) + (descText.length > 40 ? '...' : '');
+                    const descShort =
+                        descText.substring(0, 40) + (descText.length > 40 ? '...' : '');
                     const amtStr = formatNumber(amount);
                     const balStr = formatNumber(balance);
                     const deptName = transaction.department.name;
-                    
+
                     // Generate appropriate alert message based on transaction type
                     let smsMessage: string;
                     if (type === 'INCOME') {
@@ -581,16 +685,26 @@ export async function POST(request: Request) {
                             balance: balStr,
                         });
                     }
-                    
-                    console.log(`[SMS] Sending ${alertType} alert to ${leaders.length} leader(s): ${smsMessage}`);
-                    
+
+                    console.log(
+                        `[SMS] Sending ${alertType} alert to ${leaders.length} leader(s): ${smsMessage}`,
+                    );
+
                     for (const leader of leaders) {
                         try {
                             if (leader.phone) {
-                                const sent = await sendSms({ to: leader.phone, message: smsMessage }).catch(() => false);
-                                console.log(`[SMS] ${alertType} alert to ${leader.phone}: ${sent ? 'SUCCESS' : 'FAILED'}`);
+                                const sent = await sendSms({
+                                    to: leader.phone,
+                                    message: smsMessage,
+                                }).catch(() => false);
+                                console.log(
+                                    `[SMS] ${alertType} alert to ${leader.phone}: ${sent ? 'SUCCESS' : 'FAILED'}`,
+                                );
                             }
-                            const alertEmailFn = type === 'INCOME' ? generateCreditAlertEmail : generateDebitAlertEmail;
+                            const alertEmailFn =
+                                type === 'INCOME'
+                                    ? generateCreditAlertEmail
+                                    : generateDebitAlertEmail;
                             const { subject, html } = alertEmailFn({
                                 recipientName: leader.name || 'Leader',
                                 currency: currencySymbol,
@@ -616,7 +730,7 @@ export async function POST(request: Request) {
         // Calculate new balance for the department
         let newBalance: number | null = null;
         let balanceCurrency: { code: string; symbol: string } | null = null;
-        
+
         try {
             // Get all approved transactions for this department
             const allTransactions = await prisma.transaction.findMany({
@@ -629,7 +743,7 @@ export async function POST(request: Request) {
                     amount: true,
                 },
             });
-            
+
             let income = 0;
             let expense = 0;
             for (const tx of allTransactions) {
@@ -640,14 +754,14 @@ export async function POST(request: Request) {
                 }
             }
             newBalance = income - expense;
-            
+
             // Get currency from department's base currency
             const dept = await prisma.department.findUnique({
                 where: { id: transaction.departmentId },
-                include: { 
+                include: {
                     departmentBaseCurrency: {
-                        include: { currency: true }
-                    }
+                        include: { currency: true },
+                    },
                 },
             });
             if (dept?.departmentBaseCurrency?.currency) {
@@ -679,7 +793,8 @@ export async function PUT(request: Request) {
 
     try {
         const body = await request.json();
-        const { id, type, amount, description, departmentId, currencyId, exchangeRate, files } = body;
+        const { id, type, amount, description, departmentId, currencyId, exchangeRate, files } =
+            body;
 
         const transaction = await prisma.transaction.findUnique({
             where: { id },
@@ -690,9 +805,17 @@ export async function PUT(request: Request) {
         }
 
         // Leaders cannot edit transactions at all
-        const leaderRolesCheck = ['DENOMINATION_LEADER', 'OVERSIGHT_LEADER', 'CAMPUS_LEADER', 'STREAM_LEADER', 'COUNCIL_LEADER'];
+        const leaderRolesCheck = [
+            'DENOMINATION_LEADER',
+            'OVERSIGHT_LEADER',
+            'CAMPUS_LEADER',
+            'STREAM_LEADER',
+            'COUNCIL_LEADER',
+        ];
         if (leaderRolesCheck.includes(session.user.role)) {
-            return new NextResponse('Leaders are not permitted to edit transactions', { status: 403 });
+            return new NextResponse('Leaders are not permitted to edit transactions', {
+                status: 403,
+            });
         }
 
         // Check permissions
@@ -702,7 +825,8 @@ export async function PUT(request: Request) {
         }
 
         // Check locking
-        if (transaction.locked) { // Check DB flag
+        if (transaction.locked) {
+            // Check DB flag
             if (session.user.role !== 'SUPERADMIN') {
                 return new NextResponse('Transaction is locked', { status: 400 });
             }
@@ -714,7 +838,10 @@ export async function PUT(request: Request) {
             // Only oversight admin and above can edit past-week transactions
             const oversightAndAboveRoles = ['SUPERADMIN', 'DENOMINATION_ADMIN', 'OVERSIGHT_ADMIN'];
             if (!oversightAndAboveRoles.includes(session.user.role)) {
-                return new NextResponse('Week is locked. Only Oversight Admin and above can edit past-week transactions.', { status: 400 });
+                return new NextResponse(
+                    'Week is locked. Only Oversight Admin and above can edit past-week transactions.',
+                    { status: 400 },
+                );
             }
         }
 
@@ -735,14 +862,17 @@ export async function PUT(request: Request) {
                 exchangeRate: exchangeRate || null,
                 amountInBase: amountInBase,
                 updatedAt: new Date(),
-                files: files && files.length > 0 ? {
-                    create: files.map((f: any) => ({
-                        fileName: f.name,
-                        fileUrl: f.url,
-                        fileMime: f.mime,
-                        uploadedBy: session.user.id,
-                    })),
-                } : undefined,
+                files:
+                    files && files.length > 0
+                        ? {
+                              create: files.map((f: any) => ({
+                                  fileName: f.name,
+                                  fileUrl: f.url,
+                                  fileMime: f.mime,
+                                  uploadedBy: session.user.id,
+                              })),
+                          }
+                        : undefined,
             },
             include: {
                 department: true,
@@ -809,7 +939,10 @@ export async function DELETE(request: Request) {
         if (isWeekLockedFn(transaction.weekNumber, transaction.year)) {
             const oversightAndAboveRoles = ['SUPERADMIN', 'DENOMINATION_ADMIN', 'OVERSIGHT_ADMIN'];
             if (!oversightAndAboveRoles.includes(session.user.role)) {
-                return new NextResponse('Week is locked. Only Oversight Admin and above can delete past-week transactions.', { status: 400 });
+                return new NextResponse(
+                    'Week is locked. Only Oversight Admin and above can delete past-week transactions.',
+                    { status: 400 },
+                );
             }
         }
 

@@ -1,64 +1,74 @@
 import { prisma } from './prisma';
-import { DepartmentLevel } from '@prisma/client';
 
 /**
- * Get the base currency for a department
- * - Denomination level: uses system base currency (USD)
- * - Oversight and below: uses the oversight department's configured base currency
+ * Get the base currency for a department.
+ * - DENOMINATION level → system base currency
+ * - All other levels → walk up to the OVERSIGHT ancestor and use its configured
+ *   base currency (falls back to system base currency if none configured).
+ *
+ * Uses a single query with nested parent includes instead of N sequential
+ * queries to avoid the N+1 problem for 5-level department hierarchies.
  */
 export async function getDepartmentBaseCurrency(departmentId: string) {
+    // Fetch the department and its full ancestor chain in one query.
+    // The hierarchy is at most 5 levels deep (DENOMINATION → COUNCIL), so
+    // four levels of parent nesting covers every possible path.
     const department = await prisma.department.findUnique({
         where: { id: departmentId },
-        select: { level: true },
+        select: {
+            id: true,
+            level: true,
+            departmentBaseCurrency: { include: { currency: true } },
+            parent: {
+                select: {
+                    id: true,
+                    level: true,
+                    departmentBaseCurrency: { include: { currency: true } },
+                    parent: {
+                        select: {
+                            id: true,
+                            level: true,
+                            departmentBaseCurrency: { include: { currency: true } },
+                            parent: {
+                                select: {
+                                    id: true,
+                                    level: true,
+                                    departmentBaseCurrency: { include: { currency: true } },
+                                    parent: {
+                                        select: {
+                                            id: true,
+                                            level: true,
+                                            departmentBaseCurrency: { include: { currency: true } },
+                                        },
+                                    },
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
     });
 
     if (!department) {
         throw new Error('Department not found');
     }
 
-    // For Denomination level, use system base currency
-    if (department.level === 'DENOMINATION') {
-        const systemBase = await prisma.currency.findFirst({
-            where: { isBase: true },
-        });
-        return systemBase;
-    }
-
-    // For other levels, find the Oversight department in the hierarchy
-    let currentDeptId: string | null = departmentId;
-    let oversightDept = null;
-
-    while (currentDeptId) {
-        const dept: { level: DepartmentLevel | null; parentId: string | null } | null = await prisma.department.findUnique({
-            where: { id: currentDeptId },
-            select: { level: true, parentId: true },
-        });
-
-        if (!dept) break;
-
-        if (dept.level === 'OVERSIGHT') {
-            oversightDept = await prisma.department.findUnique({
-                where: { id: currentDeptId },
-            });
-            break;
+    // Walk up the pre-fetched ancestor chain to find the OVERSIGHT node.
+    type DeptNode = typeof department;
+    let node: DeptNode | null = department;
+    while (node) {
+        if (node.level === 'DENOMINATION') break; // use system base
+        if (node.level === 'OVERSIGHT') {
+            if (node.departmentBaseCurrency?.currency) {
+                return node.departmentBaseCurrency.currency;
+            }
+            break; // Oversight found but no currency configured → fall through
         }
-
-        currentDeptId = dept.parentId || null;
+        node = node.parent as DeptNode | null;
     }
 
-    if (oversightDept) {
-        // Get the base currency for this oversight department
-        const deptBaseCurrency = await prisma.departmentBaseCurrency.findUnique({
-            where: { departmentId: oversightDept.id },
-            include: { currency: true },
-        });
-
-        if (deptBaseCurrency) {
-            return deptBaseCurrency.currency;
-        }
-    }
-
-    // Fallback to system base currency
+    // Fallback: system base currency (single query, cached by Prisma connection pool)
     const systemBase = await prisma.currency.findFirst({
         where: { isBase: true },
     });
@@ -72,14 +82,14 @@ export async function getDepartmentBaseCurrency(departmentId: string) {
 export async function getUserBaseCurrency(userId: string) {
     const user = await prisma.user.findUnique({
         where: { id: userId },
-        select: { 
+        select: {
             departmentId: true,
             activeRole: true,
             activeUserRole: {
                 select: {
-                    role: true
-                }
-            }
+                    role: true,
+                },
+            },
         },
     });
 
@@ -103,6 +113,12 @@ export async function getUserBaseCurrency(userId: string) {
     return getDepartmentBaseCurrency(user.departmentId);
 }
 
+export interface ExchangeRateRow {
+    fromCurrency: { id: string };
+    toCurrency: { id: string };
+    rate: string | number | { toString(): string };
+}
+
 /**
  * Convert an amount from one currency to another using exchange rates
  */
@@ -110,7 +126,7 @@ export function convertCurrency(
     amount: number,
     fromCurrencyId: string,
     toCurrencyId: string,
-    exchangeRates: any[]
+    exchangeRates: ExchangeRateRow[],
 ): number {
     // If same currency, no conversion needed
     if (fromCurrencyId === toCurrencyId) {
@@ -119,7 +135,7 @@ export function convertCurrency(
 
     // Find direct exchange rate: fromCurrency → toCurrency
     let rate = exchangeRates.find(
-        (r) => r.fromCurrency.id === fromCurrencyId && r.toCurrency.id === toCurrencyId
+        (r) => r.fromCurrency.id === fromCurrencyId && r.toCurrency.id === toCurrencyId,
     );
 
     if (rate) {
@@ -129,7 +145,7 @@ export function convertCurrency(
 
     // Try reverse: toCurrency → fromCurrency
     rate = exchangeRates.find(
-        (r) => r.fromCurrency.id === toCurrencyId && r.toCurrency.id === fromCurrencyId
+        (r) => r.fromCurrency.id === toCurrencyId && r.toCurrency.id === fromCurrencyId,
     );
 
     if (rate) {
@@ -149,7 +165,7 @@ export function convertToUserBaseCurrency(
     amount: number,
     fromCurrencyId: string,
     userBaseCurrencyId: string,
-    exchangeRates: any[]
+    exchangeRates: ExchangeRateRow[],
 ): number {
     return convertCurrency(amount, fromCurrencyId, userBaseCurrencyId, exchangeRates);
 }

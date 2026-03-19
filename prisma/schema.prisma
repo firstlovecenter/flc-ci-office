@@ -6,6 +6,17 @@ datasource db {
   provider = "postgresql"
 }
 
+model LoginAttempt {
+  id          String    @id @default(cuid())
+  identifier  String    @unique
+  count       Int       @default(0)
+  lockedUntil DateTime?
+  updatedAt   DateTime  @updatedAt
+
+  @@index([identifier])
+  @@index([lockedUntil])
+}
+
 model AuditLog {
   id           String        @id @default(cuid())
   userId       String

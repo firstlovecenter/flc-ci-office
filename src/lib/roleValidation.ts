@@ -1,7 +1,9 @@
 import { prisma } from '@/lib/prisma';
 
-// The email that is locked as the only SUPERADMIN
-const SUPERADMIN_EMAIL = 'skaduteye@gmail.com';
+// The email that is locked as the only SUPERADMIN.
+// Configured via the SUPERADMIN_EMAIL environment variable so it can be changed
+// without touching source code.
+const SUPERADMIN_EMAIL = process.env.SUPERADMIN_EMAIL ?? '';
 
 /**
  * Validates role assignment constraints:
@@ -13,7 +15,7 @@ export async function validateRoleAssignment(
     userId: string,
     roles: string[],
     departmentId?: string | null,
-    userEmail?: string
+    userEmail?: string,
 ): Promise<{ valid: boolean; error?: string }> {
     // Check for SUPERADMIN constraint - only skaduteye@gmail.com can have it
     if (roles.includes('SUPERADMIN')) {
@@ -24,14 +26,14 @@ export async function validateRoleAssignment(
                 error: `Only ${SUPERADMIN_EMAIL} can have the SUPERADMIN role.`,
             };
         }
-        
+
         // If we don't have email, fetch the user and check
         if (!userEmail && userId !== 'new-user') {
             const user = await prisma.user.findUnique({
                 where: { id: userId },
                 select: { email: true },
             });
-            
+
             if (user && user.email !== SUPERADMIN_EMAIL) {
                 return {
                     valid: false,
@@ -39,7 +41,7 @@ export async function validateRoleAssignment(
                 };
             }
         }
-        
+
         // Check if someone else already has SUPERADMIN
         const existingSuperAdmin = await prisma.user.findFirst({
             where: {
@@ -90,10 +92,7 @@ export async function validateRoleAssignment(
 export async function getUsersByRole(role: string, departmentId?: string) {
     // Query users by activeRole or through userRoles relationship
     const where: any = {
-        OR: [
-            { activeRole: role },
-            { userRoles: { some: { role } } },
-        ],
+        OR: [{ activeRole: role }, { userRoles: { some: { role } } }],
         archived: false,
     };
 
@@ -118,7 +117,7 @@ export async function getUsersByRole(role: string, departmentId?: string) {
 export async function canAssignRole(
     userId: string,
     role: string,
-    departmentId?: string | null
+    departmentId?: string | null,
 ): Promise<{ canAssign: boolean; reason?: string }> {
     // For non-unique roles, always allow
     if (!['SUPERADMIN', 'DENOMINATION_ADMIN'].includes(role)) {
@@ -169,7 +168,7 @@ export async function getRoleStats() {
             });
 
             return { role, count };
-        })
+        }),
     );
 
     return stats;
