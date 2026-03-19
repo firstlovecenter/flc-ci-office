@@ -26,6 +26,7 @@ import SmsIcon from '@mui/icons-material/Sms';
 import LockIcon from '@mui/icons-material/Lock';
 import PeopleIcon from '@mui/icons-material/People';
 import MonetizationOnIcon from '@mui/icons-material/MonetizationOn';
+import InboxIcon from '@mui/icons-material/Inbox';
 import { useColorMode } from '@/app/providers';
 import RoleSwitcher from './RoleSwitcher';
 import PullToRefresh from './PullToRefresh';
@@ -78,7 +79,7 @@ export default function ModernDashboardLayout({ children }: { children: React.Re
     const router = useRouter();
     const theme = useTheme();
     const colorMode = useColorMode();
-    const [pendingCounts, setPendingCounts] = useState({ approvals: 0, transactions: 0 });
+    const [pendingCounts, setPendingCounts] = useState({ approvals: 0, transactions: 0, publicRequests: 0 });
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
 
@@ -119,6 +120,7 @@ export default function ModernDashboardLayout({ children }: { children: React.Re
     const mobileMenuItems = [
         { text: 'Home', icon: <HomeIcon />, path: '/dashboard', show: true },
         { text: 'Approvals', icon: <PendingActionsIcon />, path: '/approvals', badge: pendingCounts.approvals, show: isAdmin || isSuperAdmin },
+        { text: 'Public Requests', icon: <InboxIcon />, path: '/public-requests', badge: pendingCounts.publicRequests, show: userRole === 'OVERSIGHT_LEADER' },
         { text: 'Request Expense', icon: <AddCircleOutlineIcon />, path: '/transactions/new', show: !isSuperAdmin },
         { text: 'Transaction History', icon: <ReceiptIcon />, path: '/transactions', badge: pendingCounts.transactions, show: true },
         { text: 'Users', icon: <PeopleIcon />, path: '/users', show: isAdmin || isSuperAdmin },
