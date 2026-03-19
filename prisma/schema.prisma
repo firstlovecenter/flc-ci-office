@@ -68,6 +68,7 @@ model Department {
     transactions           Transaction[]
     users                  User[]
     userRoles              UserRole[]
+    publicExpenseRequests  PublicExpenseRequest[]  @relation("OversightPublicRequests")
 
   @@index([isActive])
   @@index([level])
@@ -167,10 +168,11 @@ model Transaction {
   rejectedAt      DateTime?
   rejectedBy      String?
   rejectionReason String?
-    files           File[]
-    currency        Currency?         @relation(fields: [currencyId], references: [id])
-    department      Department        @relation(fields: [departmentId], references: [id])
-    user            User              @relation("Transactions", fields: [userId], references: [id])
+    files                File[]
+    currency             Currency?         @relation(fields: [currencyId], references: [id])
+    department           Department        @relation(fields: [departmentId], references: [id])
+    user                 User              @relation("Transactions", fields: [userId], references: [id])
+    publicExpenseRequest PublicExpenseRequest? @relation("PublicExpenseTransaction")
 
   @@index([createdAt])
   @@index([currencyId])
@@ -282,4 +284,31 @@ enum TransactionStatus {
 enum TransactionType {
   INCOME
   EXPENSE
+}
+
+model PublicExpenseRequest {
+  id              String                     @id @default(uuid())
+  requesterName   String
+  churchName      String
+  momoName        String
+  momoNumber      String
+  amount          Decimal
+  description     String
+  status          PublicExpenseRequestStatus @default(PENDING)
+  oversightDeptId String
+  transactionId   String?                    @unique
+  createdAt       DateTime                   @default(now())
+  updatedAt       DateTime
+
+  oversightDept Department    @relation("OversightPublicRequests", fields: [oversightDeptId], references: [id])
+  transaction   Transaction?  @relation("PublicExpenseTransaction", fields: [transactionId], references: [id])
+
+  @@index([oversightDeptId])
+  @@index([status])
+}
+
+enum PublicExpenseRequestStatus {
+  PENDING
+  PROCESSED
+  REJECTED
 }

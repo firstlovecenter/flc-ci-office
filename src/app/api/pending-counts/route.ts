@@ -31,8 +31,10 @@ export async function GET(request: NextRequest) {
             filterDepartmentId = session.user.activeUserRole.departmentId;
         }
 
+        const isOversightLeader = userRole === 'OVERSIGHT_LEADER';
+
         // Run queries in parallel for better performance
-        const [pendingApprovals, pendingTransactions] = await Promise.all([
+        const [pendingApprovals, pendingTransactions, pendingPublicRequests] = await Promise.all([
             isAdmin ? (
                 session.user.role === 'SUPERADMIN' || session.user.role === 'DENOMINATION_ADMIN'
                     ? prisma.transaction.count({
@@ -55,12 +57,21 @@ export async function GET(request: NextRequest) {
                     status: TransactionStatus.PENDING,
                 },
             }),
+            isOversightLeader && filterDepartmentId
+                ? prisma.publicExpenseRequest.count({
+                    where: {
+                        oversightDeptId: filterDepartmentId,
+                        status: 'PENDING',
+                    },
+                })
+                : Promise.resolve(0),
         ]);
 
         return NextResponse.json(
             {
                 approvals: pendingApprovals,
                 transactions: pendingTransactions,
+                publicRequests: pendingPublicRequests,
             },
             {
                 headers: {

@@ -21,6 +21,9 @@ const publicPaths = [
   '/manifest.json',
   '/sw.js',
   '/favicon.ico',
+  '/public-expense',
+  '/api/public-expense/oversights',
+  '/api/public-expense',
 ];
 
 const MUTATING_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
@@ -73,7 +76,8 @@ export function middleware(request: NextRequest) {
     // Skip CSRF check for:
     // - NextAuth's own endpoints (they have built-in CSRF tokens)
     // - Cron endpoints (called by external services with Bearer token auth, no browser Origin)
-    if (!pathname.startsWith('/api/auth') && !pathname.startsWith('/api/cron')) {
+    // - Public expense submission endpoint (unauthenticated public form)
+    if (!pathname.startsWith('/api/auth') && !pathname.startsWith('/api/cron') && pathname !== '/api/public-expense') {
       if (!isValidOrigin(request)) {
         return NextResponse.json(
           { error: 'CSRF validation failed: cross-origin request blocked' },
