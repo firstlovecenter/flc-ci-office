@@ -29,8 +29,11 @@ export async function GET(request: Request) {
     const session = await getServerSession(authOptions);
     if (!session) return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
 
-    const isOversightLeader = session.user.role === 'OVERSIGHT_LEADER';
-    const isSuperAdmin = session.user.role === 'SUPERADMIN';
+    const userRoles = Array.isArray(session.user.roles) 
+        ? session.user.roles.map(role => (typeof role === 'string' ? role.toUpperCase() : ''))
+        : [];
+    const isOversightLeader = session.user.role === 'OVERSIGHT_LEADER' || userRoles.includes('OVERSIGHT_LEADER');
+    const isSuperAdmin = session.user.role === 'SUPERADMIN' || userRoles.includes('SUPERADMIN');
 
     if (!isOversightLeader && !isSuperAdmin) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
@@ -47,7 +50,7 @@ export async function GET(request: Request) {
     try {
         const requests = await prisma.publicExpenseRequest.findMany({
             where: {
-                ...(isOversightLeader ? { oversightDeptId: leaderOversightDeptId } : {}),
+                ...(isOversightLeader && leaderOversightDeptId ? { oversightDeptId: leaderOversightDeptId } : {}),
                 ...(status ? { status: status as any } : {}),
             },
             orderBy: { createdAt: 'desc' },
@@ -55,6 +58,7 @@ export async function GET(request: Request) {
 
         return NextResponse.json(requests);
     } catch (error) {
+        console.error('[PublicExpense] GET error:', error);
         return NextResponse.json({ error: 'Failed to fetch requests' }, { status: 500 });
     }
 }

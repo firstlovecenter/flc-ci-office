@@ -104,7 +104,8 @@ export default function ModernDashboardLayout({ children }: { children: React.Re
     };
 
     const normalizedRole = (session?.user?.role || '').toUpperCase();
-    const isSuperAdmin = normalizedRole === 'SUPERADMIN';
+    const normalizedRoles = (session?.user?.roles || []).map(role => role.toUpperCase());
+    const isSuperAdmin = normalizedRole === 'SUPERADMIN' || normalizedRoles.includes('SUPERADMIN');
     const userRole = normalizedRole || undefined;
     const leaderAndAdminRoles = [
         'DENOMINATION_ADMIN', 'DENOMINATION_LEADER',

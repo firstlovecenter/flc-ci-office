@@ -16,7 +16,10 @@ export async function GET(request: NextRequest) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const userRole = session.user.role;
+        const userRole = session.user.role || '';
+        const userRoles = Array.isArray(session.user.roles) 
+            ? session.user.roles.map(role => (typeof role === 'string' ? role.toUpperCase() : ''))
+            : [];
         const userId = session.user.id;
 
         // Only admins see pending approvals
@@ -31,13 +34,14 @@ export async function GET(request: NextRequest) {
             filterDepartmentId = session.user.activeUserRole.departmentId;
         }
 
-        const isOversightLeader = userRole === 'OVERSIGHT_LEADER';
-        const isSuperAdmin = userRole === 'SUPERADMIN';
+        const isOversightLeader = userRole === 'OVERSIGHT_LEADER' || userRoles.includes('OVERSIGHT_LEADER');
+        const isSuperAdmin = userRole === 'SUPERADMIN' || userRoles.includes('SUPERADMIN');
+        const isDenominationAdmin = userRole === 'DENOMINATION_ADMIN' || userRoles.includes('DENOMINATION_ADMIN');
 
         // Run queries in parallel for better performance
         const [pendingApprovals, pendingTransactions, pendingPublicRequests] = await Promise.all([
             isAdmin ? (
-                session.user.role === 'SUPERADMIN' || session.user.role === 'DENOMINATION_ADMIN'
+                isSuperAdmin || isDenominationAdmin
                     ? prisma.transaction.count({
                         where: { status: TransactionStatus.PENDING },
                     })
@@ -85,6 +89,7 @@ export async function GET(request: NextRequest) {
             }
         );
     } catch (error) {
+        console.error('[PendingCounts] GET error:', error);
         return NextResponse.json(
             { error: 'Failed to fetch pending counts' },
             { status: 500 }

@@ -16,6 +16,7 @@ const nextConfig: NextConfig = {
   /* config options here */
   reactCompiler: true,
   // turbopack: {}, // Disabled due to NextAuth v4 compatibility issues with Next.js 16
+  serverExternalPackages: ['@prisma/client', '.prisma/client', 'pg'],
   images: {
     remotePatterns: [
       {
