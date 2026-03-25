@@ -7,6 +7,20 @@ import { sendEmail } from '@/lib/email';
 
 export const dynamic = 'force-dynamic';
 
+function getExpenseWindowStatus() {
+    const now = new Date();
+    const hour = now.getHours();
+    const isSaturday = now.getDay() === 6;
+    const maxHour = isSaturday ? 19 : 15;
+    const timeRange = isSaturday ? '6:00 AM and 7:00 PM' : '6:00 AM and 3:00 PM';
+
+    return {
+        now,
+        timeRange,
+        isOpen: hour >= 6 && hour < maxHour,
+    };
+}
+
 // Auth-protected GET: returns public expense requests for the oversight leader
 // Public POST is below
 export async function GET(request: Request) {
@@ -42,6 +56,16 @@ export async function GET(request: Request) {
 // Accepts expense requests from members of the public
 export async function POST(request: Request) {
     try {
+        const expenseWindow = getExpenseWindowStatus();
+        if (!expenseWindow.isOpen) {
+            return NextResponse.json(
+                {
+                    error: `Expense requests can only be made between ${expenseWindow.timeRange}. Actual time is ${expenseWindow.now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}`,
+                },
+                { status: 400 }
+            );
+        }
+
         const body = await request.json();
         const { oversightDeptId, requesterName, churchName, momoName, momoNumber, amount, description } = body;
 

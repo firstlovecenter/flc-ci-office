@@ -22,6 +22,19 @@ interface OversightOption {
     name: string;
 }
 
+function getExpenseWindowStatus() {
+    const now = new Date();
+    const hour = now.getHours();
+    const isSaturday = now.getDay() === 6;
+    const maxHour = isSaturday ? 19 : 15;
+
+    return {
+        now,
+        timeRange: isSaturday ? '6:00 AM and 7:00 PM' : '6:00 AM and 3:00 PM',
+        isOpen: hour >= 6 && hour < maxHour,
+    };
+}
+
 export default function PublicExpensePage() {
     const [oversights, setOversights] = useState<OversightOption[]>([]);
     const [loadingOversights, setLoadingOversights] = useState(true);
@@ -58,6 +71,12 @@ export default function PublicExpensePage() {
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setError('');
+
+        const expenseWindow = getExpenseWindowStatus();
+        if (!expenseWindow.isOpen) {
+            setError(`Expense requests can only be made between ${expenseWindow.timeRange}.`);
+            return;
+        }
 
         const amount = parseFloat(form.amount);
         if (!form.oversightDeptId) return setError('Please select your oversight church.');
@@ -136,6 +155,47 @@ export default function PublicExpensePage() {
                     >
                         Submit Another Request
                     </Button>
+                </Paper>
+            </Box>
+        );
+    }
+
+    const expenseWindow = getExpenseWindowStatus();
+    if (!expenseWindow.isOpen) {
+        return (
+            <Box
+                sx={{
+                    minHeight: '100vh',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    bgcolor: '#f0f4f8',
+                    p: 2,
+                }}
+            >
+                <Paper
+                    elevation={3}
+                    sx={{
+                        p: { xs: 3, sm: 5 },
+                        maxWidth: 520,
+                        width: '100%',
+                        borderRadius: 3,
+                    }}
+                >
+                    <Alert severity="warning" sx={{ mb: 2 }}>
+                        <Typography variant="h6" gutterBottom>
+                            Outside Operating Hours
+                        </Typography>
+                        <Typography variant="body2">
+                            Expense requests can only be made between <strong>{expenseWindow.timeRange}</strong>.
+                        </Typography>
+                        <Typography variant="body2" sx={{ mt: 1 }}>
+                            Current time: {expenseWindow.now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}
+                        </Typography>
+                        <Typography variant="body2" sx={{ mt: 1 }}>
+                            Please return during operating hours to submit your request.
+                        </Typography>
+                    </Alert>
                 </Paper>
             </Box>
         );
