@@ -32,6 +32,7 @@ export async function GET(request: NextRequest) {
         }
 
         const isOversightLeader = userRole === 'OVERSIGHT_LEADER';
+        const isSuperAdmin = userRole === 'SUPERADMIN';
 
         // Run queries in parallel for better performance
         const [pendingApprovals, pendingTransactions, pendingPublicRequests] = await Promise.all([
@@ -57,7 +58,11 @@ export async function GET(request: NextRequest) {
                     status: TransactionStatus.PENDING,
                 },
             }),
-            isOversightLeader && filterDepartmentId
+            isSuperAdmin
+                ? prisma.publicExpenseRequest.count({
+                    where: { status: 'PENDING' },
+                })
+                : isOversightLeader && filterDepartmentId
                 ? prisma.publicExpenseRequest.count({
                     where: {
                         oversightDeptId: filterDepartmentId,

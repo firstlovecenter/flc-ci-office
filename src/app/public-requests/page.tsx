@@ -87,6 +87,8 @@ export default function PublicRequestsPage() {
     const [rejectDialog, setRejectDialog] = useState<{ open: boolean; request: PublicRequest | null }>({ open: false, request: null });
     const [rejecting, setRejecting] = useState(false);
 
+    const canProcessRequests = session?.user?.role === 'OVERSIGHT_LEADER';
+
     const fetchRequests = useCallback(async () => {
         setLoading(true);
         try {
@@ -104,7 +106,7 @@ export default function PublicRequestsPage() {
 
     useEffect(() => {
         if (!session) return;
-        if (session.user.role !== 'OVERSIGHT_LEADER') {
+        if (!['OVERSIGHT_LEADER', 'SUPERADMIN'].includes(session.user.role)) {
             router.replace('/dashboard');
             return;
         }
@@ -234,7 +236,7 @@ export default function PublicRequestsPage() {
                         Public Expense Requests
                     </Typography>
                     <Typography variant="body2" color="text.secondary">
-                        Expense requests submitted by church members for your review.
+                        Expense requests submitted by church members.
                     </Typography>
                 </Box>
                 {pendingCount > 0 && (
@@ -296,7 +298,7 @@ export default function PublicRequestsPage() {
                                 <Typography variant="caption" color="text.disabled">
                                     {new Date(req.createdAt).toLocaleDateString()}
                                 </Typography>
-                                {req.status === 'PENDING' && (
+                                {req.status === 'PENDING' && canProcessRequests && (
                                     <Stack direction="row" spacing={1} sx={{ mt: 2 }}>
                                         <Button
                                             variant="contained"
@@ -360,7 +362,7 @@ export default function PublicRequestsPage() {
                                         <Chip label={req.status} color={statusChipColor(req.status) as any} size="small" />
                                     </TableCell>
                                     <TableCell align="right">
-                                        {req.status === 'PENDING' && (
+                                        {req.status === 'PENDING' && canProcessRequests && (
                                             <Stack direction="row" spacing={1} justifyContent="flex-end">
                                                 <Button
                                                     variant="contained"

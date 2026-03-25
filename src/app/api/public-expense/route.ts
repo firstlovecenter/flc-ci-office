@@ -21,18 +21,25 @@ function getExpenseWindowStatus() {
     };
 }
 
-// Auth-protected GET: returns public expense requests for the oversight leader
+// Auth-protected GET:
+// - OVERSIGHT_LEADER: requests for own oversight department
+// - SUPERADMIN: all public expense requests
 // Public POST is below
 export async function GET(request: Request) {
     const session = await getServerSession(authOptions);
     if (!session) return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
 
-    if (session.user.role !== 'OVERSIGHT_LEADER') {
+    const isOversightLeader = session.user.role === 'OVERSIGHT_LEADER';
+    const isSuperAdmin = session.user.role === 'SUPERADMIN';
+
+    if (!isOversightLeader && !isSuperAdmin) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
     const leaderOversightDeptId = session.user.activeUserRole?.departmentId || session.user.departmentId;
-    if (!leaderOversightDeptId) return NextResponse.json({ error: 'No oversight department found for your account' }, { status: 400 });
+    if (isOversightLeader && !leaderOversightDeptId) {
+        return NextResponse.json({ error: 'No oversight department found for your account' }, { status: 400 });
+    }
 
     const { searchParams } = new URL(request.url);
     const status = searchParams.get('status') || undefined;
@@ -40,7 +47,7 @@ export async function GET(request: Request) {
     try {
         const requests = await prisma.publicExpenseRequest.findMany({
             where: {
-                oversightDeptId: leaderOversightDeptId,
+                ...(isOversightLeader ? { oversightDeptId: leaderOversightDeptId } : {}),
                 ...(status ? { status: status as any } : {}),
             },
             orderBy: { createdAt: 'desc' },
