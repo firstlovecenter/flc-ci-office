@@ -355,11 +355,11 @@ function TransactionsPageContent() {
         }
     };
 
-    const totalIncome = filteredTransactions
+    const totalIncome = transactions
         .filter((tx) => tx.type === 'INCOME' && tx.status === 'APPROVED')
         .reduce((sum, tx) => sum + Number(tx.amountInBase || tx.amount), 0);
 
-    const totalExpense = filteredTransactions
+    const totalExpense = transactions
         .filter((tx) => tx.type === 'EXPENSE' && tx.status === 'APPROVED')
         .reduce((sum, tx) => sum + Number(tx.amountInBase || tx.amount), 0);
 
