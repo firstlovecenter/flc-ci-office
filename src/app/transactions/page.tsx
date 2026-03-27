@@ -102,6 +102,7 @@ function TransactionsPageContent() {
     const { showSuccess, showError } = useToast();
     const [transactions, setTransactions] = useState<TransactionWithDetails[]>([]);
     const [filteredTransactions, setFilteredTransactions] = useState<TransactionWithDetails[]>([]);
+    const [summary, setSummary] = useState({ income: 0, expense: 0, balance: 0 });
     const [baseCurrency, setBaseCurrency] = useState<{ id: string; code: string; symbol: string } | null>(null);
     const [currencies, setCurrencies] = useState<any[]>([]);
     const [department, setDepartment] = useState<any>(null);
@@ -132,6 +133,7 @@ function TransactionsPageContent() {
         fetchCurrencies();
         fetchBaseCurrency();
         fetchTransactions();
+        fetchSummary();
         if (deptParam) {
             fetchDepartment();
         }
@@ -141,6 +143,7 @@ function TransactionsPageContent() {
             if (document.visibilityState === 'visible') {
                 fetchBaseCurrency();
                 fetchTransactions();
+                fetchSummary();
             }
         };
 
@@ -265,6 +268,33 @@ function TransactionsPageContent() {
         }
     };
 
+    const fetchSummary = async () => {
+        try {
+            let url = '/api/transactions/summary';
+            const params = new URLSearchParams();
+
+            if (deptParam) {
+                params.append('departmentId', deptParam);
+            }
+
+            if (params.toString()) {
+                url += `?${params.toString()}`;
+            }
+
+            const response = await fetch(url, { cache: 'no-store' });
+            if (response.ok) {
+                const data = await response.json();
+                setSummary({
+                    income: Number(data.income || 0),
+                    expense: Number(data.expense || 0),
+                    balance: Number(data.balance || 0),
+                });
+            }
+        } catch (error) {
+            console.error('Failed to fetch transaction summary:', error);
+        }
+    };
+
     const filterTransactions = () => {
         let filtered = [...transactions];
 
@@ -305,6 +335,7 @@ function TransactionsPageContent() {
     const handleSaveEdit = () => {
         showSuccess('Transaction updated successfully');
         fetchTransactions();
+        fetchSummary();
     };
 
     /**
@@ -346,6 +377,7 @@ function TransactionsPageContent() {
             if (response.ok) {
                 showSuccess('Transaction deleted successfully');
                 fetchTransactions();
+                fetchSummary();
             } else {
                 const data = await response.json();
                 showError(data.error || 'Failed to delete transaction');
@@ -354,14 +386,6 @@ function TransactionsPageContent() {
             showError('Error deleting transaction');
         }
     };
-
-    const totalIncome = transactions
-        .filter((tx) => tx.type === 'INCOME' && tx.status === 'APPROVED')
-        .reduce((sum, tx) => sum + Number(tx.amountInBase || tx.amount), 0);
-
-    const totalExpense = transactions
-        .filter((tx) => tx.type === 'EXPENSE' && tx.status === 'APPROVED')
-        .reduce((sum, tx) => sum + Number(tx.amountInBase || tx.amount), 0);
 
     return (
         <Box>
@@ -436,7 +460,7 @@ function TransactionsPageContent() {
                     sx={{
                         position: 'relative',
                         background: (() => {
-                            const balance = totalIncome - totalExpense;
+                            const balance = summary.balance;
                             if (balance < 0) return 'linear-gradient(135deg, rgba(239, 83, 80, 0.1) 0%, rgba(198, 40, 40, 0.2) 100%)';
                             if (balance === 0) return 'linear-gradient(135deg, rgba(255, 152, 0, 0.1) 0%, rgba(245, 124, 0, 0.2) 100%)';
                             if (balance < 5000) return 'linear-gradient(135deg, rgba(255, 193, 7, 0.1) 0%, rgba(255, 152, 0, 0.2) 100%)';
@@ -447,7 +471,7 @@ function TransactionsPageContent() {
                             '0%, 100%': { opacity: 1 },
                             '50%': { opacity: 0.6 }
                         },
-                        animation: totalIncome - totalExpense > 0 && totalIncome - totalExpense < 5000 ? 'blink 1.5s ease-in-out infinite' : 'none',
+                        animation: summary.balance > 0 && summary.balance < 5000 ? 'blink 1.5s ease-in-out infinite' : 'none',
                     }}
                 >
                     <Box sx={{ position: 'relative', zIndex: 1 }}>
@@ -461,13 +485,13 @@ function TransactionsPageContent() {
                                 </Typography>
                             )}
                             <AnimatedCounter
-                                value={totalIncome - totalExpense}
+                                value={summary.balance}
                                 duration={1000}
                                 formatter={(val) => val.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                 sx={{ 
                                     fontSize: '1.75rem', 
                                     fontWeight: 700,
-                                    color: (totalIncome - totalExpense) < 0 ? 'error.main' : 'text.primary' 
+                                    color: summary.balance < 0 ? 'error.main' : 'text.primary' 
                                 }}
                             />
                         </Box>
@@ -505,7 +529,7 @@ function TransactionsPageContent() {
                                 </Typography>
                             )}
                             <AnimatedCounter
-                                value={totalIncome}
+                                value={summary.income}
                                 duration={1000}
                                 formatter={(val) => val.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                 sx={{ fontSize: '1.75rem', fontWeight: 700, color: 'success.main' }}
@@ -545,7 +569,7 @@ function TransactionsPageContent() {
                                 </Typography>
                             )}
                             <AnimatedCounter
-                                value={totalExpense}
+                                value={summary.expense}
                                 duration={1000}
                                 formatter={(val) => val.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                 sx={{ fontSize: '1.75rem', fontWeight: 700, color: 'error.main' }}

@@ -21,7 +21,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         {
           success: false,
-          error: 'SMSOptics API key not configured',
+          error: 'FLASHSMS is not fully configured (missing base URL, API key, or sender ID)',
         },
         { status: 500 }
       );
@@ -36,7 +36,7 @@ export async function POST(request: NextRequest) {
     // Send test SMS
     const success = await sendSms({
       to: formattedPhone,
-      message: 'Test SMS from CI Office via SMSOptics',
+      message: 'Test SMS from CI Office via FLASHSMS',
     });
 
     if (success) {

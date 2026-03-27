@@ -1,9 +1,9 @@
 /**
- * SMSOptics SMS Service
- * API Documentation: https://bms.codeslaw.dev/docs/
+ * FLASHSMS Service
+ * API Documentation: https://app.flashsms.africa/api/v1/docs/
  */
 
-const SMSOPTICS_BASE_URL = 'https://bms.codeslaw.dev/api/v1';
+const FLASHSMS_BASE_URL = process.env.FLASHSMS_BASE_URL;
 
 /**
  * GSM-7 character set (basic + extension)
@@ -94,7 +94,7 @@ export function getSmsSegmentCount(message: string): number {
  * Check if SMS service is properly configured
  */
 export function isSmsConfigured(): boolean {
-  return !!process.env.SMSOPTICS_API_KEY;
+  return !!process.env.FLASHSMS_BASE_URL && !!process.env.FLASHSMS_API_KEY && !!process.env.FLASHSMS_SENDER_ID;
 }
 
 export interface SmsOptions {
@@ -115,22 +115,28 @@ export interface SmsResponse {
 }
 
 /**
- * Send SMS using SMSOptics
+ * Send SMS using FLASHSMS
  */
 export async function sendSms(options: SmsOptions): Promise<boolean> {
   try {
     if (!isSmsConfigured()) {
-      console.error('SMSOptics API key not configured');
+      console.error('FLASHSMS is not fully configured (missing base URL, API key, or sender ID)');
       return false;
     }
 
-    const apiKey = process.env.SMSOPTICS_API_KEY;
-    const senderId = process.env.SMSOPTICS_SENDER_ID || 'SMSOptics';
+    const baseUrl = process.env.FLASHSMS_BASE_URL;
+    const apiKey = process.env.FLASHSMS_API_KEY;
+    const senderId = process.env.FLASHSMS_SENDER_ID;
+
+    if (!baseUrl || !apiKey || !senderId) {
+      console.error('FLASHSMS is not fully configured (missing base URL, API key, or sender ID)');
+      return false;
+    }
     
     // Sanitize message for GSM-7 compatibility
     const sanitizedMessage = sanitizeForGsm7(options.message);
 
-    const response = await fetch(`${SMSOPTICS_BASE_URL}/sms/send`, {
+    const response = await fetch(`${baseUrl}/sms/send`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${apiKey}`,
@@ -148,11 +154,11 @@ export async function sendSms(options: SmsOptions): Promise<boolean> {
     if (data.success && data.data && data.data.recipientsSent > 0) {
       return true;
     } else {
-      console.error('SMSOptics send failed:', data.error || 'Unknown error');
+      console.error('FLASHSMS send failed:', data.error || 'Unknown error');
       return false;
     }
   } catch (error: any) {
-    console.error('SMSOptics error:', error.message);
+    console.error('FLASHSMS error:', error.message);
     return false;
   }
 }
@@ -166,12 +172,18 @@ export async function sendBulkSms(
 ): Promise<{ sent: number; failed: number }> {
   try {
     if (!isSmsConfigured()) {
-      console.error('SMSOptics API key not configured');
+      console.error('FLASHSMS is not fully configured (missing base URL, API key, or sender ID)');
       return { sent: 0, failed: recipients.length };
     }
 
-    const apiKey = process.env.SMSOPTICS_API_KEY;
-    const senderId = process.env.SMSOPTICS_SENDER_ID || 'SMSOptics';
+    const baseUrl = process.env.FLASHSMS_BASE_URL;
+    const apiKey = process.env.FLASHSMS_API_KEY;
+    const senderId = process.env.FLASHSMS_SENDER_ID;
+
+    if (!baseUrl || !apiKey || !senderId) {
+      console.error('FLASHSMS is not fully configured (missing base URL, API key, or sender ID)');
+      return { sent: 0, failed: recipients.length };
+    }
 
     // Format all phone numbers
     const formattedRecipients = recipients.map(formatGhanaPhone);
@@ -179,7 +191,7 @@ export async function sendBulkSms(
     // Sanitize message for GSM-7 compatibility
     const sanitizedMessage = sanitizeForGsm7(message);
 
-    const response = await fetch(`${SMSOPTICS_BASE_URL}/sms/send`, {
+    const response = await fetch(`${baseUrl}/sms/send`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${apiKey}`,
@@ -200,11 +212,11 @@ export async function sendBulkSms(
         failed: data.data.invalidRecipients.length,
       };
     } else {
-      console.error('SMSOptics bulk send failed:', data.error || 'Unknown error');
+      console.error('FLASHSMS bulk send failed:', data.error || 'Unknown error');
       return { sent: 0, failed: recipients.length };
     }
   } catch (error: any) {
-    console.error('SMSOptics bulk error:', error.message);
+    console.error('FLASHSMS bulk error:', error.message);
     return { sent: 0, failed: recipients.length };
   }
 }
@@ -218,9 +230,14 @@ export async function checkSmsBalance(): Promise<number | null> {
       return null;
     }
 
-    const apiKey = process.env.SMSOPTICS_API_KEY;
+    const baseUrl = process.env.FLASHSMS_BASE_URL;
+    const apiKey = process.env.FLASHSMS_API_KEY;
 
-    const response = await fetch(`${SMSOPTICS_BASE_URL}/balance`, {
+    if (!baseUrl || !apiKey) {
+      return null;
+    }
+
+    const response = await fetch(`${baseUrl}/balance`, {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${apiKey}`,
@@ -234,14 +251,14 @@ export async function checkSmsBalance(): Promise<number | null> {
     }
     return null;
   } catch (error: any) {
-    console.error('SMSOptics balance check error:', error.message);
+    console.error('FLASHSMS balance check error:', error.message);
     return null;
   }
 }
 
 /**
  * Format phone number for Ghana
- * SMSOptics accepts: 0XXXXXXXXX, +233XXXXXXXXX, 233XXXXXXXXX
+ * FLASHSMS accepts: 0XXXXXXXXX, +233XXXXXXXXX, 233XXXXXXXXX
  */
 export function formatGhanaPhone(phone: string): string {
   // Remove all non-digit characters

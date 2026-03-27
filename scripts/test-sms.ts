@@ -1,33 +1,34 @@
 /**
- * Test script for SMSOptics SMS API
+ * Test script for FLASHSMS API
  * Run with: npx tsx scripts/test-sms.ts
  */
 
 import 'dotenv/config';
 
-const SMSOPTICS_BASE_URL = 'https://bms.codeslaw.dev/api/v1';
+const FLASHSMS_BASE_URL = process.env.FLASHSMS_BASE_URL;
 
 async function testSmsApi() {
-  console.log('🔧 Testing SMSOptics SMS API...\n');
+  console.log('🔧 Testing FLASHSMS API...\n');
 
-  const apiKey = process.env.SMSOPTICS_API_KEY;
-  const senderId = process.env.SMSOPTICS_SENDER_ID;
+  const apiKey = process.env.FLASHSMS_API_KEY;
+  const senderId = process.env.FLASHSMS_SENDER_ID;
 
   // Check configuration
   console.log('📋 Configuration:');
   console.log(`   API Key: ${apiKey ? apiKey.substring(0, 20) + '...' : 'NOT SET'}`);
   console.log(`   Sender ID: ${senderId || 'NOT SET'}`);
+  console.log(`   Base URL: ${FLASHSMS_BASE_URL || 'NOT SET'}`);
   console.log('');
 
-  if (!apiKey) {
-    console.error('❌ SMSOPTICS_API_KEY is not configured!');
+  if (!apiKey || !FLASHSMS_BASE_URL || !senderId) {
+    console.error('❌ FLASHSMS_API_KEY, FLASHSMS_BASE_URL, or FLASHSMS_SENDER_ID is not configured!');
     return;
   }
 
   // Test 1: Check balance
   console.log('📊 Test 1: Checking SMS credit balance...');
   try {
-    const balanceResponse = await fetch(`${SMSOPTICS_BASE_URL}/balance`, {
+    const balanceResponse = await fetch(`${FLASHSMS_BASE_URL}/balance`, {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${apiKey}`,
@@ -75,7 +76,7 @@ async function testSmsApi() {
     console.log(`   Sending to: ${testPhone}`);
     console.log(`   Message: ${testMessage}`);
     
-    const sendResponse = await fetch(`${SMSOPTICS_BASE_URL}/sms/send`, {
+    const sendResponse = await fetch(`${FLASHSMS_BASE_URL}/sms/send`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${apiKey}`,
@@ -84,7 +85,7 @@ async function testSmsApi() {
       body: JSON.stringify({
         recipients: [testPhone],
         message: testMessage,
-        senderId: senderId || 'SMSOptics',
+        senderId: senderId,
       }),
     });
 
