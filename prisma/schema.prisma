@@ -244,6 +244,8 @@ enum ActionType {
   RESTORE
   TRANSFER
   RECALCULATE
+  IMPERSONATE
+  STOP_IMPERSONATION
 }
 
 enum AuditSeverity {
