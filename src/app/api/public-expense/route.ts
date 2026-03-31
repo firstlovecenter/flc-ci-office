@@ -39,7 +39,24 @@ export async function GET(request: Request) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    const leaderOversightDeptId = session.user.activeUserRole?.departmentId || session.user.departmentId;
+    // Resolve the oversight department for the leader.
+    // If the active role is OVERSIGHT_LEADER, use its departmentId directly.
+    // Otherwise (multi-role user with a different active role) look up the
+    // OVERSIGHT_LEADER UserRole record from the database.
+    let leaderOversightDeptId: string | undefined =
+        (session.user.activeUserRole as any)?.role === 'OVERSIGHT_LEADER'
+            ? session.user.activeUserRole?.departmentId
+            : undefined;
+
+    if (!leaderOversightDeptId && isOversightLeader) {
+        // Active role is not OVERSIGHT_LEADER — find the right oversight dept from UserRole
+        const oversightUserRole = await prisma.userRole.findFirst({
+            where: { userId: session.user.id, role: 'OVERSIGHT_LEADER' },
+            select: { departmentId: true },
+        });
+        leaderOversightDeptId = oversightUserRole?.departmentId ?? undefined;
+    }
+
     if (isOversightLeader && !leaderOversightDeptId) {
         return NextResponse.json({ error: 'No oversight department found for your account' }, { status: 400 });
     }

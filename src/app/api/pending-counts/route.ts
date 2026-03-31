@@ -38,6 +38,21 @@ export async function GET(request: NextRequest) {
         const isSuperAdmin = userRole === 'SUPERADMIN' || userRoles.includes('SUPERADMIN');
         const isDenominationAdmin = userRole === 'DENOMINATION_ADMIN' || userRoles.includes('DENOMINATION_ADMIN');
 
+        // For oversight leader badge count: resolve the correct oversight department.
+        // If the active role is not OVERSIGHT_LEADER, look up the UserRole record.
+        let oversightDeptIdForCount: string | undefined;
+        if (isOversightLeader && !isSuperAdmin) {
+            if ((session.user.activeUserRole as any)?.role === 'OVERSIGHT_LEADER') {
+                oversightDeptIdForCount = session.user.activeUserRole?.departmentId ?? undefined;
+            } else {
+                const oversightUserRole = await prisma.userRole.findFirst({
+                    where: { userId: userId, role: 'OVERSIGHT_LEADER' },
+                    select: { departmentId: true },
+                });
+                oversightDeptIdForCount = oversightUserRole?.departmentId ?? undefined;
+            }
+        }
+
         // Run queries in parallel for better performance
         const [pendingApprovals, pendingTransactions, pendingPublicRequests] = await Promise.all([
             isAdmin ? (
@@ -66,10 +81,10 @@ export async function GET(request: NextRequest) {
                 ? prisma.publicExpenseRequest.count({
                     where: { status: 'PENDING' },
                 })
-                : isOversightLeader && filterDepartmentId
+                : isOversightLeader && oversightDeptIdForCount
                 ? prisma.publicExpenseRequest.count({
                     where: {
-                        oversightDeptId: filterDepartmentId,
+                        oversightDeptId: oversightDeptIdForCount,
                         status: 'PENDING',
                     },
                 })

@@ -23,7 +23,14 @@ export async function PATCH(
         return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
     }
 
-    if (session.user.role !== 'OVERSIGHT_LEADER') {
+    const userRoles = Array.isArray(session.user.roles)
+        ? session.user.roles.map(r => (typeof r === 'string' ? r.toUpperCase() : ''))
+        : [];
+    const isOversightLeader =
+        (session.user.role || '').toUpperCase() === 'OVERSIGHT_LEADER' ||
+        userRoles.includes('OVERSIGHT_LEADER');
+
+    if (!isOversightLeader) {
         return NextResponse.json({ error: 'Only Oversight Leaders can process public expense requests' }, { status: 403 });
     }
 
@@ -50,8 +57,21 @@ export async function PATCH(
             return NextResponse.json({ error: 'This request has already been processed.' }, { status: 400 });
         }
 
-        // Verify this oversight leader belongs to the same oversight department as the request
-        const leaderOversightDeptId = session.user.activeUserRole?.departmentId || session.user.departmentId;
+        // Resolve the oversight department.
+        // If the active role is OVERSIGHT_LEADER use its departmentId; otherwise look it up.
+        let leaderOversightDeptId: string | undefined =
+            (session.user.activeUserRole as any)?.role === 'OVERSIGHT_LEADER'
+                ? session.user.activeUserRole?.departmentId
+                : undefined;
+
+        if (!leaderOversightDeptId) {
+            const oversightUserRole = await prisma.userRole.findFirst({
+                where: { userId: session.user.id, role: 'OVERSIGHT_LEADER' },
+                select: { departmentId: true },
+            });
+            leaderOversightDeptId = oversightUserRole?.departmentId ?? undefined;
+        }
+
         if (!leaderOversightDeptId || publicRequest.oversightDeptId !== leaderOversightDeptId) {
             return NextResponse.json({ error: 'You can only process requests for your own oversight church.' }, { status: 403 });
         }
@@ -240,7 +260,14 @@ export async function GET(
     const session = await getServerSession(authOptions);
     if (!session) return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
 
-    if (session.user.role !== 'OVERSIGHT_LEADER') {
+    const getRouteRoles = Array.isArray(session.user.roles)
+        ? session.user.roles.map(r => (typeof r === 'string' ? r.toUpperCase() : ''))
+        : [];
+    const getIsOversightLeader =
+        (session.user.role || '').toUpperCase() === 'OVERSIGHT_LEADER' ||
+        getRouteRoles.includes('OVERSIGHT_LEADER');
+
+    if (!getIsOversightLeader) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
@@ -253,9 +280,21 @@ export async function GET(
 
         if (!publicRequest) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
-        // Ensure it belongs to this leader's oversight
-        const leaderOversightDeptId = session.user.activeUserRole?.departmentId || session.user.departmentId;
-        if (publicRequest.oversightDeptId !== leaderOversightDeptId) {
+        // Resolve the oversight department for this leader
+        let leaderOversightDeptId: string | undefined =
+            (session.user.activeUserRole as any)?.role === 'OVERSIGHT_LEADER'
+                ? session.user.activeUserRole?.departmentId
+                : undefined;
+
+        if (!leaderOversightDeptId) {
+            const oversightUserRole = await prisma.userRole.findFirst({
+                where: { userId: session.user.id, role: 'OVERSIGHT_LEADER' },
+                select: { departmentId: true },
+            });
+            leaderOversightDeptId = oversightUserRole?.departmentId ?? undefined;
+        }
+
+        if (!leaderOversightDeptId || publicRequest.oversightDeptId !== leaderOversightDeptId) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 
