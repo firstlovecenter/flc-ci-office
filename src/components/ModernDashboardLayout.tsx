@@ -122,7 +122,7 @@ export default function ModernDashboardLayout({ children }: { children: React.Re
     const mobileMenuItems = [
         { text: 'Home', icon: <HomeIcon />, path: '/dashboard', show: true },
         { text: 'Approvals', icon: <PendingActionsIcon />, path: '/approvals', badge: pendingCounts.approvals, show: isAdmin || isSuperAdmin },
-        { text: 'Public Requests', icon: <InboxIcon />, path: '/public-requests', badge: pendingCounts.publicRequests, show: userRole === 'OVERSIGHT_LEADER' || normalizedRoles.includes('OVERSIGHT_LEADER') || isSuperAdmin },
+        { text: 'Public Requests', icon: <InboxIcon />, path: '/public-requests', badge: pendingCounts.publicRequests, show: normalizedRole === 'OVERSIGHT_ADMIN' },
         { text: 'Request Expense', icon: <AddCircleOutlineIcon />, path: '/transactions/new', show: !isSuperAdmin },
         { text: 'Transaction History', icon: <ReceiptIcon />, path: '/transactions', badge: pendingCounts.transactions, show: true },
         { text: 'Users', icon: <PeopleIcon />, path: '/users', show: isAdmin || isSuperAdmin },
