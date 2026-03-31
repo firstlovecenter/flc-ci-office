@@ -16,6 +16,10 @@ declare module 'next-auth' {
                 departmentId: string;
             } | null;
             loginAt?: number;
+            // Impersonation fields
+            isImpersonating?: boolean;
+            originalAdminId?: string;
+            originalAdminName?: string;
         } & DefaultSession['user'];
     }
 
@@ -50,5 +54,10 @@ declare module 'next-auth/jwt' {
             departmentId: string;
         } | null;
         loginAt?: number;
+        // Impersonation fields
+        isImpersonating?: boolean;
+        originalAdminId?: string;
+        originalAdminEmail?: string;
+        originalAdminName?: string;
     }
 }

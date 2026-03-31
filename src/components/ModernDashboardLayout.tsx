@@ -31,6 +31,7 @@ import { useColorMode } from '@/app/providers';
 import RoleSwitcher from './RoleSwitcher';
 import PullToRefresh from './PullToRefresh';
 import { getDisplayRole } from '@/lib/roleDisplay';
+import ImpersonationBanner from './ImpersonationBanner';
 
 const MainContainer = styled(Box)(({ theme }) => ({
     display: 'flex',
@@ -157,6 +158,7 @@ export default function ModernDashboardLayout({ children }: { children: React.Re
 
     return (
         <>
+        <ImpersonationBanner />
         <MainContainer>
             {/* Sticky TopBar - Outside ContentArea for proper sticky positioning */}
             <TopBar

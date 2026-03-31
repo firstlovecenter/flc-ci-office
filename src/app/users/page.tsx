@@ -23,6 +23,7 @@ import {
 import AddIcon from '@mui/icons-material/Add';
 import SearchIcon from '@mui/icons-material/Search';
 import PhotoCameraIcon from '@mui/icons-material/PhotoCamera';
+import SupervisedUserCircleIcon from '@mui/icons-material/SupervisedUserCircle';
 import IconButton from '@mui/material/IconButton';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
@@ -31,7 +32,7 @@ import { useToast } from '@/components/ToastProvider';
 import { GlassCard } from '@/components/ui';
 
 function UsersPageContent() {
-    const { data: session } = useSession();
+    const { data: session, update } = useSession();
     const router = useRouter();
     const searchParams = useSearchParams();
     const deptParam = searchParams?.get('dept');
@@ -47,6 +48,7 @@ function UsersPageContent() {
     const [uploading, setUploading] = useState(false);
     const [error, setError] = useState('');
     const [searchQuery, setSearchQuery] = useState('');
+    const [impersonatingUserId, setImpersonatingUserId] = useState<string | null>(null);
     const [formData, setFormData] = useState({
         title: '',
         name: '',
@@ -136,6 +138,31 @@ function UsersPageContent() {
     const handleSaveEdit = () => {
         showSuccess('User updated successfully');
         fetchUsers();
+    };
+
+    const handleImpersonate = async (e: React.MouseEvent, user: any) => {
+        e.stopPropagation();
+        if (impersonatingUserId) return;
+        setImpersonatingUserId(user.id);
+        try {
+            const response = await fetch('/api/admin/impersonate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ userId: user.id }),
+            });
+
+            if (!response.ok) {
+                const data = await response.json();
+                throw new Error(data.error || 'Failed to start impersonation');
+            }
+
+            await update({ impersonateUserId: user.id });
+            await new Promise<void>((resolve) => setTimeout(resolve, 200));
+            window.location.replace('/dashboard');
+        } catch (err: any) {
+            showError(err.message || 'Failed to start impersonation');
+            setImpersonatingUserId(null);
+        }
     };
 
     const handleImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -236,6 +263,7 @@ function UsersPageContent() {
     // Admins can create users
     const adminRoles = ['SUPERADMIN', 'DENOMINATION_ADMIN', 'OVERSIGHT_ADMIN', 'CAMPUS_ADMIN'];
     const canCreateUsers = session?.user?.role && adminRoles.includes(session.user.role);
+    const isSuperAdmin = session?.user?.role === 'SUPERADMIN' && !session?.user?.isImpersonating;
 
     // Filter users based on search query
     const filteredUsers = users.filter((user) => {
@@ -308,7 +336,7 @@ function UsersPageContent() {
                             opacity: user.archived ? 0.6 : 1,
                         }}
                     >
-                        <CardActionArea 
+                        <CardActionArea
                             onClick={() => handleEdit(user)}
                             sx={{ p: 2 }}
                         >
@@ -325,10 +353,10 @@ function UsersPageContent() {
                                     {user.name?.[0]?.toUpperCase() || 'U'}
                                 </Avatar>
                                 <Box sx={{ flex: 1, minWidth: 0 }}>
-                                    <Typography 
-                                        variant="subtitle1" 
+                                    <Typography
+                                        variant="subtitle1"
                                         fontWeight={600}
-                                        sx={{ 
+                                        sx={{
                                             overflow: 'hidden',
                                             textOverflow: 'ellipsis',
                                             whiteSpace: 'nowrap',
@@ -336,18 +364,18 @@ function UsersPageContent() {
                                     >
                                         {user.title ? `${user.title} ` : ''}{user.name || 'Unnamed User'}
                                         {user.archived && (
-                                            <Chip 
-                                                label="Archived" 
-                                                size="small" 
+                                            <Chip
+                                                label="Archived"
+                                                size="small"
                                                 color="warning"
                                                 sx={{ ml: 1, height: 20, fontSize: '0.688rem' }}
                                             />
                                         )}
                                     </Typography>
-                                    <Typography 
-                                        variant="body2" 
+                                    <Typography
+                                        variant="body2"
                                         color="text.secondary"
-                                        sx={{ 
+                                        sx={{
                                             overflow: 'hidden',
                                             textOverflow: 'ellipsis',
                                             whiteSpace: 'nowrap',
@@ -360,6 +388,23 @@ function UsersPageContent() {
                                 </Box>
                             </Box>
                         </CardActionArea>
+                        {isSuperAdmin && !user.archived && user.id !== session?.user?.id && (
+                            <Box sx={{ px: 2, pb: 1.5, display: 'flex', justifyContent: 'flex-end' }}>
+                                <Button
+                                    size="small"
+                                    variant="outlined"
+                                    color="warning"
+                                    startIcon={impersonatingUserId === user.id
+                                        ? <CircularProgress size={14} color="inherit" />
+                                        : <SupervisedUserCircleIcon fontSize="small" />}
+                                    onClick={(e) => handleImpersonate(e, user)}
+                                    disabled={!!impersonatingUserId}
+                                    sx={{ fontSize: '0.75rem' }}
+                                >
+                                    {impersonatingUserId === user.id ? 'Starting...' : 'Impersonate'}
+                                </Button>
+                            </Box>
+                        )}
                     </GlassCard>
                 ))}
                 {filteredUsers.length === 0 && (

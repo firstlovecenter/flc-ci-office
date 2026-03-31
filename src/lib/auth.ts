@@ -241,6 +241,10 @@ export const authOptions: NextAuthOptions = {
                 session.user.activeUserRoleId = token.activeUserRoleId as string | null;
                 session.user.activeUserRole = token.activeUserRole as any;
                 session.user.loginAt = token.loginAt as number;
+                // Impersonation fields
+                session.user.isImpersonating = token.isImpersonating as boolean | undefined;
+                session.user.originalAdminId = token.originalAdminId as string | undefined;
+                session.user.originalAdminName = token.originalAdminName as string | undefined;
             }
             return session;
         },
@@ -280,6 +284,103 @@ export const authOptions: NextAuthOptions = {
             // Handle session update (e.g., when switching roles)
             // This runs when update() is called from the client
             if (trigger === 'update') {
+                // Handle stop impersonation
+                if ((session as any)?.stopImpersonation === true && token.isImpersonating && token.originalAdminEmail) {
+                    const adminUser = await prisma.user.findUnique({
+                        where: { email: token.originalAdminEmail as string },
+                        include: {
+                            department: true,
+                            activeUserRole: { include: { department: true } },
+                            userRoles: { include: { department: true } },
+                        },
+                    });
+
+                    if (adminUser && !adminUser.archived) {
+                        const allRoles = adminUser.userRoles.map(ur => ur.role).filter((r): r is Role => r !== null);
+                        token.id = adminUser.id;
+                        token.email = adminUser.email;
+                        token.name = adminUser.name;
+                        token.picture = adminUser.image;
+                        token.role = adminUser.activeRole as string;
+                        token.roles = allRoles.length > 0 ? allRoles : [adminUser.activeRole as string];
+                        token.departmentId = adminUser.departmentId;
+                        token.departmentLevel = adminUser.department?.level || undefined;
+                        token.departmentName = adminUser.department?.name;
+                        token.activeUserRoleId = adminUser.activeUserRoleId || null;
+                        token.activeUserRole = adminUser.activeUserRole ? {
+                            id: adminUser.activeUserRole.id,
+                            role: adminUser.activeUserRole.role as string,
+                            departmentId: adminUser.activeUserRole.departmentId,
+                        } : null;
+                        // Clear impersonation fields
+                        token.isImpersonating = undefined;
+                        token.originalAdminId = undefined;
+                        token.originalAdminEmail = undefined;
+                        token.originalAdminName = undefined;
+                    }
+                    return token;
+                }
+
+                // Handle start impersonation — only SUPERADMIN may do this
+                if ((session as any)?.impersonateUserId && token.role === 'SUPERADMIN') {
+                    const targetUser = await prisma.user.findUnique({
+                        where: { id: (session as any).impersonateUserId as string },
+                        include: {
+                            department: true,
+                            activeUserRole: { include: { department: true } },
+                            userRoles: { include: { department: true } },
+                        },
+                    });
+
+                    if (targetUser && !targetUser.archived) {
+                        const allRoles = targetUser.userRoles.map(ur => ur.role).filter((r): r is Role => r !== null);
+                        const isSuperUser = targetUser.activeRole === 'SUPERADMIN' || targetUser.activeRole === 'DENOMINATION_ADMIN';
+
+                        // Store original admin identity before switching
+                        const origAdminId = token.id as string;
+                        const origAdminEmail = token.email as string;
+                        const origAdminName = token.name as string;
+
+                        token.isImpersonating = true;
+                        token.originalAdminId = origAdminId;
+                        token.originalAdminEmail = origAdminEmail;
+                        token.originalAdminName = origAdminName;
+
+                        token.id = targetUser.id;
+                        token.email = targetUser.email;
+                        token.name = targetUser.name;
+                        token.picture = targetUser.image;
+
+                        if (isSuperUser) {
+                            token.role = targetUser.activeRole as string;
+                            token.roles = allRoles.length > 0 ? allRoles : [targetUser.activeRole as string];
+                            token.departmentId = targetUser.departmentId;
+                            token.departmentLevel = targetUser.department?.level || undefined;
+                            token.departmentName = targetUser.department?.name;
+                            token.activeUserRoleId = targetUser.activeUserRoleId || null;
+                            token.activeUserRole = targetUser.activeUserRole ? {
+                                id: targetUser.activeUserRole.id,
+                                role: targetUser.activeUserRole.role as string,
+                                departmentId: targetUser.activeUserRole.departmentId,
+                            } : null;
+                        } else {
+                            const activeRole = targetUser.activeUserRole || targetUser.userRoles[0];
+                            token.role = activeRole?.role || 'COUNCIL_LEADER';
+                            token.roles = allRoles;
+                            token.departmentId = activeRole?.departmentId;
+                            token.departmentLevel = activeRole?.department?.level || undefined;
+                            token.departmentName = activeRole?.department?.name || undefined;
+                            token.activeUserRoleId = activeRole?.id || null;
+                            token.activeUserRole = activeRole ? {
+                                id: activeRole.id,
+                                role: activeRole.role as string,
+                                departmentId: activeRole.departmentId,
+                            } : null;
+                        }
+                    }
+                    return token;
+                }
+
                 // Fetch fresh user data to get updated activeUserRole
                 const updatedUser = await prisma.user.findUnique({
                     where: { email: token.email as string },
@@ -297,15 +398,15 @@ export const authOptions: NextAuthOptions = {
                         },
                     },
                 });
-                
+
                 if (updatedUser && !updatedUser.archived) {
                     const allRoles = updatedUser.userRoles.map(ur => ur.role).filter((r): r is Role => r !== null);
                     const isSuperUserOnUpdate = updatedUser.activeRole === 'SUPERADMIN' || updatedUser.activeRole === 'DENOMINATION_ADMIN';
-                    
+
                     // Always update name and image
                     token.name = updatedUser.name;
                     token.picture = updatedUser.image;
-                    
+
                     if (isSuperUserOnUpdate) {
                         token.id = updatedUser.id;
                         token.role = updatedUser.activeRole as string;
@@ -321,7 +422,7 @@ export const authOptions: NextAuthOptions = {
                         } : null;
                     } else {
                         const activeRole = updatedUser.activeUserRole || updatedUser.userRoles[0];
-                        
+
                         token.id = updatedUser.id;
                         token.role = activeRole?.role || 'COUNCIL_LEADER';
                         token.roles = allRoles;
