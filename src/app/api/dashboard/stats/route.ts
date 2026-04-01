@@ -47,7 +47,8 @@ export async function GET(request: Request) {
                  prisma.auditLog.count({
                      where: {
                          severity: 'CRITICAL',
-                         timestamp: { gte: today } // Critical errors today
+                         success: false, // Only count failed critical operations, not intentional ones like impersonation
+                         timestamp: { gte: today }
                      }
                  })
              ]);

@@ -156,12 +156,16 @@ export async function POST(request: Request) {
                     return acc;
                 }, []);
 
-            const smsMessage = `New Public Expense Request\nFrom: ${requesterName} (${churchName})\nMomo: ${momoName} / ${momoNumber}\nAmount: ${amount}\nReason: ${description.substring(0, 60)}${description.length > 60 ? '...' : ''}\n\nLog in to review and process this request.`;
+            const smsMessage = `New Public Expense Request from ${requesterName} (${churchName}). Amount: ${amount}. Momo: ${momoName}/${momoNumber}. Please log in to review.`;
 
             for (const leader of leaders) {
                 try {
                     if (leader.phone) {
-                        sendSms({ to: leader.phone, message: smsMessage }).catch(() => {});
+                        sendSms({ to: leader.phone, message: smsMessage }).catch((err) => {
+                            console.error('[Notify] SMS failed for oversight leader', leader.phone, err?.message || err);
+                        });
+                    } else {
+                        console.warn('[Notify] Oversight leader has no phone number:', leader.email);
                     }
                     sendEmail({
                         to: leader.email,
@@ -179,7 +183,9 @@ export async function POST(request: Request) {
                             </table>
                             <p>Please log in to the app and go to <strong>Public Requests</strong> to process this request.</p>
                         `,
-                    }).catch(() => {});
+                    }).catch((err: any) => {
+                            console.error('[Notify] Email failed for oversight leader', leader.email, err?.message || err);
+                        });
                 } catch (err) {
                     console.error('[Notify] Error sending notification to oversight leader:', err);
                 }
