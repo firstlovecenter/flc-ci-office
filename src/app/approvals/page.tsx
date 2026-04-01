@@ -33,6 +33,8 @@ import {
     Skeleton,
     useTheme,
     useMediaQuery,
+    Checkbox,
+    Collapse,
 } from '@mui/material';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import CancelIcon from '@mui/icons-material/Cancel';
@@ -41,7 +43,8 @@ import PendingActionsIcon from '@mui/icons-material/PendingActions';
 import BusinessIcon from '@mui/icons-material/Business';
 import { formatDepartmentLevel } from '@/lib/utils';
 import { useToast } from '@/components/ToastProvider';
-import { GlassCard, StatusChip, AnimatedCounter, TableRowSkeleton } from '@/components/ui';
+import { GlassCard, StatusChip, AnimatedCounter, TableRowSkeleton, EmptyState } from '@/components/ui';
+import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
 
 interface Transaction {
     id: string;
@@ -85,6 +88,8 @@ export default function ApprovalsPage() {
     const [processing, setProcessing] = useState(false);
     const [approvedAmount, setApprovedAmount] = useState('');
     const [charges, setCharges] = useState('');
+    const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+    const [bulkProcessing, setBulkProcessing] = useState(false);
 
     useEffect(() => {
         if (session?.user?.role) {
@@ -200,6 +205,47 @@ export default function ApprovalsPage() {
             showErrorToast(errorMsg);
         } finally {
             setProcessing(false);
+        }
+    };
+
+    const handleBulkApprove = async () => {
+        if (selectedIds.size === 0) return;
+        setBulkProcessing(true);
+        setError('');
+        try {
+            await Promise.all(
+                Array.from(selectedIds).map(id =>
+                    fetch(`/api/transactions/${id}`, {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ status: 'APPROVED' }),
+                    })
+                )
+            );
+            showSuccess(`${selectedIds.size} transaction${selectedIds.size > 1 ? 's' : ''} approved`);
+            setSelectedIds(new Set());
+            fetchPendingTransactions();
+            fetchHistoricalTransactions();
+        } catch {
+            showErrorToast('Failed to bulk approve some transactions');
+        } finally {
+            setBulkProcessing(false);
+        }
+    };
+
+    const toggleSelect = (id: string) => {
+        setSelectedIds(prev => {
+            const next = new Set(prev);
+            next.has(id) ? next.delete(id) : next.add(id);
+            return next;
+        });
+    };
+
+    const toggleSelectAll = () => {
+        if (selectedIds.size === transactions.length) {
+            setSelectedIds(new Set());
+        } else {
+            setSelectedIds(new Set(transactions.map(t => t.id)));
         }
     };
 
@@ -361,20 +407,53 @@ export default function ApprovalsPage() {
             </Grid>
 
             {/* Pending Approvals Section */}
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
-                <Box 
-                    component="span" 
-                    sx={{ 
-                        width: 4, 
-                        height: 24, 
-                        bgcolor: 'warning.main', 
-                        borderRadius: 1,
-                    }} 
-                />
-                <Typography variant="h5" fontWeight={600}>
-                    Pending Approvals
-                </Typography>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, mb: 2 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Box component="span" sx={{ width: 4, height: 24, bgcolor: 'warning.main', borderRadius: 1 }} />
+                    <Typography variant="h5" fontWeight={600}>Pending Approvals</Typography>
+                </Box>
             </Box>
+
+            {/* Bulk actions toolbar */}
+            <Collapse in={selectedIds.size > 0}>
+                <Box
+                    sx={{
+                        mb: 2,
+                        px: 2,
+                        py: 1.25,
+                        borderRadius: 2,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        bgcolor: (theme) => alpha(theme.palette.primary.main, 0.08),
+                        border: (theme) => `1px solid ${alpha(theme.palette.primary.main, 0.25)}`,
+                    }}
+                >
+                    <Typography variant="body2" fontWeight={600} color="primary">
+                        {selectedIds.size} selected
+                    </Typography>
+                    <Stack direction="row" spacing={1}>
+                        <Button
+                            size="small"
+                            variant="outlined"
+                            color="inherit"
+                            onClick={() => setSelectedIds(new Set())}
+                        >
+                            Deselect All
+                        </Button>
+                        <Button
+                            size="small"
+                            variant="contained"
+                            color="success"
+                            disabled={bulkProcessing}
+                            startIcon={bulkProcessing ? <CircularProgress size={14} color="inherit" /> : null}
+                            onClick={handleBulkApprove}
+                        >
+                            {bulkProcessing ? 'Approving…' : `Approve ${selectedIds.size}`}
+                        </Button>
+                    </Stack>
+                </Box>
+            </Collapse>
             {isMobile ? (
                 <Stack spacing={2} sx={{ mb: 6 }}>
                     {loading ? (
@@ -386,25 +465,22 @@ export default function ApprovalsPage() {
                              </GlassCard>
                          ))
                     ) : transactions.length === 0 ? (
-                        <GlassCard sx={{ p: 4, textAlign: 'center' }}>
-                            <Typography variant="body1" color="text.secondary">
-                                No pending transactions found
-                            </Typography>
+                        <GlassCard>
+                            <EmptyState
+                                icon={ReceiptLongIcon}
+                                title="No pending approvals"
+                                description="All caught up! There are no transactions waiting for your review."
+                            />
                         </GlassCard>
                     ) : (
                         transactions.map((transaction) => (
-                            <GlassCard 
-                                key={transaction.id} 
-                                sx={{ 
-                                    p: 0, 
-                                    position: 'relative', 
-                                    overflow: 'hidden',
-                                    transition: 'all 0.1s'
-                                }}
+                            <GlassCard
+                                key={transaction.id}
+                                sx={{ p: 0, overflow: 'hidden', transition: 'all 0.1s' }}
                             >
-                                <CardActionArea 
+                                <CardActionArea
                                     onClick={() => handleViewDetails(transaction)}
-                                    sx={{ p: 2, width: '100%', height: '100%' }}
+                                    sx={{ p: 2, width: '100%' }}
                                 >
                                     <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                         <Box sx={{ minWidth: 0, flex: 1, mr: 2 }}>
@@ -415,26 +491,60 @@ export default function ApprovalsPage() {
                                                 {transaction.department.name}
                                             </Typography>
                                             <Typography variant="caption" color="text.secondary">
-                                                {formatDate(transaction.createdAt)} • {transaction.user.name}
+                                                {formatDate(transaction.createdAt)} · {transaction.user.name}
                                             </Typography>
                                         </Box>
-                                        <Box sx={{ textAlign: 'right' }}>
-                                            <Typography 
-                                                variant="body2" 
+                                        <Box sx={{ textAlign: 'right', flexShrink: 0 }}>
+                                            <Typography
+                                                variant="body2"
                                                 fontWeight={700}
                                                 color={transaction.type === 'INCOME' ? 'success.main' : 'error.main'}
                                                 sx={{ display: 'block', mb: 0.5 }}
                                             >
                                                 {formatCurrency(transaction.amount, transaction.currency.symbol)}
                                             </Typography>
-                                            <StatusChip 
-                                                label={transaction.type} 
+                                            <StatusChip
+                                                label={transaction.type}
                                                 status={transaction.type === 'INCOME' ? 'success' : 'error'}
                                                 size="small"
                                             />
                                         </Box>
                                     </Box>
                                 </CardActionArea>
+                                {/* Quick action row — mobile only */}
+                                <Box
+                                    sx={{
+                                        px: 2,
+                                        pb: 1.5,
+                                        display: 'flex',
+                                        gap: 1,
+                                        borderTop: (theme) => `1px solid ${theme.palette.divider}`,
+                                        pt: 1,
+                                    }}
+                                >
+                                    <Button
+                                        size="small"
+                                        variant="contained"
+                                        color="success"
+                                        fullWidth
+                                        startIcon={<CheckCircleIcon sx={{ fontSize: 16 }} />}
+                                        onClick={(e) => { e.stopPropagation(); handleOpenApprovalDialog(transaction, 'approve'); }}
+                                        sx={{ fontWeight: 700, fontSize: '0.75rem' }}
+                                    >
+                                        Approve
+                                    </Button>
+                                    <Button
+                                        size="small"
+                                        variant="outlined"
+                                        color="error"
+                                        fullWidth
+                                        startIcon={<CancelIcon sx={{ fontSize: 16 }} />}
+                                        onClick={(e) => { e.stopPropagation(); handleOpenApprovalDialog(transaction, 'reject'); }}
+                                        sx={{ fontWeight: 700, fontSize: '0.75rem' }}
+                                    >
+                                        Reject
+                                    </Button>
+                                </Box>
                             </GlassCard>
                         ))
                     )}
@@ -445,6 +555,14 @@ export default function ApprovalsPage() {
                     <Table>
                         <TableHead>
                             <TableRow sx={{ bgcolor: 'action.hover' }}>
+                                <TableCell padding="checkbox">
+                                    <Checkbox
+                                        size="small"
+                                        indeterminate={selectedIds.size > 0 && selectedIds.size < transactions.length}
+                                        checked={transactions.length > 0 && selectedIds.size === transactions.length}
+                                        onChange={toggleSelectAll}
+                                    />
+                                </TableCell>
                                 <TableCell sx={{ fontWeight: 700 }}>Date</TableCell>
                                 <TableCell sx={{ fontWeight: 700 }}>Description</TableCell>
                                 <TableCell sx={{ fontWeight: 700 }}>Department</TableCell>
@@ -459,6 +577,7 @@ export default function ApprovalsPage() {
                             {loading ? (
                                 [1, 2, 3].map((i) => (
                                     <TableRow key={i}>
+                                        <TableCell padding="checkbox"><Skeleton variant="rectangular" width={18} height={18} /></TableCell>
                                         <TableCell><Skeleton width={80} /></TableCell>
                                         <TableCell><Skeleton width={150} /></TableCell>
                                         <TableCell><Skeleton width={100} /></TableCell>
@@ -471,23 +590,32 @@ export default function ApprovalsPage() {
                                 ))
                             ) : transactions.length === 0 ? (
                                 <TableRow>
-                                    <TableCell colSpan={8} align="center" sx={{ py: 6 }}>
-                                        <Typography variant="body1" color="text.secondary">
-                                            No pending transactions found
-                                        </Typography>
+                                    <TableCell colSpan={9} sx={{ p: 0, border: 0 }}>
+                                        <EmptyState
+                                            icon={ReceiptLongIcon}
+                                            title="No pending approvals"
+                                            description="All caught up! There are no transactions waiting for your review."
+                                        />
                                     </TableCell>
                                 </TableRow>
                             ) : (
                                 transactions.map((transaction) => (
-                                    <TableRow 
+                                    <TableRow
                                         key={transaction.id}
+                                        selected={selectedIds.has(transaction.id)}
                                         sx={{
                                             transition: 'all 0.2s ease',
-                                            '&:hover': {
-                                                bgcolor: 'action.hover',
-                                            },
+                                            '&:hover': { bgcolor: 'action.hover' },
+                                            '&.Mui-selected': { bgcolor: (theme) => alpha(theme.palette.primary.main, 0.06) },
                                         }}
                                     >
+                                        <TableCell padding="checkbox">
+                                            <Checkbox
+                                                size="small"
+                                                checked={selectedIds.has(transaction.id)}
+                                                onChange={() => toggleSelect(transaction.id)}
+                                            />
+                                        </TableCell>
                                         <TableCell>{formatDate(transaction.createdAt)}</TableCell>
                                         <TableCell>
                                             <Typography variant="body2" fontWeight={500}>

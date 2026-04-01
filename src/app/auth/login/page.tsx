@@ -355,15 +355,38 @@ function LoginForm() {
                                         {loading ? 'Signing in...' : 'Sign In'}
                                     </Button>
 
-                                    <Divider sx={{ my: 3 }}>
+                                    <Divider sx={{ my: 2 }}>
                                         <Typography variant="body2" color="text.secondary">
-                                            Secure Login
+                                            or
                                         </Typography>
                                     </Divider>
 
-                                    <Typography variant="caption" display="block" textAlign="center" color="text.secondary">
-                                        Protected by NextAuth • Your data is encrypted and secure
-                                    </Typography>
+                                    <MuiLink
+                                        component={Link}
+                                        href="/public-expense"
+                                        underline="none"
+                                        sx={{
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            gap: 1,
+                                            py: 1.25,
+                                            px: 2,
+                                            borderRadius: 2,
+                                            border: (theme) => `1px solid ${theme.palette.divider}`,
+                                            color: 'text.secondary',
+                                            fontWeight: 600,
+                                            fontSize: '0.875rem',
+                                            transition: 'all 0.2s',
+                                            '&:hover': {
+                                                borderColor: 'primary.main',
+                                                color: 'primary.main',
+                                                bgcolor: (theme) => alpha(theme.palette.primary.main, 0.04),
+                                            },
+                                        }}
+                                    >
+                                        Submit a Public Expense Request →
+                                    </MuiLink>
                                 </Box>
                             </GlassCard>
                         </Box>

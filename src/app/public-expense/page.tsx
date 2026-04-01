@@ -52,6 +52,7 @@ export default function PublicExpensePage() {
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState('');
     const [submitted, setSubmitted] = useState(false);
+    const [referenceId, setReferenceId] = useState<string | null>(null);
 
     useEffect(() => {
         fetch('/api/public-expense/oversights')
@@ -107,6 +108,7 @@ export default function PublicExpensePage() {
             if (!res.ok) {
                 setError(data.error || 'Failed to submit request. Please try again.');
             } else {
+                setReferenceId(data.id || null);
                 setSubmitted(true);
             }
         } catch {
@@ -138,18 +140,58 @@ export default function PublicExpensePage() {
                         borderRadius: 3,
                     }}
                 >
-                    <CheckCircleOutlineIcon sx={{ fontSize: 64, color: 'success.main', mb: 2 }} />
+                    <Box
+                        sx={{
+                            width: 72,
+                            height: 72,
+                            borderRadius: '50%',
+                            bgcolor: 'success.light',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            mx: 'auto',
+                            mb: 2.5,
+                        }}
+                    >
+                        <CheckCircleOutlineIcon sx={{ fontSize: 44, color: 'success.main' }} />
+                    </Box>
                     <Typography variant="h5" fontWeight={700} gutterBottom>
                         Request Submitted
                     </Typography>
-                    <Typography variant="body1" color="text.secondary">
-                        Your expense request has been submitted successfully. Your oversight leader will review it and get back to you.
+                    <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
+                        Your expense request has been submitted successfully. Your oversight leader will review it and contact you via the Momo number provided.
                     </Typography>
+                    {referenceId && (
+                        <Box
+                            sx={{
+                                px: 3,
+                                py: 2,
+                                mb: 3,
+                                borderRadius: 2,
+                                bgcolor: '#f0f4f8',
+                                border: '1px solid #d0d7e0',
+                            }}
+                        >
+                            <Typography variant="caption" color="text.secondary" display="block" gutterBottom>
+                                Reference Number
+                            </Typography>
+                            <Typography
+                                variant="body1"
+                                fontWeight={700}
+                                sx={{ fontFamily: 'monospace', letterSpacing: 1, color: 'text.primary' }}
+                            >
+                                {referenceId.slice(0, 8).toUpperCase()}
+                            </Typography>
+                            <Typography variant="caption" color="text.disabled">
+                                Keep this for your records
+                            </Typography>
+                        </Box>
+                    )}
                     <Button
                         variant="outlined"
-                        sx={{ mt: 4 }}
                         onClick={() => {
                             setSubmitted(false);
+                            setReferenceId(null);
                             setForm({ oversightDeptId: '', requesterName: '', churchName: '', momoName: '', momoNumber: '', amount: '', description: '' });
                         }}
                     >
@@ -162,6 +204,20 @@ export default function PublicExpensePage() {
 
     const expenseWindow = getExpenseWindowStatus();
     if (!expenseWindow.isOpen) {
+        const now = expenseWindow.now;
+        const hour = now.getHours();
+        // Next opening: if before 6am today, it's today at 6am; otherwise next day at 6am
+        const nextOpen = new Date(now);
+        if (hour < 6) {
+            nextOpen.setHours(6, 0, 0, 0);
+        } else {
+            nextOpen.setDate(nextOpen.getDate() + 1);
+            nextOpen.setHours(6, 0, 0, 0);
+        }
+        const msUntilOpen = nextOpen.getTime() - now.getTime();
+        const hoursUntilOpen = Math.floor(msUntilOpen / (1000 * 60 * 60));
+        const minutesUntilOpen = Math.floor((msUntilOpen % (1000 * 60 * 60)) / (1000 * 60));
+
         return (
             <Box
                 sx={{
@@ -177,25 +233,57 @@ export default function PublicExpensePage() {
                     elevation={3}
                     sx={{
                         p: { xs: 3, sm: 5 },
-                        maxWidth: 520,
+                        maxWidth: 480,
                         width: '100%',
                         borderRadius: 3,
+                        textAlign: 'center',
                     }}
                 >
-                    <Alert severity="warning" sx={{ mb: 2 }}>
-                        <Typography variant="h6" gutterBottom>
-                            Outside Operating Hours
+                    <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', mb: 3 }}>
+                        <Image src="/flc-logo.webp" alt="CI Office" width={44} height={44} />
+                        <Typography variant="h6" fontWeight={700} sx={{ mt: 1.5 }}>
+                            CI Office — Expense Requests
                         </Typography>
-                        <Typography variant="body2">
-                            Expense requests can only be made between <strong>{expenseWindow.timeRange}</strong>.
+                    </Box>
+                    <Box
+                        sx={{
+                            px: 3,
+                            py: 2.5,
+                            mb: 3,
+                            borderRadius: 2,
+                            bgcolor: '#fff8e1',
+                            border: '1px solid #ffe082',
+                        }}
+                    >
+                        <Typography variant="body1" fontWeight={700} color="warning.dark" gutterBottom>
+                            Submissions Closed
                         </Typography>
-                        <Typography variant="body2" sx={{ mt: 1 }}>
-                            Current time: {expenseWindow.now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}
+                        <Typography variant="body2" color="text.secondary">
+                            Requests are accepted between <strong>{expenseWindow.timeRange}</strong>.
                         </Typography>
-                        <Typography variant="body2" sx={{ mt: 1 }}>
-                            Please return during operating hours to submit your request.
+                        <Typography variant="caption" color="text.disabled" display="block" sx={{ mt: 1 }}>
+                            Current time: {now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}
                         </Typography>
-                    </Alert>
+                    </Box>
+                    <Box
+                        sx={{
+                            px: 3,
+                            py: 2,
+                            borderRadius: 2,
+                            bgcolor: '#e8f5e9',
+                            border: '1px solid #a5d6a7',
+                        }}
+                    >
+                        <Typography variant="caption" color="text.secondary" display="block" gutterBottom>
+                            Window opens in
+                        </Typography>
+                        <Typography variant="h4" fontWeight={700} color="success.dark">
+                            {hoursUntilOpen}h {minutesUntilOpen}m
+                        </Typography>
+                        <Typography variant="caption" color="text.disabled">
+                            at {nextOpen.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}
+                        </Typography>
+                    </Box>
                 </Paper>
             </Box>
         );
@@ -278,7 +366,7 @@ export default function PublicExpensePage() {
                         required
                         value={form.churchName}
                         onChange={handleChange('churchName')}
-                        placeholder="e.g. Grace Chapel"
+                        placeholder="e.g. FL Cape Coast"
                         sx={{ mb: 2 }}
                     />
 
@@ -301,7 +389,7 @@ export default function PublicExpensePage() {
 
                     {/* Momo Number */}
                     <TextField
-                        label="Momo Number"
+                        label="Momo Number (MTN Only)"
                         fullWidth
                         required
                         value={form.momoNumber}

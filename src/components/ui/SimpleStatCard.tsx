@@ -1,5 +1,6 @@
 import React from 'react';
-import { Typography, Box, Card, useTheme, alpha } from '@mui/material';
+import { Typography, Box, Card, useTheme } from '@mui/material';
+import { alpha } from '@mui/material/styles';
 import { AnimatedCounter } from './index';
 
 interface SimpleStatCardProps {
@@ -8,6 +9,7 @@ interface SimpleStatCardProps {
     icon: React.ElementType;
     color: string;
     currencySymbol?: string;
+    isBlinking?: boolean;
 }
 
 const SimpleStatCard = ({
@@ -16,6 +18,7 @@ const SimpleStatCard = ({
     icon: Icon,
     color,
     currencySymbol,
+    isBlinking = false,
 }: SimpleStatCardProps) => {
     const theme = useTheme();
 
@@ -27,15 +30,25 @@ const SimpleStatCard = ({
                 height: '100%',
                 borderRadius: 4,
                 border: `1px solid ${theme.palette.divider}`,
+                borderLeft: isBlinking ? `3px solid ${color}` : `1px solid ${theme.palette.divider}`,
                 bgcolor: 'background.paper',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
                 transition: 'all 0.2s ease-in-out',
+                ...(isBlinking && {
+                    '@keyframes leftBorderPulse': {
+                        '0%': { borderLeftColor: color, boxShadow: `inset 3px 0 0 ${alpha(color, 0)}` },
+                        '50%': { borderLeftColor: color, boxShadow: `inset 3px 0 0 ${alpha(color, 0.2)}` },
+                        '100%': { borderLeftColor: color, boxShadow: `inset 3px 0 0 ${alpha(color, 0)}` },
+                    },
+                    animation: 'leftBorderPulse 2s ease-in-out infinite',
+                }),
                 '&:hover': {
                     transform: 'translateY(-2px)',
                     boxShadow: '0 12px 24px -10px rgba(0, 0, 0, 0.1)',
-                    borderColor: color
+                    borderColor: color,
+                    borderLeftColor: color,
                 }
             }}
         >

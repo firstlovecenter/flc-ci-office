@@ -1,8 +1,9 @@
 'use client';
 
 import { useEffect, useState, useMemo, useCallback, useRef } from 'react';
-import { Typography, Box, CircularProgress, Grid, Stack, useTheme, Card, CardActionArea, Skeleton, alpha, Avatar, IconButton } from '@mui/material';
+import { Typography, Box, CircularProgress, Grid, Stack, useTheme, Card, CardActionArea, Skeleton, alpha, Avatar, IconButton, Chip } from '@mui/material';
 import { formatCurrency } from '@/lib/utils';
+import { getDisplayRole } from '@/lib/roleDisplay';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import TrendingDownIcon from '@mui/icons-material/TrendingDown';
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
@@ -812,37 +813,48 @@ export default function DashboardPage() {
                     </Box>
                     )}
                     <Box>
-                        <Typography 
-                            variant="h4" 
-                            fontWeight="700" 
-                            sx={{ 
-                                background: isSuperAdmin ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' : 'none',
-                                backgroundClip: isSuperAdmin ? 'text' : 'border-box',
-                                WebkitBackgroundClip: isSuperAdmin ? 'text' : 'border-box',
-                                WebkitTextFillColor: isSuperAdmin ? 'transparent' : theme.palette.text.primary,
-                                color: isSuperAdmin ? 'inherit' : 'text.primary',
-                                fontSize: { xs: '1.25rem', sm: '1.75rem', md: '2rem' },
-                                letterSpacing: '-0.5px',
-                            }}
-                        >
-                            {isSuperAdmin 
-                                ? 'System Management' 
-                                : session?.user?.departmentName && session?.user?.departmentLevel 
-                                    ? `${session.user.departmentName} ${session.user.departmentLevel}` 
-                                    : session?.user?.departmentName || 'Dashboard'}
-                        </Typography>
-                        <Typography 
-                            variant="body2" 
-                            color="text.secondary" 
-                            sx={{ 
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap' }}>
+                            <Typography
+                                variant="h4"
+                                fontWeight="700"
+                                sx={{
+                                    background: isSuperAdmin ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' : 'none',
+                                    backgroundClip: isSuperAdmin ? 'text' : 'border-box',
+                                    WebkitBackgroundClip: isSuperAdmin ? 'text' : 'border-box',
+                                    WebkitTextFillColor: isSuperAdmin ? 'transparent' : theme.palette.text.primary,
+                                    color: isSuperAdmin ? 'inherit' : 'text.primary',
+                                    fontSize: { xs: '1.25rem', sm: '1.75rem', md: '2rem' },
+                                    letterSpacing: '-0.5px',
+                                }}
+                            >
+                                {isSuperAdmin
+                                    ? 'System Management'
+                                    : session?.user?.departmentName && session?.user?.departmentLevel
+                                        ? `${session.user.departmentName} ${session.user.departmentLevel}`
+                                        : session?.user?.departmentName || 'Dashboard'}
+                            </Typography>
+                            {session?.user?.role && (
+                                <Chip
+                                    label={getDisplayRole(session.user.role)}
+                                    size="small"
+                                    variant="outlined"
+                                    color={isSuperAdmin ? 'secondary' : isLeader ? 'primary' : 'default'}
+                                    sx={{ fontWeight: 600, fontSize: '0.7rem', height: 22 }}
+                                />
+                            )}
+                        </Box>
+                        <Typography
+                            variant="body2"
+                            color="text.secondary"
+                            sx={{
                                 fontSize: { xs: '0.75rem', sm: '0.9rem' },
                                 mt: 0.25,
                             }}
                         >
-                            {isSuperAdmin 
-                                ? 'Manage all aspects of the system from one place' 
-                                : departmentLeader 
-                                    ? departmentLeader.name 
+                            {isSuperAdmin
+                                ? 'Manage all aspects of the system from one place'
+                                : departmentLeader
+                                    ? departmentLeader.name
                                     : "Here's what's happening with your finances today"}
                         </Typography>
                     </Box>
@@ -888,6 +900,7 @@ export default function DashboardPage() {
                                     icon={card.icon}
                                     color={card.color || ''}
                                     currencySymbol={baseCurrency?.symbol}
+                                    isBlinking={card.isBlinking}
                                 />
                             )}
                         </Grid>
@@ -922,6 +935,61 @@ export default function DashboardPage() {
                     gap: 1.5
                 }}
             >
+                {/* Time window banner for leaders */}
+                {isLeader && (() => {
+                    const now = new Date();
+                    const hour = now.getHours();
+                    const isSaturday = now.getDay() === 6;
+                    const maxHour = isSaturday ? 19 : 15;
+                    const isWindowOpen = hour >= 6 && hour < maxHour;
+                    const closeTime = `${maxHour > 12 ? maxHour - 12 : maxHour}:00 ${maxHour >= 12 ? 'PM' : 'AM'}`;
+                    const openTime = '6:00 AM';
+                    const hoursUntilOpen = hour < 6 ? 6 - hour : 24 - hour + 6;
+                    return (
+                        <Box
+                            sx={{
+                                px: 2,
+                                py: 1.25,
+                                borderRadius: 2,
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 1,
+                                bgcolor: isWindowOpen
+                                    ? alpha(theme.palette.success.main, 0.08)
+                                    : alpha(theme.palette.warning.main, 0.08),
+                                border: `1px solid ${isWindowOpen
+                                    ? alpha(theme.palette.success.main, 0.25)
+                                    : alpha(theme.palette.warning.main, 0.25)}`,
+                            }}
+                        >
+                            <Box
+                                sx={{
+                                    width: 8,
+                                    height: 8,
+                                    borderRadius: '50%',
+                                    bgcolor: isWindowOpen ? 'success.main' : 'warning.main',
+                                    flexShrink: 0,
+                                    ...(isWindowOpen && {
+                                        '@keyframes statusPulse': {
+                                            '0%, 100%': { opacity: 1 },
+                                            '50%': { opacity: 0.4 },
+                                        },
+                                        animation: 'statusPulse 2s ease-in-out infinite',
+                                    }),
+                                }}
+                            />
+                            <Typography
+                                variant="caption"
+                                sx={{ fontWeight: 600, color: isWindowOpen ? 'success.main' : 'warning.main' }}
+                            >
+                                {isWindowOpen
+                                    ? `Expense submissions open · Closes at ${closeTime}`
+                                    : `Submissions closed · Opens at ${openTime} (in ~${hoursUntilOpen}h)`}
+                            </Typography>
+                        </Box>
+                    );
+                })()}
+
                 {quickLinks.map((link) => (
                     <Card
                         key={link.title}

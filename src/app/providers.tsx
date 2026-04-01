@@ -14,11 +14,13 @@ export type ThemeMode = 'light' | 'dark' | 'system';
 
 interface ColorModeContextType {
     toggleColorMode: () => void;
+    setMode: (mode: ThemeMode) => void;
     mode: ThemeMode;
 }
 
 const ColorModeContext = createContext<ColorModeContextType>({
     toggleColorMode: () => {},
+    setMode: () => {},
     mode: 'system',
 });
 
@@ -44,6 +46,10 @@ export function Providers({ children }: { children: React.ReactNode }) {
                     localStorage.setItem('themeMode', newMode);
                     return newMode;
                 });
+            },
+            setMode: (newMode: ThemeMode) => {
+                setMode(newMode);
+                localStorage.setItem('themeMode', newMode);
             },
             mode,
         }),

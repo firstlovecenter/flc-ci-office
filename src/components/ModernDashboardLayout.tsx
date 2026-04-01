@@ -2,7 +2,11 @@
 
 import React, { useEffect, useState } from 'react';
 import Image from 'next/image';
-import { Box, Typography, Avatar, IconButton, useTheme, Badge, Drawer, List, ListItem, ListItemButton, ListItemIcon, ListItemText, Divider, TextField, Button } from '@mui/material';
+import {
+    Box, Typography, Avatar, IconButton, useTheme, Badge, Drawer,
+    List, ListItem, ListItemButton, ListItemIcon, ListItemText,
+    Divider, TextField, Tooltip, Menu, MenuItem, InputAdornment,
+} from '@mui/material';
 import { styled, alpha } from '@mui/material/styles';
 import { useSession, signOut } from 'next-auth/react';
 import { usePathname, useRouter } from 'next/navigation';
@@ -15,8 +19,8 @@ import DarkModeIcon from '@mui/icons-material/DarkMode';
 import SettingsSystemDaydreamIcon from '@mui/icons-material/SettingsSystemDaydream';
 import LogoutIcon from '@mui/icons-material/LogoutRounded';
 import MenuIcon from '@mui/icons-material/Menu';
-import ArrowBackIcon from '@mui/icons-material/ArrowBack';
-import RefreshIcon from '@mui/icons-material/Refresh';
+import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
+import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import CloseIcon from '@mui/icons-material/Close';
 import SearchIcon from '@mui/icons-material/Search';
 import PendingActionsIcon from '@mui/icons-material/PendingActions';
@@ -33,46 +37,33 @@ import PullToRefresh from './PullToRefresh';
 import { getDisplayRole } from '@/lib/roleDisplay';
 import ImpersonationBanner from './ImpersonationBanner';
 
-const MainContainer = styled(Box)(({ theme }) => ({
-    display: 'flex',
-    minHeight: '100vh',
-    backgroundColor: theme.palette.background.default,
-    transition: 'background-color 0.3s ease',
-    [theme.breakpoints.down('md')]: {
-        flexDirection: 'column',
-    },
-}));
+const SIDEBAR_WIDTH = 260;
+const SIDEBAR_MINI_WIDTH = 64;
+const TOPBAR_HEIGHT = 64;
 
 const ContentArea = styled(Box)(({ theme }) => ({
     flexGrow: 1,
-    marginLeft: 0,
     padding: theme.spacing(2),
-    paddingTop: 'calc(80px + env(safe-area-inset-top))', // Account for fixed TopBar height + safe area
+    paddingTop: `calc(${TOPBAR_HEIGHT}px + env(safe-area-inset-top) + ${theme.spacing(2)})`,
     paddingLeft: 'max(16px, env(safe-area-inset-left))',
     paddingRight: 'max(16px, env(safe-area-inset-right))',
     paddingBottom: 'max(16px, env(safe-area-inset-bottom))',
-    transition: 'padding 0.3s ease',
+    transition: theme.transitions.create('margin-left', {
+        easing: theme.transitions.easing.sharp,
+        duration: theme.transitions.duration.enteringScreen,
+    }),
     [theme.breakpoints.up('md')]: {
         padding: theme.spacing(3),
-        paddingTop: 'calc(80px + env(safe-area-inset-top))',
+        paddingTop: `calc(${TOPBAR_HEIGHT}px + env(safe-area-inset-top) + ${theme.spacing(1)})`,
     },
 }));
 
-const TopBar = styled(Box)(({ theme }) => ({
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: theme.spacing(4),
-    flexWrap: 'wrap',
-    gap: theme.spacing(2),
-    position: 'static',
-}));
-
-const UserSection = styled(Box)(({ theme }) => ({
-    display: 'flex',
-    alignItems: 'center',
-    gap: theme.spacing(2),
-}));
+function getDeptNavLabel(role: string): string {
+    if (role.includes('DENOMINATION')) return 'Oversights';
+    if (role.includes('OVERSIGHT')) return 'Campuses';
+    if (role.includes('CAMPUS')) return 'Streams';
+    return 'Churches';
+}
 
 export default function ModernDashboardLayout({ children }: { children: React.ReactNode }) {
     const { data: session } = useSession();
@@ -82,12 +73,14 @@ export default function ModernDashboardLayout({ children }: { children: React.Re
     const colorMode = useColorMode();
     const [pendingCounts, setPendingCounts] = useState({ approvals: 0, transactions: 0, publicRequests: 0 });
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+    const [sidebarOpen, setSidebarOpen] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
+    const [themeMenuAnchor, setThemeMenuAnchor] = useState<null | HTMLElement>(null);
 
     useEffect(() => {
         if (session?.user) {
             fetchPendingCounts();
-            const interval = setInterval(fetchPendingCounts, 60000); // Refresh every minute
+            const interval = setInterval(fetchPendingCounts, 60000);
             return () => clearInterval(interval);
         }
     }, [session]);
@@ -118,20 +111,48 @@ export default function ModernDashboardLayout({ children }: { children: React.Re
     const isAdmin = userRole && userRole.endsWith('_ADMIN');
     const isLeader = userRole && userRole.endsWith('_LEADER');
     const hasAnalyticsAccess = isAdmin || isSuperAdmin || ['DENOMINATION_LEADER', 'OVERSIGHT_LEADER', 'CAMPUS_LEADER'].includes(userRole || '');
-    
-    const mobileMenuItems = [
-        { text: 'Home', icon: <HomeIcon />, path: '/dashboard', show: true },
-        { text: 'Approvals', icon: <PendingActionsIcon />, path: '/approvals', badge: pendingCounts.approvals, show: isAdmin || isSuperAdmin },
-        { text: 'Public Requests', icon: <InboxIcon />, path: '/public-requests', badge: pendingCounts.publicRequests, show: normalizedRole === 'OVERSIGHT_LEADER' },
-        { text: 'Request Expense', icon: <AddCircleOutlineIcon />, path: '/transactions/new', show: !isSuperAdmin },
-        { text: 'Transaction History', icon: <ReceiptIcon />, path: '/transactions', badge: pendingCounts.transactions, show: true },
-        { text: 'Users', icon: <PeopleIcon />, path: '/users', show: isAdmin || isSuperAdmin },
-        { text: 'Churches', icon: <BusinessIcon />, path: '/departments', show: isSuperAdmin || isLeaderOrAdmin },
-        { text: 'Currencies', icon: <MonetizationOnIcon />, path: '/currencies', show: isSuperAdmin || (userRole === 'DENOMINATION_ADMIN') },
-        { text: 'Trends & Reports', icon: <AssessmentIcon />, path: '/reports', show: true },
-        { text: 'Analytics', icon: <ShowChartIcon />, path: '/analytics', show: hasAnalyticsAccess },
-        { text: 'SMS Management', icon: <SmsIcon />, path: '/admin/sms', show: isSuperAdmin },
-        { text: 'Lock Transactions', icon: <LockIcon />, path: '/admin/lock-transactions', show: isSuperAdmin },
+
+    // Check if a nav path is active
+    const isActive = (path: string) => {
+        const cleanPath = path.split('?')[0];
+        if (cleanPath === '/dashboard') return pathname === '/dashboard';
+        if (cleanPath === '/transactions') return pathname === '/transactions';
+        return pathname === cleanPath || pathname.startsWith(cleanPath + '/');
+    };
+
+    const navSections = [
+        {
+            title: null,
+            items: [
+                { text: 'Home', icon: HomeIcon, path: '/dashboard', show: true, badge: 0 },
+                { text: 'Request Expense', icon: AddCircleOutlineIcon, path: '/transactions/new?type=EXPENSE', show: !isSuperAdmin && !!isLeader, badge: 0 },
+                { text: 'Transaction History', icon: ReceiptIcon, path: '/transactions', show: true, badge: pendingCounts.transactions },
+            ],
+        },
+        {
+            title: 'Management',
+            items: [
+                { text: 'Approvals', icon: PendingActionsIcon, path: '/approvals', show: !!(isAdmin || isSuperAdmin), badge: pendingCounts.approvals },
+                { text: 'Public Requests', icon: InboxIcon, path: '/public-requests', show: normalizedRole === 'OVERSIGHT_LEADER', badge: pendingCounts.publicRequests },
+                { text: 'Users', icon: PeopleIcon, path: '/users', show: !!(isAdmin || isSuperAdmin), badge: 0 },
+                { text: getDeptNavLabel(normalizedRole), icon: BusinessIcon, path: '/departments', show: !!(isSuperAdmin || isLeaderOrAdmin), badge: 0 },
+                { text: 'Currencies', icon: MonetizationOnIcon, path: '/currencies', show: !!(isSuperAdmin || userRole === 'DENOMINATION_ADMIN'), badge: 0 },
+            ],
+        },
+        {
+            title: 'Analytics',
+            items: [
+                { text: 'Reports', icon: AssessmentIcon, path: '/reports', show: true, badge: 0 },
+                { text: 'Analytics', icon: ShowChartIcon, path: '/analytics', show: !!hasAnalyticsAccess, badge: 0 },
+            ],
+        },
+        {
+            title: 'Admin',
+            items: [
+                { text: 'SMS Management', icon: SmsIcon, path: '/admin/sms', show: !!isSuperAdmin, badge: 0 },
+                { text: 'Lock Transactions', icon: LockIcon, path: '/admin/lock-transactions', show: !!isSuperAdmin, badge: 0 },
+            ],
+        },
     ];
 
     const handleMenuItemClick = (path: string) => {
@@ -149,328 +170,462 @@ export default function ModernDashboardLayout({ children }: { children: React.Re
         setMobileMenuOpen(false);
         router.push(`/search?q=${encodeURIComponent(searchQuery)}`);
     };
-    
+
     const handleSearchKeyDown = (e: React.KeyboardEvent) => {
-        if (e.key === 'Enter') {
-            handleSearch();
-        }
+        if (e.key === 'Enter') handleSearch();
+    };
+
+    // Shared drawer body (used by both mobile and desktop drawers)
+    const DrawerBody = ({ isMobileDrawer }: { isMobileDrawer: boolean }) => {
+        const showLabels = isMobileDrawer || sidebarOpen;
+
+        return (
+            <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', overflowX: 'hidden' }}>
+                {/* Mobile: header with close button */}
+                {isMobileDrawer && (
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', p: 2, pb: 1 }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                            <Image src="/flc-logo.webp" alt="CI Office" width={28} height={28} />
+                            <Typography variant="h6" fontWeight="bold">CI Office</Typography>
+                        </Box>
+                        <IconButton onClick={() => setMobileMenuOpen(false)} sx={{ color: theme.palette.text.secondary }}>
+                            <CloseIcon />
+                        </IconButton>
+                    </Box>
+                )}
+
+                {/* Desktop: collapse toggle row */}
+                {!isMobileDrawer && (
+                    <Box
+                        sx={{
+                            display: 'flex',
+                            justifyContent: sidebarOpen ? 'flex-end' : 'center',
+                            px: 1,
+                            py: 0.75,
+                            borderBottom: `1px solid ${theme.palette.divider}`,
+                        }}
+                    >
+                        <Tooltip title={sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'} placement="right">
+                            <IconButton
+                                size="small"
+                                onClick={() => setSidebarOpen(!sidebarOpen)}
+                                sx={{ color: theme.palette.text.secondary }}
+                            >
+                                {sidebarOpen ? <ChevronLeftIcon fontSize="small" /> : <ChevronRightIcon fontSize="small" />}
+                            </IconButton>
+                        </Tooltip>
+                    </Box>
+                )}
+
+                {/* Nav sections */}
+                <Box sx={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', px: 1, py: 1 }}>
+                    {navSections.map((section, sIndex) => {
+                        const visibleItems = section.items.filter(item => item.show);
+                        if (visibleItems.length === 0) return null;
+
+                        return (
+                            <Box key={sIndex} sx={{ mb: 0.5 }}>
+                                {/* Section label */}
+                                {section.title && showLabels && (
+                                    <Typography
+                                        variant="caption"
+                                        sx={{
+                                            px: 1.5,
+                                            pt: sIndex > 0 ? 1.5 : 0.5,
+                                            pb: 0.5,
+                                            display: 'block',
+                                            fontWeight: 700,
+                                            letterSpacing: '0.08em',
+                                            textTransform: 'uppercase',
+                                            fontSize: '0.62rem',
+                                            color: theme.palette.text.disabled,
+                                        }}
+                                    >
+                                        {section.title}
+                                    </Typography>
+                                )}
+                                {/* Section divider when collapsed */}
+                                {section.title && !showLabels && sIndex > 0 && (
+                                    <Divider sx={{ my: 1 }} />
+                                )}
+
+                                {visibleItems.map((item) => {
+                                    const active = isActive(item.path);
+                                    const button = (
+                                        <ListItemButton
+                                            onClick={() => handleMenuItemClick(item.path)}
+                                            selected={active}
+                                            sx={{
+                                                borderRadius: 1.5,
+                                                minHeight: 42,
+                                                justifyContent: showLabels ? 'flex-start' : 'center',
+                                                px: showLabels ? 1.5 : 1,
+                                                '&.Mui-selected': {
+                                                    bgcolor: alpha(theme.palette.primary.main, 0.12),
+                                                    color: theme.palette.primary.main,
+                                                    '& .MuiListItemIcon-root': { color: theme.palette.primary.main },
+                                                    '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.18) },
+                                                },
+                                                '&:hover': { bgcolor: theme.palette.action.hover },
+                                            }}
+                                        >
+                                            <ListItemIcon
+                                                sx={{
+                                                    minWidth: showLabels ? 36 : 0,
+                                                    color: active ? theme.palette.primary.main : theme.palette.text.secondary,
+                                                    justifyContent: 'center',
+                                                }}
+                                            >
+                                                {item.badge > 0 ? (
+                                                    <Badge badgeContent={item.badge} color="error">
+                                                        <item.icon sx={{ fontSize: 20 }} />
+                                                    </Badge>
+                                                ) : (
+                                                    <item.icon sx={{ fontSize: 20 }} />
+                                                )}
+                                            </ListItemIcon>
+                                            {showLabels && (
+                                                <ListItemText
+                                                    primary={item.text}
+                                                    primaryTypographyProps={{
+                                                        fontWeight: active ? 700 : 500,
+                                                        fontSize: '0.875rem',
+                                                        noWrap: true,
+                                                    }}
+                                                />
+                                            )}
+                                        </ListItemButton>
+                                    );
+
+                                    return !showLabels ? (
+                                        <Tooltip key={item.path} title={item.text} placement="right">
+                                            <ListItem disablePadding sx={{ mb: 0.25, display: 'block' }}>
+                                                {button}
+                                            </ListItem>
+                                        </Tooltip>
+                                    ) : (
+                                        <ListItem key={item.path} disablePadding sx={{ mb: 0.25 }}>
+                                            {button}
+                                        </ListItem>
+                                    );
+                                })}
+                            </Box>
+                        );
+                    })}
+                </Box>
+
+                {/* Bottom profile section */}
+                <Box
+                    sx={{
+                        p: 1.5,
+                        borderTop: `1px solid ${theme.palette.divider}`,
+                        bgcolor: theme.palette.background.paper,
+                    }}
+                >
+                    {showLabels ? (
+                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
+                            <Box
+                                sx={{ display: 'flex', alignItems: 'center', gap: 1.5, cursor: 'pointer', minWidth: 0, flex: 1 }}
+                                onClick={() => handleMenuItemClick('/profile')}
+                            >
+                                <Avatar
+                                    src={session?.user?.image || undefined}
+                                    sx={{ width: 34, height: 34, bgcolor: theme.palette.primary.main, flexShrink: 0 }}
+                                >
+                                    {session?.user?.name?.[0]?.toUpperCase() || 'U'}
+                                </Avatar>
+                                <Box sx={{ minWidth: 0 }}>
+                                    <Typography variant="subtitle2" fontWeight={700} noWrap sx={{ lineHeight: 1.2, color: theme.palette.text.primary }}>
+                                        {session?.user?.name || 'User'}
+                                    </Typography>
+                                    <Typography variant="caption" color="text.secondary" noWrap>
+                                        {getDisplayRole(session?.user?.role)}
+                                    </Typography>
+                                </Box>
+                            </Box>
+                            <Box sx={{ display: 'flex', gap: 0.5, flexShrink: 0 }}>
+                                <Tooltip title="Theme">
+                                    <IconButton
+                                        size="small"
+                                        onClick={(e) => setThemeMenuAnchor(e.currentTarget)}
+                                        sx={{
+                                            color: theme.palette.text.secondary,
+                                            border: `1px solid ${theme.palette.divider}`,
+                                            borderRadius: 1.5,
+                                            width: 30,
+                                            height: 30,
+                                        }}
+                                    >
+                                        {colorMode.mode === 'dark' ? <DarkModeIcon sx={{ fontSize: 16 }} /> : colorMode.mode === 'light' ? <LightModeIcon sx={{ fontSize: 16 }} /> : <SettingsSystemDaydreamIcon sx={{ fontSize: 16 }} />}
+                                    </IconButton>
+                                </Tooltip>
+                                <Tooltip title="Logout">
+                                    <IconButton
+                                        size="small"
+                                        onClick={handleLogout}
+                                        sx={{
+                                            color: theme.palette.error.main,
+                                            bgcolor: alpha(theme.palette.error.main, 0.1),
+                                            border: `1px solid ${alpha(theme.palette.error.main, 0.25)}`,
+                                            borderRadius: 1.5,
+                                            width: 30,
+                                            height: 30,
+                                            '&:hover': { bgcolor: alpha(theme.palette.error.main, 0.2) },
+                                        }}
+                                    >
+                                        <LogoutIcon sx={{ fontSize: 16 }} />
+                                    </IconButton>
+                                </Tooltip>
+                            </Box>
+                        </Box>
+                    ) : (
+                        // Collapsed: stacked icons
+                        <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
+                            <Tooltip title={session?.user?.name || 'Profile'} placement="right">
+                                <Avatar
+                                    src={session?.user?.image || undefined}
+                                    sx={{ width: 30, height: 30, cursor: 'pointer', bgcolor: theme.palette.primary.main }}
+                                    onClick={() => handleMenuItemClick('/profile')}
+                                >
+                                    {session?.user?.name?.[0]?.toUpperCase() || 'U'}
+                                </Avatar>
+                            </Tooltip>
+                            <Tooltip title="Theme" placement="right">
+                                <IconButton
+                                    size="small"
+                                    onClick={(e) => setThemeMenuAnchor(e.currentTarget)}
+                                    sx={{ color: theme.palette.text.secondary }}
+                                >
+                                    {colorMode.mode === 'dark' ? <DarkModeIcon sx={{ fontSize: 18 }} /> : colorMode.mode === 'light' ? <LightModeIcon sx={{ fontSize: 18 }} /> : <SettingsSystemDaydreamIcon sx={{ fontSize: 18 }} />}
+                                </IconButton>
+                            </Tooltip>
+                            <Tooltip title="Logout" placement="right">
+                                <IconButton size="small" onClick={handleLogout} sx={{ color: theme.palette.error.main }}>
+                                    <LogoutIcon sx={{ fontSize: 18 }} />
+                                </IconButton>
+                            </Tooltip>
+                        </Box>
+                    )}
+                </Box>
+            </Box>
+        );
+    };
+
+    const sidebarPaperSx = {
+        width: sidebarOpen ? SIDEBAR_WIDTH : SIDEBAR_MINI_WIDTH,
+        overflowX: 'hidden',
+        transition: theme.transitions.create('width', {
+            easing: theme.transitions.easing.sharp,
+            duration: theme.transitions.duration.enteringScreen,
+        }),
+        position: 'fixed' as const,
+        top: TOPBAR_HEIGHT,
+        height: `calc(100vh - ${TOPBAR_HEIGHT}px)`,
+        borderRight: `1px solid ${theme.palette.divider}`,
+        bgcolor: theme.palette.background.paper,
     };
 
     return (
         <>
-        <ImpersonationBanner />
-        <MainContainer>
-            {/* Sticky TopBar - Outside ContentArea for proper sticky positioning */}
-            <TopBar
-                    sx={{
-                        position: 'fixed',
-                        top: 'env(safe-area-inset-top)',
-                        left: 0,
-                        right: 0,
-                        zIndex: theme.zIndex.appBar + 1,
-                        padding: 2,
-                        paddingLeft: 'max(16px, env(safe-area-inset-left))',
-                        paddingRight: 'max(16px, env(safe-area-inset-right))',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        background: theme.palette.mode === 'dark'
-                            ? 'rgba(15, 23, 42, 0.65)'
-                            : 'rgba(255, 255, 255, 0.65)',
-                        backdropFilter: 'blur(20px)',
-                        WebkitBackdropFilter: 'blur(20px)',
-                        borderBottom: `1px solid ${theme.palette.mode === 'dark' 
-                            ? 'rgba(255, 255, 255, 0.1)' 
-                            : 'rgba(0, 0, 0, 0.1)'}`,
-                    }}
-                >
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                        <IconButton
-                            onClick={() => setMobileMenuOpen(true)}
-                            sx={{
-                                width: 45,
-                                height: 45,
-                                borderRadius: '10px',
-                                color: theme.palette.text.primary,
-                                bgcolor: 'transparent',
-                                border: `1px solid ${theme.palette.mode === 'dark' 
-                                    ? 'rgba(255, 255, 255, 0.2)' 
-                                    : 'rgba(0, 0, 0, 0.2)'}`,
-                                '&:hover': {
-                                    bgcolor: theme.palette.mode === 'dark' 
-                                        ? 'rgba(255, 255, 255, 0.05)' 
-                                        : 'rgba(0, 0, 0, 0.04)',
-                                },
-                            }}
-                        >
-                            <MenuIcon sx={{ fontSize: 28 }} />
-                        </IconButton>
-                        
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                            <Image src="/flc-logo.webp" alt="CI Office" width={32} height={32} />
-                            <Typography variant="h6" fontWeight="bold" sx={{ color: theme.palette.text.primary, display: { xs: 'none', sm: 'block' } }}>
-                                CI Office
-                            </Typography>
-                        </Box>
-                    </Box>
+            <ImpersonationBanner />
 
-                    <Box sx={{ display: { xs: 'flex', md: 'none' }, gap: 1, alignItems: 'center' }}>
-                        <RoleSwitcher />
-                        <IconButton
-                            onClick={() => router.back()}
-                            sx={{
-                                bgcolor: theme.palette.mode === 'dark' 
-                                    ? 'rgba(255, 255, 255, 0.05)' 
-                                    : 'rgba(0, 0, 0, 0.04)',
-                                backdropFilter: 'blur(10px)',
-                                WebkitBackdropFilter: 'blur(10px)',
-                                '&:hover': {
-                                    bgcolor: theme.palette.mode === 'dark' 
-                                        ? 'rgba(255, 255, 255, 0.1)' 
-                                        : 'rgba(0, 0, 0, 0.08)',
-                                },
-                            }}
-                        >
-                            <ArrowBackIcon />
-                        </IconButton>
-
-                        <IconButton
-                            onClick={() => router.refresh()}
-                            sx={{
-                                bgcolor: theme.palette.mode === 'dark' 
-                                    ? 'rgba(255, 255, 255, 0.05)' 
-                                    : 'rgba(0, 0, 0, 0.04)',
-                                backdropFilter: 'blur(10px)',
-                                WebkitBackdropFilter: 'blur(10px)',
-                                '&:hover': {
-                                    bgcolor: theme.palette.mode === 'dark' 
-                                        ? 'rgba(255, 255, 255, 0.1)' 
-                                        : 'rgba(0, 0, 0, 0.08)',
-                                },
-                            }}
-                        >
-                            <RefreshIcon />
-                        </IconButton>
-                    </Box>
-
-                    <Box sx={{ display: { xs: 'none', md: 'flex' }, gap: 2, alignItems: 'center' }}>
-                        <RoleSwitcher />
-                    </Box>
-                </TopBar>
-
-            <PullToRefresh>
-                <ContentArea>
-                    {children}
-                </ContentArea>
-            </PullToRefresh>
-        </MainContainer>
-
-            {/* Navigation Drawer */}
-            <Drawer
-                    anchor="left"
-                    open={mobileMenuOpen}
-                    onClose={() => setMobileMenuOpen(false)}
-                    PaperProps={{
-                        sx: {
-                            width: 320,
-                            display: 'flex',
-                            flexDirection: 'column',
-                            alignItems: 'center',
-                            paddingTop: 'env(safe-area-inset-top)',
-                            paddingBottom: 'env(safe-area-inset-bottom)',
-                            bgcolor: theme.palette.background.paper,
+            {/* Fixed Top Bar */}
+            <Box
+                sx={{
+                    position: 'fixed',
+                    top: 'env(safe-area-inset-top)',
+                    left: 0,
+                    right: 0,
+                    height: TOPBAR_HEIGHT,
+                    zIndex: theme.zIndex.appBar + 1,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    px: 2,
+                    background: theme.palette.mode === 'dark'
+                        ? 'rgba(15, 23, 42, 0.75)'
+                        : 'rgba(255, 255, 255, 0.75)',
+                    backdropFilter: 'blur(20px)',
+                    WebkitBackdropFilter: 'blur(20px)',
+                    borderBottom: `1px solid ${theme.palette.divider}`,
+                }}
+            >
+                {/* Left: hamburger (mobile) or logo (desktop) */}
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                    {/* Hamburger — mobile only */}
+                    <IconButton
+                        onClick={() => setMobileMenuOpen(true)}
+                        sx={{
+                            display: { xs: 'flex', md: 'none' },
+                            width: 40,
+                            height: 40,
+                            borderRadius: '10px',
                             color: theme.palette.text.primary,
-                            borderRight: `1px solid ${theme.palette.divider}`,
-                        }
-                    }}
-                >
-                    {/* Close Button at Top Right */}
-                    <Box sx={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', p: 2, pb: 1 }}>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                            <Image src="/flc-logo.webp" alt="CI Office" width={32} height={32} />
-                            <Typography variant="h6" fontWeight="bold">
-                                CI Office
-                            </Typography>
-                        </Box>
-                        <IconButton 
-                            onClick={() => setMobileMenuOpen(false)}
-                            sx={{ color: theme.palette.text.secondary }}
-                        >
-                            <CloseIcon />
-                        </IconButton>
-                    </Box>
-
-                    {/* Navigation Items - Centered, Outlined */}
-                    <List sx={{ width: '100%', px: 2, display: 'flex', flexDirection: 'column', gap: 0.8 }}>
-                        {mobileMenuItems.filter(item => item.show).map((item) => (
-                            <ListItem key={item.path} disablePadding>
-                                <ListItemButton
-                                    onClick={() => handleMenuItemClick(item.path)}
-                                    // Removed selected state highlighting as requested
-                                    sx={{
-                                        borderRadius: 1,
-                                        border: '1px solid',
-                                        borderColor: theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.3)' : 'rgba(0, 0, 0, 0.1)',
-                                        color: theme.palette.text.primary,
-                                        py: 1,
-                                        justifyContent: 'center',
-                                        transition: 'all 0.2s',
-                                        '&:hover': {
-                                            bgcolor: theme.palette.action.hover,
-                                            borderColor: theme.palette.text.primary,
-                                        },
-                                    }}
-                                >
-                                    <ListItemText 
-                                        primary={
-                                            item.badge && item.badge > 0 ? (
-                                                <Badge badgeContent={item.badge} color="error" sx={{ '& .MuiBadge-badge': { right: -15, top: 2 } }}>
-                                                    {item.text}
-                                                </Badge>
-                                            ) : item.text
-                                        }
-                                        primaryTypographyProps={{
-                                            fontWeight: 600,
-                                            textAlign: 'center',
-                                        }}
-                                    />
-                                </ListItemButton>
-                            </ListItem>
-                        ))}
-                    </List>
-
-                    {/* Search Bar */}
-                    <Box sx={{ width: '100%', px: 2, mb: 3 }}>
-                        <Box sx={{ display: 'flex', gap: 1 }}>
-                            <TextField
-                                placeholder="Search for anything..."
-                                fullWidth
-                                variant="outlined"
-                                size="small"
-                                value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
-                                onKeyDown={handleSearchKeyDown}
-                                sx={{
-                                    '& .MuiOutlinedInput-root': {
-                                        bgcolor: theme.palette.action.selected,
-                                        color: theme.palette.text.primary,
-                                        borderRadius: 1,
-                                        '& fieldset': {
-                                            borderColor: theme.palette.divider,
-                                        },
-                                        '&:hover fieldset': {
-                                            borderColor: theme.palette.text.primary,
-                                        },
-                                        '&.Mui-focused fieldset': {
-                                            borderColor: theme.palette.primary.main,
-                                        },
-                                    },
-                                    '& input::placeholder': {
-                                        color: theme.palette.text.secondary,
-                                    }
-                                }}
-                            />
-                            <Button
-                                variant="contained"
-                                color="success"
-                                onClick={handleSearch}
-                                sx={{ 
-                                    minWidth: 'auto', 
-                                    px: 2,
-                                    bgcolor: theme.palette.success.main,
-                                    '&:hover': { bgcolor: theme.palette.success.dark }
-                                }}
-                            >
-                                <SearchIcon />
-                            </Button>
-                        </Box>
-                    </Box>
-
-                    <Box sx={{ flex: 1 }} />
-
-                    {/* Bottom Profile Section */}
-                    <Box 
-                        sx={{ 
-                            width: '100%',
-                            p: 2,
-                            borderTop: '1px solid rgba(255, 255, 255, 0.1)',
-                            bgcolor: 'rgba(0, 0, 0, 0.2)',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between'
+                            border: `1px solid ${alpha(theme.palette.text.primary, 0.2)}`,
+                            '&:hover': { bgcolor: alpha(theme.palette.text.primary, 0.05) },
                         }}
                     >
-                        {/* User Info */}
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }} onClick={() => router.push('/profile')}>
-                            <Avatar
-                                src={session?.user?.image || undefined}
-                                sx={{
-                                    width: 40,
-                                    height: 40,
-                                    bgcolor: theme.palette.primary.main,
-                                    border: '2px solid rgba(255, 255, 255, 0.1)',
-                                }}
-                            >
-                                {session?.user?.name?.[0]?.toUpperCase() || 'U'}
-                            </Avatar>
-                            <Box>
-                                <Typography variant="subtitle2" fontWeight={700} sx={{ color: '#fff', lineHeight: 1.2 }}>
-                                    {session?.user?.name || 'User'}
-                                </Typography>
-                                <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.5)' }}>
-                                    {session?.user?.email || getDisplayRole(session?.user?.role)}
-                                </Typography>
-                            </Box>
-                        </Box>
+                        <MenuIcon sx={{ fontSize: 24 }} />
+                    </IconButton>
 
-                        <Box sx={{ display: 'flex', gap: 1 }}>
-                            {/* Theme Toggle */}
-                            <IconButton
-                                onClick={colorMode.toggleColorMode}
-                                sx={{
-                                    color: 'text.secondary',
-                                    border: '1px solid',
-                                    borderColor: 'divider',
-                                    borderRadius: 1.5,
-                                    width: 36,
-                                    height: 36,
-                                    '&:hover': {
-                                        bgcolor: 'action.hover',
-                                        color: 'text.primary',
-                                    },
-                                }}
-                            >
-                                {colorMode.mode === 'dark' ? (
-                                    <DarkModeIcon sx={{ fontSize: 20 }} />
-                                ) : colorMode.mode === 'light' ? (
-                                    <LightModeIcon sx={{ fontSize: 20 }} />
-                                ) : (
-                                    <SettingsSystemDaydreamIcon sx={{ fontSize: 20 }} />
-                                )}
-                            </IconButton>
-
-                            {/* Logout Button */}
-                            <IconButton
-                                onClick={handleLogout}
-                                sx={{
-                                    color: theme.palette.error.light,
-                                    bgcolor: alpha(theme.palette.error.main, 0.15),
-                                    border: `1px solid ${alpha(theme.palette.error.main, 0.3)}`,
-                                    borderRadius: 1.5,
-                                    width: 36,
-                                    height: 36,
-                                    '&:hover': {
-                                        bgcolor: alpha(theme.palette.error.main, 0.25),
-                                        color: theme.palette.error.main,
-                                        borderColor: theme.palette.error.main,
-                                    },
-                                }}
-                            >
-                                <LogoutIcon sx={{ fontSize: 20 }} />
-                            </IconButton>
-                        </Box>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25 }}>
+                        <Image src="/flc-logo.webp" alt="CI Office" width={30} height={30} />
+                        <Typography
+                            variant="h6"
+                            fontWeight="bold"
+                            sx={{ color: theme.palette.text.primary, display: { xs: 'none', sm: 'block' }, fontSize: '1rem' }}
+                        >
+                            CI Office
+                        </Typography>
                     </Box>
-                </Drawer>
+                </Box>
+
+                {/* Center: search bar — desktop only */}
+                <Box sx={{ display: { xs: 'none', md: 'flex' }, flex: 1, maxWidth: 420, mx: 3 }}>
+                    <TextField
+                        placeholder="Search transactions, users, churches…"
+                        size="small"
+                        fullWidth
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        onKeyDown={handleSearchKeyDown}
+                        InputProps={{
+                            startAdornment: (
+                                <InputAdornment position="start">
+                                    <SearchIcon sx={{ fontSize: 18, color: 'text.disabled' }} />
+                                </InputAdornment>
+                            ),
+                            endAdornment: searchQuery ? (
+                                <InputAdornment position="end">
+                                    <IconButton size="small" onClick={() => setSearchQuery('')} edge="end">
+                                        <CloseIcon sx={{ fontSize: 16 }} />
+                                    </IconButton>
+                                </InputAdornment>
+                            ) : null,
+                        }}
+                        sx={{
+                            '& .MuiOutlinedInput-root': {
+                                borderRadius: 2,
+                                bgcolor: alpha(theme.palette.text.primary, 0.04),
+                                '& fieldset': { borderColor: 'transparent' },
+                                '&:hover fieldset': { borderColor: theme.palette.divider },
+                                '&.Mui-focused fieldset': { borderColor: theme.palette.primary.main },
+                            },
+                        }}
+                    />
+                </Box>
+
+                {/* Right: search icon (mobile) + RoleSwitcher */}
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    {/* Search icon — mobile only */}
+                    <Tooltip title="Search">
+                        <IconButton
+                            onClick={() => router.push('/search')}
+                            sx={{
+                                display: { xs: 'flex', md: 'none' },
+                                color: theme.palette.text.secondary,
+                            }}
+                        >
+                            <SearchIcon sx={{ fontSize: 22 }} />
+                        </IconButton>
+                    </Tooltip>
+                    <RoleSwitcher />
+                </Box>
+            </Box>
+
+            {/* Permanent sidebar — desktop */}
+            <Drawer
+                variant="permanent"
+                sx={{
+                    display: { xs: 'none', md: 'block' },
+                    '& .MuiDrawer-paper': sidebarPaperSx,
+                }}
+            >
+                <DrawerBody isMobileDrawer={false} />
+            </Drawer>
+
+            {/* Temporary drawer — mobile */}
+            <Drawer
+                anchor="left"
+                open={mobileMenuOpen}
+                onClose={() => setMobileMenuOpen(false)}
+                sx={{
+                    display: { xs: 'block', md: 'none' },
+                    '& .MuiDrawer-paper': {
+                        width: SIDEBAR_WIDTH,
+                        paddingTop: 'env(safe-area-inset-top)',
+                        paddingBottom: 'env(safe-area-inset-bottom)',
+                        bgcolor: theme.palette.background.paper,
+                        borderRight: `1px solid ${theme.palette.divider}`,
+                    },
+                }}
+            >
+                <DrawerBody isMobileDrawer={true} />
+            </Drawer>
+
+            {/* Theme mode menu */}
+            <Menu
+                anchorEl={themeMenuAnchor}
+                open={Boolean(themeMenuAnchor)}
+                onClose={() => setThemeMenuAnchor(null)}
+                anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
+                transformOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+                PaperProps={{
+                    sx: {
+                        minWidth: 160,
+                        borderRadius: 2,
+                        border: `1px solid ${theme.palette.divider}`,
+                        boxShadow: theme.shadows[4],
+                    },
+                }}
+            >
+                {([
+                    { label: 'Light', value: 'light', Icon: LightModeIcon },
+                    { label: 'Dark', value: 'dark', Icon: DarkModeIcon },
+                    { label: 'System', value: 'system', Icon: SettingsSystemDaydreamIcon },
+                ] as const).map(({ label, value, Icon }) => (
+                    <MenuItem
+                        key={value}
+                        selected={colorMode.mode === value}
+                        onClick={() => { colorMode.setMode(value); setThemeMenuAnchor(null); }}
+                        sx={{
+                            gap: 1.5,
+                            borderRadius: 1,
+                            mx: 0.5,
+                            my: 0.25,
+                            '&.Mui-selected': {
+                                bgcolor: alpha(theme.palette.primary.main, 0.1),
+                                color: theme.palette.primary.main,
+                            },
+                        }}
+                    >
+                        <Icon sx={{ fontSize: 18 }} />
+                        <Typography variant="body2" fontWeight={colorMode.mode === value ? 700 : 400}>
+                            {label}
+                        </Typography>
+                    </MenuItem>
+                ))}
+            </Menu>
+
+            {/* Main content area */}
+            <Box
+                component="main"
+                sx={{
+                    ml: { xs: 0, md: sidebarOpen ? `${SIDEBAR_WIDTH}px` : `${SIDEBAR_MINI_WIDTH}px` },
+                    transition: theme.transitions.create('margin-left', {
+                        easing: theme.transitions.easing.sharp,
+                        duration: theme.transitions.duration.enteringScreen,
+                    }),
+                    minHeight: '100vh',
+                    bgcolor: theme.palette.background.default,
+                }}
+            >
+                <PullToRefresh>
+                    <ContentArea>
+                        {children}
+                    </ContentArea>
+                </PullToRefresh>
+            </Box>
         </>
     );
 }

@@ -1,4 +1,5 @@
 export { default as AnimatedCounter } from './AnimatedCounter';
+export { default as EmptyState } from './EmptyState';
 export { default as SimpleStatCard } from './SimpleStatCard';
 export { default as GlassCard } from './GlassCard';
 export { default as StatCard } from './StatCard';

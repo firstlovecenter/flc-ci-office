@@ -16,6 +16,7 @@ import {
     InputAdornment,
     CircularProgress,
     alpha,
+    Chip,
 } from '@mui/material';
 import { useSession } from 'next-auth/react';
 import { formatNumber, formatDepartmentLevel } from '@/lib/utils';
@@ -413,11 +414,61 @@ function NewTransactionForm() {
         );
     }
 
+    // Time window status for leaders (shown when window is open — proactive info)
+    const leaderTimeWindowBanner = isLeader && (() => {
+        const now = new Date();
+        const hour = now.getHours();
+        const isSaturday = now.getDay() === 6;
+        const maxHour = isSaturday ? 19 : 15;
+        const closeTime = `${maxHour > 12 ? maxHour - 12 : maxHour}:00 ${maxHour >= 12 ? 'PM' : 'AM'}`;
+        const minutesLeft = (maxHour - hour) * 60 - now.getMinutes();
+        const isClosingSoon = minutesLeft <= 60;
+        return (
+            <Box
+                sx={{
+                    mb: 2,
+                    px: 2,
+                    py: 1,
+                    borderRadius: 2,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 1,
+                    bgcolor: (theme) => isClosingSoon
+                        ? alpha(theme.palette.warning.main, 0.08)
+                        : alpha(theme.palette.success.main, 0.08),
+                    border: (theme) => `1px solid ${isClosingSoon
+                        ? alpha(theme.palette.warning.main, 0.3)
+                        : alpha(theme.palette.success.main, 0.3)}`,
+                }}
+            >
+                <Box
+                    sx={{
+                        width: 8, height: 8, borderRadius: '50%',
+                        bgcolor: isClosingSoon ? 'warning.main' : 'success.main',
+                        flexShrink: 0,
+                        '@keyframes dot': { '0%,100%': { opacity: 1 }, '50%': { opacity: 0.3 } },
+                        animation: 'dot 2s ease-in-out infinite',
+                    }}
+                />
+                <Typography
+                    variant="caption"
+                    fontWeight={600}
+                    sx={{ color: isClosingSoon ? 'warning.main' : 'success.main' }}
+                >
+                    {isClosingSoon
+                        ? `Submissions close at ${closeTime} · ${minutesLeft} min remaining`
+                        : `Submissions open · Closes at ${closeTime}`}
+                </Typography>
+            </Box>
+        );
+    })();
+
     return (
         <Box maxWidth="sm" sx={{ mx: 'auto' }}>
             <Typography variant="h4" gutterBottom>
                 {isLeader ? 'New Expense Request' : needsApproval ? 'New Transaction Request' : 'New Transaction'}
             </Typography>
+            {leaderTimeWindowBanner}
 
             {/* Show account balance for expense requests */}
             {type === 'EXPENSE' && (
@@ -531,7 +582,7 @@ function NewTransactionForm() {
                         value={amount}
                         onChange={(e) => setAmount(e.target.value)}
                         required
-                        sx={{ mb: 3 }}
+                        sx={{ mb: exchangeRate && amount ? 1 : 3 }}
                         InputProps={{
                             startAdornment: (
                                 <InputAdornment position="start">
@@ -539,12 +590,39 @@ function NewTransactionForm() {
                                 </InputAdornment>
                             ),
                         }}
-                        helperText={
-                            exchangeRate && amount
-                                ? `≈ ${baseCurrency?.symbol}${formatNumber(parseFloat(amount) * exchangeRate)} (${baseCurrency?.code})`
-                                : ''
-                        }
                     />
+                    {/* Exchange rate live preview card */}
+                    {exchangeRate && amount && parseFloat(amount) > 0 && (
+                        <Box
+                            sx={{
+                                mb: 3,
+                                px: 2,
+                                py: 1.25,
+                                borderRadius: 2,
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                bgcolor: (theme) => alpha(theme.palette.info.main, 0.07),
+                                border: (theme) => `1px solid ${alpha(theme.palette.info.main, 0.25)}`,
+                            }}
+                        >
+                            <Typography variant="caption" color="text.secondary">
+                                Converted amount
+                            </Typography>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                <Typography variant="body2" fontWeight={700} color="info.main">
+                                    {baseCurrency?.symbol}{formatNumber(parseFloat(amount) * exchangeRate)}
+                                </Typography>
+                                <Chip
+                                    label={`${currencies.find(c => c.id === currencyId)?.code} → ${baseCurrency?.code} @ ${exchangeRate.toFixed(4)}`}
+                                    size="small"
+                                    variant="outlined"
+                                    color="info"
+                                    sx={{ fontSize: '0.65rem', height: 20 }}
+                                />
+                            </Box>
+                        </Box>
+                    )}
 
                     <TextField
                         fullWidth
