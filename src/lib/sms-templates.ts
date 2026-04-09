@@ -204,6 +204,22 @@ export function generateDebitAlertSms(params: DebitAlertSmsParams): string {
     return `${currency}${amount} debited from your ${departmentName} account. Ref: ${description}. Your new balance is ${currency}${balance}.`;
 }
 
+interface PublicExpenseRequestSmsParams {
+    requesterName: string;
+    churchName: string;
+    amount: number | string;
+    momoName: string;
+    momoNumber: string;
+    description: string;
+    oversightDeptName: string;
+}
+
+export function generatePublicExpenseRequestSms(params: PublicExpenseRequestSmsParams): string {
+    const { requesterName, churchName, amount, momoNumber, description, oversightDeptName } = params;
+    const shortDesc = description.length > 30 ? description.substring(0, 30) + '...' : description;
+    return `New public expense request for ${oversightDeptName}. From: ${requesterName} (${churchName}), GHS${amount}. Momo: ${momoNumber}. Reason: ${shortDesc}. Please log in to review.`;
+}
+
 interface TransactionEditNotificationSmsParams {
     departmentName: string;
     description: string;
