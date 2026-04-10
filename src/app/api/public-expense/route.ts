@@ -4,6 +4,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { sendSms } from '@/lib/sms';
 import { sendEmail } from '@/lib/email';
+import { generatePublicExpenseRequestSms } from '@/lib/sms-templates';
 
 export const dynamic = 'force-dynamic';
 
@@ -156,7 +157,15 @@ export async function POST(request: Request) {
                     return acc;
                 }, []);
 
-            const smsMessage = `New Public Expense Request from ${requesterName} (${churchName}). Amount: ${amount}. Momo: ${momoName}/${momoNumber}. Please log in to review.`;
+            const smsMessage = generatePublicExpenseRequestSms({
+                requesterName,
+                churchName,
+                amount,
+                momoName,
+                momoNumber,
+                description,
+                oversightDeptName: oversightDept.name,
+            });
 
             for (const admin of admins) {
                 try {
