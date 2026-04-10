@@ -34,19 +34,19 @@ export async function GET(request: NextRequest) {
             filterDepartmentId = session.user.activeUserRole.departmentId;
         }
 
-        const isOversightLeader = userRole === 'OVERSIGHT_LEADER' || userRoles.includes('OVERSIGHT_LEADER');
+        const isOversightAdmin = userRole === 'OVERSIGHT_ADMIN' || userRoles.includes('OVERSIGHT_ADMIN');
         const isSuperAdmin = userRole === 'SUPERADMIN' || userRoles.includes('SUPERADMIN');
         const isDenominationAdmin = userRole === 'DENOMINATION_ADMIN' || userRoles.includes('DENOMINATION_ADMIN');
 
-        // For oversight leader badge count: resolve the correct oversight department.
-        // If the active role is not OVERSIGHT_LEADER, look up the UserRole record.
+        // For oversight admin badge count: resolve the correct oversight department.
+        // If the active role is not OVERSIGHT_ADMIN, look up the UserRole record.
         let oversightDeptIdForCount: string | undefined;
-        if (isOversightLeader && !isSuperAdmin) {
-            if ((session.user.activeUserRole as any)?.role === 'OVERSIGHT_LEADER') {
+        if (isOversightAdmin && !isSuperAdmin) {
+            if ((session.user.activeUserRole as any)?.role === 'OVERSIGHT_ADMIN') {
                 oversightDeptIdForCount = session.user.activeUserRole?.departmentId ?? undefined;
             } else {
                 const oversightUserRole = await prisma.userRole.findFirst({
-                    where: { userId: userId, role: 'OVERSIGHT_LEADER' },
+                    where: { userId: userId, role: 'OVERSIGHT_ADMIN' },
                     select: { departmentId: true },
                 });
                 oversightDeptIdForCount = oversightUserRole?.departmentId ?? undefined;
@@ -81,7 +81,7 @@ export async function GET(request: NextRequest) {
                 ? prisma.publicExpenseRequest.count({
                     where: { status: 'PENDING' },
                 })
-                : isOversightLeader && oversightDeptIdForCount
+                : isOversightAdmin && oversightDeptIdForCount
                 ? prisma.publicExpenseRequest.count({
                     where: {
                         oversightDeptId: oversightDeptIdForCount,

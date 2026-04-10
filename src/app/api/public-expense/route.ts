@@ -22,42 +22,42 @@ function getExpenseWindowStatus() {
 }
 
 // Auth-protected GET:
-// - OVERSIGHT_LEADER: requests for own oversight department
+// - OVERSIGHT_ADMIN: requests for own oversight department
 // - SUPERADMIN: all public expense requests
 // Public POST is below
 export async function GET(request: Request) {
     const session = await getServerSession(authOptions);
     if (!session) return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
 
-    const userRoles = Array.isArray(session.user.roles) 
+    const userRoles = Array.isArray(session.user.roles)
         ? session.user.roles.map(role => (typeof role === 'string' ? role.toUpperCase() : ''))
         : [];
-    const isOversightLeader = session.user.role === 'OVERSIGHT_LEADER' || userRoles.includes('OVERSIGHT_LEADER');
+    const isOversightAdmin = session.user.role === 'OVERSIGHT_ADMIN' || userRoles.includes('OVERSIGHT_ADMIN');
     const isSuperAdmin = session.user.role === 'SUPERADMIN' || userRoles.includes('SUPERADMIN');
 
-    if (!isOversightLeader && !isSuperAdmin) {
+    if (!isOversightAdmin && !isSuperAdmin) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    // Resolve the oversight department for the leader.
-    // If the active role is OVERSIGHT_LEADER, use its departmentId directly.
+    // Resolve the oversight department for the admin.
+    // If the active role is OVERSIGHT_ADMIN, use its departmentId directly.
     // Otherwise (multi-role user with a different active role) look up the
-    // OVERSIGHT_LEADER UserRole record from the database.
-    let leaderOversightDeptId: string | undefined =
-        (session.user.activeUserRole as any)?.role === 'OVERSIGHT_LEADER'
+    // OVERSIGHT_ADMIN UserRole record from the database.
+    let adminOversightDeptId: string | undefined =
+        (session.user.activeUserRole as any)?.role === 'OVERSIGHT_ADMIN'
             ? session.user.activeUserRole?.departmentId
             : undefined;
 
-    if (!leaderOversightDeptId && isOversightLeader) {
-        // Active role is not OVERSIGHT_LEADER — find the right oversight dept from UserRole
+    if (!adminOversightDeptId && isOversightAdmin) {
+        // Active role is not OVERSIGHT_ADMIN — find the right oversight dept from UserRole
         const oversightUserRole = await prisma.userRole.findFirst({
-            where: { userId: session.user.id, role: 'OVERSIGHT_LEADER' },
+            where: { userId: session.user.id, role: 'OVERSIGHT_ADMIN' },
             select: { departmentId: true },
         });
-        leaderOversightDeptId = oversightUserRole?.departmentId ?? undefined;
+        adminOversightDeptId = oversightUserRole?.departmentId ?? undefined;
     }
 
-    if (isOversightLeader && !leaderOversightDeptId) {
+    if (isOversightAdmin && !adminOversightDeptId) {
         return NextResponse.json({ error: 'No oversight department found for your account' }, { status: 400 });
     }
 
@@ -67,7 +67,7 @@ export async function GET(request: Request) {
     try {
         const requests = await prisma.publicExpenseRequest.findMany({
             where: {
-                ...(isOversightLeader && leaderOversightDeptId ? { oversightDeptId: leaderOversightDeptId } : {}),
+                ...(isOversightAdmin && adminOversightDeptId ? { oversightDeptId: adminOversightDeptId } : {}),
                 ...(status ? { status: status as any } : {}),
             },
             orderBy: { createdAt: 'desc' },
@@ -133,11 +133,11 @@ export async function POST(request: Request) {
             },
         });
 
-        // Notify OVERSIGHT_LEADER(s) of this oversight church
+        // Notify OVERSIGHT_ADMIN(s) of this oversight church
         try {
-            const leaderRoles = await prisma.userRole.findMany({
+            const adminRoles = await prisma.userRole.findMany({
                 where: {
-                    role: 'OVERSIGHT_LEADER',
+                    role: 'OVERSIGHT_ADMIN',
                     departmentId: oversightDeptId,
                 },
                 include: {
@@ -147,10 +147,10 @@ export async function POST(request: Request) {
                 },
             });
 
-            const leaders = leaderRoles
+            const admins = adminRoles
                 .filter(ur => !ur.user.archived)
                 .reduce((acc: { phone: string | null; email: string; name: string | null }[], ur) => {
-                    if (!acc.find(l => l.email === ur.user.email)) {
+                    if (!acc.find(a => a.email === ur.user.email)) {
                         acc.push({ phone: ur.user.phone, email: ur.user.email, name: ur.user.name });
                     }
                     return acc;
@@ -158,20 +158,20 @@ export async function POST(request: Request) {
 
             const smsMessage = `New Public Expense Request from ${requesterName} (${churchName}). Amount: ${amount}. Momo: ${momoName}/${momoNumber}. Please log in to review.`;
 
-            for (const leader of leaders) {
+            for (const admin of admins) {
                 try {
-                    if (leader.phone) {
-                        sendSms({ to: leader.phone, message: smsMessage }).catch((err) => {
-                            console.error('[Notify] SMS failed for oversight leader', leader.phone, err?.message || err);
+                    if (admin.phone) {
+                        sendSms({ to: admin.phone, message: smsMessage }).catch((err) => {
+                            console.error('[Notify] SMS failed for oversight admin', admin.phone, err?.message || err);
                         });
                     } else {
-                        console.warn('[Notify] Oversight leader has no phone number:', leader.email);
+                        console.warn('[Notify] Oversight admin has no phone number:', admin.email);
                     }
                     sendEmail({
-                        to: leader.email,
+                        to: admin.email,
                         subject: `New Public Expense Request — ${requesterName} (${churchName})`,
                         html: `
-                            <p>Dear ${leader.name || 'Oversight Leader'},</p>
+                            <p>Dear ${admin.name || 'Oversight Admin'},</p>
                             <p>A new public expense request has been submitted and requires your review.</p>
                             <table style="border-collapse:collapse;width:100%">
                                 <tr><td style="padding:8px;border:1px solid #ddd"><strong>Requester</strong></td><td style="padding:8px;border:1px solid #ddd">${requesterName}</td></tr>
@@ -184,15 +184,15 @@ export async function POST(request: Request) {
                             <p>Please log in to the app and go to <strong>Public Requests</strong> to process this request.</p>
                         `,
                     }).catch((err: any) => {
-                            console.error('[Notify] Email failed for oversight leader', leader.email, err?.message || err);
+                            console.error('[Notify] Email failed for oversight admin', admin.email, err?.message || err);
                         });
                 } catch (err) {
-                    console.error('[Notify] Error sending notification to oversight leader:', err);
+                    console.error('[Notify] Error sending notification to oversight admin:', err);
                 }
             }
         } catch (notifyError) {
             // Don't fail the request if notification fails
-            console.error('[Notify] Error fetching leaders for notification:', notifyError);
+            console.error('[Notify] Error fetching admins for notification:', notifyError);
         }
 
         return NextResponse.json({ success: true, id: publicRequest.id }, { status: 201 });

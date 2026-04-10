@@ -133,7 +133,7 @@ export default function ModernDashboardLayout({ children }: { children: React.Re
             title: 'Management',
             items: [
                 { text: 'Approvals', icon: PendingActionsIcon, path: '/approvals', show: !!(isAdmin || isSuperAdmin), badge: pendingCounts.approvals },
-                { text: 'Public Requests', icon: InboxIcon, path: '/public-requests', show: normalizedRole === 'OVERSIGHT_LEADER', badge: pendingCounts.publicRequests },
+                { text: 'Public Requests', icon: InboxIcon, path: '/public-requests', show: normalizedRole === 'OVERSIGHT_ADMIN', badge: pendingCounts.publicRequests },
                 { text: 'Users', icon: PeopleIcon, path: '/users', show: !!(isAdmin || isSuperAdmin), badge: 0 },
                 { text: getDeptNavLabel(normalizedRole), icon: BusinessIcon, path: '/departments', show: !!(isSuperAdmin || isLeaderOrAdmin), badge: 0 },
                 { text: 'Currencies', icon: MonetizationOnIcon, path: '/currencies', show: !!(isSuperAdmin || userRole === 'DENOMINATION_ADMIN'), badge: 0 },

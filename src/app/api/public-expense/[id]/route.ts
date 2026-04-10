@@ -6,13 +6,13 @@ import crypto from 'crypto';
 import { getCurrentWeek, formatNumber } from '@/lib/utils';
 import { sendSms } from '@/lib/sms';
 import { sendEmail } from '@/lib/email';
-import { generatePendingApprovalRequestSms } from '@/lib/sms-templates';
+import { generatePendingApprovalRequestSms, generateDebitAlertSms } from '@/lib/sms-templates';
 import { generatePendingApprovalEmail } from '@/lib/email-templates';
-import { getDescendantDepartmentIds } from '@/lib/departments';
+import { getDescendantDepartmentIds, getLeaderRoleForLevel } from '@/lib/departments';
 
 export const dynamic = 'force-dynamic';
 
-// Auth-protected: OVERSIGHT_LEADER can process or reject public expense requests
+// Auth-protected: OVERSIGHT_ADMIN can process or reject public expense requests
 export async function PATCH(
     request: Request,
     { params }: { params: Promise<{ id: string }> }
@@ -26,12 +26,12 @@ export async function PATCH(
     const userRoles = Array.isArray(session.user.roles)
         ? session.user.roles.map(r => (typeof r === 'string' ? r.toUpperCase() : ''))
         : [];
-    const isOversightLeader =
-        (session.user.role || '').toUpperCase() === 'OVERSIGHT_LEADER' ||
-        userRoles.includes('OVERSIGHT_LEADER');
+    const isOversightAdmin =
+        (session.user.role || '').toUpperCase() === 'OVERSIGHT_ADMIN' ||
+        userRoles.includes('OVERSIGHT_ADMIN');
 
-    if (!isOversightLeader) {
-        return NextResponse.json({ error: 'Only Oversight Leaders can process public expense requests' }, { status: 403 });
+    if (!isOversightAdmin) {
+        return NextResponse.json({ error: 'Only Oversight Admins can process public expense requests' }, { status: 403 });
     }
 
     const { id } = await params;
@@ -58,21 +58,21 @@ export async function PATCH(
         }
 
         // Resolve the oversight department.
-        // If the active role is OVERSIGHT_LEADER use its departmentId; otherwise look it up.
-        let leaderOversightDeptId: string | undefined =
-            (session.user.activeUserRole as any)?.role === 'OVERSIGHT_LEADER'
+        // If the active role is OVERSIGHT_ADMIN use its departmentId; otherwise look it up.
+        let adminOversightDeptId: string | undefined =
+            (session.user.activeUserRole as any)?.role === 'OVERSIGHT_ADMIN'
                 ? session.user.activeUserRole?.departmentId
                 : undefined;
 
-        if (!leaderOversightDeptId) {
+        if (!adminOversightDeptId) {
             const oversightUserRole = await prisma.userRole.findFirst({
-                where: { userId: session.user.id, role: 'OVERSIGHT_LEADER' },
+                where: { userId: session.user.id, role: 'OVERSIGHT_ADMIN' },
                 select: { departmentId: true },
             });
-            leaderOversightDeptId = oversightUserRole?.departmentId ?? undefined;
+            adminOversightDeptId = oversightUserRole?.departmentId ?? undefined;
         }
 
-        if (!leaderOversightDeptId || publicRequest.oversightDeptId !== leaderOversightDeptId) {
+        if (!adminOversightDeptId || publicRequest.oversightDeptId !== adminOversightDeptId) {
             return NextResponse.json({ error: 'You can only process requests for your own oversight church.' }, { status: 403 });
         }
 
@@ -81,6 +81,7 @@ export async function PATCH(
                 where: { id },
                 data: { status: 'REJECTED', updatedAt: new Date() },
             });
+
             return NextResponse.json({ success: true });
         }
 
@@ -90,7 +91,7 @@ export async function PATCH(
         }
 
         // Verify the selected department is within this oversight's hierarchy
-        const allowedDeptIds = await getDescendantDepartmentIds(leaderOversightDeptId);
+        const allowedDeptIds = await getDescendantDepartmentIds(adminOversightDeptId);
         if (!allowedDeptIds.includes(departmentId)) {
             return NextResponse.json({ error: 'Selected department is not within your oversight hierarchy.' }, { status: 403 });
         }
@@ -127,7 +128,7 @@ export async function PATCH(
 
         const { weekNumber, year } = getCurrentWeek();
 
-        // Create the formal EXPENSE transaction attributed to the oversight leader
+        // Create the formal EXPENSE transaction attributed to the oversight admin
         const transaction = await prisma.transaction.create({
             data: {
                 id: crypto.randomUUID(),
@@ -158,6 +159,32 @@ export async function PATCH(
                 updatedAt: new Date(),
             },
         });
+
+        // Notify the department leader of the deduction and remaining balance
+        try {
+            const deptLevel = transaction.department?.level;
+            if (deptLevel) {
+                const leaderRole = getLeaderRoleForLevel(deptLevel as any);
+                const leaderUserRole = await prisma.userRole.findFirst({
+                    where: { role: leaderRole, departmentId },
+                    include: { user: { select: { phone: true, name: true, archived: true } } },
+                });
+                if (leaderUserRole && !leaderUserRole.user.archived && leaderUserRole.user.phone) {
+                    const remainingBalance = balance - requestAmount;
+                    const ref = `${publicRequest.requesterName}, ${publicRequest.churchName}: ${publicRequest.description}`;
+                    const leaderSms = generateDebitAlertSms({
+                        currency: 'GH\u20B5',
+                        amount: formatNumber(requestAmount),
+                        departmentName: transaction.department?.name || 'your department',
+                        description: ref,
+                        balance: formatNumber(remainingBalance),
+                    });
+                    sendSms({ to: leaderUserRole.user.phone, message: leaderSms }).catch(() => {});
+                }
+            }
+        } catch (err) {
+            console.error('[Notify] SMS to department leader failed:', err);
+        }
 
         // Audit log
         await prisma.auditLog.create({
@@ -214,7 +241,7 @@ export async function PATCH(
 
             if (campusAdmins.length > 0) {
                 const smsMessage = generatePendingApprovalRequestSms({
-                    userName: session.user.name || 'Oversight Leader',
+                    userName: session.user.name || 'Oversight Admin',
                     transactionType: 'expense',
                     currency: '',
                     amount: formatNumber(requestAmount),
@@ -228,7 +255,7 @@ export async function PATCH(
                         }
                         const { subject, html } = generatePendingApprovalEmail({
                             adminName: admin.name || 'Admin',
-                            submittedBy: session.user.name || 'Oversight Leader',
+                            submittedBy: session.user.name || 'Oversight Admin',
                             transactionType: 'expense',
                             currency: '',
                             amount: formatNumber(requestAmount),
@@ -252,7 +279,7 @@ export async function PATCH(
     }
 }
 
-// Get a single public expense request (for the oversight leader)
+// Get a single public expense request (for the oversight admin)
 export async function GET(
     request: Request,
     { params }: { params: Promise<{ id: string }> }
@@ -263,11 +290,11 @@ export async function GET(
     const getRouteRoles = Array.isArray(session.user.roles)
         ? session.user.roles.map(r => (typeof r === 'string' ? r.toUpperCase() : ''))
         : [];
-    const getIsOversightLeader =
-        (session.user.role || '').toUpperCase() === 'OVERSIGHT_LEADER' ||
-        getRouteRoles.includes('OVERSIGHT_LEADER');
+    const getIsOversightAdmin =
+        (session.user.role || '').toUpperCase() === 'OVERSIGHT_ADMIN' ||
+        getRouteRoles.includes('OVERSIGHT_ADMIN');
 
-    if (!getIsOversightLeader) {
+    if (!getIsOversightAdmin) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
@@ -280,21 +307,21 @@ export async function GET(
 
         if (!publicRequest) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
-        // Resolve the oversight department for this leader
-        let leaderOversightDeptId: string | undefined =
-            (session.user.activeUserRole as any)?.role === 'OVERSIGHT_LEADER'
+        // Resolve the oversight department for this admin
+        let adminOversightDeptId: string | undefined =
+            (session.user.activeUserRole as any)?.role === 'OVERSIGHT_ADMIN'
                 ? session.user.activeUserRole?.departmentId
                 : undefined;
 
-        if (!leaderOversightDeptId) {
+        if (!adminOversightDeptId) {
             const oversightUserRole = await prisma.userRole.findFirst({
-                where: { userId: session.user.id, role: 'OVERSIGHT_LEADER' },
+                where: { userId: session.user.id, role: 'OVERSIGHT_ADMIN' },
                 select: { departmentId: true },
             });
-            leaderOversightDeptId = oversightUserRole?.departmentId ?? undefined;
+            adminOversightDeptId = oversightUserRole?.departmentId ?? undefined;
         }
 
-        if (!leaderOversightDeptId || publicRequest.oversightDeptId !== leaderOversightDeptId) {
+        if (!adminOversightDeptId || publicRequest.oversightDeptId !== adminOversightDeptId) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 

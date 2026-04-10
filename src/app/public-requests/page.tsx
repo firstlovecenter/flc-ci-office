@@ -90,8 +90,8 @@ export default function PublicRequestsPage() {
     const normalizedRole = (session?.user?.role || '').toUpperCase();
     const normalizedRoles = (session?.user?.roles || []).map(role => role.toUpperCase());
     const hasSuperAdminAccess = normalizedRole === 'SUPERADMIN' || normalizedRoles.includes('SUPERADMIN');
-    const hasOversightLeaderAccess = normalizedRole === 'OVERSIGHT_LEADER' || normalizedRoles.includes('OVERSIGHT_LEADER');
-    const canProcessRequests = hasOversightLeaderAccess;
+    const hasOversightAdminAccess = normalizedRole === 'OVERSIGHT_ADMIN' || normalizedRoles.includes('OVERSIGHT_ADMIN');
+    const canProcessRequests = hasOversightAdminAccess;
 
     const fetchRequests = useCallback(async () => {
         setLoading(true);
@@ -110,12 +110,12 @@ export default function PublicRequestsPage() {
 
     useEffect(() => {
         if (!session) return;
-        if (!hasOversightLeaderAccess && !hasSuperAdminAccess) {
+        if (!hasOversightAdminAccess && !hasSuperAdminAccess) {
             router.replace('/dashboard');
             return;
         }
         fetchRequests();
-    }, [session, fetchRequests, hasOversightLeaderAccess, hasSuperAdminAccess]);
+    }, [session, fetchRequests, hasOversightAdminAccess, hasSuperAdminAccess]);
 
     const fetchDepartments = async () => {
         if (departments.length > 0) return;
