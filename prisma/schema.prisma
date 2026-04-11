@@ -294,6 +294,7 @@ model PublicExpenseRequest {
   churchName      String
   momoName        String
   momoNumber      String
+  leaderPhone     String?
   amount          Decimal
   description     String
   status          PublicExpenseRequestStatus @default(PENDING)

@@ -4,7 +4,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { sendSms } from '@/lib/sms';
 import { sendEmail } from '@/lib/email';
-import { generatePublicExpenseRequestSms } from '@/lib/sms-templates';
+import { generatePublicExpenseRequestSms, generatePublicExpenseLeaderSubmittedSms } from '@/lib/sms-templates';
 
 export const dynamic = 'force-dynamic';
 
@@ -96,12 +96,12 @@ export async function POST(request: Request) {
         }
 
         const body = await request.json();
-        const { oversightDeptId, requesterName, churchName, momoName, momoNumber, amount, description } = body;
+        const { oversightDeptId, requesterName, leaderPhone, churchName, momoName, momoNumber, amount, description } = body;
 
         // Validate required fields
-        if (!oversightDeptId || !requesterName || !churchName || !momoName || !momoNumber || !amount || !description) {
+        if (!oversightDeptId || !requesterName || !leaderPhone || !churchName || !momoName || !momoNumber || !amount || !description) {
             return NextResponse.json(
-                { error: 'All fields are required: oversight church, requester name, church name, Momo name, Momo number, amount, and reason.' },
+                { error: 'All fields are required: oversight church, requester name, leader phone, church name, Momo name, Momo number, amount, and reason.' },
                 { status: 400 }
             );
         }
@@ -124,6 +124,7 @@ export async function POST(request: Request) {
         const publicRequest = await prisma.publicExpenseRequest.create({
             data: {
                 requesterName: requesterName.trim(),
+                leaderPhone: leaderPhone.trim(),
                 churchName: churchName.trim(),
                 momoName: momoName.trim(),
                 momoNumber: momoNumber.trim(),
@@ -133,6 +134,20 @@ export async function POST(request: Request) {
                 updatedAt: new Date(),
             },
         });
+
+        // Send submission confirmation SMS to the leader's phone
+        try {
+            const submittedSms = generatePublicExpenseLeaderSubmittedSms({
+                requesterName: requesterName.trim(),
+                amount,
+                churchName: churchName.trim(),
+            });
+            sendSms({ to: leaderPhone.trim(), message: submittedSms }).catch((err) => {
+                console.error('[Notify] Submission SMS to leader failed:', err?.message || err);
+            });
+        } catch (err) {
+            console.error('[Notify] Error sending submission SMS to leader:', err);
+        }
 
         // Notify OVERSIGHT_ADMIN(s) of this oversight church
         try {

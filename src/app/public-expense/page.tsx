@@ -42,6 +42,7 @@ export default function PublicExpensePage() {
     const [form, setForm] = useState({
         oversightDeptId: '',
         requesterName: '',
+        leaderPhone: '',
         churchName: '',
         momoName: '',
         momoNumber: '',
@@ -82,6 +83,7 @@ export default function PublicExpensePage() {
         const amount = parseFloat(form.amount);
         if (!form.oversightDeptId) return setError('Please select your oversight church.');
         if (!form.requesterName.trim()) return setError('Please enter your name.');
+        if (!form.leaderPhone.trim()) return setError('Please enter the leader phone number.');
         if (!form.churchName.trim()) return setError('Please enter the name of your church.');
         if (!form.momoName.trim()) return setError('Please enter the Momo account name.');
         if (!form.momoNumber.trim()) return setError('Please enter the Momo number.');
@@ -96,6 +98,7 @@ export default function PublicExpensePage() {
                 body: JSON.stringify({
                     oversightDeptId: form.oversightDeptId,
                     requesterName: form.requesterName.trim(),
+                    leaderPhone: form.leaderPhone.trim(),
                     churchName: form.churchName.trim(),
                     momoName: form.momoName.trim(),
                     momoNumber: form.momoNumber.trim(),
@@ -192,7 +195,7 @@ export default function PublicExpensePage() {
                         onClick={() => {
                             setSubmitted(false);
                             setReferenceId(null);
-                            setForm({ oversightDeptId: '', requesterName: '', churchName: '', momoName: '', momoNumber: '', amount: '', description: '' });
+                            setForm({ oversightDeptId: '', requesterName: '', leaderPhone: '', churchName: '', momoName: '', momoNumber: '', amount: '', description: '' });
                         }}
                     >
                         Submit Another Request
@@ -350,18 +353,31 @@ export default function PublicExpensePage() {
 
                     {/* Requester Name */}
                     <TextField
-                        label="Your Full Name"
+                        label="Leader's Full Name"
                         fullWidth
                         required
                         value={form.requesterName}
                         onChange={handleChange('requesterName')}
-                        placeholder="e.g. John Mensah"
+                        placeholder="e.g. Daniel Adansie"
+                        sx={{ mb: 2 }}
+                    />
+
+                    {/* Leader Phone */}
+                    <TextField
+                        label="Leader's Phone Number"
+                        fullWidth
+                        required
+                        value={form.leaderPhone}
+                        onChange={handleChange('leaderPhone')}
+                        placeholder="e.g. 0241234567"
+                        slotProps={{ htmlInput: { inputMode: 'tel' } }}
+                        helperText="SMS notifications will be sent to this number"
                         sx={{ mb: 2 }}
                     />
 
                     {/* Church Name */}
                     <TextField
-                        label="Your Church Name"
+                        label="Your Campus"
                         fullWidth
                         required
                         value={form.churchName}

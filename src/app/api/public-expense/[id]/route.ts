@@ -6,7 +6,7 @@ import crypto from 'crypto';
 import { getCurrentWeek, formatNumber } from '@/lib/utils';
 import { sendSms } from '@/lib/sms';
 import { sendEmail } from '@/lib/email';
-import { generatePendingApprovalRequestSms, generateDebitAlertSms } from '@/lib/sms-templates';
+import { generatePendingApprovalRequestSms, generateDebitAlertSms, generatePublicExpenseLeaderApprovedSms, generatePublicExpenseLeaderDeclinedSms } from '@/lib/sms-templates';
 import { generatePendingApprovalEmail } from '@/lib/email-templates';
 import { getDescendantDepartmentIds, getLeaderRoleForLevel } from '@/lib/departments';
 
@@ -81,6 +81,22 @@ export async function PATCH(
                 where: { id },
                 data: { status: 'REJECTED', updatedAt: new Date() },
             });
+
+            // Notify the leader that their request was declined
+            if (publicRequest.leaderPhone) {
+                try {
+                    const declinedSms = generatePublicExpenseLeaderDeclinedSms({
+                        requesterName: publicRequest.requesterName,
+                        amount: Number(publicRequest.amount),
+                        churchName: publicRequest.churchName,
+                    });
+                    sendSms({ to: publicRequest.leaderPhone, message: declinedSms }).catch((err) => {
+                        console.error('[Notify] Declined SMS to leader failed:', err?.message || err);
+                    });
+                } catch (err) {
+                    console.error('[Notify] Error sending declined SMS to leader:', err);
+                }
+            }
 
             return NextResponse.json({ success: true });
         }
@@ -159,6 +175,22 @@ export async function PATCH(
                 updatedAt: new Date(),
             },
         });
+
+        // Notify the requester's leader that their request was approved
+        if (publicRequest.leaderPhone) {
+            try {
+                const approvedSms = generatePublicExpenseLeaderApprovedSms({
+                    requesterName: publicRequest.requesterName,
+                    amount: Number(publicRequest.amount),
+                    churchName: publicRequest.churchName,
+                });
+                sendSms({ to: publicRequest.leaderPhone, message: approvedSms }).catch((err) => {
+                    console.error('[Notify] Approved SMS to leader failed:', err?.message || err);
+                });
+            } catch (err) {
+                console.error('[Notify] Error sending approved SMS to leader:', err);
+            }
+        }
 
         // Notify the department leader of the deduction and remaining balance
         try {

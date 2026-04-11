@@ -64,7 +64,7 @@ interface Transaction {
     currency: {
         code: string;
         symbol: string;
-    };
+    } | null;
     attachments?: string;
 }
 
@@ -260,8 +260,8 @@ export default function ApprovalsPage() {
         });
     };
 
-    const formatCurrency = (amount: string, symbol: string) => {
-        return `${symbol}${parseFloat(amount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    const formatCurrency = (amount: string, symbol: string | null | undefined) => {
+        return `${symbol ?? ''}${parseFloat(amount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
     };
 
     const getStatusColor = (status: string) => {
@@ -501,7 +501,7 @@ export default function ApprovalsPage() {
                                                 color={transaction.type === 'INCOME' ? 'success.main' : 'error.main'}
                                                 sx={{ display: 'block', mb: 0.5 }}
                                             >
-                                                {formatCurrency(transaction.amount, transaction.currency.symbol)}
+                                                {formatCurrency(transaction.amount, transaction.currency?.symbol)}
                                             </Typography>
                                             <StatusChip
                                                 label={transaction.type}
@@ -639,7 +639,7 @@ export default function ApprovalsPage() {
                                         </TableCell>
                                         <TableCell align="right">
                                             <Typography fontWeight={600}>
-                                                {formatCurrency(transaction.amount, transaction.currency.symbol)}
+                                                {formatCurrency(transaction.amount, transaction.currency?.symbol)}
                                             </Typography>
                                         </TableCell>
                                         <TableCell>
@@ -701,7 +701,7 @@ export default function ApprovalsPage() {
                                 <Box>
                                     <Typography variant="caption" color="text.secondary">Amount</Typography>
                                     <Typography variant="h6">
-                                        {formatCurrency(selectedTransaction.amount, selectedTransaction.currency.symbol)}
+                                        {formatCurrency(selectedTransaction.amount, selectedTransaction.currency?.symbol)}
                                     </Typography>
                                 </Box>
                                 <Box>
@@ -779,7 +779,7 @@ export default function ApprovalsPage() {
                                 <strong>Description:</strong> {selectedTransaction.description}
                             </Typography>
                             <Typography variant="body2" gutterBottom>
-                                <strong>Amount:</strong> {formatCurrency(selectedTransaction.amount, selectedTransaction.currency.symbol)}
+                                <strong>Amount:</strong> {formatCurrency(selectedTransaction.amount, selectedTransaction.currency?.symbol)}
                             </Typography>
                             <Typography variant="body2" gutterBottom>
                                 <strong>Submitted By:</strong> {selectedTransaction.user.name}
@@ -905,7 +905,7 @@ export default function ApprovalsPage() {
                                         </Box>
                                         <Box sx={{ textAlign: 'right' }}>
                                             <Typography variant="body2" fontWeight={700}>
-                                                {formatCurrency(transaction.amount, transaction.currency.code)}
+                                                {formatCurrency(transaction.amount, transaction.currency?.symbol)}
                                             </Typography>
                                             <StatusChip 
                                                 label={transaction.status}
@@ -998,7 +998,7 @@ export default function ApprovalsPage() {
                                             </TableCell>
                                             <TableCell align="right">
                                                 <Typography fontWeight={600}>
-                                                    {formatCurrency(transaction.amount, transaction.currency.code)}
+                                                    {formatCurrency(transaction.amount, transaction.currency?.symbol)}
                                                 </Typography>
                                             </TableCell>
                                             <TableCell>

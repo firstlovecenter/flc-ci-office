@@ -385,7 +385,7 @@ function LoginForm() {
                                             },
                                         }}
                                     >
-                                        Outside Accra Leaders Expense RequestForm →
+                                        Outside Accra Leaders Expense Request Form →
                                     </MuiLink>
                                 </Box>
                             </GlassCard>

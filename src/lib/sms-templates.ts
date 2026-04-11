@@ -232,3 +232,36 @@ export function generateTransactionEditNotificationSms(params: TransactionEditNo
     const shortDesc = description.length > 25 ? description.substring(0, 25) + '...' : description;
     return `EDIT ALERT: "${shortDesc}" in ${departmentName} was modified by ${editedBy}. Changes: ${changes}.`;
 }
+
+interface PublicExpenseLeaderSubmittedSmsParams {
+    requesterName: string;
+    amount: number | string;
+    churchName: string;
+}
+
+export function generatePublicExpenseLeaderSubmittedSms(params: PublicExpenseLeaderSubmittedSmsParams): string {
+    const { requesterName, amount, churchName } = params;
+    return `CI Office: Your expense request of GHS${amount} for ${churchName} has been submitted and is pending review. Ref: ${requesterName}.`;
+}
+
+interface PublicExpenseLeaderApprovedSmsParams {
+    requesterName: string;
+    amount: number | string;
+    churchName: string;
+}
+
+export function generatePublicExpenseLeaderApprovedSms(params: PublicExpenseLeaderApprovedSmsParams): string {
+    const { requesterName, amount, churchName } = params;
+    return `CI Office: Your expense request of GHS${amount} for ${churchName} has been approved. The amount will be sent to the provided Momo number. Ref: ${requesterName}.`;
+}
+
+interface PublicExpenseLeaderDeclinedSmsParams {
+    requesterName: string;
+    amount: number | string;
+    churchName: string;
+}
+
+export function generatePublicExpenseLeaderDeclinedSms(params: PublicExpenseLeaderDeclinedSmsParams): string {
+    const { requesterName, amount, churchName } = params;
+    return `CI Office: Your expense request of GHS${amount} for ${churchName} has been declined. Please contact your oversight leader for details. Ref: ${requesterName}.`;
+}
