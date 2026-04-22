@@ -10,6 +10,7 @@ import { sendEmail } from '@/lib/email';
 import { generatePendingApprovalEmail, generateCreditAlertEmail, generateDebitAlertEmail } from '@/lib/email-templates';
 import { getDescendantDepartmentIds, hasDepartmentAccess } from '@/lib/departments';
 import { getUserBaseCurrency, convertToUserBaseCurrency } from '@/lib/currency-conversion';
+import { formatTimeInExpenseWindowTimeZone, getExpenseWindowStatus } from '@/lib/expense-window';
 
 // Force dynamic rendering - data is user/role specific
 export const dynamic = 'force-dynamic';
@@ -244,16 +245,13 @@ export async function POST(request: Request) {
         // Server-side time validation for expense requests - only for leaders
         // Admins can make requests anytime
         if (type === 'EXPENSE' && isLeader) {
-            const serverTime = new Date();
-            const hour = serverTime.getHours();
-            const day = serverTime.getDay();
-            const isSaturday = day === 6;
-            const maxHour = isSaturday ? 19 : 15;
-            
-            if (hour < 6 || hour >= maxHour) {
-                const timeRange = isSaturday ? '6:00 AM and 7:00 PM' : '6:00 AM and 3:00 PM';
+            const expenseWindow = getExpenseWindowStatus();
+
+            if (!expenseWindow.isOpen) {
                 return NextResponse.json(
-                    { error: `Expense requests can only be made between ${timeRange}. Actual time is ${serverTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}` },
+                    {
+                        error: `Expense requests can only be made between ${expenseWindow.timeRange}. Actual time is ${formatTimeInExpenseWindowTimeZone(expenseWindow.now)}`,
+                    },
                     { status: 400 }
                 );
             }
