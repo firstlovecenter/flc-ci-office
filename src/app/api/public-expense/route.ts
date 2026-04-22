@@ -5,22 +5,9 @@ import { authOptions } from '@/lib/auth';
 import { sendSms } from '@/lib/sms';
 import { sendEmail } from '@/lib/email';
 import { generatePublicExpenseRequestSms, generatePublicExpenseLeaderSubmittedSms } from '@/lib/sms-templates';
+import { formatTimeInExpenseWindowTimeZone, getExpenseWindowStatus } from '@/lib/expense-window';
 
 export const dynamic = 'force-dynamic';
-
-function getExpenseWindowStatus() {
-    const now = new Date();
-    const hour = now.getHours();
-    const isSaturday = now.getDay() === 6;
-    const maxHour = isSaturday ? 19 : 15;
-    const timeRange = isSaturday ? '6:00 AM and 7:00 PM' : '6:00 AM and 3:00 PM';
-
-    return {
-        now,
-        timeRange,
-        isOpen: hour >= 6 && hour < maxHour,
-    };
-}
 
 // Auth-protected GET:
 // - OVERSIGHT_ADMIN: requests for own oversight department
@@ -89,7 +76,7 @@ export async function POST(request: Request) {
         if (!expenseWindow.isOpen) {
             return NextResponse.json(
                 {
-                    error: `Expense requests can only be made between ${expenseWindow.timeRange}. Actual time is ${expenseWindow.now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}`,
+                    error: `Expense requests can only be made between ${expenseWindow.timeRange}. Actual time is ${formatTimeInExpenseWindowTimeZone(expenseWindow.now)}`,
                 },
                 { status: 400 }
             );
