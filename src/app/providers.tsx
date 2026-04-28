@@ -65,6 +65,16 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
     const theme = useMemo(() => createTheme(getDesignTokens(resolvedMode)), [resolvedMode]);
 
+    // Register service worker for PWA offline support and push notifications.
+    // Must run client-side only; safe to register on every mount (browser deduplicates).
+    useEffect(() => {
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('/sw.js').catch((err) => {
+                console.error('[SW] Registration failed:', err);
+            });
+        }
+    }, []);
+
     // Session refresh interval in seconds — revalidate session every 5 minutes.
     // With a 4-hour session window, 5-minute checks are sufficient to detect
     // stale/invalid sessions without generating excessive network traffic.
