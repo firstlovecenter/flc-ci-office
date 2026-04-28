@@ -17,6 +17,8 @@ const nextConfig: NextConfig = {
   reactCompiler: true,
   // turbopack: {}, // Disabled due to NextAuth v4 compatibility issues with Next.js 16
   serverExternalPackages: ['@prisma/client', '.prisma/client', 'pg'],
+  // Allow access from local network IPs and custom domains (dev mode host validation)
+  allowedDevOrigins: ['*'],
   images: {
     remotePatterns: [
       {
@@ -71,7 +73,10 @@ const nextConfig: NextConfig = {
       },
       {
         key: 'Strict-Transport-Security',
-        value: 'max-age=63072000; includeSubDomains; preload',
+        // Removed 'preload' and 'includeSubDomains': preload permanently locks mobile Safari
+        // into HTTPS-only for 2 years with no bypass option — if SSL fails on any domain,
+        // mobile gets "can't connect" with zero recovery path until the cache expires.
+        value: 'max-age=31536000',
       },
       {
         key: 'Permissions-Policy',
