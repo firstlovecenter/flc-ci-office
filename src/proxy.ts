@@ -1,15 +1,6 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
-/**
- * Global middleware for route protection.
- * Runs on the Edge runtime for all matched routes.
- * 
- * - CSRF protection via Origin header validation on mutating requests
- * - Redirects unauthenticated users to login for protected routes
- * - Allows public routes (auth, API auth, static assets) through
- */
-
 // Routes that don't require authentication
 const publicPaths = [
   '/auth/login',
@@ -67,7 +58,7 @@ function isValidOrigin(request: NextRequest): boolean {
   return true;
 }
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // --- CSRF Protection ---
