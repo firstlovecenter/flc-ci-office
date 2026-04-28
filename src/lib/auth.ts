@@ -57,6 +57,11 @@ setInterval(() => {
 
 export const authOptions: NextAuthOptions = {
     secret: process.env.NEXTAUTH_SECRET,
+    // Required for Vercel deployments with custom domains: trusts the
+    // X-Forwarded-Host header so NextAuth uses the real external domain
+    // (custom domain or vercel.app URL) instead of the internal host.
+    // Without this, auth callbacks and session URLs resolve to the wrong host.
+    trustHost: true,
     session: {
         strategy: 'jwt',
         maxAge: 4 * 60 * 60, // 4 hours for all users
