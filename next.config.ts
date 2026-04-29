@@ -136,6 +136,21 @@ const nextConfig: NextConfig = {
           },
         ],
       },
+      {
+        // SW must never be cached — users with a broken old SW need to be
+        // able to fetch the latest version on every check.
+        source: '/sw.js',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'no-store, no-cache, must-revalidate, max-age=0',
+          },
+          {
+            key: 'Service-Worker-Allowed',
+            value: '/',
+          },
+        ],
+      },
     ];
   },
   // Optimize output

@@ -66,13 +66,27 @@ export function Providers({ children }: { children: React.ReactNode }) {
     const theme = useMemo(() => createTheme(getDesignTokens(resolvedMode)), [resolvedMode]);
 
     // Register service worker for PWA offline support and push notifications.
-    // Must run client-side only; safe to register on every mount (browser deduplicates).
+    // Force an update check on every load, and when a new SW takes control,
+    // reload once to ensure the page runs against fresh code/assets — this
+    // breaks the stale-chunk loop after deploys.
     useEffect(() => {
-        if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.register('/sw.js').catch((err) => {
+        if (!('serviceWorker' in navigator)) return;
+
+        let reloading = false;
+        navigator.serviceWorker.addEventListener('controllerchange', () => {
+            if (reloading) return;
+            reloading = true;
+            window.location.reload();
+        });
+
+        navigator.serviceWorker
+            .register('/sw.js', { updateViaCache: 'none' })
+            .then((reg) => {
+                reg.update().catch(() => {});
+            })
+            .catch((err) => {
                 console.error('[SW] Registration failed:', err);
             });
-        }
     }, []);
 
     // Session refresh interval in seconds — revalidate session every 5 minutes.
