@@ -90,7 +90,7 @@ const nextConfig: NextConfig = {
           "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
           "font-src 'self' https://fonts.gstatic.com",
           "img-src 'self' data: blob: https://res.cloudinary.com https://*.googleusercontent.com",
-          "connect-src 'self' https://res.cloudinary.com https://api.cloudinary.com",
+          "connect-src 'self' https://res.cloudinary.com https://api.cloudinary.com https://vercel.live wss://vercel.live",
           "frame-ancestors 'none'",
           "base-uri 'self'",
           "form-action 'self'",

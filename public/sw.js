@@ -27,28 +27,33 @@ self.addEventListener('install', (event) => {
   self.skipWaiting();
 });
 
-// Activate event - clean up old caches (including ones that may contain other users' data)
+// Activate event - clean up old caches and immediately claim all clients
 self.addEventListener('activate', (event) => {
   console.log('[SW] Activating service worker...');
   event.waitUntil(
     caches.keys().then((cacheNames) => {
       return Promise.all(
         cacheNames.map((cacheName) => {
-          // Delete ALL old caches, not just unrecognized ones
           if (cacheName !== STATIC_CACHE && cacheName !== DYNAMIC_CACHE) {
             console.log('[SW] Deleting old cache:', cacheName);
             return caches.delete(cacheName);
           }
-          // Also purge current dynamic cache to clear any stale user-specific data
           if (cacheName === DYNAMIC_CACHE) {
             console.log('[SW] Purging dynamic cache to clear stale data');
             return caches.delete(cacheName);
           }
         })
-      );
+      ).then(() => {
+        // Claim all clients immediately so the new SW takes over without waiting
+        // for a page reload, then reload all open pages to use fresh assets.
+        return self.clients.claim().then(() => {
+          return self.clients.matchAll({ type: 'window' }).then((clients) => {
+            clients.forEach((client) => client.navigate(client.url));
+          });
+        });
+      });
     })
   );
-  self.clients.claim();
 });
 
 // Fetch event - serve from cache, fallback to network
