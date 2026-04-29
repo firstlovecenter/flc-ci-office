@@ -1,9 +1,9 @@
 // Custom Service Worker for CI Office
 // Handles push notifications, caching, and offline support
 
-const CACHE_NAME = 'flc-ci-office-v2';
-const STATIC_CACHE = 'flc-static-v2';
-const DYNAMIC_CACHE = 'flc-dynamic-v2';
+const CACHE_NAME = 'flc-ci-office-v3';
+const STATIC_CACHE = 'flc-static-v3';
+const DYNAMIC_CACHE = 'flc-dynamic-v3';
 
 // Assets to cache immediately
 const STATIC_ASSETS = [
@@ -110,7 +110,29 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Static assets - cache first, then network
+  // Next.js hashed static assets — always network first, never serve stale cache.
+  // These URLs embed a content hash so a new deploy means new URLs; a cached old
+  // response would load fine but background chunks would 404 and break the app.
+  if (url.pathname.startsWith('/_next/static/')) {
+    event.respondWith(
+      fetch(request).then((response) => {
+        if (response.status === 200) {
+          const responseClone = response.clone();
+          caches.open(STATIC_CACHE).then((cache) => cache.put(request, responseClone));
+        }
+        return response;
+      }).catch(() => {
+        return caches.match(request).then((cachedResponse) => {
+          // Return cached copy as last resort; if none, return a proper error response
+          // instead of undefined (undefined causes "Failed to convert value to 'Response'")
+          return cachedResponse || new Response('Chunk unavailable offline', { status: 503 });
+        });
+      })
+    );
+    return;
+  }
+
+  // Other static assets - cache first, then network
   event.respondWith(
     caches.match(request).then((cachedResponse) => {
       if (cachedResponse) {
@@ -127,9 +149,7 @@ self.addEventListener('fetch', (event) => {
 
       // Not in cache, fetch from network
       return fetch(request).then((response) => {
-        // Clone the response
         const responseClone = response.clone();
-        // Cache successful responses
         if (response.status === 200) {
           caches.open(DYNAMIC_CACHE).then((cache) => {
             cache.put(request, responseClone);
@@ -137,10 +157,11 @@ self.addEventListener('fetch', (event) => {
         }
         return response;
       }).catch(() => {
-        // If both cache and network fail, show offline page
-        if (request.headers.get('accept').includes('text/html')) {
+        if (request.headers.get('accept') && request.headers.get('accept').includes('text/html')) {
           return caches.match('/offline');
         }
+        // Must return a Response — undefined causes SW crash
+        return new Response('Offline', { status: 503 });
       });
     })
   );
