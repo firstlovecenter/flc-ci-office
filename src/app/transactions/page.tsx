@@ -49,8 +49,10 @@ import Link from 'next/link';
 import { formatCurrency, formatDepartmentLevel, isWeekLocked } from '@/lib/utils';
 import { useSession } from 'next-auth/react';
 import EditTransactionDialog from '@/components/EditTransactionDialog';
+import ReceiptUpload from '@/components/ReceiptUpload';
 import { useToast } from '@/components/ToastProvider';
 import { AnimatedCounter, GlassCard, StatusChip, TableRowSkeleton } from '@/components/ui';
+import { formatMoney } from '@/lib/format-money';
 
 type Transaction = {
     id: string;
@@ -84,14 +86,19 @@ type User = {
 
 type TransactionFile = {
     id: string;
-    filename: string;
-    path: string;
-    transactionId: string;
+    fileName: string;
+    fileUrl: string;
+    fileMime: string;
+    fileSize: number | null;
+    uploadedAt: string;
+    uploadedBy: string;
+    uploader?: { id: string; name: string | null; email: string };
 };
 
 type TransactionWithDetails = Transaction & {
     department: Department;
     user: User;
+    userId: string;
     files: TransactionFile[];
     currency?: { id: string; code: string; symbol: string; name: string } | null;
     amountInBase?: number;
@@ -117,6 +124,10 @@ function TransactionsPageContent() {
     const [detailsDialog, setDetailsDialog] = useState<{ open: boolean; transaction: any }>({
         open: false,
         transaction: null,
+    });
+    const [receiptDialog, setReceiptDialog] = useState<{ open: boolean; transactionId: string | null }>({
+        open: false,
+        transactionId: null,
     });
     const { data: session } = useSession();
     const searchParams = useSearchParams();
@@ -790,14 +801,16 @@ function TransactionsPageContent() {
                                                 {tx.department.name}
                                             </Typography>
                                         )}
-                                        {!isLeader && tx.files && tx.files.length > 0 && (
-                                            <Chip
-                                                icon={<AttachFileIcon sx={{ fontSize: 10 }} />}
-                                                label={tx.files.length}
-                                                size="small"
-                                                variant="outlined"
-                                                sx={{ height: 18, fontSize: '0.65rem' }}
-                                            />
+                                        {tx.files && tx.files.length > 0 && (
+                                            <Tooltip title="Receipt attached">
+                                                <Chip
+                                                    icon={<AttachFileIcon sx={{ fontSize: 10 }} />}
+                                                    label="Receipt"
+                                                    size="small"
+                                                    variant="outlined"
+                                                    sx={{ height: 18, fontSize: '0.65rem' }}
+                                                />
+                                            </Tooltip>
                                         )}
                                     </Box>
                                     {tx.user?.email !== 'skaduteye@gmail.com' && (
@@ -954,7 +967,73 @@ function TransactionsPageContent() {
                                         </Typography>
                                     </Box>
                                 )}
-                                
+
+                                {detailsDialog.transaction.type === 'EXPENSE' && (() => {
+                                    const tx = detailsDialog.transaction;
+                                    const receipt: TransactionFile | undefined = tx.files?.[0];
+                                    const isOwner = session?.user?.id === tx.userId;
+                                    const canUpload = tx.status === 'APPROVED' && !receipt && (isOwner || isSuperAdmin);
+                                    return (
+                                        <Box sx={{ pt: 2, borderTop: 1, borderColor: 'divider' }}>
+                                            <Typography variant="caption" color="text.secondary">Receipt</Typography>
+                                            {receipt ? (
+                                                <Box sx={{ mt: 0.5 }}>
+                                                    {receipt.fileMime?.startsWith('image/') ? (
+                                                        <a href={receipt.fileUrl} target="_blank" rel="noopener noreferrer">
+                                                            <img
+                                                                src={receipt.fileUrl}
+                                                                alt={receipt.fileName}
+                                                                style={{
+                                                                    maxWidth: '100%',
+                                                                    maxHeight: 240,
+                                                                    borderRadius: 8,
+                                                                    border: '1px solid rgba(0,0,0,0.12)',
+                                                                    cursor: 'zoom-in',
+                                                                }}
+                                                            />
+                                                        </a>
+                                                    ) : (
+                                                        <Button
+                                                            variant="outlined"
+                                                            size="small"
+                                                            href={receipt.fileUrl}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            startIcon={<AttachFileIcon />}
+                                                        >
+                                                            {receipt.fileName}
+                                                        </Button>
+                                                    )}
+                                                    <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.5 }}>
+                                                        Uploaded by {receipt.uploader?.name || receipt.uploader?.email || 'unknown'}
+                                                        {' · '}
+                                                        {new Date(receipt.uploadedAt).toLocaleString()}
+                                                        {receipt.fileSize ? ` · ${formatMoney(receipt.fileSize / 1024, 0)} KB` : ''}
+                                                    </Typography>
+                                                </Box>
+                                            ) : canUpload ? (
+                                                <Box sx={{ mt: 1 }}>
+                                                    <Button
+                                                        variant="outlined"
+                                                        size="small"
+                                                        startIcon={<AttachFileIcon />}
+                                                        onClick={() => setReceiptDialog({ open: true, transactionId: tx.id })}
+                                                    >
+                                                        Upload Receipt
+                                                    </Button>
+                                                    <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.5 }}>
+                                                        Once uploaded, the receipt cannot be replaced.
+                                                    </Typography>
+                                                </Box>
+                                            ) : (
+                                                <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                                                    {tx.status !== 'APPROVED' ? 'Available after approval.' : 'No receipt attached.'}
+                                                </Typography>
+                                            )}
+                                        </Box>
+                                    );
+                                })()}
+
                                 {isAdmin && (
                                     <Box sx={{ display: 'flex', gap: 1, mt: 2, pt: 2, borderTop: 1, borderColor: 'divider', flexWrap: 'wrap' }}>
                                         {canEditTransaction(detailsDialog.transaction) && (
@@ -1002,6 +1081,26 @@ function TransactionsPageContent() {
                 isSuperAdmin={isSuperAdmin}
                 userRole={session?.user?.role}
             />
+
+            {receiptDialog.transactionId && (
+                <ReceiptUpload
+                    open={receiptDialog.open}
+                    transactionId={receiptDialog.transactionId}
+                    onClose={() => setReceiptDialog({ open: false, transactionId: null })}
+                    onUploaded={(file) => {
+                        // Update the open details dialog and the transactions list with the new receipt.
+                        setDetailsDialog((prev) =>
+                            prev.transaction && prev.transaction.id === receiptDialog.transactionId
+                                ? { ...prev, transaction: { ...prev.transaction, files: [file] } }
+                                : prev,
+                        );
+                        setTransactions((prev) =>
+                            prev.map((t) => (t.id === receiptDialog.transactionId ? { ...t, files: [file as TransactionFile] } : t)),
+                        );
+                        showSuccess('Receipt uploaded.');
+                    }}
+                />
+            )}
         </Box>
     );
 }

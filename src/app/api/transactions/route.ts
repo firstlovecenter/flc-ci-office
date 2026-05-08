@@ -159,6 +159,10 @@ export async function GET(request: Request) {
                         fileName: true,
                         fileUrl: true,
                         fileMime: true,
+                        fileSize: true,
+                        uploadedAt: true,
+                        uploadedBy: true,
+                        uploader: { select: { id: true, name: true, email: true } },
                     },
                 },
             },
@@ -217,7 +221,7 @@ export async function POST(request: Request) {
 
     try {
         const body = await request.json();
-        const { type, amount, description, departmentId, files, currencyId, exchangeRate, date } = body;
+        const { type, amount, description, departmentId, currencyId, exchangeRate, date } = body;
         
         // If a custom date is provided, compute week number from that date
         // Otherwise use current week
@@ -352,14 +356,6 @@ export async function POST(request: Request) {
                 status: needsApproval ? 'PENDING' : 'APPROVED',
                 approvedBy: needsApproval ? null : session.user.id,
                 approvedAt: needsApproval ? null : new Date(),
-                files: {
-                    create: files?.map((f: any) => ({
-                        fileName: f.name,
-                        fileUrl: f.url,
-                        fileMime: f.mime,
-                        uploadedBy: session.user.id,
-                    })) || [],
-                },
             },
             include: {
                 department: true,
@@ -632,7 +628,7 @@ export async function PUT(request: Request) {
 
     try {
         const body = await request.json();
-        const { id, type, amount, description, departmentId, currencyId, exchangeRate, files } = body;
+        const { id, type, amount, description, departmentId, currencyId, exchangeRate } = body;
 
         const transaction = await prisma.transaction.findUnique({
             where: { id },
@@ -689,14 +685,6 @@ export async function PUT(request: Request) {
                 exchangeRate: exchangeRate || null,
                 amountInBase: amountInBase,
                 updatedAt: new Date(),
-                files: files && files.length > 0 ? {
-                    create: files.map((f: any) => ({
-                        fileName: f.name,
-                        fileUrl: f.url,
-                        fileMime: f.mime,
-                        uploadedBy: session.user.id,
-                    })),
-                } : undefined,
             },
             include: {
                 department: true,

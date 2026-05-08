@@ -56,7 +56,6 @@ function NewTransactionForm() {
     const [baseCurrency, setBaseCurrency] = useState<any>(null);
     const [userProfile, setUserProfile] = useState<any>(null);
     const [exchangeRate, setExchangeRate] = useState<number | null>(null);
-    const [files, setFiles] = useState<File[]>([]);
     const [transactionDate, setTransactionDate] = useState(new Date().toISOString().split('T')[0]);
     const [error, setError] = useState('');
     const [profileLoading, setProfileLoading] = useState(true);
@@ -230,31 +229,6 @@ function NewTransactionForm() {
         }
     };
 
-    const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (e.target.files) {
-            setFiles(Array.from(e.target.files));
-        }
-    };
-
-    const uploadFiles = async () => {
-        const uploadedFiles = [];
-        for (const file of files) {
-            const formData = new FormData();
-            formData.append('file', file);
-
-            const response = await fetch('/api/upload', {
-                method: 'POST',
-                body: formData,
-            });
-
-            if (response.ok) {
-                const data = await response.json();
-                uploadedFiles.push(data);
-            }
-        }
-        return uploadedFiles;
-    };
-
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setError('');
@@ -306,10 +280,8 @@ function NewTransactionForm() {
         }
 
         try {
-            const uploadedFiles = await uploadFiles();
-
             // Combine preset and custom description
-            const finalDescription = descriptionPreset 
+            const finalDescription = descriptionPreset
                 ? (description ? `${descriptionPreset} - ${description}` : descriptionPreset)
                 : description;
 
@@ -321,7 +293,6 @@ function NewTransactionForm() {
                 currencyId: currencyId || null,
                 exchangeRate: exchangeRate || null,
                 date: transactionDate ? new Date(transactionDate).toISOString() : undefined,
-                files: uploadedFiles,
             };
 
             const response = await fetch('/api/transactions', {

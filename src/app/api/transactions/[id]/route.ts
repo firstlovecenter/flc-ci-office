@@ -25,7 +25,7 @@ export async function PUT(
     try {
         const params = await context.params;
         const body = await request.json();
-        const { type, amount, description, departmentId, currencyId, exchangeRate, date, files } = body;
+        const { type, amount, description, departmentId, currencyId, exchangeRate, date } = body;
         const transactionId = params.id;
 
         // Get the existing transaction
@@ -118,16 +118,6 @@ export async function PUT(
                 ...(date ? { createdAt: new Date(date) } : {}),
                 ...weekData,
                 updatedAt: new Date(),
-                ...(files && files.length > 0 ? {
-                    files: {
-                        create: files.map((f: any) => ({
-                            fileName: f.name,
-                            fileUrl: f.url,
-                            fileMime: f.mime,
-                            uploadedBy: session.user.id,
-                        })),
-                    }
-                } : {}),
             },
             include: {
                 department: true,

@@ -50,7 +50,6 @@ export default function EditTransactionDialog({
     const [currencies, setCurrencies] = useState<any[]>([]);
     const [baseCurrency, setBaseCurrency] = useState<any>(null);
     const [exchangeRate, setExchangeRate] = useState<number | null>(null);
-    const [files, setFiles] = useState<File[]>([]);
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
     
@@ -206,40 +205,13 @@ export default function EditTransactionDialog({
         }
     };
 
-    const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (e.target.files) {
-            setFiles(Array.from(e.target.files));
-        }
-    };
-
-    const uploadFiles = async () => {
-        const uploadedFiles = [];
-        for (const file of files) {
-            const formData = new FormData();
-            formData.append('file', file);
-
-            const response = await fetch('/api/upload', {
-                method: 'POST',
-                body: formData,
-            });
-
-            if (response.ok) {
-                const data = await response.json();
-                uploadedFiles.push(data);
-            }
-        }
-        return uploadedFiles;
-    };
-
     const handleSubmit = async () => {
         setLoading(true);
         setError('');
 
         try {
-            const uploadedFiles = await uploadFiles();
-
             // Combine preset and custom description
-            const finalDescription = descriptionPreset 
+            const finalDescription = descriptionPreset
                 ? (description ? `${descriptionPreset} - ${description}` : descriptionPreset)
                 : description;
 
@@ -256,7 +228,6 @@ export default function EditTransactionDialog({
                     currencyId: currencyId || null,
                     exchangeRate: exchangeRate || null,
                     date: date ? new Date(date).toISOString() : undefined,
-                    files: uploadedFiles,
                 }),
             });
 

@@ -46,6 +46,16 @@ import { useToast } from '@/components/ToastProvider';
 import { GlassCard, StatusChip, AnimatedCounter, TableRowSkeleton, EmptyState } from '@/components/ui';
 import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
 
+interface ReceiptFile {
+    id: string;
+    fileName: string;
+    fileUrl: string;
+    fileMime: string;
+    fileSize: number | null;
+    uploadedAt: string;
+    uploader?: { id: string; name: string | null; email: string };
+}
+
 interface Transaction {
     id: string;
     description: string;
@@ -65,7 +75,7 @@ interface Transaction {
         code: string;
         symbol: string;
     } | null;
-    attachments?: string;
+    files?: ReceiptFile[];
 }
 
 export default function ApprovalsPage() {
@@ -727,12 +737,48 @@ export default function ApprovalsPage() {
                                     <Typography variant="caption" color="text.secondary">Submitted On</Typography>
                                     <Typography variant="body1">{formatDate(selectedTransaction.createdAt)}</Typography>
                                 </Box>
-                                {selectedTransaction.attachments && (
-                                    <Box>
-                                        <Typography variant="caption" color="text.secondary">Attachments</Typography>
-                                        <Typography variant="body2">{selectedTransaction.attachments}</Typography>
-                                    </Box>
-                                )}
+                                {selectedTransaction.type === 'EXPENSE' && selectedTransaction.files && selectedTransaction.files.length > 0 && (() => {
+                                    const receipt = selectedTransaction.files[0];
+                                    return (
+                                        <Box>
+                                            <Typography variant="caption" color="text.secondary">Receipt</Typography>
+                                            {receipt.fileMime?.startsWith('image/') ? (
+                                                <a href={receipt.fileUrl} target="_blank" rel="noopener noreferrer">
+                                                    <img
+                                                        src={receipt.fileUrl}
+                                                        alt={receipt.fileName}
+                                                        style={{
+                                                            display: 'block',
+                                                            marginTop: 6,
+                                                            maxWidth: '100%',
+                                                            maxHeight: 220,
+                                                            borderRadius: 8,
+                                                            border: '1px solid rgba(0,0,0,0.12)',
+                                                            cursor: 'zoom-in',
+                                                        }}
+                                                    />
+                                                </a>
+                                            ) : (
+                                                <Box sx={{ mt: 0.5 }}>
+                                                    <Button
+                                                        variant="outlined"
+                                                        size="small"
+                                                        href={receipt.fileUrl}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                    >
+                                                        {receipt.fileName}
+                                                    </Button>
+                                                </Box>
+                                            )}
+                                            <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.5 }}>
+                                                Uploaded by {receipt.uploader?.name || receipt.uploader?.email || 'unknown'}
+                                                {' · '}
+                                                {new Date(receipt.uploadedAt).toLocaleString()}
+                                            </Typography>
+                                        </Box>
+                                    );
+                                })()}
                             </Stack>
                         </Box>
                     )}

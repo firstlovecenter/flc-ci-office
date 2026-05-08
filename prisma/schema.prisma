@@ -110,13 +110,17 @@ model ExchangeRate {
 
 model File {
   id            String      @id
-  transactionId String
+  transactionId String      @unique
   fileName      String
   fileUrl       String
   fileMime      String
+  fileSize      Int?
   uploadedBy    String
   uploadedAt    DateTime    @default(now())
     transaction   Transaction @relation(fields: [transactionId], references: [id])
+    uploader      User        @relation("FileUploads", fields: [uploadedBy], references: [id])
+
+  @@index([uploadedBy])
 }
 
 model PasswordReset {
@@ -202,6 +206,7 @@ model User {
     departmentBaseCurrenciesSet              DepartmentBaseCurrency[] @relation("DepartmentBaseCurrenciesSet")
     passwordResets                           PasswordReset[]          @relation("PasswordResets")
     transactions                             Transaction[]            @relation("Transactions")
+    fileUploads                              File[]                   @relation("FileUploads")
     activeUserRole                           UserRole?                @relation("ActiveUserRole", fields: [activeUserRoleId], references: [id])
     baseCurrency                             Currency?                @relation(fields: [baseCurrencyId], references: [id])
     department                               Department?              @relation(fields: [departmentId], references: [id])
