@@ -5,26 +5,11 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { getDescendantDepartmentIds, hasDepartmentAccess } from '@/lib/departments';
 import { getISOWeek, getISOWeekYear, subWeeks } from 'date-fns';
+import { toDecimal, moneyToString, type Money } from '@/lib/money';
+import { Prisma } from '@prisma/client';
 
 // Force dynamic rendering - data is user/role specific
 export const dynamic = 'force-dynamic';
-
-// Helper function to get start and end of current week (Monday to Sunday)
-function getCurrentWeekRange(): { start: Date; end: Date } {
-    const now = new Date();
-    const dayOfWeek = now.getDay(); // 0 = Sunday, 1 = Monday, 6 = Saturday
-    // Calculate days to subtract to get to Monday
-    // If Monday (1-6): subtract (dayOfWeek - 1)
-    // If Sunday (0): subtract 6 (go back to previous Monday)
-    const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
-    const start = new Date(now);
-    start.setDate(now.getDate() - daysToMonday);
-    start.setHours(0, 0, 0, 0);
-    const end = new Date(start);
-    end.setDate(start.getDate() + 6); // 6 days later = Sunday
-    end.setHours(23, 59, 59, 999);
-    return { start, end };
-}
 
 export async function GET(
     request: Request,
@@ -146,83 +131,77 @@ export async function GET(
             },
         });
 
-        // Calculate stats by converting each transaction to the department's base currency
-        let income = 0;
-        let expense = 0;
-        let weeklyIncome = 0;
-        const currentWeek = getCurrentWeekRange();
+        // Calculate stats with Decimal arithmetic (exact, no float drift).
+        const D = Prisma.Decimal;
+        let income: Money = new D(0);
+        let expense: Money = new D(0);
+        let weeklyIncome: Money = new D(0);
 
         // Initialize weekly chart data using date-fns for proper week calculation
         // Support pagination: chartOffset=0 is current 4 weeks, chartOffset=1 is previous 4 weeks, etc.
         const chartOffset = Math.max(0, parseInt(searchParams.get('chartOffset') || '0', 10) || 0);
         const weeksBack = chartOffset * 4;
-        
-        const chartData: { week: string; weekNum: number; year: number; income: number; expense: number }[] = [];
+
+        const chartData: { week: string; weekNum: number; year: number; income: Money; expense: Money }[] = [];
         const now = new Date();
-        
+
         // Use subWeeks to properly calculate weeks going back (handles year boundaries correctly)
         for (let i = 3; i >= 0; i--) {
             const weekDate = subWeeks(now, i + weeksBack);
             const weekNum = getISOWeek(weekDate);
             const weekYear = getISOWeekYear(weekDate);
-            
-            chartData.push({ 
-                week: `W${weekNum} '${String(weekYear).slice(-2)}`, 
+
+            chartData.push({
+                week: `W${weekNum} '${String(weekYear).slice(-2)}`,
                 weekNum: weekNum,
                 year: weekYear,
-                income: 0, 
-                expense: 0 
+                income: new D(0),
+                expense: new D(0),
             });
         }
 
         for (const t of transactions) {
-            let convertedAmount = Number(t.amount);
+            let convertedAmount = toDecimal(t.amount);
 
             // If transaction has a currency different from department base, convert it
             if (t.currencyId && baseCurrency && t.currencyId !== baseCurrency.id) {
-                // Find exchange rate
                 let rate = exchangeRates.find(
                     (r) => r.fromCurrency.id === t.currencyId && r.toCurrency.id === baseCurrency.id
                 );
 
                 if (rate) {
-                    convertedAmount = Number(t.amount) * Number(rate.rate);
+                    convertedAmount = convertedAmount.mul(toDecimal(rate.rate));
                 } else {
-                    // Try reverse rate
                     rate = exchangeRates.find(
                         (r) => r.fromCurrency.id === baseCurrency.id && r.toCurrency.id === t.currencyId
                     );
                     if (rate) {
-                        convertedAmount = Number(t.amount) / Number(rate.rate);
+                        convertedAmount = convertedAmount.div(toDecimal(rate.rate));
                     }
                 }
             }
 
             if (t.type === 'INCOME') {
-                income += convertedAmount;
-                // Check if this week using weekNumber/year fields
+                income = income.plus(convertedAmount);
                 const currentWeekNum = getISOWeek(now);
                 const currentYear = getISOWeekYear(now);
                 if ((t as any).weekNumber === currentWeekNum && (t as any).year === currentYear) {
-                    weeklyIncome += convertedAmount;
+                    weeklyIncome = weeklyIncome.plus(convertedAmount);
                 }
             } else if (t.type === 'EXPENSE') {
-                expense += convertedAmount;
+                expense = expense.plus(convertedAmount);
             }
 
-            // Add to chart data using transaction's weekNumber/year fields
-            // These fields reflect the intended week (which may differ from createdAt if backdated)
             const txWeek = (t as any).weekNumber;
             const txYear = (t as any).year;
-            
+
             if (txWeek && txYear) {
-                // Find matching chart bucket
                 for (let i = 0; i < 4; i++) {
                     if (chartData[i].weekNum === txWeek && chartData[i].year === txYear) {
                         if (t.type === 'INCOME') {
-                            chartData[i].income += convertedAmount;
+                            chartData[i].income = chartData[i].income.plus(convertedAmount);
                         } else if (t.type === 'EXPENSE') {
-                            chartData[i].expense += convertedAmount;
+                            chartData[i].expense = chartData[i].expense.plus(convertedAmount);
                         }
                         break;
                     }
@@ -230,16 +209,20 @@ export async function GET(
             }
         }
 
-        const balance = income - expense;
+        const balance = income.minus(expense);
 
-        // Return chart data without internal weekNum/year fields
-        const cleanChartData = chartData.map(({ week, income, expense }) => ({ week, income, expense }));
+        // Return chart data as exact strings so the client renders precise figures.
+        const cleanChartData = chartData.map(({ week, income, expense }) => ({
+            week,
+            income: moneyToString(income),
+            expense: moneyToString(expense),
+        }));
 
         return NextResponse.json({
-            income,
-            expense,
-            balance,
-            weeklyIncome,
+            income: moneyToString(income),
+            expense: moneyToString(expense),
+            balance: moneyToString(balance),
+            weeklyIncome: moneyToString(weeklyIncome),
             chartData: cleanChartData,
             currency: baseCurrency ? {
                 code: baseCurrency.code,

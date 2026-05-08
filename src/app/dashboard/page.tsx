@@ -3,6 +3,7 @@
 import { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { Typography, Box, CircularProgress, Grid, Stack, useTheme, Card, CardActionArea, Skeleton, alpha, Avatar, IconButton, Chip } from '@mui/material';
 import { formatCurrency } from '@/lib/utils';
+import { formatMoney } from '@/lib/format-money';
 import { getDisplayRole } from '@/lib/roleDisplay';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import TrendingDownIcon from '@mui/icons-material/TrendingDown';
@@ -27,17 +28,17 @@ import { BarChart, Bar, XAxis, Tooltip, ResponsiveContainer, Cell, LabelList } f
 import { AnimatedCounter, StatCardSkeleton, ChartSkeleton, GlassCard, SimpleStatCard } from '@/components/ui';
 
 // Gradient Dashboard Stat Card (Standard Style)
-const GradientStatCard = ({ 
-    title, 
-    amount, 
-    icon: Icon, 
-    gradient, 
+const GradientStatCard = ({
+    title,
+    amount,
+    icon: Icon,
+    gradient,
     currencySymbol,
-    isBlinking = false 
-}: { 
-    title: string; 
-    amount: number; 
-    icon: React.ElementType; 
+    isBlinking = false
+}: {
+    title: string;
+    amount: number | string;
+    icon: React.ElementType;
     gradient: string;
     currencySymbol?: string;
     isBlinking?: boolean;
@@ -146,7 +147,6 @@ const GradientStatCard = ({
                     <AnimatedCounter
                         value={amount}
                         duration={1200}
-                        formatter={(val) => val.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         sx={{
                             color: 'white',
                             fontSize: { xs: '1.1rem', sm: '1.35rem', md: '1.6rem' },
@@ -170,10 +170,10 @@ const MinimalStatCard = ({
     currencySymbol,
     isBlinking = false,
     onClick
-}: { 
-    title: string; 
-    amount: number; 
-    icon: React.ElementType; 
+}: {
+    title: string;
+    amount: number | string;
+    icon: React.ElementType;
     gradient?: string;
     color?: string;
     currencySymbol?: string;
@@ -254,7 +254,8 @@ const MinimalStatCard = ({
                     <AnimatedCounter
                         value={amount}
                         duration={1000}
-                        formatter={(val) => val.toLocaleString('en-US', { minimumFractionDigits: currencySymbol ? 2 : 0, maximumFractionDigits: currencySymbol ? 2 : 0 })}
+                        decimals={currencySymbol ? 2 : 0}
+                        formatter={currencySymbol ? undefined : (val) => Math.round(Number(val)).toLocaleString('en-US')}
                         sx={{
                             fontSize: '1.75rem',
                             fontWeight: 700,
@@ -277,22 +278,30 @@ const ActionAreaWrapper = ({ hasAction, children }: { hasAction: boolean, childr
 // Simple stat card moved to components/ui/SimpleStatCard.tsx
 
 export default function DashboardPage() {
-    const [stats, setStats] = useState({ 
-        income: 0, 
-        expense: 0, 
-        balance: 0, 
-        weeklyIncome: 0, 
-        chartData: [] as { week: string; income: number; expense: number }[],
-        superAdminStats: undefined as undefined | { 
-            users: number, 
-            departments: number, 
-            transactions: number, 
-            pendingApprovals: number,
-            activeDepartments: number,
-            activeCurrencies: number,
-            todaysLogins: number,
-            criticalErrors: number
-        }
+    // Money values stored as exact decimal strings from the server.
+    const [stats, setStats] = useState<{
+        income: string;
+        expense: string;
+        balance: string;
+        weeklyIncome: string;
+        chartData: { week: string; income: string; expense: string }[];
+        superAdminStats: undefined | {
+            users: number;
+            departments: number;
+            transactions: number;
+            pendingApprovals: number;
+            activeDepartments: number;
+            activeCurrencies: number;
+            todaysLogins: number;
+            criticalErrors: number;
+        };
+    }>({
+        income: '0',
+        expense: '0',
+        balance: '0',
+        weeklyIncome: '0',
+        chartData: [],
+        superAdminStats: undefined,
     });
     const [baseCurrency, setBaseCurrency] = useState<{ code: string; symbol: string } | null>(null);
     const [departmentName, setDepartmentName] = useState<string | null>(null);
@@ -300,7 +309,7 @@ export default function DashboardPage() {
     const [loading, setLoading] = useState(true);
     const [chartOffset, setChartOffset] = useState(0);
     const [chartLoading, setChartLoading] = useState(false);
-    const chartCache = useRef<Map<number, { week: string; income: number; expense: number }[]>>(new Map());
+    const chartCache = useRef<Map<number, { week: string; income: string; expense: string }[]>>(new Map());
     const { data: session } = useSession();
     const theme = useTheme();
     const router = useRouter();
@@ -493,11 +502,12 @@ export default function DashboardPage() {
     };
 
     // Different stat cards for leaders vs admins
-    const getGradient = (type: string, balance?: number) => {
+    const getGradient = (type: string, balance?: number | string) => {
+        const b = balance !== undefined ? Number(balance) : undefined;
         if (type === 'balance') {
-            if (balance !== undefined && balance < 0) return 'linear-gradient(135deg, #ef5350 0%, #c62828 100%)';
-            if (balance !== undefined && balance === 0) return 'linear-gradient(135deg, #ff9800 0%, #f57c00 100%)';
-            if (balance !== undefined && balance < 5000) return 'linear-gradient(135deg, #ffc107 0%, #ff9800 100%)';
+            if (b !== undefined && b < 0) return 'linear-gradient(135deg, #ef5350 0%, #c62828 100%)';
+            if (b !== undefined && b === 0) return 'linear-gradient(135deg, #ff9800 0%, #f57c00 100%)';
+            if (b !== undefined && b < 5000) return 'linear-gradient(135deg, #ffc107 0%, #ff9800 100%)';
             return 'linear-gradient(135deg, #66bb6a 0%, #43a047 100%)';
         }
         if (type === 'income') return 'linear-gradient(135deg, #4caf50 0%, #2e7d32 100%)';
@@ -506,11 +516,12 @@ export default function DashboardPage() {
         return 'linear-gradient(135deg, #7c4dff 0%, #651fff 100%)';
     };
 
-    const getStatColor = (type: string, balance?: number) => {
+    const getStatColor = (type: string, balance?: number | string) => {
+        const b = balance !== undefined ? Number(balance) : undefined;
         if (type === 'balance') {
-            if (balance !== undefined && balance < 0) return theme.palette.error.main;
-            if (balance !== undefined && balance === 0) return theme.palette.warning.main;
-            if (balance !== undefined && balance < 5000) return theme.palette.warning.dark;
+            if (b !== undefined && b < 0) return theme.palette.error.main;
+            if (b !== undefined && b === 0) return theme.palette.warning.main;
+            if (b !== undefined && b < 5000) return theme.palette.warning.dark;
             return theme.palette.success.main;
         }
         if (type === 'income') return theme.palette.success.main;
@@ -591,7 +602,7 @@ export default function DashboardPage() {
             icon: AccountBalanceWalletIcon,
             gradient: getGradient('balance', stats.balance),
             color: getStatColor('balance', stats.balance),
-            isBlinking: (stats.balance || 0) < 5000
+            isBlinking: Number(stats.balance || 0) < 5000
         },
         {
             title: "This Week's Income",
@@ -608,7 +619,7 @@ export default function DashboardPage() {
             icon: AccountBalanceWalletIcon,
             gradient: getGradient('balance', stats.balance),
             color: getStatColor('balance', stats.balance),
-            isBlinking: (stats.balance || 0) < 5000
+            isBlinking: Number(stats.balance || 0) < 5000
         },
         {
             title: 'Total Inflows',
@@ -681,11 +692,10 @@ export default function DashboardPage() {
                         />
                         <Tooltip
                             formatter={(value: any, name: any) => {
-                                const numValue = Number(value);
                                 const label = name === 'income' ? 'Income' : name === 'expense' ? 'Expense' : name;
                                 const formatted = baseCurrency
-                                    ? `${baseCurrency.symbol}${numValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                                    : numValue.toLocaleString();
+                                    ? `${baseCurrency.symbol}${formatMoney(value)}`
+                                    : formatMoney(value);
                                 return [formatted, label];
                             }}
                             contentStyle={{

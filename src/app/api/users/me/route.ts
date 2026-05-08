@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import crypto from 'crypto';
+import { toDecimal } from '@/lib/money';
 
 // Force dynamic rendering - data is user/role specific
 export const dynamic = 'force-dynamic';
@@ -264,38 +265,30 @@ export async function PATCH(request: NextRequest) {
                 include: { currency: true },
             });
 
-            // Recalculate each transaction
+            // Recalculate each transaction using Decimal arithmetic
             for (const tx of transactions) {
-                let newAmountInBase = Number(tx.amount);
+                const txAmount = toDecimal(tx.amount);
+                let newAmountInBase = txAmount;
 
-                if (tx.currencyId === baseCurrencyId) {
-                    // Transaction is in the new base currency - use original amount
-                    newAmountInBase = Number(tx.amount);
-                } else if (tx.currencyId) {
-                    // Transaction is in a different currency - convert to new base
-                    // Find exchange rate: transaction currency → new base currency
+                if (tx.currencyId && tx.currencyId !== baseCurrencyId) {
                     let rate = exchangeRates.find(
                         (r) => r.fromCurrency.id === tx.currencyId && r.toCurrency.id === baseCurrencyId
                     );
-
                     if (rate) {
-                        // Direct rate found: txCurrency → newBase
-                        newAmountInBase = Number(tx.amount) * parseFloat(rate.rate.toString());
+                        newAmountInBase = txAmount.mul(toDecimal(rate.rate));
                     } else {
-                        // Try reverse: newBase → txCurrency
                         rate = exchangeRates.find(
                             (r) => r.fromCurrency.id === baseCurrencyId && r.toCurrency.id === tx.currencyId
                         );
                         if (rate) {
-                            // Invert the rate
-                            newAmountInBase = Number(tx.amount) / parseFloat(rate.rate.toString());
+                            newAmountInBase = txAmount.div(toDecimal(rate.rate));
                         }
                     }
                 }
 
                 await prisma.transaction.update({
                     where: { id: tx.id },
-                    data: { amountInBase: newAmountInBase },
+                    data: { amountInBase: newAmountInBase.toString() },
                 });
             }
         }

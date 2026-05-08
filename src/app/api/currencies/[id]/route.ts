@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import crypto from 'crypto';
+import { toDecimal } from '@/lib/money';
 
 // Full update a currency
 export async function PUT(
@@ -62,33 +63,30 @@ export async function PUT(
                     include: { currency: true },
                 });
 
-                // Batch recalculate amountInBase for all transactions
+                // Batch recalculate amountInBase using Decimal arithmetic
                 for (const txn of transactions) {
-                    let newAmountInBase = Number(txn.amount);
+                    const txAmount = toDecimal(txn.amount);
+                    let newAmountInBase = txAmount;
 
-                    if (txn.currencyId === params.id) {
-                        newAmountInBase = Number(txn.amount);
-                    } else if (txn.currencyId) {
+                    if (txn.currencyId && txn.currencyId !== params.id) {
                         let rate = exchangeRates.find(
                             (r) => r.fromCurrency.id === txn.currencyId && r.toCurrency.id === params.id
                         );
-
                         if (rate) {
-                            newAmountInBase = Number(txn.amount) * parseFloat(rate.rate.toString());
+                            newAmountInBase = txAmount.mul(toDecimal(rate.rate));
                         } else {
                             rate = exchangeRates.find(
                                 (r) => r.fromCurrency.id === params.id && r.toCurrency.id === txn.currencyId
                             );
                             if (rate) {
-                                newAmountInBase = Number(txn.amount) / parseFloat(rate.rate.toString());
+                                newAmountInBase = txAmount.div(toDecimal(rate.rate));
                             }
-                            // If no rate found at all, log warning but keep original amount
                         }
                     }
 
                     await tx.transaction.update({
                         where: { id: txn.id },
-                        data: { amountInBase: newAmountInBase },
+                        data: { amountInBase: newAmountInBase.toString() },
                     });
                 }
 

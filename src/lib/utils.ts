@@ -1,4 +1,5 @@
 import { getISOWeek, getISOWeekYear } from 'date-fns';
+import { formatMoney } from './format-money';
 
 export function getCurrentWeek() {
     const now = new Date();
@@ -19,36 +20,15 @@ export function getWeekFromDate(date: Date) {
     };
 }
 
-export function formatCurrency(amount: number | string, currencyCode: string = 'GHS', currencySymbol?: string) {
-    if (currencySymbol) {
-        // Use custom symbol if provided
-        return `${currencySymbol}${Number(amount).toLocaleString('en-US', {
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2,
-        })}`;
-    }
-    
-    // Use built-in currency formatting
-    try {
-        return new Intl.NumberFormat('en-US', {
-            style: 'currency',
-            currency: currencyCode,
-        }).format(Number(amount));
-    } catch {
-        // Fallback if currency code is invalid
-        return `${Number(amount).toLocaleString('en-US', {
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2,
-        })}`;
-    }
+export function formatCurrency(amount: number | string, _currencyCode: string = 'GHS', currencySymbol?: string) {
+    const formatted = formatMoney(amount);
+    return currencySymbol ? `${currencySymbol}${formatted}` : formatted;
 }
 
-// Format number with commas (no currency symbol)
+// Format number with commas. Always shows at least `decimals` fraction digits,
+// but never truncates stored precision (e.g. 1234.567 stays "1,234.567").
 export function formatNumber(amount: number | string, decimals: number = 2): string {
-    return Number(amount).toLocaleString('en-US', {
-        minimumFractionDigits: decimals,
-        maximumFractionDigits: decimals,
-    });
+    return formatMoney(amount, decimals);
 }
 
 export function isWeekLocked(weekNumber: number, year: number): boolean {

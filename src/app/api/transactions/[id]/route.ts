@@ -9,6 +9,8 @@ import { generateTransactionApprovedSms, generateTransactionDeclinedSms, generat
 import { sendEmail } from '@/lib/email';
 import { generateTransactionApprovedEmail, generateTransactionDeclinedEmail, generateTransactionChargeEmail, generateCreditAlertEmail, generateDebitAlertEmail, generateTransactionEditEmail } from '@/lib/email-templates';
 import { formatNumber, isWeekLocked, getWeekFromDate } from '@/lib/utils';
+import { toDecimal, eq, moneyToString } from '@/lib/money';
+import { getDepartmentApprovedBalance } from '@/lib/balance';
 
 export async function PUT(
     request: Request,
@@ -145,7 +147,7 @@ export async function PUT(
                 entityId: transactionId,
                 beforeData: {
                     type: existingTransaction.type,
-                    amount: Number(existingTransaction.amount),
+                    amount: moneyToString(existingTransaction.amount),
                     description: existingTransaction.description,
                     departmentId: existingTransaction.departmentId,
                     createdAt: existingTransaction.createdAt,
@@ -155,7 +157,7 @@ export async function PUT(
         });
 
         // Detect what changed (for SMS notification)
-        const amountChanged = Number(existingTransaction.amount) !== Number(amount);
+        const amountChanged = !eq(existingTransaction.amount, amount);
         const typeChanged = existingTransaction.type !== type;
         const descriptionChanged = existingTransaction.description !== description;
         const departmentChanged = existingTransaction.departmentId !== departmentId;
@@ -169,7 +171,7 @@ export async function PUT(
             try {
                 // Build a human-readable changes summary
                 const changesList: string[] = [];
-                if (amountChanged) changesList.push(`Amount: ${Number(existingTransaction.amount)} → ${amount}`);
+                if (amountChanged) changesList.push(`Amount: ${moneyToString(existingTransaction.amount)} → ${moneyToString(amount)}`);
                 if (typeChanged) changesList.push(`Type: ${existingTransaction.type} → ${type}`);
                 if (descriptionChanged) changesList.push(`Desc updated`);
                 if (departmentChanged) changesList.push(`Dept changed`);
@@ -336,22 +338,20 @@ export async function PATCH(
             },
         });
 
-        // Create transaction charge as DEBIT (EXPENSE) if charges are specified
-        if (status === 'APPROVED' && charges && parseFloat(charges) > 0) {
-            const chargeAmount = parseFloat(charges);
-            let chargeAmountInBase = chargeAmount;
-            
-            // Convert to base currency if needed
-            if (transaction.currencyId && transaction.exchangeRate) {
-                chargeAmountInBase = chargeAmount * Number(transaction.exchangeRate);
-            }
+        // Create transaction charge as DEBIT (EXPENSE) if charges are specified.
+        // Use Decimal arithmetic so the stored values are exact.
+        const chargeDec = charges ? toDecimal(charges) : null;
+        if (status === 'APPROVED' && chargeDec && chargeDec.gt(0)) {
+            const chargeAmountInBaseDec = transaction.currencyId && transaction.exchangeRate
+                ? chargeDec.mul(toDecimal(transaction.exchangeRate))
+                : chargeDec;
 
             const chargeTransaction = await prisma.transaction.create({
                 data: {
                     id: crypto.randomUUID(),
                     type: 'EXPENSE', // Transaction charge is always a debit/expense
-                    amount: chargeAmount,
-                    amountInBase: chargeAmountInBase,
+                    amount: chargeDec.toString(),
+                    amountInBase: chargeAmountInBaseDec.toString(),
                     description: `Transaction charge for: ${transaction.description.substring(0, 50)}${transaction.description.length > 50 ? '...' : ''} - Ref: ${transaction.id.substring(0, 8)}`,
                     departmentId: transaction.departmentId,
                     userId: session.user.id, // Charge created by approving admin
@@ -402,14 +402,15 @@ export async function PATCH(
                     const currencySymbol = updatedTransaction.currency?.symbol || '$';
                     const chargeRef = transaction.id.substring(0, 8);
                     const chargeDesc = transaction.description.substring(0, 25) + (transaction.description.length > 25 ? '...' : '');
+                    const chargeAmountStr = formatNumber(chargeDec.toString());
                     const smsMessage = await generateTransactionChargeSms({
                         currency: currencySymbol,
-                        chargeAmount: formatNumber(chargeAmount),
+                        chargeAmount: chargeAmountStr,
                         departmentName: transaction.department.name,
                         transactionRef: chargeRef,
                         description: chargeDesc,
                     });
-                    
+
                     for (const leader of leaders) {
                         try {
                             if (leader.phone) {
@@ -419,7 +420,7 @@ export async function PATCH(
                                 const { subject, html } = generateTransactionChargeEmail({
                                     recipientName: leader.name || 'Leader',
                                     currency: currencySymbol,
-                                    chargeAmount: formatNumber(chargeAmount),
+                                    chargeAmount: chargeAmountStr,
                                     departmentName: transaction.department.name,
                                     transactionRef: chargeRef,
                                     description: chargeDesc,
@@ -462,42 +463,24 @@ export async function PATCH(
                 
                 let smsMessage = '';
                 if (status === 'APPROVED') {
-                    // Calculate the department balance after this transaction and charges
-                    const departmentTransactions = await prisma.transaction.findMany({
-                        where: {
-                            departmentId: updatedTransaction.department.id,
-                            status: 'APPROVED',
-                        },
-                        select: {
-                            type: true,
-                            amountInBase: true,
-                            amount: true,
-                        },
-                    });
+                    const balance = await getDepartmentApprovedBalance(updatedTransaction.department.id);
+                    const chargeForText = chargeDec && chargeDec.gt(0) ? chargeDec : null;
+                    const chargeText = chargeForText ? ` Charge: ${currencySymbol}${formatNumber(chargeForText.toString())}.` : '';
 
-                    const balance = departmentTransactions.reduce((sum, tx) => {
-                        const txAmount = Number(tx.amountInBase || tx.amount);
-                        return sum + (tx.type === 'INCOME' ? txAmount : -txAmount);
-                    }, 0);
-
-                    // Build the charge text
-                    const chargeAmount = charges && parseFloat(charges) > 0 ? parseFloat(charges) : 0;
-                    const chargeText = chargeAmount > 0 ? ` Charge: ${currencySymbol}${chargeAmount.toFixed(2)}.` : '';
-                    
                     smsMessage = await generateTransactionApprovedSms({
                         transactionType,
                         currency: currencySymbol,
-                        amount: updatedTransaction.amount.toFixed(2),
+                        amount: formatNumber(moneyToString(updatedTransaction.amount)),
                         chargeText,
                         departmentName: updatedTransaction.department.name,
-                        balance: balance.toFixed(2),
+                        balance: formatNumber(moneyToString(balance)),
                     });
                 } else {
                     const reasonText = rejectionReason ? ` Reason: ${rejectionReason}` : '';
                     smsMessage = await generateTransactionDeclinedSms({
                         transactionType,
                         currency: currencySymbol,
-                        amount: updatedTransaction.amount.toFixed(2),
+                        amount: formatNumber(moneyToString(updatedTransaction.amount)),
                         reasonText,
                     });
                 }
@@ -513,21 +496,16 @@ export async function PATCH(
 
                 // Send email in addition to SMS
                 if (updatedTransaction.user.email) {
-                    const chargeAmountNum = charges && parseFloat(charges) > 0 ? parseFloat(charges) : 0;
                     if (status === 'APPROVED') {
-                        const deptTx = await prisma.transaction.findMany({
-                            where: { departmentId: updatedTransaction.department.id, status: 'APPROVED' },
-                            select: { type: true, amountInBase: true, amount: true },
-                        });
-                        const bal = deptTx.reduce((s, tx) => s + (tx.type === 'INCOME' ? Number(tx.amountInBase || tx.amount) : -Number(tx.amountInBase || tx.amount)), 0);
+                        const bal = await getDepartmentApprovedBalance(updatedTransaction.department.id);
                         const { subject, html } = generateTransactionApprovedEmail({
                             userName: updatedTransaction.user.name || 'User',
                             transactionType,
                             currency: currencySymbol,
-                            amount: updatedTransaction.amount.toFixed(2),
-                            chargeAmount: chargeAmountNum > 0 ? chargeAmountNum.toFixed(2) : undefined,
+                            amount: formatNumber(moneyToString(updatedTransaction.amount)),
+                            chargeAmount: chargeDec && chargeDec.gt(0) ? formatNumber(chargeDec.toString()) : undefined,
                             departmentName: updatedTransaction.department.name,
-                            balance: bal.toFixed(2),
+                            balance: formatNumber(moneyToString(bal)),
                             description: updatedTransaction.description || undefined,
                         });
                         sendEmail({ to: updatedTransaction.user.email, subject, html }).catch(() => {});
@@ -536,7 +514,7 @@ export async function PATCH(
                             userName: updatedTransaction.user.name || 'User',
                             transactionType,
                             currency: currencySymbol,
-                            amount: updatedTransaction.amount.toFixed(2),
+                            amount: formatNumber(moneyToString(updatedTransaction.amount)),
                             reason: rejectionReason || undefined,
                             description: updatedTransaction.description || undefined,
                         });
@@ -583,29 +561,13 @@ export async function PATCH(
                     .map(ur => ({ phone: ur.user.phone, email: ur.user.email, name: ur.user.name }));
 
                 if (leaders.length > 0) {
-                    // Calculate the department balance
-                    const departmentTransactions = await prisma.transaction.findMany({
-                        where: {
-                            departmentId: updatedTransaction.department.id,
-                            status: 'APPROVED',
-                        },
-                        select: {
-                            type: true,
-                            amountInBase: true,
-                            amount: true,
-                        },
-                    });
-
-                    const balance = departmentTransactions.reduce((sum, tx) => {
-                        const txAmount = Number(tx.amountInBase || tx.amount);
-                        return sum + (tx.type === 'INCOME' ? txAmount : -txAmount);
-                    }, 0);
+                    const balance = await getDepartmentApprovedBalance(updatedTransaction.department.id);
 
                     const currencySymbol = updatedTransaction.currency?.symbol || '$';
                     const transactionDescription = updatedTransaction.description || (updatedTransaction.type === 'INCOME' ? 'Income' : 'Expense');
                     const descShort = transactionDescription.substring(0, 30) + (transactionDescription.length > 30 ? '...' : '');
-                    const txAmount = formatNumber(Number(updatedTransaction.amount));
-                    const balStr = formatNumber(balance);
+                    const txAmount = formatNumber(moneyToString(updatedTransaction.amount));
+                    const balStr = formatNumber(moneyToString(balance));
 
                     // Generate credit or debit alert based on transaction type
                     let alertMessage: string;
@@ -657,26 +619,13 @@ export async function PATCH(
             }
         }
 
-        // Calculate final balance for response
-        let newBalance: number | null = null;
+        // Calculate final balance for response (exact, in Decimal)
+        let newBalance: string | null = null;
         let balanceCurrency: { code: string; symbol: string } | null = null;
-        
-        try {
-            const departmentTransactions = await prisma.transaction.findMany({
-                where: {
-                    departmentId: updatedTransaction.department.id,
-                    status: 'APPROVED',
-                },
-                select: {
-                    type: true,
-                    amount: true,
-                },
-            });
 
-            newBalance = departmentTransactions.reduce((sum, tx) => {
-                const txAmount = Number(tx.amount);
-                return sum + (tx.type === 'INCOME' ? txAmount : -txAmount);
-            }, 0);
+        try {
+            const balance = await getDepartmentApprovedBalance(updatedTransaction.department.id);
+            newBalance = moneyToString(balance);
 
             // Get currency from department's base currency
             const dept = await prisma.department.findUnique({

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
+import { toDecimal, eq } from '@/lib/money';
 
 export async function GET(request: Request) {
     const session = await getServerSession(authOptions);
@@ -68,21 +69,18 @@ export async function POST(request: Request) {
         const updates = [];
 
         for (const transaction of transactions) {
-            let correctAmountInBase = Number(transaction.amount);
+            const amount = toDecimal(transaction.amount);
+            const correctAmountInBase = transaction.currencyId && transaction.exchangeRate
+                ? amount.mul(toDecimal(transaction.exchangeRate))
+                : amount;
 
-            // If there's a currency and exchange rate, apply conversion
-            if (transaction.currencyId && transaction.exchangeRate) {
-                correctAmountInBase = Number(transaction.amount) * Number(transaction.exchangeRate);
-            }
+            const currentAmountInBase = toDecimal(transaction.amountInBase ?? 0);
 
-            // Check if amountInBase needs updating
-            const currentAmountInBase = Number(transaction.amountInBase || 0);
-            
-            if (currentAmountInBase !== correctAmountInBase) {
+            if (!eq(currentAmountInBase, correctAmountInBase)) {
                 updates.push(
                     prisma.transaction.update({
                         where: { id: transaction.id },
-                        data: { amountInBase: correctAmountInBase },
+                        data: { amountInBase: correctAmountInBase.toString() },
                     })
                 );
                 fixedCount++;

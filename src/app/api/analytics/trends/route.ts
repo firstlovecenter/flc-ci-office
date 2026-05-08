@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { Prisma } from '@prisma/client';
+import { moneyToString } from '@/lib/money';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 
@@ -129,21 +130,25 @@ export async function GET(request: Request) {
             `;
         }
 
-        // Format the data
-        const formattedData = trendData.map((row: any) => ({
-            period: (row as any).date || (row as any).week || (row as any).month,
-            income: Number(row.income),
-            expense: Number(row.expense),
-            net: Number(row.income) - Number(row.expense),
-            transactions: Number(row.transactions),
-            growth: 0 // Will calculate below
-        }));
+        // Format the data using Decimal arithmetic
+        const formattedData = trendData.map((row: any) => {
+            const income = new Prisma.Decimal(row.income ?? 0);
+            const expense = new Prisma.Decimal(row.expense ?? 0);
+            return {
+                period: (row as any).date || (row as any).week || (row as any).month,
+                income: moneyToString(income),
+                expense: moneyToString(expense),
+                net: moneyToString(income.minus(expense)),
+                transactions: Number(row.transactions),
+                growth: 0, // Will calculate below
+            };
+        });
 
-        // Calculate growth rates
+        // Calculate growth rates (using Number for the percentage; this is presentational only)
         for (let i = 1; i < formattedData.length; i++) {
-            const current = formattedData[i].income + formattedData[i].expense;
-            const previous = formattedData[i - 1].income + formattedData[i - 1].expense;
-            
+            const current = Number(formattedData[i].income) + Number(formattedData[i].expense);
+            const previous = Number(formattedData[i - 1].income) + Number(formattedData[i - 1].expense);
+
             if (previous > 0) {
                 formattedData[i].growth = ((current - previous) / previous) * 100;
             }
@@ -171,7 +176,7 @@ export async function GET(request: Request) {
         const formattedCurrencyDist = currencyDistribution.map((row: any) => ({
             currency: row.currency_code,
             count: Number(row.transaction_count),
-            amount: Number(row.total_amount)
+            amount: row.total_amount != null ? row.total_amount.toString() : '0',
         }));
 
         // Get status distribution over time

@@ -61,7 +61,8 @@ function NewTransactionForm() {
     const [error, setError] = useState('');
     const [profileLoading, setProfileLoading] = useState(true);
     const [loading, setLoading] = useState(false);
-    const [departmentBalance, setDepartmentBalance] = useState<number | null>(null);
+    // Stored as the exact decimal string from the server (e.g. "999.9999998") — never coerced to Number for display.
+    const [departmentBalance, setDepartmentBalance] = useState<string | null>(null);
     const [balanceCurrency, setBalanceCurrency] = useState<{ code: string; symbol: string } | null>(null);
     const [balanceLoading, setBalanceLoading] = useState(false);
 
@@ -286,15 +287,18 @@ function NewTransactionForm() {
             }
         }
 
-        // Check balance for expense requests (all roles)
+        // Check balance for expense requests (all roles).
+        // Compare as numbers for the client-side guard (server is the authoritative
+        // check); display shows the exact stored balance via formatNumber.
         if (type === 'EXPENSE' && departmentBalance !== null) {
-            if (departmentBalance <= 0) {
+            const balanceNum = Number(departmentBalance);
+            if (balanceNum <= 0) {
                 setError('This church does not have a positive balance. Expense requests cannot be made for churches without a positive balance.');
                 setLoading(false);
                 return;
             }
             const requestAmount = parseFloat(amount);
-            if (requestAmount > departmentBalance) {
+            if (requestAmount > balanceNum) {
                 setError(`Insufficient balance. The available balance is ${balanceCurrency?.symbol || '₵'}${formatNumber(departmentBalance)}. You cannot request more than this amount.`);
                 setLoading(false);
                 return;

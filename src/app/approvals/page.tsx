@@ -41,7 +41,7 @@ import CancelIcon from '@mui/icons-material/Cancel';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import PendingActionsIcon from '@mui/icons-material/PendingActions';
 import BusinessIcon from '@mui/icons-material/Business';
-import { formatDepartmentLevel } from '@/lib/utils';
+import { formatDepartmentLevel, formatNumber } from '@/lib/utils';
 import { useToast } from '@/components/ToastProvider';
 import { GlassCard, StatusChip, AnimatedCounter, TableRowSkeleton, EmptyState } from '@/components/ui';
 import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
@@ -186,7 +186,7 @@ export default function ApprovalsPage() {
             if (response.ok) {
                 const result = await response.json();
                 const message = actionType === 'approve' 
-                    ? `Transaction approved! New balance: ${result.currency?.symbol || '₵'}${parseFloat(result.newBalance || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}`
+                    ? `Transaction approved! New balance: ${result.currency?.symbol || '₵'}${formatNumber(result.newBalance ?? 0)}`
                     : 'Transaction declined';
                 setSuccess(message);
                 showSuccess(message);
@@ -345,9 +345,10 @@ export default function ApprovalsPage() {
                             <AnimatedCounter
                                 value={transactions.length}
                                 duration={800}
-                                formatter={(val) => Math.floor(val).toLocaleString()}
-                                sx={{ 
-                                    fontSize: '2rem', 
+                                decimals={0}
+                                formatter={(val) => Math.round(Number(val)).toLocaleString()}
+                                sx={{
+                                    fontSize: '2rem',
                                     fontWeight: 700,
                                     color: 'warning.main'
                                 }}
@@ -383,9 +384,8 @@ export default function ApprovalsPage() {
                             <AnimatedCounter
                                 value={transactions.reduce((sum, t) => sum + parseFloat(t.amount), 0)}
                                 duration={1000}
-                                formatter={(val) => val.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                sx={{ 
-                                    fontSize: '2rem', 
+                                sx={{
+                                    fontSize: '2rem',
                                     fontWeight: 700,
                                     color: 'error.main'
                                 }}

@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth';
 import { Prisma } from '@prisma/client';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { sumDecimals, moneyToString, type Money } from '@/lib/money';
 
 // Force dynamic rendering - data is user/role specific
 export const dynamic = 'force-dynamic';
@@ -95,18 +96,16 @@ export async function GET(request: Request) {
             }
         });
 
-        // Calculate metrics for each department
-        const departmentMetrics = departments.map((dept: any) => {
-            const income = dept.transactions
-                .filter((t: any) => t.type === 'INCOME')
-                .reduce((sum: number, t: any) => sum + Number(t.amountInBase || 0), 0);
-
-            const expense = dept.transactions
-                .filter((t: any) => t.type === 'EXPENSE')
-                .reduce((sum: number, t: any) => sum + Number(t.amountInBase || 0), 0);
-
-            const netFlow = income - expense;
-            const transactionCount = dept._count.transactions;
+        // Calculate metrics with Decimal arithmetic
+        type Metrics = { id: string; name: string; level: string; income: Money; expense: Money; netFlow: Money; transactionCount: number };
+        const departmentMetrics: Metrics[] = departments.map((dept: any) => {
+            const income = sumDecimals(
+                dept.transactions.filter((t: any) => t.type === 'INCOME').map((t: any) => t.amountInBase || 0)
+            );
+            const expense = sumDecimals(
+                dept.transactions.filter((t: any) => t.type === 'EXPENSE').map((t: any) => t.amountInBase || 0)
+            );
+            const netFlow = income.minus(expense);
 
             return {
                 id: dept.id,
@@ -115,19 +114,27 @@ export async function GET(request: Request) {
                 income,
                 expense,
                 netFlow,
-                transactionCount
+                transactionCount: dept._count.transactions,
             };
         });
 
         // Sort by total volume (income + expense) descending
-        departmentMetrics.sort((a: any, b: any) => {
-            const volumeA = a.income + a.expense;
-            const volumeB = b.income + b.expense;
-            return volumeB - volumeA;
+        departmentMetrics.sort((a, b) => {
+            const volumeA = a.income.plus(a.expense);
+            const volumeB = b.income.plus(b.expense);
+            return volumeB.cmp(volumeA);
         });
 
-        // Take top N departments
-        const topDepartments = departmentMetrics.slice(0, limit);
+        // Take top N departments and serialize as exact strings
+        const topDepartments = departmentMetrics.slice(0, limit).map(m => ({
+            id: m.id,
+            name: m.name,
+            level: m.level,
+            income: moneyToString(m.income),
+            expense: moneyToString(m.expense),
+            netFlow: moneyToString(m.netFlow),
+            transactionCount: m.transactionCount,
+        }));
 
         // Get department hierarchy data for drill-down
         const hierarchyDateFilter = startDate && endDate
@@ -160,13 +167,17 @@ export async function GET(request: Request) {
                 END
         `;
 
-        const formattedHierarchy = hierarchyData.map((row: any) => ({
-            level: row.level,
-            count: Number(row.count),
-            income: Number(row.total_income),
-            expense: Number(row.total_expense),
-            net: Number(row.total_income) - Number(row.total_expense)
-        }));
+        const formattedHierarchy = hierarchyData.map((row: any) => {
+            const income = new Prisma.Decimal(row.total_income ?? 0);
+            const expense = new Prisma.Decimal(row.total_expense ?? 0);
+            return {
+                level: row.level,
+                count: Number(row.count),
+                income: moneyToString(income),
+                expense: moneyToString(expense),
+                net: moneyToString(income.minus(expense)),
+            };
+        });
 
         return NextResponse.json({
             departments: topDepartments,

@@ -4,6 +4,8 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { getDescendantDepartmentIds } from '@/lib/departments';
 import { getUserBaseCurrency, convertToUserBaseCurrency } from '@/lib/currency-conversion';
+import { Prisma } from '@prisma/client';
+import { moneyToString, type Money } from '@/lib/money';
 
 export const dynamic = 'force-dynamic';
 
@@ -92,35 +94,36 @@ export async function GET(request: Request) {
             return new NextResponse('Base currency not configured', { status: 500 });
         }
 
-        let totalIncome = 0;
+        const D = Prisma.Decimal;
+        let totalIncome: Money = new D(0);
         for (const tx of incomeTransactions) {
             const currencyId = tx.currencyId || userBaseCurrency.id;
-            const converted = await convertToUserBaseCurrency(
-                Number(tx.amount),
+            const converted = convertToUserBaseCurrency(
+                tx.amount as any,
                 currencyId,
                 userBaseCurrency.id,
                 exchangeRates
             );
-            totalIncome += converted;
+            totalIncome = totalIncome.plus(converted);
         }
 
-        let totalExpense = 0;
+        let totalExpense: Money = new D(0);
         for (const tx of expenseTransactions) {
             const currencyId = tx.currencyId || userBaseCurrency.id;
-            const converted = await convertToUserBaseCurrency(
-                Number(tx.amount),
+            const converted = convertToUserBaseCurrency(
+                tx.amount as any,
                 currencyId,
                 userBaseCurrency.id,
                 exchangeRates
             );
-            totalExpense += converted;
+            totalExpense = totalExpense.plus(converted);
         }
 
         return NextResponse.json(
             {
-                income: totalIncome,
-                expense: totalExpense,
-                balance: totalIncome - totalExpense,
+                income: moneyToString(totalIncome),
+                expense: moneyToString(totalExpense),
+                balance: moneyToString(totalIncome.minus(totalExpense)),
             },
             {
                 headers: {

@@ -9,6 +9,8 @@ import { sendEmail } from '@/lib/email';
 import { generatePendingApprovalRequestSms, generateDebitAlertSms, generatePublicExpenseLeaderApprovedSms, generatePublicExpenseLeaderDeclinedSms } from '@/lib/sms-templates';
 import { generatePendingApprovalEmail } from '@/lib/email-templates';
 import { getDescendantDepartmentIds, getLeaderRoleForLevel } from '@/lib/departments';
+import { toDecimal, gt, isPositive, moneyToString } from '@/lib/money';
+import { getDepartmentApprovedBalance } from '@/lib/balance';
 
 export const dynamic = 'force-dynamic';
 
@@ -87,7 +89,7 @@ export async function PATCH(
                 try {
                     const declinedSms = generatePublicExpenseLeaderDeclinedSms({
                         requesterName: publicRequest.requesterName,
-                        amount: Number(publicRequest.amount),
+                        amount: moneyToString(publicRequest.amount),
                         churchName: publicRequest.churchName,
                     });
                     sendSms({ to: publicRequest.leaderPhone, message: declinedSms }).catch((err) => {
@@ -112,29 +114,20 @@ export async function PATCH(
             return NextResponse.json({ error: 'Selected department is not within your oversight hierarchy.' }, { status: 403 });
         }
 
-        // Check that the selected department has sufficient balance
-        const deptTransactions = await prisma.transaction.findMany({
-            where: { departmentId, status: 'APPROVED' },
-            select: { type: true, amountInBase: true, amount: true },
-        });
+        // Check that the selected department has sufficient balance (Decimal arithmetic)
+        const balance = await getDepartmentApprovedBalance(departmentId);
+        const requestAmountDec = toDecimal(publicRequest.amount);
 
-        const balance = deptTransactions.reduce((sum, tx) => {
-            const txAmount = Number(tx.amountInBase || tx.amount);
-            return sum + (tx.type === 'INCOME' ? txAmount : -txAmount);
-        }, 0);
-
-        const requestAmount = Number(publicRequest.amount);
-
-        if (balance <= 0) {
+        if (!isPositive(balance)) {
             return NextResponse.json(
                 { error: 'The selected church does not have a positive balance. Expense requests cannot be made for churches without a positive balance.' },
                 { status: 400 }
             );
         }
 
-        if (requestAmount > balance) {
+        if (gt(requestAmountDec, balance)) {
             return NextResponse.json(
-                { error: `Insufficient balance. The available balance is ${formatNumber(balance)}. The request amount is ${formatNumber(requestAmount)}.` },
+                { error: `Insufficient balance. The available balance is ${formatNumber(moneyToString(balance))}. The request amount is ${formatNumber(moneyToString(requestAmountDec))}.` },
                 { status: 400 }
             );
         }
@@ -181,7 +174,7 @@ export async function PATCH(
             try {
                 const approvedSms = generatePublicExpenseLeaderApprovedSms({
                     requesterName: publicRequest.requesterName,
-                    amount: Number(publicRequest.amount),
+                    amount: moneyToString(publicRequest.amount),
                     churchName: publicRequest.churchName,
                 });
                 sendSms({ to: publicRequest.leaderPhone, message: approvedSms }).catch((err) => {
@@ -202,14 +195,14 @@ export async function PATCH(
                     include: { user: { select: { phone: true, name: true, archived: true } } },
                 });
                 if (leaderUserRole && !leaderUserRole.user.archived && leaderUserRole.user.phone) {
-                    const remainingBalance = balance - requestAmount;
+                    const remainingBalance = balance.minus(requestAmountDec);
                     const ref = `${publicRequest.requesterName}, ${publicRequest.churchName}: ${publicRequest.description}`;
                     const leaderSms = generateDebitAlertSms({
                         currency: 'GH\u20B5',
-                        amount: formatNumber(requestAmount),
+                        amount: formatNumber(moneyToString(requestAmountDec)),
                         departmentName: transaction.department?.name || 'your department',
                         description: ref,
-                        balance: formatNumber(remainingBalance),
+                        balance: formatNumber(moneyToString(remainingBalance)),
                     });
                     sendSms({ to: leaderUserRole.user.phone, message: leaderSms }).catch(() => {});
                 }
@@ -276,7 +269,7 @@ export async function PATCH(
                     userName: session.user.name || 'Oversight Admin',
                     transactionType: 'expense',
                     currency: '',
-                    amount: formatNumber(requestAmount),
+                    amount: formatNumber(moneyToString(requestAmountDec)),
                     description,
                 });
 
@@ -290,7 +283,7 @@ export async function PATCH(
                             submittedBy: session.user.name || 'Oversight Admin',
                             transactionType: 'expense',
                             currency: '',
-                            amount: formatNumber(requestAmount),
+                            amount: formatNumber(moneyToString(requestAmountDec)),
                             description,
                             departmentName: transaction.department?.name,
                         });

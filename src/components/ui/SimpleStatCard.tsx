@@ -5,7 +5,7 @@ import { AnimatedCounter } from './index';
 
 interface SimpleStatCardProps {
     title: string;
-    amount: number;
+    amount: number | string;
     icon: React.ElementType;
     color: string;
     currencySymbol?: string;
@@ -83,7 +83,6 @@ const SimpleStatCard = ({
                     <AnimatedCounter
                         value={amount}
                         duration={1000}
-                        formatter={(val) => val.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         sx={{
                             color: 'text.primary',
                             fontSize: { xs: '1.5rem', sm: '1.75rem' },

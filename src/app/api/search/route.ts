@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { formatMoney } from '@/lib/format-money';
 
 // Force dynamic rendering - data is user/role specific
 export const dynamic = 'force-dynamic';
@@ -124,7 +125,7 @@ export async function GET(request: Request) {
                 type: 'transaction',
                 id: t.id,
                 title: t.description,
-                subtitle: `${t.type} - ${parseFloat(t.amount.toString()).toFixed(2)}`, 
+                subtitle: `${t.type} - ${formatMoney(t.amount.toString())}`,
                 status: t.status,
                 date: t.createdAt,
                 url: `/transactions?search=${encodeURIComponent(t.description)}`

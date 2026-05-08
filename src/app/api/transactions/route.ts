@@ -11,6 +11,8 @@ import { generatePendingApprovalEmail, generateCreditAlertEmail, generateDebitAl
 import { getDescendantDepartmentIds, hasDepartmentAccess } from '@/lib/departments';
 import { getUserBaseCurrency, convertToUserBaseCurrency } from '@/lib/currency-conversion';
 import { formatTimeInExpenseWindowTimeZone, getExpenseWindowStatus } from '@/lib/expense-window';
+import { toDecimal, gt, isPositive, moneyToString } from '@/lib/money';
+import { getDepartmentApprovedBalance } from '@/lib/balance';
 
 // Force dynamic rendering - data is user/role specific
 export const dynamic = 'force-dynamic';
@@ -180,19 +182,20 @@ export async function GET(request: Request) {
             },
         });
 
-        // Add converted amount to each transaction
+        // Add converted amount to each transaction. Compute in Decimal,
+        // serialize to an exact string so the client receives full precision.
         const transactionsWithConversion = transactions.map(tx => {
             const currencyId = tx.currencyId || userBaseCurrency.id;
             const convertedAmount = convertToUserBaseCurrency(
-                Number(tx.amount),
+                tx.amount as any,
                 currencyId,
                 userBaseCurrency.id,
                 exchangeRates
             );
-            
+
             return {
                 ...tx,
-                amountInBase: convertedAmount,
+                amountInBase: moneyToString(convertedAmount),
             };
         });
 
@@ -290,11 +293,12 @@ export async function POST(request: Request) {
             }
         }
 
-        // Calculate amount in base currency if using a different currency
-        let amountInBase = amount; // Default to the original amount
-        if (currencyId && exchangeRate) {
-            amountInBase = amount * exchangeRate;
-        }
+        // Calculate amount in base currency using Decimal arithmetic to avoid float drift.
+        const amountDec = toDecimal(amount);
+        const amountInBaseDec = currencyId && exchangeRate
+            ? amountDec.mul(toDecimal(exchangeRate))
+            : amountDec;
+        const amountInBase = amountInBaseDec.toString();
 
         // All roles except SUPERADMIN require approval for EXPENSE transactions
         // All INCOME transactions are auto-approved (no approval needed)
@@ -307,36 +311,23 @@ export async function POST(request: Request) {
             return new NextResponse('Leaders cannot record income. Please contact an admin.', { status: 403 });
         }
 
-        // Server-side balance validation for expense requests
-        // Only allow expenses if the department has a positive balance at its own level
+        // Server-side balance validation for expense requests.
+        // Compares Decimal values end-to-end against the exact-department
+        // approved balance. The request amount is converted to base currency
+        // before comparing so foreign-currency requests are checked correctly.
         if (type === 'EXPENSE') {
-            const deptTransactions = await prisma.transaction.findMany({
-                where: {
-                    departmentId: departmentId, // Exact department only, no descendants
-                    status: 'APPROVED',
-                },
-                select: {
-                    type: true,
-                    amountInBase: true,
-                    amount: true,
-                },
-            });
+            const deptBalance = await getDepartmentApprovedBalance(departmentId);
 
-            const deptBalance = deptTransactions.reduce((sum, tx) => {
-                const txAmount = Number(tx.amountInBase || tx.amount);
-                return sum + (tx.type === 'INCOME' ? txAmount : -txAmount);
-            }, 0);
-
-            if (deptBalance <= 0) {
+            if (!isPositive(deptBalance)) {
                 return NextResponse.json(
                     { error: 'This church does not have a positive balance. Expense requests cannot be made for churches without a positive balance.' },
                     { status: 400 }
                 );
             }
 
-            if (amount > deptBalance) {
+            if (gt(amountInBaseDec, deptBalance)) {
                 return NextResponse.json(
-                    { error: `Insufficient balance. The available balance is ${deptBalance.toFixed(2)}. You cannot request more than this amount.` },
+                    { error: `Insufficient balance. The available balance is ${moneyToString(deptBalance)}. You cannot request more than this amount.` },
                     { status: 400 }
                 );
             }
@@ -535,29 +526,13 @@ export async function POST(request: Request) {
                 console.log(`[SMS] Found ${leaders.length} leader(s) for ${alertType} alert`);
 
                 if (leaders.length > 0) {
-                    // Calculate department balance after this transaction
-                    const departmentTransactions = await prisma.transaction.findMany({
-                        where: {
-                            departmentId: transaction.departmentId,
-                            status: 'APPROVED',
-                        },
-                        select: {
-                            type: true,
-                            amountInBase: true,
-                            amount: true,
-                        },
-                    });
-
-                    const balance = departmentTransactions.reduce((sum, tx) => {
-                        const txAmount = Number(tx.amountInBase || tx.amount);
-                        return sum + (tx.type === 'INCOME' ? txAmount : -txAmount);
-                    }, 0);
+                    const balance = await getDepartmentApprovedBalance(transaction.departmentId);
 
                     const currencySymbol = transaction.currency?.symbol || '₵';
                     const descText = description || (type === 'INCOME' ? 'Income' : 'Expense');
                     const descShort = descText.substring(0, 40) + (descText.length > 40 ? '...' : '');
-                    const amtStr = formatNumber(amount);
-                    const balStr = formatNumber(balance);
+                    const amtStr = formatNumber(moneyToString(amount));
+                    const balStr = formatNumber(moneyToString(balance));
                     const deptName = transaction.department.name;
                     
                     // Generate appropriate alert message based on transaction type
@@ -611,34 +586,14 @@ export async function POST(request: Request) {
             }
         }
 
-        // Calculate new balance for the department
-        let newBalance: number | null = null;
+        // Calculate new balance for the department (exact, in Decimal)
+        let newBalance: string | null = null;
         let balanceCurrency: { code: string; symbol: string } | null = null;
-        
+
         try {
-            // Get all approved transactions for this department
-            const allTransactions = await prisma.transaction.findMany({
-                where: {
-                    departmentId: transaction.departmentId,
-                    status: 'APPROVED',
-                },
-                select: {
-                    type: true,
-                    amount: true,
-                },
-            });
-            
-            let income = 0;
-            let expense = 0;
-            for (const tx of allTransactions) {
-                if (tx.type === 'INCOME') {
-                    income += Number(tx.amount);
-                } else if (tx.type === 'EXPENSE') {
-                    expense += Number(tx.amount);
-                }
-            }
-            newBalance = income - expense;
-            
+            const balance = await getDepartmentApprovedBalance(transaction.departmentId);
+            newBalance = moneyToString(balance);
+
             // Get currency from department's base currency
             const dept = await prisma.department.findUnique({
                 where: { id: transaction.departmentId },
@@ -716,11 +671,12 @@ export async function PUT(request: Request) {
             }
         }
 
-        // Calculate amount in base currency if using a different currency
-        let amountInBase = amount; // Default to the original amount
-        if (currencyId && exchangeRate) {
-            amountInBase = amount * exchangeRate;
-        }
+        // Calculate amount in base currency using Decimal arithmetic to avoid float drift.
+        const amountDec = toDecimal(amount);
+        const amountInBase = (currencyId && exchangeRate
+            ? amountDec.mul(toDecimal(exchangeRate))
+            : amountDec
+        ).toString();
 
         const updatedTransaction = await prisma.transaction.update({
             where: { id },

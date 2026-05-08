@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import crypto from 'crypto';
+import { toDecimal } from '@/lib/money';
 
 export async function POST(req: NextRequest) {
     try {
@@ -49,40 +50,31 @@ export async function POST(req: NextRequest) {
 
         for (const tx of transactions) {
             try {
-                let newAmountInBase = Number(tx.amount);
+                const txAmount = toDecimal(tx.amount);
+                let newAmountInBase = txAmount;
 
-                // If transaction currency is same as base, no conversion needed
-                if (tx.currencyId === baseCurrency.id) {
-                    newAmountInBase = Number(tx.amount);
-                } else if (tx.currencyId) {
-                    // Find exchange rate from transaction currency to base currency
+                if (tx.currencyId && tx.currencyId !== baseCurrency.id) {
                     let rate = exchangeRates.find(
                         (r) => r.fromCurrency.id === tx.currencyId && r.toCurrency.id === baseCurrency.id
                     );
-
-                    // If not found, try reverse and invert
-                    if (!rate) {
+                    if (rate) {
+                        newAmountInBase = txAmount.mul(toDecimal(rate.rate));
+                    } else {
                         rate = exchangeRates.find(
                             (r) => r.fromCurrency.id === baseCurrency.id && r.toCurrency.id === tx.currencyId
                         );
                         if (rate) {
-                            newAmountInBase = Number(tx.amount) / parseFloat(rate.rate.toString());
+                            newAmountInBase = txAmount.div(toDecimal(rate.rate));
                         } else {
-                            // No exchange rate found — flag this transaction as an error
                             errors.push({ transactionId: tx.id, error: `No exchange rate found for currency ${tx.currency?.code || tx.currencyId} to base currency ${baseCurrency.code}` });
-                            continue; // Skip this transaction, don't corrupt it
+                            continue;
                         }
-                    } else {
-                        newAmountInBase = Number(tx.amount) * parseFloat(rate.rate.toString());
                     }
                 }
 
-                // Update the transaction
                 await prisma.transaction.update({
                     where: { id: tx.id },
-                    data: {
-                        amountInBase: newAmountInBase,
-                    },
+                    data: { amountInBase: newAmountInBase.toString() },
                 });
 
                 updatedCount++;

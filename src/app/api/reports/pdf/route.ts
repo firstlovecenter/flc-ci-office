@@ -7,6 +7,8 @@ import { convertToUserBaseCurrency } from '@/lib/currency-conversion';
 import { getDescendantDepartmentIds, hasDepartmentAccess } from '@/lib/departments';
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
 import { formatCurrency, formatNumber, formatDepartmentLevel } from '@/lib/utils';
+import { Prisma } from '@prisma/client';
+import { toDecimal, moneyToString, type Money } from '@/lib/money';
 
 export async function POST(request: NextRequest) {
     try {
@@ -101,13 +103,14 @@ export async function POST(request: NextRequest) {
             orderBy: { createdAt: 'asc' },
         });
 
-        // Calculate opening balance (transactions before start date) with conversion
-        let openingBalance = 0;
+        // Calculate opening balance (transactions before start date) with Decimal conversion
+        const D = Prisma.Decimal;
+        let openingBalance: Money = new D(0);
         if (startDate) {
             const priorTransactions = await prisma.transaction.findMany({
                 where: {
                     status: 'APPROVED',
-                    ...(departmentId && includeSubDepartments 
+                    ...(departmentId && includeSubDepartments
                         ? { departmentId: { in: await getDescendantDepartmentIds(departmentId) } }
                         : departmentId ? { departmentId } : {}),
                     createdAt: { lt: new Date(startDate) },
@@ -116,18 +119,18 @@ export async function POST(request: NextRequest) {
                     currency: true,
                 },
             });
-            
+
             priorTransactions.forEach(tx => {
                 const amount = convertToUserBaseCurrency(
-                    Number(tx.amount),
+                    tx.amount as any,
                     tx.currencyId || userBaseCurrency.id,
                     userBaseCurrency.id,
                     exchangeRates
                 );
                 if (tx.type === 'INCOME') {
-                    openingBalance += amount;
+                    openingBalance = openingBalance.plus(amount);
                 } else {
-                    openingBalance -= amount;
+                    openingBalance = openingBalance.minus(amount);
                 }
             });
         }
@@ -262,7 +265,7 @@ export async function POST(request: NextRequest) {
         y -= 20;
 
         // Opening Balance
-        page.drawText(`Opening Balance: ${safeCurrencySymbol}${formatNumber(openingBalance)}`, {
+        page.drawText(`Opening Balance: ${safeCurrencySymbol}${formatNumber(moneyToString(openingBalance))}`, {
             x: 50,
             y,
             size: 11,
@@ -303,57 +306,59 @@ export async function POST(request: NextRequest) {
 
         // Draw initial table header
         y = drawTableHeader(y);
-        let runningBalance = openingBalance;
+        let runningBalance: Money = openingBalance;
+        let income: Money = new D(0);
+        let expense: Money = new D(0);
 
         // Table Rows
         for (const tx of transactions) {
             const dateStr = new Date(tx.createdAt).toLocaleDateString();
             let description = sanitizeText(tx.description);
-            
+
             // Add original currency info if different from base
             if (tx.currency && tx.currency.code !== userBaseCurrency.code) {
                 const txSafeSymbol = getSafeSymbol(tx.currency.symbol, tx.currency.code);
-                description += ` (${txSafeSymbol}${formatNumber(Number(tx.amount))} ${tx.currency.code})`;
+                description += ` (${txSafeSymbol}${formatNumber(moneyToString(tx.amount))} ${tx.currency.code})`;
             }
-            
+
             const deptName = sanitizeText(tx.department.name.substring(0, 20));
 
-            // Calculate row height based on wrapped description
             const descriptionLines = wrapText(description, 140, 8);
             const lineHeight = 10;
             const rowHeight = Math.max(20, descriptionLines.length * lineHeight + 5);
 
-            // Check if we need a new page
             if (y < 50 + rowHeight) {
                 page = pdfDoc.addPage([595, 842]);
                 y = height - 50;
-                // Redraw table header on new page
                 y = drawTableHeader(y);
             }
 
-            // Convert amount to user's base currency
             const convertedAmount = convertToUserBaseCurrency(
-                Number(tx.amount),
+                tx.amount as any,
                 tx.currencyId || userBaseCurrency.id,
                 userBaseCurrency.id,
                 exchangeRates
             );
 
-            const debit = tx.type === 'EXPENSE' ? convertedAmount : 0;
-            const credit = tx.type === 'INCOME' ? convertedAmount : 0;
-            runningBalance += credit - debit;
+            const isDebit = tx.type === 'EXPENSE';
+            if (isDebit) {
+                runningBalance = runningBalance.minus(convertedAmount);
+                expense = expense.plus(convertedAmount);
+            } else {
+                runningBalance = runningBalance.plus(convertedAmount);
+                income = income.plus(convertedAmount);
+            }
 
             page.drawText(dateStr, { x: colX.date, y, size: 8, font, color: rgb(0, 0, 0) });
-            
-            // Draw wrapped description
+
             descriptionLines.forEach((line, i) => {
                 page.drawText(line, { x: colX.description, y: y - (i * lineHeight), size: 8, font, color: rgb(0, 0, 0) });
             });
 
             page.drawText(deptName, { x: colX.department, y, size: 8, font, color: rgb(0, 0, 0) });
-            drawRightText(debit ? `${safeCurrencySymbol}${formatNumber(debit)}` : '-', colX.debit + 70, y, 8);
-            drawRightText(credit ? `${safeCurrencySymbol}${formatNumber(credit)}` : '-', colX.credit + 70, y, 8);
-            drawRightText(`${safeCurrencySymbol}${formatNumber(runningBalance)}`, colX.balance + 70, y, 8);
+            drawRightText(isDebit ? `${safeCurrencySymbol}${formatNumber(moneyToString(convertedAmount))}` : '-', colX.debit + 70, y, 8);
+            drawRightText(!isDebit ? `${safeCurrencySymbol}${formatNumber(moneyToString(convertedAmount))}` : '-', colX.credit + 70, y, 8);
+            drawRightText(`${safeCurrencySymbol}${formatNumber(moneyToString(runningBalance))}`, colX.balance + 70, y, 8);
 
             y -= rowHeight;
         }
@@ -364,43 +369,18 @@ export async function POST(request: NextRequest) {
             page = pdfDoc.addPage([595, 842]);
             y = height - 50;
         }
-        drawRightText(`Closing Balance: ${safeCurrencySymbol}${formatNumber(runningBalance)}`, 545, y, 11);
-        
-        // Summary
-        const income = transactions
-            .filter(t => t.type === 'INCOME')
-            .reduce((sum, t) => {
-                const converted = convertToUserBaseCurrency(
-                    Number(t.amount),
-                    t.currencyId || userBaseCurrency.id,
-                    userBaseCurrency.id,
-                    exchangeRates
-                );
-                return sum + converted;
-            }, 0);
-        const expense = transactions
-            .filter(t => t.type === 'EXPENSE')
-            .reduce((sum, t) => {
-                const converted = convertToUserBaseCurrency(
-                    Number(t.amount),
-                    t.currencyId || userBaseCurrency.id,
-                    userBaseCurrency.id,
-                    exchangeRates
-                );
-                return sum + converted;
-            }, 0);
+        drawRightText(`Closing Balance: ${safeCurrencySymbol}${formatNumber(moneyToString(runningBalance))}`, 545, y, 11);
 
         y -= 30;
-        // Check if we need a new page for summary
         if (y < 100) {
             page = pdfDoc.addPage([595, 842]);
             y = height - 50;
         }
-        page.drawText(`Total Income: ${safeCurrencySymbol}${formatNumber(income)}`, { x: 50, y, size: 10, font, color: rgb(0, 0, 0) });
+        page.drawText(`Total Income: ${safeCurrencySymbol}${formatNumber(moneyToString(income))}`, { x: 50, y, size: 10, font, color: rgb(0, 0, 0) });
         y -= 15;
-        page.drawText(`Total Expense: ${safeCurrencySymbol}${formatNumber(expense)}`, { x: 50, y, size: 10, font, color: rgb(0, 0, 0) });
+        page.drawText(`Total Expense: ${safeCurrencySymbol}${formatNumber(moneyToString(expense))}`, { x: 50, y, size: 10, font, color: rgb(0, 0, 0) });
         y -= 15;
-        page.drawText(`Net Change: ${safeCurrencySymbol}${formatNumber(income - expense)}`, { x: 50, y, size: 10, font, color: rgb(0, 0, 0) });
+        page.drawText(`Net Change: ${safeCurrencySymbol}${formatNumber(moneyToString(income.minus(expense)))}`, { x: 50, y, size: 10, font, color: rgb(0, 0, 0) });
 
         // Footer
         const footerText = `Generated on ${new Date().toLocaleString()} by ${sanitizeText(session.user.name || session.user.email || 'Unknown User')}`;

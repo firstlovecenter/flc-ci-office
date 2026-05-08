@@ -2,14 +2,22 @@
 
 import { useEffect, useState, useRef } from 'react';
 import { Typography, TypographyProps } from '@mui/material';
+import { formatMoney } from '@/lib/format-money';
 
 interface AnimatedCounterProps extends Omit<TypographyProps, 'children'> {
-    value: number;
+    /**
+     * The target value. Pass strings (preferred) or numbers. Strings preserve
+     * the exact stored precision; numbers are accepted but may lose trailing
+     * digits beyond JS Number precision.
+     */
+    value: string | number;
     duration?: number;
     prefix?: string;
     suffix?: string;
+    /** Minimum fraction digits when formatting (default 2). Stored extra precision is preserved. */
     decimals?: number;
-    formatter?: (value: number) => string;
+    /** Custom formatter. Receives the *exact* target value (string when prop was string). */
+    formatter?: (value: string) => string;
 }
 
 export default function AnimatedCounter({
@@ -21,22 +29,23 @@ export default function AnimatedCounter({
     formatter,
     ...typographyProps
 }: AnimatedCounterProps) {
+    const targetNum = typeof value === 'number' ? value : Number(value);
     const [displayValue, setDisplayValue] = useState(0);
+    const [settled, setSettled] = useState(false);
     const previousValue = useRef(0);
     const animationRef = useRef<number | undefined>(undefined);
 
     useEffect(() => {
         const startValue = previousValue.current;
-        const endValue = value;
+        const endValue = Number.isFinite(targetNum) ? targetNum : 0;
         const startTime = performance.now();
+        setSettled(false);
 
         const animate = (currentTime: number) => {
             const elapsed = currentTime - startTime;
             const progress = Math.min(elapsed / duration, 1);
-            
-            // Easing function (ease-out cubic)
             const easeOut = 1 - Math.pow(1 - progress, 3);
-            
+
             const currentValue = startValue + (endValue - startValue) * easeOut;
             setDisplayValue(currentValue);
 
@@ -44,6 +53,7 @@ export default function AnimatedCounter({
                 animationRef.current = requestAnimationFrame(animate);
             } else {
                 previousValue.current = endValue;
+                setSettled(true);
             }
         };
 
@@ -54,14 +64,19 @@ export default function AnimatedCounter({
                 cancelAnimationFrame(animationRef.current);
             }
         };
-    }, [value, duration]);
+    }, [targetNum, duration]);
 
-    const formattedValue = formatter 
-        ? formatter(displayValue)
-        : displayValue.toLocaleString('en-US', {
-            minimumFractionDigits: decimals,
-            maximumFractionDigits: decimals,
-        });
+    // Once the animation settles, render the *exact* target value (preserving
+    // any precision beyond JS Number) by passing through formatMoney/formatter.
+    let formattedValue: string;
+    if (settled) {
+        const exactStr = typeof value === 'string' ? value : String(value);
+        formattedValue = formatter ? formatter(exactStr) : formatMoney(exactStr, decimals);
+    } else if (formatter) {
+        formattedValue = formatter(displayValue.toString());
+    } else {
+        formattedValue = formatMoney(displayValue, decimals);
+    }
 
     return (
         <Typography {...typographyProps}>

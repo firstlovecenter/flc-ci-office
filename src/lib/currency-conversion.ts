@@ -1,5 +1,6 @@
 import { prisma } from './prisma';
 import { DepartmentLevel } from '@prisma/client';
+import { toDecimal, type Money, type MoneyInput } from './money';
 
 /**
  * Get the base currency for a department
@@ -104,41 +105,36 @@ export async function getUserBaseCurrency(userId: string) {
 }
 
 /**
- * Convert an amount from one currency to another using exchange rates
+ * Convert an amount from one currency to another using exchange rates.
+ * Uses Decimal arithmetic so the result is exact (no IEEE-754 drift).
  */
 export function convertCurrency(
-    amount: number,
+    amount: MoneyInput,
     fromCurrencyId: string,
     toCurrencyId: string,
     exchangeRates: any[]
-): number {
-    // If same currency, no conversion needed
+): Money {
+    const dec = toDecimal(amount);
+
     if (fromCurrencyId === toCurrencyId) {
-        return amount;
+        return dec;
     }
 
-    // Find direct exchange rate: fromCurrency → toCurrency
     let rate = exchangeRates.find(
         (r) => r.fromCurrency.id === fromCurrencyId && r.toCurrency.id === toCurrencyId
     );
-
     if (rate) {
-        const converted = amount * parseFloat(rate.rate.toString());
-        return converted;
+        return dec.mul(toDecimal(rate.rate));
     }
 
-    // Try reverse: toCurrency → fromCurrency
     rate = exchangeRates.find(
         (r) => r.fromCurrency.id === toCurrencyId && r.toCurrency.id === fromCurrencyId
     );
-
     if (rate) {
-        const converted = amount / parseFloat(rate.rate.toString());
-        return converted;
+        return dec.div(toDecimal(rate.rate));
     }
 
-    // No conversion rate found, return original amount
-    return amount;
+    return dec;
 }
 
 /**
@@ -146,10 +142,10 @@ export function convertCurrency(
  * Legacy function kept for backward compatibility
  */
 export function convertToUserBaseCurrency(
-    amount: number,
+    amount: MoneyInput,
     fromCurrencyId: string,
     userBaseCurrencyId: string,
     exchangeRates: any[]
-): number {
+): Money {
     return convertCurrency(amount, fromCurrencyId, userBaseCurrencyId, exchangeRates);
 }

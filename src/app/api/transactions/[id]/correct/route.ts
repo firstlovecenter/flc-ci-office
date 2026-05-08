@@ -4,6 +4,8 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { createAuditLog } from '@/lib/audit';
 import { formatCurrency, formatNumber } from '@/lib/utils';
+import { toDecimal, moneyToString } from '@/lib/money';
+import { getDepartmentApprovedBalance } from '@/lib/balance';
 import { sendSms } from '@/lib/sms';
 import { generateCorrectionNotificationSms, generateDepartmentTransferSms } from '@/lib/sms-templates';
 import { sendEmail } from '@/lib/email';
@@ -84,12 +86,14 @@ export async function POST(
             }
         }
 
-        // Calculate the difference
-        const originalAmount = Number(originalTransaction.amount);
-        const newAmountValue = isAmountChange ? Number(newAmount) : originalAmount;
-        const correctionAmount = newAmountValue - originalAmount;
+        // Calculate the difference using Decimal arithmetic
+        const originalAmountDec = toDecimal(originalTransaction.amount);
+        const newAmountDec = isAmountChange ? toDecimal(newAmount) : originalAmountDec;
+        const correctionAmountDec = newAmountDec.minus(originalAmountDec);
+        const originalAmount = moneyToString(originalAmountDec);
+        const newAmountValue = moneyToString(newAmountDec);
 
-        if (correctionAmount === 0 && !isDepartmentChange) {
+        if (correctionAmountDec.eq(0) && !isDepartmentChange) {
             return NextResponse.json(
                 { error: 'No changes detected. Please change the amount or department.' },
                 { status: 400 }
@@ -106,17 +110,16 @@ export async function POST(
             const reverseType = originalTransaction.type === 'INCOME' ? 'EXPENSE' : 'INCOME';
             const reverseDescription = `DEPT TRANSFER: Reversed - moved to ${targetDepartment.name}. Original: "${originalTransaction.description}". ${reason || 'Department correction'} - Ref: ${originalTransaction.id.substring(0, 8)}`;
 
-            let reverseAmountInBase = originalAmount;
-            if (originalTransaction.currencyId && originalTransaction.exchangeRate) {
-                reverseAmountInBase = originalAmount * Number(originalTransaction.exchangeRate);
-            }
+            const reverseAmountInBaseDec = originalTransaction.currencyId && originalTransaction.exchangeRate
+                ? originalAmountDec.mul(toDecimal(originalTransaction.exchangeRate))
+                : originalAmountDec;
 
             const reversalTransaction = await prisma.transaction.create({
                 data: {
                     id: crypto.randomUUID(),
                     type: reverseType,
-                    amount: originalAmount,
-                    amountInBase: reverseAmountInBase,
+                    amount: originalAmountDec.toString(),
+                    amountInBase: reverseAmountInBaseDec.toString(),
                     description: reverseDescription,
                     departmentId: originalTransaction.departmentId,
                     userId: session.user.id,
@@ -139,17 +142,16 @@ export async function POST(
             // Step 2: Create the transaction in the new department with the (possibly new) amount
             const newDescription = `DEPT TRANSFER: From ${originalTransaction.department.name}. Original: "${originalTransaction.description}". ${reason || 'Department correction'} - Ref: ${originalTransaction.id.substring(0, 8)}`;
 
-            let newAmountInBase = newAmountValue;
-            if (originalTransaction.currencyId && originalTransaction.exchangeRate) {
-                newAmountInBase = newAmountValue * Number(originalTransaction.exchangeRate);
-            }
+            const newAmountInBaseDec = originalTransaction.currencyId && originalTransaction.exchangeRate
+                ? newAmountDec.mul(toDecimal(originalTransaction.exchangeRate))
+                : newAmountDec;
 
             const newTransaction = await prisma.transaction.create({
                 data: {
                     id: crypto.randomUUID(),
                     type: originalTransaction.type,
-                    amount: newAmountValue,
-                    amountInBase: newAmountInBase,
+                    amount: newAmountDec.toString(),
+                    amountInBase: newAmountInBaseDec.toString(),
                     description: newDescription,
                     departmentId: targetDepartmentId,
                     userId: session.user.id,
@@ -217,14 +219,7 @@ export async function POST(
                     include: { user: { select: { phone: true, email: true, name: true, archived: true } } },
                 });
 
-                const oldDeptTransactions = await prisma.transaction.findMany({
-                    where: { departmentId: originalTransaction.departmentId, status: 'APPROVED' },
-                    select: { type: true, amountInBase: true, amount: true },
-                });
-                const oldBalance = oldDeptTransactions.reduce((sum, tx) => {
-                    const txAmount = Number(tx.amountInBase || tx.amount);
-                    return sum + (tx.type === 'INCOME' ? txAmount : -txAmount);
-                }, 0);
+                const oldBalance = await getDepartmentApprovedBalance(originalTransaction.departmentId);
 
                 const currencySymbol = originalTransaction.currency?.symbol || '$';
                 for (const lr of oldLeaders.filter(ur => !ur.user.archived)) {
@@ -235,7 +230,7 @@ export async function POST(
                         fromDepartment: originalTransaction.department.name,
                         toDepartment: targetDepartment.name,
                         reason: reason || 'Department correction',
-                        balance: formatNumber(oldBalance),
+                        balance: formatNumber(moneyToString(oldBalance)),
                     });
                     if (lr.user.phone) await sendSms({ to: lr.user.phone!, message: sms }).catch(() => {});
                     if (lr.user.email) {
@@ -247,7 +242,7 @@ export async function POST(
                             fromDepartment: originalTransaction.department.name,
                             toDepartment: targetDepartment.name,
                             reason: reason || 'Department correction',
-                            balance: formatNumber(oldBalance),
+                            balance: formatNumber(moneyToString(oldBalance)),
                         });
                         sendEmail({ to: lr.user.email, subject, html }).catch(() => {});
                     }
@@ -267,14 +262,7 @@ export async function POST(
                     include: { user: { select: { phone: true, email: true, name: true, archived: true } } },
                 });
 
-                const newDeptTransactions = await prisma.transaction.findMany({
-                    where: { departmentId: targetDepartmentId, status: 'APPROVED' },
-                    select: { type: true, amountInBase: true, amount: true },
-                });
-                const newBalance = newDeptTransactions.reduce((sum, tx) => {
-                    const txAmount = Number(tx.amountInBase || tx.amount);
-                    return sum + (tx.type === 'INCOME' ? txAmount : -txAmount);
-                }, 0);
+                const newBalance = await getDepartmentApprovedBalance(targetDepartmentId);
 
                 const currencySymbol = originalTransaction.currency?.symbol || '$';
                 for (const lr of newLeaders.filter(ur => !ur.user.archived)) {
@@ -285,7 +273,7 @@ export async function POST(
                         fromDepartment: originalTransaction.department.name,
                         toDepartment: targetDepartment.name,
                         reason: reason || 'Department correction',
-                        balance: formatNumber(newBalance),
+                        balance: formatNumber(moneyToString(newBalance)),
                     });
                     if (lr.user.phone) await sendSms({ to: lr.user.phone!, message: sms }).catch(() => {});
                     if (lr.user.email) {
@@ -297,7 +285,7 @@ export async function POST(
                             fromDepartment: originalTransaction.department.name,
                             toDepartment: targetDepartment.name,
                             reason: reason || 'Department correction',
-                            balance: formatNumber(newBalance),
+                            balance: formatNumber(moneyToString(newBalance)),
                         });
                         sendEmail({ to: lr.user.email, subject, html }).catch(() => {});
                     }
@@ -309,7 +297,7 @@ export async function POST(
                 originalTransaction,
                 reversalTransaction,
                 newTransaction,
-                message: `Transaction transferred from ${originalTransaction.department.name} to ${targetDepartment.name}${correctionAmount !== 0 ? ` with amount adjusted to ${formatCurrency(newAmountValue, originalTransaction.currency?.code, originalTransaction.currency?.symbol)}` : ''}.`,
+                message: `Transaction transferred from ${originalTransaction.department.name} to ${targetDepartment.name}${!correctionAmountDec.eq(0) ? ` with amount adjusted to ${formatCurrency(newAmountValue, originalTransaction.currency?.code, originalTransaction.currency?.symbol)}` : ''}.`,
             });
         }
         // For EXPENSE: if new < original, we need to CREDIT back (INCOME)
@@ -318,26 +306,26 @@ export async function POST(
         // For INCOME: if new > original, we need to CREDIT more (INCOME)
         
         // Simply: same type if correction is positive, opposite if negative
-        const correctionType = correctionAmount > 0 
-            ? originalTransaction.type 
+        const correctionType = correctionAmountDec.gt(0)
+            ? originalTransaction.type
             : (originalTransaction.type === 'EXPENSE' ? 'INCOME' : 'EXPENSE');
-        const absoluteCorrectionAmount = Math.abs(correctionAmount);
+        const absoluteCorrectionDec = correctionAmountDec.abs();
+        const absoluteCorrectionAmount = moneyToString(absoluteCorrectionDec);
 
-        // Calculate correction amount in base currency
-        let correctionAmountInBase = absoluteCorrectionAmount;
-        if (originalTransaction.currencyId && originalTransaction.exchangeRate) {
-            correctionAmountInBase = absoluteCorrectionAmount * Number(originalTransaction.exchangeRate);
-        }
+        // Calculate correction amount in base currency (Decimal arithmetic)
+        const correctionAmountInBaseDec = originalTransaction.currencyId && originalTransaction.exchangeRate
+            ? absoluteCorrectionDec.mul(toDecimal(originalTransaction.exchangeRate))
+            : absoluteCorrectionDec;
 
         // Create the correction transaction
-        const correctionDescription = `CORRECTION: ${reason || 'Amount adjustment'} (Original: ${formatCurrency(originalAmount, originalTransaction.currency?.code, originalTransaction.currency?.symbol)} → New: ${formatCurrency(newAmount, originalTransaction.currency?.code, originalTransaction.currency?.symbol)}) - Ref: ${originalTransaction.id.substring(0, 8)}`;
+        const correctionDescription = `CORRECTION: ${reason || 'Amount adjustment'} (Original: ${formatCurrency(originalAmount, originalTransaction.currency?.code, originalTransaction.currency?.symbol)} → New: ${formatCurrency(newAmountValue, originalTransaction.currency?.code, originalTransaction.currency?.symbol)}) - Ref: ${originalTransaction.id.substring(0, 8)}`;
 
         const correctionTransaction = await prisma.transaction.create({
             data: {
                 id: crypto.randomUUID(),
                 type: correctionType,
-                amount: absoluteCorrectionAmount,
-                amountInBase: correctionAmountInBase,
+                amount: absoluteCorrectionDec.toString(),
+                amountInBase: correctionAmountInBaseDec.toString(),
                 description: correctionDescription,
                 departmentId: originalTransaction.departmentId,
                 userId: session.user.id, // Correction created by admin
@@ -375,8 +363,8 @@ export async function POST(
             metadata: {
                 originalTransactionId: originalTransaction.id,
                 originalAmount,
-                newAmount,
-                correctionAmount,
+                newAmount: newAmountValue,
+                correctionAmount: moneyToString(correctionAmountDec),
                 reason,
             },
             severity: 'HIGH',
@@ -406,23 +394,7 @@ export async function POST(
             const activeLeaders = departmentLeaders.filter(ur => !ur.user.archived);
 
             if (activeLeaders.length > 0) {
-                // Calculate department balance after this correction
-                const departmentTransactions = await prisma.transaction.findMany({
-                    where: {
-                        departmentId: originalTransaction.departmentId,
-                        status: 'APPROVED',
-                    },
-                    select: {
-                        type: true,
-                        amountInBase: true,
-                        amount: true,
-                    },
-                });
-
-                const balance = departmentTransactions.reduce((sum, tx) => {
-                    const txAmount = Number(tx.amountInBase || tx.amount);
-                    return sum + (tx.type === 'INCOME' ? txAmount : -txAmount);
-                }, 0);
+                const balance = await getDepartmentApprovedBalance(originalTransaction.departmentId);
 
                 const currencySymbol = originalTransaction.currency?.symbol || '$';
                 const correctionParams = {
@@ -430,11 +402,11 @@ export async function POST(
                     departmentName: originalTransaction.department.name,
                     currency: currencySymbol,
                     originalAmount: formatNumber(originalAmount),
-                    newAmount: formatNumber(newAmount),
+                    newAmount: formatNumber(newAmountValue),
                     correctionType: correctionType === 'INCOME' ? 'Credit' : 'Debit',
                     adjustmentAmount: formatNumber(absoluteCorrectionAmount),
                     reason: reason || 'Amount adjustment',
-                    balance: formatNumber(balance),
+                    balance: formatNumber(moneyToString(balance)),
                 };
                 const smsMessage = await generateCorrectionNotificationSms(correctionParams);
                 

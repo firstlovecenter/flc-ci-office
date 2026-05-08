@@ -102,7 +102,8 @@ function TransactionsPageContent() {
     const { showSuccess, showError } = useToast();
     const [transactions, setTransactions] = useState<TransactionWithDetails[]>([]);
     const [filteredTransactions, setFilteredTransactions] = useState<TransactionWithDetails[]>([]);
-    const [summary, setSummary] = useState({ income: 0, expense: 0, balance: 0 });
+    // Stored as exact decimal strings from the server; never coerced to Number for display.
+    const [summary, setSummary] = useState<{ income: string; expense: string; balance: string }>({ income: '0', expense: '0', balance: '0' });
     const [baseCurrency, setBaseCurrency] = useState<{ id: string; code: string; symbol: string } | null>(null);
     const [currencies, setCurrencies] = useState<any[]>([]);
     const [department, setDepartment] = useState<any>(null);
@@ -285,9 +286,9 @@ function TransactionsPageContent() {
             if (response.ok) {
                 const data = await response.json();
                 setSummary({
-                    income: Number(data.income || 0),
-                    expense: Number(data.expense || 0),
-                    balance: Number(data.balance || 0),
+                    income: String(data.income ?? '0'),
+                    expense: String(data.expense ?? '0'),
+                    balance: String(data.balance ?? '0'),
                 });
             }
         } catch (error) {
@@ -460,7 +461,7 @@ function TransactionsPageContent() {
                     sx={{
                         position: 'relative',
                         background: (() => {
-                            const balance = summary.balance;
+                            const balance = Number(summary.balance);
                             if (balance < 0) return 'linear-gradient(135deg, rgba(239, 83, 80, 0.1) 0%, rgba(198, 40, 40, 0.2) 100%)';
                             if (balance === 0) return 'linear-gradient(135deg, rgba(255, 152, 0, 0.1) 0%, rgba(245, 124, 0, 0.2) 100%)';
                             if (balance < 5000) return 'linear-gradient(135deg, rgba(255, 193, 7, 0.1) 0%, rgba(255, 152, 0, 0.2) 100%)';
@@ -471,7 +472,7 @@ function TransactionsPageContent() {
                             '0%, 100%': { opacity: 1 },
                             '50%': { opacity: 0.6 }
                         },
-                        animation: summary.balance > 0 && summary.balance < 5000 ? 'blink 1.5s ease-in-out infinite' : 'none',
+                        animation: Number(summary.balance) > 0 && Number(summary.balance) < 5000 ? 'blink 1.5s ease-in-out infinite' : 'none',
                     }}
                 >
                     <Box sx={{ position: 'relative', zIndex: 1 }}>
@@ -487,11 +488,10 @@ function TransactionsPageContent() {
                             <AnimatedCounter
                                 value={summary.balance}
                                 duration={1000}
-                                formatter={(val) => val.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                sx={{ 
-                                    fontSize: '1.75rem', 
+                                sx={{
+                                    fontSize: '1.75rem',
                                     fontWeight: 700,
-                                    color: summary.balance < 0 ? 'error.main' : 'text.primary' 
+                                    color: Number(summary.balance) < 0 ? 'error.main' : 'text.primary'
                                 }}
                             />
                         </Box>
@@ -531,7 +531,6 @@ function TransactionsPageContent() {
                             <AnimatedCounter
                                 value={summary.income}
                                 duration={1000}
-                                formatter={(val) => val.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                 sx={{ fontSize: '1.75rem', fontWeight: 700, color: 'success.main' }}
                             />
                         </Box>
@@ -571,7 +570,6 @@ function TransactionsPageContent() {
                             <AnimatedCounter
                                 value={summary.expense}
                                 duration={1000}
-                                formatter={(val) => val.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                 sx={{ fontSize: '1.75rem', fontWeight: 700, color: 'error.main' }}
                             />
                         </Box>

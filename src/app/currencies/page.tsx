@@ -480,7 +480,7 @@ export default function CurrenciesPage() {
                                         </TableCell>
                                         <TableCell>
                                             <Typography variant="body2" fontWeight={600}>
-                                                {parseFloat(rate.rate).toFixed(4)}
+                                                {rate.rate}
                                             </Typography>
                                         </TableCell>
                                         <TableCell>

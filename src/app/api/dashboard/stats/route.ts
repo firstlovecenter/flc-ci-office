@@ -5,6 +5,8 @@ import { authOptions } from '@/lib/auth';
 import { getDescendantDepartmentIds } from '@/lib/departments';
 import { getUserBaseCurrency, convertToUserBaseCurrency } from '@/lib/currency-conversion';
 import { getISOWeek, getISOWeekYear, subWeeks } from 'date-fns';
+import { Prisma } from '@prisma/client';
+import { moneyToString, type Money } from '@/lib/money';
 
 // Force dynamic rendering - data is user/role specific
 export const dynamic = 'force-dynamic';
@@ -195,96 +197,78 @@ export async function GET(request: Request) {
             return new NextResponse('Base currency not configured', { status: 500 });
         }
 
-        // Convert each transaction to user's base currency
-        let totalIncome = 0;
+        const D = Prisma.Decimal;
+        // Convert each transaction to user's base currency (Decimal arithmetic)
+        let totalIncome: Money = new D(0);
         for (const tx of incomeTransactions) {
             const currencyId = tx.currencyId || userBaseCurrency.id;
-            const converted = await convertToUserBaseCurrency(
-                Number(tx.amount),
+            totalIncome = totalIncome.plus(convertToUserBaseCurrency(
+                tx.amount as any,
                 currencyId,
                 userBaseCurrency.id,
                 exchangeRates
-            );
-            totalIncome += converted;
+            ));
         }
 
-        let totalExpense = 0;
+        let totalExpense: Money = new D(0);
         for (const tx of expenseTransactions) {
             const currencyId = tx.currencyId || userBaseCurrency.id;
-            const converted = await convertToUserBaseCurrency(
-                Number(tx.amount),
+            totalExpense = totalExpense.plus(convertToUserBaseCurrency(
+                tx.amount as any,
                 currencyId,
                 userBaseCurrency.id,
                 exchangeRates
-            );
-            totalExpense += converted;
+            ));
         }
 
-        let weeklyIncome = 0;
+        let weeklyIncome: Money = new D(0);
         for (const tx of weeklyIncomeTransactions) {
             const currencyId = tx.currencyId || userBaseCurrency.id;
-            const converted = await convertToUserBaseCurrency(
-                Number(tx.amount),
+            weeklyIncome = weeklyIncome.plus(convertToUserBaseCurrency(
+                tx.amount as any,
                 currencyId,
                 userBaseCurrency.id,
                 exchangeRates
-            );
-            weeklyIncome += converted;
+            ));
         }
 
-        // Process weekly chart data - calculate income and expense for each of the 4 weeks
-        // Match transactions by their weekNumber/year fields directly
-        const weeklyChartData = await Promise.all(
-            weekRanges.map(async (week) => {
-                let weekIncomeTotal = 0;
-                let weekExpenseTotal = 0;
+        const chartData = weekRanges.map((week) => {
+            let weekIncomeTotal: Money = new D(0);
+            let weekExpenseTotal: Money = new D(0);
 
-                for (const tx of last4WeeksIncomeTransactions) {
-                    if (tx.weekNumber === week.weekNumber && tx.year === week.year) {
-                        const currencyId = tx.currencyId || userBaseCurrency.id;
-                        const converted = await convertToUserBaseCurrency(
-                            Number(tx.amount),
-                            currencyId,
-                            userBaseCurrency.id,
-                            exchangeRates
-                        );
-                        weekIncomeTotal += converted;
-                    }
+            for (const tx of last4WeeksIncomeTransactions) {
+                if (tx.weekNumber === week.weekNumber && tx.year === week.year) {
+                    const currencyId = tx.currencyId || userBaseCurrency.id;
+                    weekIncomeTotal = weekIncomeTotal.plus(convertToUserBaseCurrency(
+                        tx.amount as any, currencyId, userBaseCurrency.id, exchangeRates
+                    ));
                 }
+            }
 
-                for (const tx of last4WeeksExpenseTransactions) {
-                    if (tx.weekNumber === week.weekNumber && tx.year === week.year) {
-                        const currencyId = tx.currencyId || userBaseCurrency.id;
-                        const converted = await convertToUserBaseCurrency(
-                            Number(tx.amount),
-                            currencyId,
-                            userBaseCurrency.id,
-                            exchangeRates
-                        );
-                        weekExpenseTotal += converted;
-                    }
+            for (const tx of last4WeeksExpenseTransactions) {
+                if (tx.weekNumber === week.weekNumber && tx.year === week.year) {
+                    const currencyId = tx.currencyId || userBaseCurrency.id;
+                    weekExpenseTotal = weekExpenseTotal.plus(convertToUserBaseCurrency(
+                        tx.amount as any, currencyId, userBaseCurrency.id, exchangeRates
+                    ));
                 }
+            }
 
-                return {
-                    week: `W${week.weekNumber} '${String(week.year).slice(-2)}`,
-                    income: weekIncomeTotal,
-                    expense: weekExpenseTotal,
-                };
-            })
-        );
+            return {
+                week: `W${week.weekNumber} '${String(week.year).slice(-2)}`,
+                income: moneyToString(weekIncomeTotal),
+                expense: moneyToString(weekExpenseTotal),
+            };
+        });
 
-        // Chart data is already in chronological order (oldest to newest, left to right)
-        // Latest week appears on the right side of the chart
-        const chartData = weeklyChartData;
-
-        const netBalance = totalIncome - totalExpense;
+        const netBalance = totalIncome.minus(totalExpense);
 
         return NextResponse.json(
             {
-                income: totalIncome,
-                expense: totalExpense,
-                balance: netBalance,
-                weeklyIncome: weeklyIncome,
+                income: moneyToString(totalIncome),
+                expense: moneyToString(totalExpense),
+                balance: moneyToString(netBalance),
+                weeklyIncome: moneyToString(weeklyIncome),
                 chartData: chartData,
             },
             {
