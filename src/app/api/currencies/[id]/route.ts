@@ -3,7 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import crypto from 'crypto';
-import { toDecimal } from '@/lib/money';
+import { toDecimal, toMoney2dp } from '@/lib/money';
 
 // Full update a currency
 export async function PUT(
@@ -86,7 +86,7 @@ export async function PUT(
 
                     await tx.transaction.update({
                         where: { id: txn.id },
-                        data: { amountInBase: newAmountInBase.toString() },
+                        data: { amountInBase: toMoney2dp(newAmountInBase) },
                     });
                 }
 

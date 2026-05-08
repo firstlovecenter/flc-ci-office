@@ -47,3 +47,15 @@ export function isPositive(a: MoneyInput): boolean {
 export function moneyToString(value: MoneyInput): string {
     return toDecimal(value).toFixed();
 }
+
+/**
+ * Clamp a money value to exactly 2 decimal places using ROUND_HALF_UP and
+ * return it as a string suitable for writing to a Prisma Decimal column.
+ *
+ * Use this whenever persisting an amount, amountInBase, or charge to the DB,
+ * so balances and statements always render to cents. Computing/comparing
+ * still uses full Decimal precision via toDecimal/sumDecimals/etc.
+ */
+export function toMoney2dp(value: MoneyInput): string {
+    return toDecimal(value).toDecimalPlaces(2, D.ROUND_HALF_UP).toFixed(2);
+}

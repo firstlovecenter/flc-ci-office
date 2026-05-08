@@ -3,7 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import crypto from 'crypto';
-import { toDecimal } from '@/lib/money';
+import { toDecimal, toMoney2dp } from '@/lib/money';
 
 export async function POST(req: NextRequest) {
     try {
@@ -74,7 +74,7 @@ export async function POST(req: NextRequest) {
 
                 await prisma.transaction.update({
                     where: { id: tx.id },
-                    data: { amountInBase: newAmountInBase.toString() },
+                    data: { amountInBase: toMoney2dp(newAmountInBase) },
                 });
 
                 updatedCount++;

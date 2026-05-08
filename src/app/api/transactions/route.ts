@@ -11,7 +11,7 @@ import { generatePendingApprovalEmail, generateCreditAlertEmail, generateDebitAl
 import { getDescendantDepartmentIds, hasDepartmentAccess } from '@/lib/departments';
 import { getUserBaseCurrency, convertToUserBaseCurrency } from '@/lib/currency-conversion';
 import { formatTimeInExpenseWindowTimeZone, getExpenseWindowStatus } from '@/lib/expense-window';
-import { toDecimal, gt, isPositive, moneyToString } from '@/lib/money';
+import { toDecimal, gt, isPositive, moneyToString, toMoney2dp } from '@/lib/money';
 import { getDepartmentApprovedBalance } from '@/lib/balance';
 
 // Force dynamic rendering - data is user/role specific
@@ -298,11 +298,13 @@ export async function POST(request: Request) {
         }
 
         // Calculate amount in base currency using Decimal arithmetic to avoid float drift.
+        // Persist clamped to 2dp so balances always render to cents.
         const amountDec = toDecimal(amount);
         const amountInBaseDec = currencyId && exchangeRate
             ? amountDec.mul(toDecimal(exchangeRate))
             : amountDec;
-        const amountInBase = amountInBaseDec.toString();
+        const amountToPersist = toMoney2dp(amountDec);
+        const amountInBase = toMoney2dp(amountInBaseDec);
 
         // All roles except SUPERADMIN require approval for EXPENSE transactions
         // All INCOME transactions are auto-approved (no approval needed)
@@ -341,7 +343,7 @@ export async function POST(request: Request) {
             data: {
                 id: crypto.randomUUID(),
                 type,
-                amount,
+                amount: amountToPersist,
                 currencyId: currencyId || null,
                 exchangeRate: exchangeRate || null,
                 amountInBase: amountInBase,
@@ -668,17 +670,19 @@ export async function PUT(request: Request) {
         }
 
         // Calculate amount in base currency using Decimal arithmetic to avoid float drift.
+        // Persist clamped to 2dp so balances always render to cents.
         const amountDec = toDecimal(amount);
-        const amountInBase = (currencyId && exchangeRate
+        const amountInBaseDec = currencyId && exchangeRate
             ? amountDec.mul(toDecimal(exchangeRate))
-            : amountDec
-        ).toString();
+            : amountDec;
+        const amountToPersist = toMoney2dp(amountDec);
+        const amountInBase = toMoney2dp(amountInBaseDec);
 
         const updatedTransaction = await prisma.transaction.update({
             where: { id },
             data: {
                 type,
-                amount,
+                amount: amountToPersist,
                 description,
                 departmentId,
                 currencyId: currencyId || null,

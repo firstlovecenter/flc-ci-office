@@ -3,7 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import crypto from 'crypto';
-import { toDecimal } from '@/lib/money';
+import { toDecimal, toMoney2dp } from '@/lib/money';
 
 // Force dynamic rendering - data is user/role specific
 export const dynamic = 'force-dynamic';
@@ -288,7 +288,7 @@ export async function PATCH(request: NextRequest) {
 
                 await prisma.transaction.update({
                     where: { id: tx.id },
-                    data: { amountInBase: newAmountInBase.toString() },
+                    data: { amountInBase: toMoney2dp(newAmountInBase) },
                 });
             }
         }

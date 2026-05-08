@@ -9,7 +9,7 @@ import { sendEmail } from '@/lib/email';
 import { generatePendingApprovalRequestSms, generateDebitAlertSms, generatePublicExpenseLeaderApprovedSms, generatePublicExpenseLeaderDeclinedSms } from '@/lib/sms-templates';
 import { generatePendingApprovalEmail } from '@/lib/email-templates';
 import { getDescendantDepartmentIds, getLeaderRoleForLevel } from '@/lib/departments';
-import { toDecimal, gt, isPositive, moneyToString } from '@/lib/money';
+import { toDecimal, gt, isPositive, moneyToString, toMoney2dp } from '@/lib/money';
 import { getDepartmentApprovedBalance } from '@/lib/balance';
 
 export const dynamic = 'force-dynamic';
@@ -142,8 +142,8 @@ export async function PATCH(
             data: {
                 id: crypto.randomUUID(),
                 type: 'EXPENSE',
-                amount: publicRequest.amount,
-                amountInBase: publicRequest.amount,
+                amount: toMoney2dp(publicRequest.amount),
+                amountInBase: toMoney2dp(publicRequest.amount),
                 description,
                 departmentId,
                 userId: session.user.id,

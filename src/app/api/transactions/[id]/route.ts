@@ -9,7 +9,7 @@ import { generateTransactionApprovedSms, generateTransactionDeclinedSms, generat
 import { sendEmail } from '@/lib/email';
 import { generateTransactionApprovedEmail, generateTransactionDeclinedEmail, generateTransactionChargeEmail, generateCreditAlertEmail, generateDebitAlertEmail, generateTransactionEditEmail } from '@/lib/email-templates';
 import { formatNumber, isWeekLocked, getWeekFromDate } from '@/lib/utils';
-import { toDecimal, eq, moneyToString } from '@/lib/money';
+import { toDecimal, eq, moneyToString, toMoney2dp } from '@/lib/money';
 import { getDepartmentApprovedBalance } from '@/lib/balance';
 
 export async function PUT(
@@ -90,11 +90,13 @@ export async function PUT(
             }
         }
 
-        // Calculate amount in base currency if using a different currency
-        let amountInBase = amount; // Default to the original amount
-        if (currencyId && exchangeRate) {
-            amountInBase = amount * exchangeRate;
-        }
+        // Calculate amount in base currency using Decimal arithmetic and clamp to 2dp.
+        const amountDec = toDecimal(amount);
+        const amountInBaseDec = currencyId && exchangeRate
+            ? amountDec.mul(toDecimal(exchangeRate))
+            : amountDec;
+        const amountToPersist = toMoney2dp(amountDec);
+        const amountInBase = toMoney2dp(amountInBaseDec);
 
         // If date is provided, recalculate week number and year from the new date
         let weekData: { weekNumber?: number; year?: number } = {};
@@ -109,7 +111,7 @@ export async function PUT(
             where: { id: transactionId },
             data: {
                 type,
-                amount,
+                amount: amountToPersist,
                 description,
                 departmentId,
                 currencyId: currencyId || null,
@@ -340,8 +342,8 @@ export async function PATCH(
                 data: {
                     id: crypto.randomUUID(),
                     type: 'EXPENSE', // Transaction charge is always a debit/expense
-                    amount: chargeDec.toString(),
-                    amountInBase: chargeAmountInBaseDec.toString(),
+                    amount: toMoney2dp(chargeDec),
+                    amountInBase: toMoney2dp(chargeAmountInBaseDec),
                     description: `Transaction charge for: ${transaction.description.substring(0, 50)}${transaction.description.length > 50 ? '...' : ''} - Ref: ${transaction.id.substring(0, 8)}`,
                     departmentId: transaction.departmentId,
                     userId: session.user.id, // Charge created by approving admin

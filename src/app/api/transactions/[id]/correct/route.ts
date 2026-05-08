@@ -4,7 +4,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { createAuditLog } from '@/lib/audit';
 import { formatCurrency, formatNumber } from '@/lib/utils';
-import { toDecimal, moneyToString } from '@/lib/money';
+import { toDecimal, moneyToString, toMoney2dp } from '@/lib/money';
 import { getDepartmentApprovedBalance } from '@/lib/balance';
 import { sendSms } from '@/lib/sms';
 import { generateCorrectionNotificationSms, generateDepartmentTransferSms } from '@/lib/sms-templates';
@@ -118,8 +118,8 @@ export async function POST(
                 data: {
                     id: crypto.randomUUID(),
                     type: reverseType,
-                    amount: originalAmountDec.toString(),
-                    amountInBase: reverseAmountInBaseDec.toString(),
+                    amount: toMoney2dp(originalAmountDec),
+                    amountInBase: toMoney2dp(reverseAmountInBaseDec),
                     description: reverseDescription,
                     departmentId: originalTransaction.departmentId,
                     userId: session.user.id,
@@ -150,8 +150,8 @@ export async function POST(
                 data: {
                     id: crypto.randomUUID(),
                     type: originalTransaction.type,
-                    amount: newAmountDec.toString(),
-                    amountInBase: newAmountInBaseDec.toString(),
+                    amount: toMoney2dp(newAmountDec),
+                    amountInBase: toMoney2dp(newAmountInBaseDec),
                     description: newDescription,
                     departmentId: targetDepartmentId,
                     userId: session.user.id,
@@ -324,8 +324,8 @@ export async function POST(
             data: {
                 id: crypto.randomUUID(),
                 type: correctionType,
-                amount: absoluteCorrectionDec.toString(),
-                amountInBase: correctionAmountInBaseDec.toString(),
+                amount: toMoney2dp(absoluteCorrectionDec),
+                amountInBase: toMoney2dp(correctionAmountInBaseDec),
                 description: correctionDescription,
                 departmentId: originalTransaction.departmentId,
                 userId: session.user.id, // Correction created by admin
