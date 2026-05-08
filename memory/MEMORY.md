@@ -1,1 +1,0 @@
-- [Show exact transaction amounts, never rounded](feedback_exact_amounts.md) — UI must show real spendable figures; never paper over precision drift with rounding
