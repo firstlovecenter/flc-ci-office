@@ -3,7 +3,10 @@ import { Providers } from "./providers";
 import "./globals.css";
 
 export const viewport: Viewport = {
-  themeColor: "#60a5fa",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#F5F6F4" },
+    { media: "(prefers-color-scheme: dark)", color: "#0B0E13" },
+  ],
   width: "device-width",
   initialScale: 1,
   maximumScale: 5,

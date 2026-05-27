@@ -316,20 +316,12 @@ function DepartmentsPageContent() {
                         </InputAdornment>
                     ),
                 }}
-                sx={{ 
+                sx={{
                     mb: 3,
+                    maxWidth: 480,
                     '& .MuiOutlinedInput-root': {
-                        transition: 'all 0.2s',
-                        background: 'background.paper',
-                        borderRadius: 3,
-                        boxShadow: 'none',
-                        '&:hover': {
-                            boxShadow: '0 8px 25px rgba(0, 0, 0, 0.15)',
-                        },
-                        '&.Mui-focused': {
-                            boxShadow: (theme) => `0 8px 25px ${alpha(theme.palette.primary.main, 0.2)}`,
-                        }
-                    }
+                        borderRadius: 999,
+                    },
                 }}
                 size="small"
             />
@@ -342,22 +334,20 @@ function DepartmentsPageContent() {
                     const subDeptCount = dept._count?.children || 0;
                     
                     return (
-                        <Card 
+                        <Card
                             key={dept.id}
-                            sx={{ 
+                            sx={(theme) => ({
                                 p: 0,
                                 borderRadius: 3,
                                 bgcolor: 'background.paper',
-                                border: '1px solid',
-                                borderColor: 'divider',
+                                border: `1px solid ${theme.palette.divider}`,
                                 boxShadow: 'none',
-                                transition: 'all 0.2s ease-in-out',
+                                transition: 'border-color 160ms ease, background-color 160ms ease',
                                 '&:hover': {
-                                    borderColor: 'primary.main',
-                                    transform: 'translateY(-2px)',
-                                    boxShadow: '0 4px 12px rgba(0,0,0,0.05)'
-                                }
-                            }}
+                                    borderColor: alpha(theme.palette.text.primary, 0.2),
+                                    bgcolor: alpha(theme.palette.text.primary, 0.02),
+                                },
+                            })}
                         >
                             <CardActionArea 
                                 onClick={() => {

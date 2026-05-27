@@ -539,20 +539,14 @@ function TransactionsPageContent() {
             <GlassCard sx={{ p: 3, mb: 3 }}>
                 <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center' }}>
                     <TextField
-                        placeholder="Search transactions..."
+                        placeholder="Search transactions…"
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
-                        sx={{ 
-                            flexGrow: 1, 
+                        sx={{
+                            flexGrow: 1,
                             minWidth: 250,
                             '& .MuiOutlinedInput-root': {
-                                transition: 'all 0.2s ease',
-                                '&:hover': {
-                                    boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
-                                },
-                                '&.Mui-focused': {
-                                    boxShadow: '0 4px 12px rgba(102, 126, 234, 0.15)',
-                                },
+                                borderRadius: 999,
                             },
                         }}
                         InputProps={{

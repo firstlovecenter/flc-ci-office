@@ -27,139 +27,6 @@ import { Role } from '@prisma/client';
 import { BarChart, Bar, XAxis, Tooltip, ResponsiveContainer, Cell, LabelList } from 'recharts';
 import { AnimatedCounter, StatCardSkeleton, ChartSkeleton, GlassCard, SimpleStatCard } from '@/components/ui';
 
-// Gradient Dashboard Stat Card (Standard Style)
-const GradientStatCard = ({
-    title,
-    amount,
-    icon: Icon,
-    gradient,
-    currencySymbol,
-    isBlinking = false
-}: {
-    title: string;
-    amount: number | string;
-    icon: React.ElementType;
-    gradient: string;
-    currencySymbol?: string;
-    isBlinking?: boolean;
-}) => {
-    return (
-        <Box
-            sx={{
-                position: 'relative',
-                p: { xs: 1.5, sm: 2, md: 2.5 },
-                borderRadius: 3,
-                background: gradient,
-                overflow: 'hidden',
-                boxShadow: '0 8px 32px rgba(0, 0, 0, 0.12)',
-                transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                '@keyframes blink': {
-                    '0%, 100%': { opacity: 1 },
-                    '50%': { opacity: 0.6 }
-                },
-                animation: isBlinking ? 'blink 1.5s ease-in-out infinite' : 'none',
-                '&:hover': {
-                    transform: 'translateY(-4px)',
-                    boxShadow: '0 12px 40px rgba(0, 0, 0, 0.2)',
-                },
-                '&::before': {
-                    content: '""',
-                    position: 'absolute',
-                    top: 0,
-                    left: 0,
-                    right: 0,
-                    bottom: 0,
-                    background: 'linear-gradient(135deg, rgba(255,255,255,0.1) 0%, transparent 50%)',
-                    pointerEvents: 'none',
-                },
-            }}
-        >
-            <Box
-                sx={{
-                    position: 'absolute',
-                    top: -20,
-                    right: -20,
-                    width: 100,
-                    height: 100,
-                    borderRadius: '50%',
-                    background: 'rgba(255, 255, 255, 0.1)',
-                }}
-            />
-            <Box
-                sx={{
-                    position: 'absolute',
-                    bottom: -30,
-                    right: 30,
-                    width: 60,
-                    height: 60,
-                    borderRadius: '50%',
-                    background: 'rgba(255, 255, 255, 0.08)',
-                }}
-            />
-            
-            <Stack spacing={{ xs: 1, sm: 1.25 }} sx={{ position: 'relative', zIndex: 1 }}>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <Typography 
-                        variant="body2" 
-                        sx={{ 
-                            color: 'rgba(255, 255, 255, 0.9)',
-                            fontWeight: 500,
-                            fontSize: { xs: '0.7rem', sm: '0.8rem' },
-                            letterSpacing: '0.5px',
-                        }}
-                    >
-                        {title}
-                    </Typography>
-                    <Box
-                        sx={{
-                            width: { xs: 32, sm: 40 },
-                            height: { xs: 32, sm: 40 },
-                            borderRadius: 2,
-                            bgcolor: 'rgba(255, 255, 255, 0.2)',
-                            backdropFilter: 'blur(10px)',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            transition: 'transform 0.3s ease',
-                            '&:hover': {
-                                transform: 'rotate(10deg) scale(1.1)',
-                            }
-                        }}
-                    >
-                        <Icon sx={{ fontSize: { xs: 16, sm: 20 }, color: 'white' }} />
-                    </Box>
-                </Box>
-                <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.5 }}>
-                    {currencySymbol && (
-                        <Typography 
-                            component="span" 
-                            sx={{ 
-                                color: 'white', 
-                                fontSize: { xs: '0.75rem', sm: '0.9rem' },
-                                fontWeight: 600,
-                                opacity: 0.9,
-                                mr: 0.25
-                            }}
-                        >
-                            {currencySymbol}
-                        </Typography>
-                    )}
-                    <AnimatedCounter
-                        value={amount}
-                        duration={1200}
-                        sx={{
-                            color: 'white',
-                            fontSize: { xs: '1.1rem', sm: '1.35rem', md: '1.6rem' },
-                            fontWeight: 700,
-                            textShadow: '0 2px 4px rgba(0,0,0,0.1)',
-                            letterSpacing: '-0.03em',
-                        }}
-                    />
-                </Box>
-            </Stack>
-        </Box>
-    );
-};
 
 // Minimalistic Dashboard Stat Card (SuperAdmin only)
 const MinimalStatCard = ({ 
@@ -501,21 +368,6 @@ export default function DashboardPage() {
         return theme.palette.success.main;
     };
 
-    // Different stat cards for leaders vs admins
-    const getGradient = (type: string, balance?: number | string) => {
-        const b = balance !== undefined ? Number(balance) : undefined;
-        if (type === 'balance') {
-            if (b !== undefined && b < 0) return 'linear-gradient(135deg, #ef5350 0%, #c62828 100%)';
-            if (b !== undefined && b === 0) return 'linear-gradient(135deg, #ff9800 0%, #f57c00 100%)';
-            if (b !== undefined && b < 5000) return 'linear-gradient(135deg, #ffc107 0%, #ff9800 100%)';
-            return 'linear-gradient(135deg, #66bb6a 0%, #43a047 100%)';
-        }
-        if (type === 'income') return 'linear-gradient(135deg, #4caf50 0%, #2e7d32 100%)';
-        if (type === 'expense') return 'linear-gradient(135deg, #ef5350 0%, #c62828 100%)';
-        if (type === 'weeklyIncome') return 'linear-gradient(135deg, #42a5f5 0%, #1976d2 100%)';
-        return 'linear-gradient(135deg, #7c4dff 0%, #651fff 100%)';
-    };
-
     const getStatColor = (type: string, balance?: number | string) => {
         const b = balance !== undefined ? Number(balance) : undefined;
         if (type === 'balance') {
@@ -527,124 +379,26 @@ export default function DashboardPage() {
         if (type === 'income') return theme.palette.success.main;
         if (type === 'expense') return theme.palette.error.main;
         if (type === 'weeklyIncome') return theme.palette.info.main;
-        return theme.palette.primary.main;
+        return theme.palette.text.primary;
     };
 
     const statCards = isSuperAdmin && stats.superAdminStats ? [
-        {
-            title: 'Total Users',
-            amount: stats.superAdminStats.users,
-            icon: PeopleIcon,
-            gradient: 'linear-gradient(135deg, #42a5f5 0%, #1976d2 100%)',
-            color: theme.palette.primary.main,
-            isBlinking: false
-        },
-        {
-            title: 'Total Departments',
-            amount: stats.superAdminStats.departments,
-            icon: BusinessIcon,
-            gradient: 'linear-gradient(135deg, #ffa726 0%, #f57c00 100%)',
-            color: theme.palette.warning.main,
-            isBlinking: false
-        },
-        {
-            title: 'Total Transactions',
-            amount: stats.superAdminStats.transactions,
-            icon: ReceiptIcon,
-            gradient: 'linear-gradient(135deg, #26c6da 0%, #00acc1 100%)',
-            color: theme.palette.info.main,
-            isBlinking: false
-        },
-        {
-            title: 'Pending Approvals',
-            amount: stats.superAdminStats.pendingApprovals,
-            icon: PendingActionsIcon,
-            gradient: 'linear-gradient(135deg, #ef5350 0%, #e53935 100%)',
-            color: theme.palette.error.main,
-            isBlinking: stats.superAdminStats.pendingApprovals > 0
-        },
-        {
-            title: "Today's Logins",
-            amount: stats.superAdminStats.todaysLogins,
-            icon: VerifiedUserIcon,
-            gradient: 'linear-gradient(135deg, #66bb6a 0%, #43a047 100%)',
-            color: theme.palette.success.main,
-            isBlinking: false
-        },
-        {
-            title: 'Active Currencies',
-            amount: stats.superAdminStats.activeCurrencies,
-            icon: MonetizationOnIcon,
-            gradient: 'linear-gradient(135deg, #7e57c2 0%, #5e35b1 100%)',
-            color: theme.palette.secondary.main,
-            isBlinking: false
-        },
-        {
-            title: 'Critical Errors (Today)',
-            amount: stats.superAdminStats.criticalErrors,
-            icon: ErrorOutlineIcon,
-            gradient: 'linear-gradient(135deg, #FF5252 0%, #FF1744 100%)',
-            color: theme.palette.error.dark,
-            isBlinking: stats.superAdminStats.criticalErrors > 0
-        },
-        {
-            title: 'Active Departments',
-            amount: stats.superAdminStats.activeDepartments,
-            icon: BusinessIcon,
-            gradient: 'linear-gradient(135deg, #ab47bc 0%, #8e24aa 100%)',
-            color: theme.palette.secondary.dark,
-            isBlinking: false
-        }
+        { title: 'Total Users', amount: stats.superAdminStats.users, icon: PeopleIcon, color: theme.palette.text.primary, isBlinking: false },
+        { title: 'Total Departments', amount: stats.superAdminStats.departments, icon: BusinessIcon, color: theme.palette.warning.main, isBlinking: false },
+        { title: 'Total Transactions', amount: stats.superAdminStats.transactions, icon: ReceiptIcon, color: theme.palette.info.main, isBlinking: false },
+        { title: 'Pending Approvals', amount: stats.superAdminStats.pendingApprovals, icon: PendingActionsIcon, color: theme.palette.error.main, isBlinking: stats.superAdminStats.pendingApprovals > 0 },
+        { title: "Today's Logins", amount: stats.superAdminStats.todaysLogins, icon: VerifiedUserIcon, color: theme.palette.success.main, isBlinking: false },
+        { title: 'Active Currencies', amount: stats.superAdminStats.activeCurrencies, icon: MonetizationOnIcon, color: theme.palette.text.primary, isBlinking: false },
+        { title: 'Critical Errors (Today)', amount: stats.superAdminStats.criticalErrors, icon: ErrorOutlineIcon, color: theme.palette.error.dark, isBlinking: stats.superAdminStats.criticalErrors > 0 },
+        { title: 'Active Departments', amount: stats.superAdminStats.activeDepartments, icon: BusinessIcon, color: theme.palette.text.primary, isBlinking: false },
     ] : isLeader ? [
-        {
-            title: 'Account Balance',
-            amount: stats.balance || 0,
-            icon: AccountBalanceWalletIcon,
-            gradient: getGradient('balance', stats.balance),
-            color: getStatColor('balance', stats.balance),
-            isBlinking: Number(stats.balance || 0) < 5000
-        },
-        {
-            title: "This Week's Income",
-            amount: stats.weeklyIncome || 0,
-            icon: TrendingUpIcon,
-            gradient: getGradient('weeklyIncome'),
-            color: getStatColor('weeklyIncome'),
-            isBlinking: false
-        }
+        { title: 'Account Balance', amount: stats.balance || 0, icon: AccountBalanceWalletIcon, color: getStatColor('balance', stats.balance), isBlinking: Number(stats.balance || 0) < 5000 },
+        { title: "This Week's Income", amount: stats.weeklyIncome || 0, icon: TrendingUpIcon, color: getStatColor('weeklyIncome'), isBlinking: false },
     ] : [
-        {
-            title: 'Account Balance',
-            amount: stats.balance || 0,
-            icon: AccountBalanceWalletIcon,
-            gradient: getGradient('balance', stats.balance),
-            color: getStatColor('balance', stats.balance),
-            isBlinking: Number(stats.balance || 0) < 5000
-        },
-        {
-            title: 'Total Inflows',
-            amount: stats.income || 0,
-            icon: TrendingUpIcon,
-            gradient: getGradient('income'),
-            color: getStatColor('income'),
-            isBlinking: false
-        },
-        {
-            title: 'Total Expenses',
-            amount: stats.expense || 0,
-            icon: TrendingDownIcon,
-            gradient: getGradient('expense'),
-            color: getStatColor('expense'),
-            isBlinking: false
-        },
-        {
-            title: "This Week's Income",
-            amount: stats.weeklyIncome || 0,
-            icon: TrendingUpIcon,
-            gradient: getGradient('weeklyIncome'),
-            color: getStatColor('weeklyIncome'),
-            isBlinking: false
-        }
+        { title: 'Account Balance', amount: stats.balance || 0, icon: AccountBalanceWalletIcon, color: getStatColor('balance', stats.balance), isBlinking: Number(stats.balance || 0) < 5000 },
+        { title: 'Total Inflows', amount: stats.income || 0, icon: TrendingUpIcon, color: getStatColor('income'), isBlinking: false },
+        { title: 'Total Expenses', amount: stats.expense || 0, icon: TrendingDownIcon, color: getStatColor('expense'), isBlinking: false },
+        { title: "This Week's Income", amount: stats.weeklyIncome || 0, icon: TrendingUpIcon, color: getStatColor('weeklyIncome'), isBlinking: false },
     ];
 
     const renderChartContent = () => (

@@ -336,7 +336,16 @@ export default function ModernDashboardLayout({ children }: { children: React.Re
                             >
                                 <Avatar
                                     src={session?.user?.image || undefined}
-                                    sx={{ width: 34, height: 34, bgcolor: theme.palette.primary.main, flexShrink: 0 }}
+                                    sx={{
+                                        width: 32,
+                                        height: 32,
+                                        bgcolor: alpha(theme.palette.text.primary, 0.10),
+                                        color: theme.palette.text.primary,
+                                        fontSize: '0.875rem',
+                                        fontWeight: 600,
+                                        border: `1px solid ${theme.palette.divider}`,
+                                        flexShrink: 0,
+                                    }}
                                 >
                                     {session?.user?.name?.[0]?.toUpperCase() || 'U'}
                                 </Avatar>
@@ -390,7 +399,16 @@ export default function ModernDashboardLayout({ children }: { children: React.Re
                             <Tooltip title={session?.user?.name || 'Profile'} placement="right">
                                 <Avatar
                                     src={session?.user?.image || undefined}
-                                    sx={{ width: 30, height: 30, cursor: 'pointer', bgcolor: theme.palette.primary.main }}
+                                    sx={{
+                                        width: 30,
+                                        height: 30,
+                                        cursor: 'pointer',
+                                        bgcolor: alpha(theme.palette.text.primary, 0.10),
+                                        color: theme.palette.text.primary,
+                                        fontSize: '0.8125rem',
+                                        fontWeight: 600,
+                                        border: `1px solid ${theme.palette.divider}`,
+                                    }}
                                     onClick={() => handleMenuItemClick('/profile')}
                                 >
                                     {session?.user?.name?.[0]?.toUpperCase() || 'U'}

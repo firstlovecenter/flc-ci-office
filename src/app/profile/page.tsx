@@ -359,15 +359,17 @@ export default function ProfilePage() {
                     <Box sx={{ position: 'relative', display: 'inline-block' }}>
                         <Avatar
                             src={formData.image || undefined}
-                            sx={{ 
-                                width: 120, 
-                                height: 120,
+                            sx={(theme) => ({
+                                width: 112,
+                                height: 112,
                                 mx: 'auto',
                                 mb: 1.5,
-                                border: '4px solid',
-                                borderColor: 'background.paper',
-                                boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
-                            }}
+                                fontSize: '2.25rem',
+                                fontWeight: 600,
+                                bgcolor: alpha(theme.palette.text.primary, 0.08),
+                                color: theme.palette.text.primary,
+                                border: `1px solid ${theme.palette.divider}`,
+                            })}
                         >
                             {profile.name?.[0]?.toUpperCase() || profile.email[0]?.toUpperCase()}
                         </Avatar>

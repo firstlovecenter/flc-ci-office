@@ -172,10 +172,10 @@ export default function PullToRefresh({ children, onRefresh }: PullToRefreshProp
                             color={progress >= 100 ? 'primary.main' : 'text.secondary'}
                             sx={{ fontWeight: 500 }}
                         >
-                            {isRefreshing 
-                                ? 'Refreshing...' 
-                                : progress >= 100 
-                                    ? 'Release to refresh' 
+                            {isRefreshing
+                                ? 'Refreshing…'
+                                : progress >= 100
+                                    ? 'Release to refresh'
                                     : 'Pull to refresh'}
                         </Typography>
                     </Box>

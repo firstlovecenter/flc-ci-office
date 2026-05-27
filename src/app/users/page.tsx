@@ -379,12 +379,15 @@ function UsersPageContent() {
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                                 <Avatar
                                     src={user.image || undefined}
-                                    sx={{
-                                        width: 50,
-                                        height: 50,
-                                        bgcolor: 'primary.main',
-                                        fontSize: '1.25rem',
-                                    }}
+                                    sx={(theme) => ({
+                                        width: 44,
+                                        height: 44,
+                                        bgcolor: alpha(theme.palette.text.primary, 0.10),
+                                        color: theme.palette.text.primary,
+                                        fontSize: '1rem',
+                                        fontWeight: 600,
+                                        border: `1px solid ${theme.palette.divider}`,
+                                    })}
                                 >
                                     {user.name?.[0]?.toUpperCase() || 'U'}
                                 </Avatar>
