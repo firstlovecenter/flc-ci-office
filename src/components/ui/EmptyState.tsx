@@ -28,35 +28,56 @@ const EmptyState = ({
                 flexDirection: 'column',
                 alignItems: 'center',
                 justifyContent: 'center',
-                py: { xs: 6, sm: 8 },
+                py: { xs: 7, sm: 10 },
                 px: 3,
                 textAlign: 'center',
             }}
         >
             <Box
                 sx={{
-                    width: 64,
-                    height: 64,
-                    borderRadius: 3,
+                    width: 56,
+                    height: 56,
+                    borderRadius: '50%',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    bgcolor: alpha(theme.palette.text.disabled, 0.08),
-                    mb: 2,
+                    border: `1px solid ${theme.palette.divider}`,
+                    color: theme.palette.text.disabled,
+                    mb: 3,
                 }}
             >
-                <Icon sx={{ fontSize: 32, color: theme.palette.text.disabled }} />
+                <Icon sx={{ fontSize: 24 }} />
             </Box>
-            <Typography variant="h6" fontWeight={600} color="text.secondary" gutterBottom>
+            <Typography
+                sx={{
+                    fontFamily: theme.typography.h3.fontFamily,
+                    fontSize: '1.25rem',
+                    fontWeight: 500,
+                    letterSpacing: '-0.015em',
+                    color: 'text.primary',
+                    mb: description ? 1 : 0,
+                }}
+            >
                 {title}
             </Typography>
             {description && (
-                <Typography variant="body2" color="text.disabled" sx={{ maxWidth: 320, mb: action ? 3 : 0 }}>
+                <Typography
+                    variant="body2"
+                    color="text.secondary"
+                    sx={{ maxWidth: 380, mb: action ? 3 : 0 }}
+                >
                     {description}
                 </Typography>
             )}
             {action && (
-                <Button variant="outlined" size="small" onClick={action.onClick} sx={{ mt: description ? 0 : 2 }}>
+                <Button
+                    variant="outlined"
+                    onClick={action.onClick}
+                    sx={{
+                        mt: description ? 0 : 2,
+                        borderColor: alpha(theme.palette.text.primary, 0.2),
+                    }}
+                >
                     {action.label}
                 </Button>
             )}

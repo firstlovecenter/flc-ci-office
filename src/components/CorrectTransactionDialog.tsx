@@ -136,7 +136,7 @@ export default function CorrectTransactionDialog({
 
     return (
         <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth>
-            <DialogTitle>Correct Transaction</DialogTitle>
+            <DialogTitle>Correct transaction</DialogTitle>
             <DialogContent>
                 {error && (
                     <Alert severity="error" sx={{ mb: 3 }}>

@@ -17,6 +17,7 @@ import {
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import SearchIcon from '@mui/icons-material/Search';
+import BusinessIcon from '@mui/icons-material/Business';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import EditDepartmentDialog from '@/components/EditDepartmentDialog';
@@ -232,50 +233,71 @@ function DepartmentsPageContent() {
 
     return (
         <Box>
-            {/* Header Section */}
-            <Box sx={{ mb: 3 }}>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1 }}>
-                    <Box>
-                        <Typography variant="h5" fontWeight="700">
-                            {parentDepartment ? `${parentDepartment.name} ${getSubLevelName(parentDepartment.level)}` : 'Churches'}
-                        </Typography>
-                        {parentLeader && (
-                            <Typography variant="body2" color="text.secondary">
-                                <Box component="span" sx={{ color: 'warning.main' }}>Overseer:</Box>{' '}
-                                <Box component="span" sx={{ color: 'text.primary' }}>{parentLeader.name || parentLeader.email}</Box>
-                            </Typography>
-                        )}
-                        {parentAdmin && (
-                            <Typography variant="body2" color="text.secondary">
-                                <Box component="span" sx={{ color: 'warning.main' }}>Admin:</Box>{' '}
-                                <Box component="span" sx={{ color: 'text.primary' }}>{parentAdmin.name || parentAdmin.email}</Box>
-                            </Typography>
-                        )}
+            {/* Page Header */}
+            <Box
+                sx={(theme) => ({
+                    display: 'flex',
+                    alignItems: { xs: 'flex-start', sm: 'flex-end' },
+                    justifyContent: 'space-between',
+                    gap: 2,
+                    flexWrap: 'wrap',
+                    mb: { xs: 3, md: 4 },
+                    pb: { xs: 2.5, md: 3 },
+                    borderBottom: `1px solid ${theme.palette.divider}`,
+                })}
+            >
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2.5, minWidth: 0, flex: 1 }}>
+                    <Box
+                        sx={(theme) => ({
+                            width: 48,
+                            height: 48,
+                            borderRadius: 1.5,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            bgcolor: alpha(theme.palette.secondary.main, 0.10),
+                            color: theme.palette.secondary.main,
+                            flexShrink: 0,
+                        })}
+                    >
+                        <BusinessIcon sx={{ fontSize: 22 }} />
                     </Box>
-                    {canCreateDepartment && (
-                        <Button 
-                            component={Link}
-                            href={parentParam ? `/departments/new?parent=${parentParam}` : '/departments/new'}
-                            variant="contained" 
-                            startIcon={<AddIcon />} 
-                            size="small"
+                    <Box sx={{ minWidth: 0 }}>
+                        <Typography variant="overline" sx={{ display: 'block', mb: 0.5 }}>
+                            {parentDepartment ? 'Sub-departments' : 'Hierarchy'}
+                        </Typography>
+                        <Typography
+                            component="h1"
+                            sx={(theme) => ({
+                                fontFamily: theme.typography.h2.fontFamily,
+                                fontSize: { xs: '1.625rem', sm: '1.875rem', md: '2.125rem' },
+                                fontWeight: 600,
+                                letterSpacing: '-0.025em',
+                                lineHeight: 1.15,
+                            })}
                         >
-                            Add New
-                        </Button>
-                    )}
+                            {parentDepartment
+                                ? `${parentDepartment.name} ${getSubLevelName(parentDepartment.level)}`
+                                : 'Churches'}
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75 }}>
+                            {departments.length} {departments.length === 1 ? 'entry' : 'entries'}
+                            {parentLeader ? ` · Overseer: ${parentLeader.name || parentLeader.email}` : ''}
+                            {parentAdmin ? ` · Admin: ${parentAdmin.name || parentAdmin.email}` : ''}
+                        </Typography>
+                    </Box>
                 </Box>
-            </Box>
-
-            {/* Stats Cards */}
-            <Box sx={{ display: 'flex', gap: 3, mb: 3 }}>
-                <Box>
-                    <Typography variant="caption" color="text.secondary">
-                        {parentDepartment ? getSubLevelName(parentDepartment.level) : 'Churches'}
-                    </Typography>
-                    <Typography variant="h4" fontWeight="700" color="primary.main">
-                        {departments.length}
-                    </Typography>
-                </Box>
+                {canCreateDepartment && (
+                    <Button
+                        component={Link}
+                        href={parentParam ? `/departments/new?parent=${parentParam}` : '/departments/new'}
+                        variant="contained"
+                        color="primary"
+                        startIcon={<AddIcon sx={{ fontSize: 18 }} />}
+                    >
+                        Add new
+                    </Button>
+                )}
             </Box>
 
             {/* Search Bar */}

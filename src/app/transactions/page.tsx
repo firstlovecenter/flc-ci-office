@@ -51,7 +51,7 @@ import { useSession } from 'next-auth/react';
 import EditTransactionDialog from '@/components/EditTransactionDialog';
 import ReceiptUpload from '@/components/ReceiptUpload';
 import { useToast } from '@/components/ToastProvider';
-import { AnimatedCounter, GlassCard, StatusChip, TableRowSkeleton } from '@/components/ui';
+import { AnimatedCounter, GlassCard, StatCard, StatusChip, TableRowSkeleton } from '@/components/ui';
 import { formatMoney } from '@/lib/format-money';
 
 type Transaction = {
@@ -399,204 +399,140 @@ function TransactionsPageContent() {
         }
     };
 
+    const balanceTone = (() => {
+        const b = Number(summary.balance);
+        if (b < 0) return 'error';
+        if (b === 0 || b < 5000) return 'warning';
+        return 'success';
+    })();
+
     return (
         <Box>
             {/* Page Header */}
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 4 }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+            <Box
+                sx={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: { xs: 'flex-start', sm: 'flex-end' },
+                    flexWrap: 'wrap',
+                    gap: 2,
+                    mb: { xs: 3, md: 4 },
+                    pb: { xs: 2.5, md: 3 },
+                    borderBottom: (theme) => `1px solid ${theme.palette.divider}`,
+                }}
+            >
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2.5, minWidth: 0, flex: 1 }}>
                     <Box
-                        sx={{
-                            width: 56,
-                            height: 56,
-                            borderRadius: 3,
-                            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                        sx={(theme) => ({
+                            width: 48,
+                            height: 48,
+                            borderRadius: 1.5,
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
-                            boxShadow: '0 4px 14px rgba(102, 126, 234, 0.4)',
-                        }}
+                            bgcolor: alpha(theme.palette.secondary.main, 0.10),
+                            color: theme.palette.secondary.main,
+                            flexShrink: 0,
+                        })}
                     >
-                        <ReceiptLongIcon sx={{ fontSize: 28, color: 'white' }} />
+                        <ReceiptLongIcon sx={{ fontSize: 22 }} />
                     </Box>
-                    <Box>
-                        <Typography 
-                            variant="h4" 
-                            fontWeight="700"
-                            sx={{
-                                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                                backgroundClip: 'text',
-                                WebkitBackgroundClip: 'text',
-                                WebkitTextFillColor: 'transparent',
-                            }}
+                    <Box sx={{ minWidth: 0 }}>
+                        <Typography variant="overline" sx={{ display: 'block', mb: 0.5 }}>
+                            Ledger
+                        </Typography>
+                        <Typography
+                            component="h1"
+                            sx={(theme) => ({
+                                fontFamily: theme.typography.h2.fontFamily,
+                                fontSize: { xs: '1.625rem', sm: '1.875rem', md: '2.125rem' },
+                                fontWeight: 500,
+                                letterSpacing: '-0.02em',
+                                lineHeight: 1.15,
+                                color: theme.palette.text.primary,
+                            })}
                         >
-                            {department?.name && department?.level 
-                                ? `${department.name} ${formatDepartmentLevel(department.level)}` 
+                            {department?.name && department?.level
+                                ? `${department.name} ${formatDepartmentLevel(department.level)}`
                                 : department?.name
                                     ? department.name
-                                    : 'Transactions History'}
+                                    : 'Transaction history'}
                         </Typography>
-                        <Typography variant="body2" color="text.secondary">
-                            {department ? 'Including sub-departments' : 'Manage and track all financial transactions'}
+                        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75, maxWidth: 560 }}>
+                            {department ? 'Including sub-departments.' : 'Every entry, recorded and reconciled.'}
                         </Typography>
                     </Box>
                 </Box>
-                <Button 
+                <Button
                     component={Link}
                     href={deptParam ? `/transactions/new?dept=${deptParam}` : '/transactions/new'}
-                    variant="contained" 
-                    startIcon={<AddIcon />}
-                        sx={{ 
-                            borderRadius: 2,
-                            px: 3,
-                            py: 1.5,
-                            textTransform: 'none',
-                            fontWeight: 600,
-                            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                            boxShadow: '0 4px 14px rgba(102, 126, 234, 0.4)',
-                            transition: 'all 0.3s ease',
-                            '&:hover': {
-                                transform: 'translateY(-2px)',
-                                boxShadow: '0 6px 20px rgba(102, 126, 234, 0.5)',
-                            },
-                        }}
-                    >
-                        {isLeader ? 'Request Expense' : 'New Transaction'}
-                    </Button>
+                    variant="contained"
+                    color="primary"
+                    startIcon={<AddIcon sx={{ fontSize: 18 }} />}
+                >
+                    {isLeader ? 'Request expense' : 'New transaction'}
+                </Button>
             </Box>
 
             {/* Summary Cards */}
             <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr 1fr' }, gap: 2, mb: 4 }}>
-                {/* Balance Card */}
-                <GlassCard
-                    variant="highlight"
-                    sx={{
-                        position: 'relative',
-                        background: (() => {
-                            const balance = Number(summary.balance);
-                            if (balance < 0) return 'linear-gradient(135deg, rgba(239, 83, 80, 0.1) 0%, rgba(198, 40, 40, 0.2) 100%)';
-                            if (balance === 0) return 'linear-gradient(135deg, rgba(255, 152, 0, 0.1) 0%, rgba(245, 124, 0, 0.2) 100%)';
-                            if (balance < 5000) return 'linear-gradient(135deg, rgba(255, 193, 7, 0.1) 0%, rgba(255, 152, 0, 0.2) 100%)';
-                            return 'linear-gradient(135deg, rgba(102, 187, 106, 0.1) 0%, rgba(67, 160, 71, 0.2) 100%)';
-                        })(),
-                        overflow: 'hidden',
-                        '@keyframes blink': {
-                            '0%, 100%': { opacity: 1 },
-                            '50%': { opacity: 0.6 }
-                        },
-                        animation: Number(summary.balance) > 0 && Number(summary.balance) < 5000 ? 'blink 1.5s ease-in-out infinite' : 'none',
-                    }}
-                >
-                    <Box sx={{ position: 'relative', zIndex: 1 }}>
-                        <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                            Account Balance
-                        </Typography>
+                <StatCard
+                    icon={<ReceiptLongIcon />}
+                    title="Account balance"
+                    gradient={balanceTone === 'error' ? 'expense' : balanceTone === 'warning' ? 'warning' : 'balance'}
+                    value={
                         <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.5 }}>
                             {baseCurrency && (
-                                <Typography component="span" sx={{ fontSize: '1.1rem', fontWeight: 600, color: 'text.primary' }}>
+                                <Box component="span" sx={{ fontSize: '0.95rem', color: 'text.secondary', fontWeight: 500 }}>
                                     {baseCurrency.symbol}
-                                </Typography>
+                                </Box>
                             )}
                             <AnimatedCounter
                                 value={summary.balance}
                                 duration={1000}
-                                sx={{
-                                    fontSize: '1.75rem',
-                                    fontWeight: 700,
-                                    color: Number(summary.balance) < 0 ? 'error.main' : 'text.primary'
-                                }}
+                                sx={{ fontVariantNumeric: 'tabular-nums' }}
                             />
                         </Box>
-                    </Box>
-                    <Box
-                        sx={{
-                            position: 'absolute',
-                            right: -20,
-                            top: -20,
-                            opacity: 0.05,
-                            transform: 'rotate(-15deg)',
-                        }}
-                    >
-                        <ReceiptLongIcon sx={{ fontSize: 100, color: 'text.primary' }} />
-                    </Box>
-                </GlassCard>
-
-                {/* Income Card */}
-                <GlassCard
-                    variant="highlight"
-                    sx={{
-                        position: 'relative',
-                        background: 'linear-gradient(135deg, rgba(76, 175, 80, 0.1) 0%, rgba(46, 125, 50, 0.2) 100%)',
-                        overflow: 'hidden',
-                    }}
-                >
-                    <Box sx={{ position: 'relative', zIndex: 1 }}>
-                        <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                            Total Inflows
-                        </Typography>
+                    }
+                />
+                <StatCard
+                    icon={<CheckCircleIcon />}
+                    title="Total inflows"
+                    gradient="income"
+                    value={
                         <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.5 }}>
                             {baseCurrency && (
-                                <Typography component="span" sx={{ fontSize: '1.1rem', fontWeight: 600, color: 'success.main' }}>
+                                <Box component="span" sx={{ fontSize: '0.95rem', color: 'text.secondary', fontWeight: 500 }}>
                                     {baseCurrency.symbol}
-                                </Typography>
+                                </Box>
                             )}
                             <AnimatedCounter
                                 value={summary.income}
                                 duration={1000}
-                                sx={{ fontSize: '1.75rem', fontWeight: 700, color: 'success.main' }}
+                                sx={{ fontVariantNumeric: 'tabular-nums' }}
                             />
                         </Box>
-                    </Box>
-                    <Box
-                        sx={{
-                            position: 'absolute',
-                            right: -20,
-                            top: -20,
-                            opacity: 0.1,
-                            transform: 'rotate(-15deg)',
-                        }}
-                    >
-                        <CheckCircleIcon sx={{ fontSize: 100, color: 'success.main' }} />
-                    </Box>
-                </GlassCard>
-
-                {/* Expense Card */}
-                <GlassCard
-                    variant="highlight"
-                    sx={{
-                        position: 'relative',
-                        background: 'linear-gradient(135deg, rgba(239, 83, 80, 0.1) 0%, rgba(198, 40, 40, 0.2) 100%)',
-                        overflow: 'hidden',
-                    }}
-                >
-                    <Box sx={{ position: 'relative', zIndex: 1 }}>
-                        <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                            Total Expense
-                        </Typography>
+                    }
+                />
+                <StatCard
+                    icon={<CancelIcon />}
+                    title="Total expense"
+                    gradient="expense"
+                    value={
                         <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.5 }}>
                             {baseCurrency && (
-                                <Typography component="span" sx={{ fontSize: '1.1rem', fontWeight: 600, color: 'error.main' }}>
+                                <Box component="span" sx={{ fontSize: '0.95rem', color: 'text.secondary', fontWeight: 500 }}>
                                     {baseCurrency.symbol}
-                                </Typography>
+                                </Box>
                             )}
                             <AnimatedCounter
                                 value={summary.expense}
                                 duration={1000}
-                                sx={{ fontSize: '1.75rem', fontWeight: 700, color: 'error.main' }}
+                                sx={{ fontVariantNumeric: 'tabular-nums' }}
                             />
                         </Box>
-                    </Box>
-                    <Box
-                        sx={{
-                            position: 'absolute',
-                            right: -20,
-                            top: -20,
-                            opacity: 0.1,
-                            transform: 'rotate(-15deg)',
-                        }}
-                    >
-                        <CancelIcon sx={{ fontSize: 100, color: 'error.main' }} />
-                    </Box>
-                </GlassCard>
+                    }
+                />
             </Box>
 
             {/* Filters */}

@@ -649,29 +649,23 @@ export default function DashboardPage() {
 
     const renderChartContent = () => (
         <>
-            <Typography
-                variant="h6"
-                fontWeight="600"
-                sx={{
-                    mb: { xs: 1.5, sm: 2 },
-                    fontSize: { xs: '0.9rem', sm: '1.1rem' },
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 1,
-                }}
-            >
-                <Box
-                    component="span"
+            <Box sx={{ mb: { xs: 1.5, sm: 2.5 } }}>
+                <Typography variant="overline" sx={{ display: 'block', mb: 0.5 }}>
+                    Cash flow
+                </Typography>
+                <Typography
+                    component="h2"
                     sx={{
-                        width: 4,
-                        height: 20,
-                        bgcolor: 'primary.main',
-                        borderRadius: 1,
-                        display: 'inline-block',
+                        fontFamily: theme.typography.h3.fontFamily,
+                        fontSize: { xs: '1.0625rem', sm: '1.25rem' },
+                        fontWeight: 500,
+                        letterSpacing: '-0.015em',
+                        color: 'text.primary',
                     }}
-                />
-                {chartOffset === 0 ? 'Weekly Income & Expense (Last 4 Weeks)' : 'Weekly Income & Expense'}
-            </Typography>
+                >
+                    {chartOffset === 0 ? 'Weekly income & expense, last 4 weeks' : 'Weekly income & expense'}
+                </Typography>
+            </Box>
             <Box sx={{ width: '100%', height: { xs: 280, sm: 320, md: 350 }, position: 'relative', opacity: chartLoading ? 0.5 : 1, transition: 'opacity 0.2s' }}>
                 <ResponsiveContainer width="100%" height="100%">
                     <BarChart
@@ -699,14 +693,23 @@ export default function DashboardPage() {
                                 return [formatted, label];
                             }}
                             contentStyle={{
-                                backgroundColor: alpha(theme.palette.background.paper, 0.95),
-                                border: 'none',
-                                borderRadius: 12,
-                                boxShadow: '0 8px 32px rgba(0, 0, 0, 0.15)',
-                                backdropFilter: 'blur(10px)',
+                                backgroundColor: theme.palette.background.paper,
+                                border: `1px solid ${theme.palette.divider}`,
+                                borderRadius: 10,
+                                boxShadow: theme.palette.mode === 'dark'
+                                    ? '0 16px 40px rgba(0,0,0,0.55)'
+                                    : '0 16px 40px rgba(20,17,15,0.08)',
+                                fontSize: '0.8125rem',
                             }}
-                            labelStyle={{ color: theme.palette.text.primary, fontWeight: 600 }}
-                            cursor={{ fill: alpha(theme.palette.primary.main, 0.1), radius: 4 }}
+                            labelStyle={{
+                                color: theme.palette.text.primary,
+                                fontWeight: 600,
+                                fontSize: '0.75rem',
+                                textTransform: 'uppercase',
+                                letterSpacing: '0.06em',
+                                marginBottom: 4,
+                            }}
+                            cursor={{ fill: alpha(theme.palette.text.primary, 0.04), radius: 4 }}
                         />
                         <Bar
                             dataKey="income"
@@ -739,21 +742,32 @@ export default function DashboardPage() {
                     </BarChart>
                 </ResponsiveContainer>
             </Box>
-            {/* Navigation Arrows */}
-            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 2, mt: 1.5 }}>
+            {/* Navigation */}
+            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 1.5, mt: 2 }}>
                 <IconButton
                     size="small"
                     onClick={() => setChartOffset(prev => prev + 1)}
                     disabled={chartLoading}
                     sx={{
-                        bgcolor: alpha(theme.palette.primary.main, 0.08),
-                        '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.16) },
-                        '&.Mui-disabled': { bgcolor: alpha(theme.palette.action.disabled, 0.04) },
+                        border: `1px solid ${theme.palette.divider}`,
+                        borderRadius: 1,
+                        color: 'text.secondary',
+                        '&:hover': { color: 'text.primary', borderColor: alpha(theme.palette.text.primary, 0.3) },
                     }}
                 >
-                    <ArrowBackIosNewIcon sx={{ fontSize: 18 }} />
+                    <ArrowBackIosNewIcon sx={{ fontSize: 14 }} />
                 </IconButton>
-                <Typography variant="body2" color="text.secondary" sx={{ fontSize: { xs: '0.75rem', sm: '0.85rem' }, minWidth: 80, textAlign: 'center' }}>
+                <Typography
+                    sx={{
+                        fontSize: '0.6875rem',
+                        fontWeight: 500,
+                        letterSpacing: '0.10em',
+                        textTransform: 'uppercase',
+                        color: 'text.secondary',
+                        minWidth: 100,
+                        textAlign: 'center',
+                    }}
+                >
                     {chartOffset === 0 ? 'Current' : `${chartOffset * 4} weeks ago`}
                 </Typography>
                 <IconButton
@@ -761,12 +775,13 @@ export default function DashboardPage() {
                     onClick={() => setChartOffset(prev => Math.max(0, prev - 1))}
                     disabled={chartOffset === 0 || chartLoading}
                     sx={{
-                        bgcolor: alpha(theme.palette.primary.main, 0.08),
-                        '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.16) },
-                        '&.Mui-disabled': { bgcolor: alpha(theme.palette.action.disabled, 0.04) },
+                        border: `1px solid ${theme.palette.divider}`,
+                        borderRadius: 1,
+                        color: 'text.secondary',
+                        '&:hover': { color: 'text.primary', borderColor: alpha(theme.palette.text.primary, 0.3) },
                     }}
                 >
-                    <ArrowForwardIosIcon sx={{ fontSize: 18 }} />
+                    <ArrowForwardIosIcon sx={{ fontSize: 14 }} />
                 </IconButton>
             </Box>
         </>
@@ -774,71 +789,89 @@ export default function DashboardPage() {
 
     return (
         <Box sx={{ px: { xs: 1.5, sm: 3, md: 6, lg: 8 }, py: { xs: 1.5, sm: 2, md: 1.5 }, maxWidth: '1600px', mx: 'auto' }}>
-            {/* Header */}
-            <Box sx={{ mb: { xs: 3, md: 4 } }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1 }}>
+            {/* Header — editorial hero */}
+            <Box
+                sx={{
+                    mb: { xs: 3, md: 4 },
+                    pb: { xs: 2.5, md: 3 },
+                    borderBottom: `1px solid ${theme.palette.divider}`,
+                    display: 'flex',
+                    alignItems: { xs: 'flex-start', sm: 'flex-end' },
+                    justifyContent: 'space-between',
+                    gap: 2,
+                    flexWrap: 'wrap',
+                }}
+            >
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2.5, minWidth: 0, flex: 1 }}>
                     {isSuperAdmin ? (
-                    <Box
-                        sx={{
-                            width: { xs: 40, sm: 48 },
-                            height: { xs: 40, sm: 48 },
-                            borderRadius: 2,
-                            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            boxShadow: '0 4px 14px rgba(102, 126, 234, 0.4)',
-                        }}
-                    >
-                        <BusinessIcon sx={{ fontSize: { xs: 22, sm: 26 }, color: 'white' }} />
-                    </Box>
+                        <Box
+                            sx={{
+                                width: 48,
+                                height: 48,
+                                borderRadius: 1.5,
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                bgcolor: alpha(theme.palette.secondary.main, 0.10),
+                                color: theme.palette.secondary.main,
+                                flexShrink: 0,
+                            }}
+                        >
+                            <BusinessIcon sx={{ fontSize: 24 }} />
+                        </Box>
                     ) : departmentLeader ? (
-                         <Avatar 
-                            src={departmentLeader.image || undefined} 
+                        <Avatar
+                            src={departmentLeader.image || undefined}
                             alt={departmentLeader.name}
-                            sx={{ 
-                                width: { xs: 48, sm: 64 }, 
-                                height: { xs: 48, sm: 64 },
-                                boxShadow: '0 4px 14px rgba(0, 0, 0, 0.1)',
-                                border: `2px solid ${theme.palette.background.paper}`
+                            sx={{
+                                width: { xs: 52, sm: 60 },
+                                height: { xs: 52, sm: 60 },
+                                fontFamily: theme.typography.h3.fontFamily,
+                                fontSize: '1.25rem',
+                                border: `1px solid ${theme.palette.divider}`,
                             }}
                         >
                             {departmentLeader.name.charAt(0)}
                         </Avatar>
                     ) : (
-                    <Box
-                        sx={{
-                            width: { xs: 40, sm: 48 },
-                            height: { xs: 40, sm: 48 },
-                            borderRadius: 2,
-                            background: 'transparent',
-                            border: '1px solid',
-                            borderColor: 'divider',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                        }}
-                    >
-                        <AccountBalanceWalletIcon sx={{ fontSize: { xs: 22, sm: 26 }, color: theme.palette.text.primary }} />
-                    </Box>
+                        <Box
+                            sx={{
+                                width: 48,
+                                height: 48,
+                                borderRadius: 1.5,
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                bgcolor: alpha(theme.palette.text.primary, 0.06),
+                                color: theme.palette.text.primary,
+                                flexShrink: 0,
+                            }}
+                        >
+                            <AccountBalanceWalletIcon sx={{ fontSize: 22 }} />
+                        </Box>
                     )}
-                    <Box>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap' }}>
+                    <Box sx={{ minWidth: 0 }}>
+                        <Typography variant="overline" sx={{ display: 'block', mb: 0.5 }}>
+                            {isSuperAdmin
+                                ? 'Administration'
+                                : isLeader
+                                    ? 'Leader overview'
+                                    : 'Account overview'}
+                        </Typography>
+                        <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1.5, flexWrap: 'wrap' }}>
                             <Typography
-                                variant="h4"
-                                fontWeight="700"
+                                component="h1"
                                 sx={{
-                                    background: isSuperAdmin ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' : 'none',
-                                    backgroundClip: isSuperAdmin ? 'text' : 'border-box',
-                                    WebkitBackgroundClip: isSuperAdmin ? 'text' : 'border-box',
-                                    WebkitTextFillColor: isSuperAdmin ? 'transparent' : theme.palette.text.primary,
-                                    color: isSuperAdmin ? 'inherit' : 'text.primary',
-                                    fontSize: { xs: '1.25rem', sm: '1.75rem', md: '2rem' },
-                                    letterSpacing: '-0.5px',
+                                    fontFamily: theme.typography.h2.fontFamily,
+                                    fontSize: { xs: '1.625rem', sm: '1.875rem', md: '2.25rem' },
+                                    fontWeight: 500,
+                                    letterSpacing: '-0.02em',
+                                    lineHeight: 1.15,
+                                    color: theme.palette.text.primary,
                                 }}
                             >
                                 {isSuperAdmin
-                                    ? 'System Management'
+                                    ? 'System management'
                                     : session?.user?.departmentName && session?.user?.departmentLevel
                                         ? `${session.user.departmentName} ${session.user.departmentLevel}`
                                         : session?.user?.departmentName || 'Dashboard'}
@@ -848,24 +881,26 @@ export default function DashboardPage() {
                                     label={getDisplayRole(session.user.role)}
                                     size="small"
                                     variant="outlined"
-                                    color={isSuperAdmin ? 'secondary' : isLeader ? 'primary' : 'default'}
-                                    sx={{ fontWeight: 600, fontSize: '0.7rem', height: 22 }}
+                                    sx={{
+                                        fontWeight: 500,
+                                        fontSize: '0.625rem',
+                                        letterSpacing: '0.10em',
+                                        textTransform: 'uppercase',
+                                        height: 22,
+                                    }}
                                 />
                             )}
                         </Box>
                         <Typography
                             variant="body2"
                             color="text.secondary"
-                            sx={{
-                                fontSize: { xs: '0.75rem', sm: '0.9rem' },
-                                mt: 0.25,
-                            }}
+                            sx={{ mt: 0.75, maxWidth: 580 }}
                         >
                             {isSuperAdmin
-                                ? 'Manage all aspects of the system from one place'
+                                ? 'Manage every part of the system from one place.'
                                 : departmentLeader
-                                    ? departmentLeader.name
-                                    : "Here's what's happening with your finances today"}
+                                    ? `Led by ${departmentLeader.name}`
+                                    : "Here's what's happening with your finances today."}
                         </Typography>
                     </Box>
                 </Box>
@@ -922,10 +957,10 @@ export default function DashboardPage() {
                 <Card
                     elevation={0}
                     sx={{
-                        p: { xs: 2, sm: 3 },
+                        p: { xs: 2.5, sm: 3.5 },
                         mt: { xs: 2, md: 0 },
                         bgcolor: 'background.paper',
-                        borderRadius: 2,
+                        borderRadius: 3.5,
                         boxShadow: 'none',
                         border: '1px solid',
                         borderColor: 'divider',
@@ -1010,34 +1045,51 @@ export default function DashboardPage() {
                             border: `1px solid ${theme.palette.divider}`,
                             bgcolor: 'background.paper',
                             cursor: 'pointer',
-                            transition: 'all 0.2s ease-in-out',
+                            transition: 'border-color 160ms ease, background-color 160ms ease',
                             '&:hover': {
-                                bgcolor: theme.palette.action.hover,
-                                borderColor: link.color,
-                                transform: 'translateX(4px)',
-                            }
+                                bgcolor: alpha(theme.palette.text.primary, 0.02),
+                                borderColor: alpha(link.color || theme.palette.text.primary, 0.4),
+                                '& .arrow': {
+                                    transform: 'translateX(4px)',
+                                    color: theme.palette.text.primary,
+                                },
+                            },
                         }}
                     >
-                        <Box sx={{ p: 2, display: 'flex', alignItems: 'center', gap: 2 }}>
+                        <Box sx={{ px: 2.25, py: 1.75, display: 'flex', alignItems: 'center', gap: 2 }}>
                             <Box
                                 sx={{
-                                    width: 44,
-                                    height: 44,
-                                    borderRadius: 2,
+                                    width: 36,
+                                    height: 36,
+                                    borderRadius: 1.25,
                                     display: 'flex',
                                     alignItems: 'center',
                                     justifyContent: 'center',
-                                    bgcolor: alpha(link.color || theme.palette.primary.main, 0.1),
+                                    bgcolor: alpha(link.color || theme.palette.text.primary, 0.08),
                                     color: link.color,
                                 }}
                             >
-                                <link.icon sx={{ fontSize: 24 }} />
+                                <link.icon sx={{ fontSize: 18 }} />
                             </Box>
-                            <Typography variant="subtitle1" fontWeight={600} color="text.primary">
+                            <Typography
+                                sx={{
+                                    fontSize: '0.9375rem',
+                                    fontWeight: 500,
+                                    color: 'text.primary',
+                                    letterSpacing: '-0.005em',
+                                }}
+                            >
                                 {link.title}
                             </Typography>
                             <Box sx={{ ml: 'auto' }}>
-                                <ArrowForwardIosIcon sx={{ fontSize: 16, color: 'text.disabled' }} />
+                                <ArrowForwardIosIcon
+                                    className="arrow"
+                                    sx={{
+                                        fontSize: 12,
+                                        color: 'text.disabled',
+                                        transition: 'transform 160ms ease, color 160ms ease',
+                                    }}
+                                />
                             </Box>
                         </Box>
                     </Card>

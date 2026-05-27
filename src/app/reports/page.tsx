@@ -27,7 +27,7 @@ import {
     Grid,
     useMediaQuery,
 } from '@mui/material';
-import { Download as DownloadIcon, Print as PrintIcon } from '@mui/icons-material';
+import { Download as DownloadIcon, Print as PrintIcon, Assessment as AssessmentIcon } from '@mui/icons-material';
 import { formatDepartmentLevel } from '@/lib/utils';
 import { formatCurrency } from '@/lib/utils';
 import { BarChart, Bar, XAxis, Tooltip, ResponsiveContainer, Cell, LabelList } from 'recharts';
@@ -551,18 +551,59 @@ function ReportsPageContent() {
         <Box>
             {/* Back and Refresh Buttons - show when viewing specific department */}
 
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3, '@media print': { display: 'none' } }}>
-                <Box>
-                    <Typography variant="h4">
-                        {fixedDepartment 
-                            ? `${fixedDepartment.name} ${formatDepartmentLevel(fixedDepartment.level)} Trends`
-                            : 'Trends'}
-                    </Typography>
-                    {fixedDepartment && (
-                        <Typography variant="body2" color="text.secondary">
-                            Financial trends and reports for this church (including sub-churches)
+            <Box
+                sx={(theme) => ({
+                    display: 'flex',
+                    alignItems: { xs: 'flex-start', sm: 'flex-end' },
+                    justifyContent: 'space-between',
+                    gap: 2,
+                    flexWrap: 'wrap',
+                    mb: { xs: 3, md: 4 },
+                    pb: { xs: 2.5, md: 3 },
+                    borderBottom: `1px solid ${theme.palette.divider}`,
+                    '@media print': { display: 'none' },
+                })}
+            >
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2.5, minWidth: 0, flex: 1 }}>
+                    <Box
+                        sx={(theme) => ({
+                            width: 48,
+                            height: 48,
+                            borderRadius: 1.5,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            bgcolor: alpha(theme.palette.secondary.main, 0.10),
+                            color: theme.palette.secondary.main,
+                            flexShrink: 0,
+                        })}
+                    >
+                        <AssessmentIcon sx={{ fontSize: 22 }} />
+                    </Box>
+                    <Box sx={{ minWidth: 0 }}>
+                        <Typography variant="overline" sx={{ display: 'block', mb: 0.5 }}>
+                            Analytics
                         </Typography>
-                    )}
+                        <Typography
+                            component="h1"
+                            sx={(theme) => ({
+                                fontFamily: theme.typography.h2.fontFamily,
+                                fontSize: { xs: '1.625rem', sm: '1.875rem', md: '2.125rem' },
+                                fontWeight: 600,
+                                letterSpacing: '-0.025em',
+                                lineHeight: 1.15,
+                            })}
+                        >
+                            {fixedDepartment
+                                ? `${fixedDepartment.name} ${formatDepartmentLevel(fixedDepartment.level)} trends`
+                                : 'Trends'}
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75 }}>
+                            {fixedDepartment
+                                ? 'Financial trends for this church and its sub-churches.'
+                                : 'Income and expense movements over time.'}
+                        </Typography>
+                    </Box>
                 </Box>
             </Box>
 
@@ -598,9 +639,12 @@ function ReportsPageContent() {
                                             ]}
                                             contentStyle={{
                                                 backgroundColor: theme.palette.background.paper,
-                                                borderRadius: 8,
-                                                border: '1px solid rgba(255,255,255,0.1)',
-                                                boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+                                                border: `1px solid ${theme.palette.divider}`,
+                                                borderRadius: 10,
+                                                boxShadow: theme.palette.mode === 'dark'
+                                                    ? '0 16px 40px rgba(0,0,0,0.55)'
+                                                    : '0 16px 40px rgba(11,19,32,0.08)',
+                                                fontSize: '0.8125rem',
                                             }}
                                         />
                                         <Bar dataKey="income" name="Income" fill={theme.palette.success.main} radius={[4, 4, 0, 0]} />

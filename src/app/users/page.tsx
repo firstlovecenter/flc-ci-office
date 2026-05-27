@@ -277,51 +277,87 @@ function UsersPageContent() {
 
     return (
         <Box>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                <Typography variant="h5">Users</Typography>
+            {/* Page Header */}
+            <Box
+                sx={(theme) => ({
+                    display: 'flex',
+                    alignItems: { xs: 'flex-start', sm: 'flex-end' },
+                    justifyContent: 'space-between',
+                    gap: 2,
+                    flexWrap: 'wrap',
+                    mb: { xs: 3, md: 4 },
+                    pb: { xs: 2.5, md: 3 },
+                    borderBottom: `1px solid ${theme.palette.divider}`,
+                })}
+            >
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2.5, minWidth: 0, flex: 1 }}>
+                    <Box
+                        sx={(theme) => ({
+                            width: 48,
+                            height: 48,
+                            borderRadius: 1.5,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            bgcolor: alpha(theme.palette.secondary.main, 0.10),
+                            color: theme.palette.secondary.main,
+                            flexShrink: 0,
+                        })}
+                    >
+                        <SupervisedUserCircleIcon sx={{ fontSize: 22 }} />
+                    </Box>
+                    <Box sx={{ minWidth: 0 }}>
+                        <Typography variant="overline" sx={{ display: 'block', mb: 0.5 }}>
+                            People
+                        </Typography>
+                        <Typography
+                            component="h1"
+                            sx={(theme) => ({
+                                fontFamily: theme.typography.h2.fontFamily,
+                                fontSize: { xs: '1.625rem', sm: '1.875rem', md: '2.125rem' },
+                                fontWeight: 600,
+                                letterSpacing: '-0.025em',
+                                lineHeight: 1.15,
+                            })}
+                        >
+                            Users
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75 }}>
+                            {users.length} {users.length === 1 ? 'person' : 'people'} in your scope.
+                        </Typography>
+                    </Box>
+                </Box>
                 {canCreateUsers && (
                     <Button
                         variant="contained"
-                        startIcon={<AddIcon />}
+                        color="primary"
+                        startIcon={<AddIcon sx={{ fontSize: 18 }} />}
                         onClick={() => setOpen(true)}
-                        size="small"
                     >
-                        Add New
+                        Add user
                     </Button>
                 )}
             </Box>
 
-            <Typography variant="body2" color="primary" sx={{ mb: 2 }}>
-                {users.length} Users
-            </Typography>
-
             {/* Search Bar */}
             <TextField
                 fullWidth
-                placeholder="Search Users"
+                placeholder="Search users by name or email"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 InputProps={{
                     startAdornment: (
                         <InputAdornment position="start">
-                            <SearchIcon color="action" />
+                            <SearchIcon sx={{ fontSize: 18, color: 'text.disabled' }} />
                         </InputAdornment>
                     ),
                 }}
-                sx={{ 
+                sx={{
                     mb: 4,
+                    maxWidth: 480,
                     '& .MuiOutlinedInput-root': {
-                        transition: 'all 0.2s',
-                        background: (theme) => `linear-gradient(135deg, ${alpha(theme.palette.background.paper, 0.4)} 0%, ${alpha(theme.palette.background.paper, 0.2)} 100%)`,
-                        backdropFilter: 'blur(20px)',
-                        boxShadow: '0 4px 20px rgba(0, 0, 0, 0.1)',
-                        '&:hover': {
-                            boxShadow: '0 8px 25px rgba(0, 0, 0, 0.15)',
-                        },
-                        '&.Mui-focused': {
-                            boxShadow: (theme) => `0 8px 25px ${alpha(theme.palette.primary.main, 0.2)}`,
-                        }
-                    }
+                        borderRadius: 999,
+                    },
                 }}
             />
 

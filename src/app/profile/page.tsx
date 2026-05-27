@@ -267,7 +267,7 @@ export default function ProfilePage() {
     }
 
     return (
-        <Box sx={{ py: 2, maxWidth: 600, mx: 'auto' }}>
+        <Box sx={{ py: 2, maxWidth: 720, mx: 'auto' }}>
             {error && (
                 <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>
                     {error}
@@ -280,14 +280,44 @@ export default function ProfilePage() {
                 </Alert>
             )}
 
-            {/* Header with Edit Button */}
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+            {/* Page Header */}
+            <Box
+                sx={(theme) => ({
+                    display: 'flex',
+                    alignItems: { xs: 'flex-start', sm: 'flex-end' },
+                    justifyContent: 'space-between',
+                    gap: 2,
+                    flexWrap: 'wrap',
+                    mb: { xs: 3, md: 4 },
+                    pb: { xs: 2.5, md: 3 },
+                    borderBottom: `1px solid ${theme.palette.divider}`,
+                })}
+            >
+                <Box sx={{ minWidth: 0, flex: 1 }}>
+                    <Typography variant="overline" sx={{ display: 'block', mb: 0.5 }}>
+                        Account
+                    </Typography>
+                    <Typography
+                        component="h1"
+                        sx={(theme) => ({
+                            fontFamily: theme.typography.h2.fontFamily,
+                            fontSize: { xs: '1.625rem', sm: '1.875rem', md: '2.125rem' },
+                            fontWeight: 600,
+                            letterSpacing: '-0.025em',
+                            lineHeight: 1.15,
+                        })}
+                    >
+                        Profile
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75 }}>
+                        Your personal information and role assignments.
+                    </Typography>
+                </Box>
                 {editing ? (
                     <Box sx={{ display: 'flex', gap: 1 }}>
                         <Button
                             variant="outlined"
-                            size="small"
-                            startIcon={<CancelIcon />}
+                            startIcon={<CancelIcon sx={{ fontSize: 18 }} />}
                             onClick={handleCancel}
                             disabled={saving}
                         >
@@ -295,23 +325,22 @@ export default function ProfilePage() {
                         </Button>
                         <Button
                             variant="contained"
-                            size="small"
-                            startIcon={<SaveIcon />}
+                            color="primary"
+                            startIcon={<SaveIcon sx={{ fontSize: 18 }} />}
                             onClick={() => handleSave()}
                             disabled={saving}
                         >
-                            {saving ? 'Saving...' : 'Save'}
+                            {saving ? 'Saving…' : 'Save'}
                         </Button>
                     </Box>
                 ) : (
                     <Button
                         variant="contained"
-                        size="small"
-                        startIcon={<EditIcon />}
+                        color="primary"
+                        startIcon={<EditIcon sx={{ fontSize: 18 }} />}
                         onClick={() => setEditing(true)}
-                        color="success"
                     >
-                        Edit
+                        Edit profile
                     </Button>
                 )}
             </Box>

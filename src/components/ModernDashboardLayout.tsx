@@ -231,13 +231,14 @@ export default function ModernDashboardLayout({ children }: { children: React.Re
                                         variant="caption"
                                         sx={{
                                             px: 1.5,
-                                            pt: sIndex > 0 ? 1.5 : 0.5,
-                                            pb: 0.5,
+                                            pt: sIndex > 0 ? 2 : 1,
+                                            pb: 0.75,
                                             display: 'block',
-                                            fontWeight: 700,
-                                            letterSpacing: '0.08em',
+                                            fontFamily: theme.typography.h6.fontFamily,
+                                            fontWeight: 600,
+                                            letterSpacing: '0.14em',
                                             textTransform: 'uppercase',
-                                            fontSize: '0.62rem',
+                                            fontSize: '0.625rem',
                                             color: theme.palette.text.disabled,
                                         }}
                                     >
@@ -251,46 +252,51 @@ export default function ModernDashboardLayout({ children }: { children: React.Re
 
                                 {visibleItems.map((item) => {
                                     const active = isActive(item.path);
+                                    const accent = theme.palette.text.primary;
                                     const button = (
                                         <ListItemButton
                                             onClick={() => handleMenuItemClick(item.path)}
                                             selected={active}
                                             sx={{
-                                                borderRadius: 1.5,
-                                                minHeight: 42,
+                                                borderRadius: 1.25,
+                                                minHeight: 38,
                                                 justifyContent: showLabels ? 'flex-start' : 'center',
-                                                px: showLabels ? 1.5 : 1,
+                                                px: showLabels ? 1.25 : 1,
+                                                color: active ? theme.palette.text.primary : theme.palette.text.secondary,
                                                 '&.Mui-selected': {
-                                                    bgcolor: alpha(theme.palette.primary.main, 0.12),
-                                                    color: theme.palette.primary.main,
-                                                    '& .MuiListItemIcon-root': { color: theme.palette.primary.main },
-                                                    '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.18) },
+                                                    bgcolor: alpha(accent, theme.palette.mode === 'dark' ? 0.14 : 0.10),
+                                                    color: theme.palette.text.primary,
+                                                    '& .MuiListItemIcon-root': { color: accent },
+                                                    '&:hover': {
+                                                        bgcolor: alpha(accent, theme.palette.mode === 'dark' ? 0.20 : 0.16),
+                                                    },
                                                 },
-                                                '&:hover': { bgcolor: theme.palette.action.hover },
+                                                '&:hover': { bgcolor: alpha(theme.palette.text.primary, 0.04) },
                                             }}
                                         >
                                             <ListItemIcon
                                                 sx={{
-                                                    minWidth: showLabels ? 36 : 0,
-                                                    color: active ? theme.palette.primary.main : theme.palette.text.secondary,
+                                                    minWidth: showLabels ? 32 : 0,
+                                                    color: active ? accent : theme.palette.text.secondary,
                                                     justifyContent: 'center',
                                                 }}
                                             >
                                                 {item.badge > 0 ? (
                                                     <Badge badgeContent={item.badge} color="error">
-                                                        <item.icon sx={{ fontSize: 20 }} />
+                                                        <item.icon sx={{ fontSize: 18 }} />
                                                     </Badge>
                                                 ) : (
-                                                    <item.icon sx={{ fontSize: 20 }} />
+                                                    <item.icon sx={{ fontSize: 18 }} />
                                                 )}
                                             </ListItemIcon>
                                             {showLabels && (
                                                 <ListItemText
                                                     primary={item.text}
                                                     primaryTypographyProps={{
-                                                        fontWeight: active ? 700 : 500,
-                                                        fontSize: '0.875rem',
+                                                        fontWeight: active ? 600 : 500,
+                                                        fontSize: '0.8125rem',
                                                         noWrap: true,
+                                                        letterSpacing: '-0.005em',
                                                     }}
                                                 />
                                             )}
@@ -443,10 +449,10 @@ export default function ModernDashboardLayout({ children }: { children: React.Re
                     justifyContent: 'space-between',
                     px: 2,
                     background: theme.palette.mode === 'dark'
-                        ? 'rgba(15, 23, 42, 0.75)'
-                        : 'rgba(255, 255, 255, 0.75)',
-                    backdropFilter: 'blur(20px)',
-                    WebkitBackdropFilter: 'blur(20px)',
+                        ? 'rgba(11, 14, 19, 0.82)'
+                        : 'rgba(245, 246, 244, 0.82)',
+                    backdropFilter: 'saturate(180%) blur(16px)',
+                    WebkitBackdropFilter: 'saturate(180%) blur(16px)',
                     borderBottom: `1px solid ${theme.palette.divider}`,
                 }}
             >
@@ -468,15 +474,49 @@ export default function ModernDashboardLayout({ children }: { children: React.Re
                         <MenuIcon sx={{ fontSize: 24 }} />
                     </IconButton>
 
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25 }}>
-                        <Image src="/flc-logo.webp" alt="CI Office" width={30} height={30} />
-                        <Typography
-                            variant="h6"
-                            fontWeight="bold"
-                            sx={{ color: theme.palette.text.primary, display: { xs: 'none', sm: 'block' }, fontSize: '1rem' }}
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                        <Box
+                            sx={{
+                                position: 'relative',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                width: 32,
+                                height: 32,
+                                borderRadius: 1.25,
+                                border: `1px solid ${theme.palette.divider}`,
+                                bgcolor: theme.palette.background.paper,
+                                overflow: 'hidden',
+                            }}
                         >
-                            CI Office
-                        </Typography>
+                            <Image src="/flc-logo.webp" alt="CI Office" width={22} height={22} />
+                        </Box>
+                        <Box sx={{ display: { xs: 'none', sm: 'flex' }, flexDirection: 'column', lineHeight: 1 }}>
+                            <Typography
+                                sx={{
+                                    fontFamily: theme.typography.h3.fontFamily,
+                                    fontSize: '1.0625rem',
+                                    fontWeight: 500,
+                                    letterSpacing: '-0.015em',
+                                    color: theme.palette.text.primary,
+                                    lineHeight: 1.05,
+                                }}
+                            >
+                                CI Office
+                            </Typography>
+                            <Typography
+                                sx={{
+                                    fontSize: '0.625rem',
+                                    fontWeight: 600,
+                                    letterSpacing: '0.18em',
+                                    textTransform: 'uppercase',
+                                    color: theme.palette.primary.main,
+                                    mt: 0.25,
+                                }}
+                            >
+                                Accounts
+                            </Typography>
+                        </Box>
                     </Box>
                 </Box>
 
@@ -505,11 +545,16 @@ export default function ModernDashboardLayout({ children }: { children: React.Re
                         }}
                         sx={{
                             '& .MuiOutlinedInput-root': {
-                                borderRadius: 2,
-                                bgcolor: alpha(theme.palette.text.primary, 0.04),
+                                borderRadius: 999,
+                                bgcolor: alpha(theme.palette.text.primary, 0.035),
+                                fontSize: '0.875rem',
                                 '& fieldset': { borderColor: 'transparent' },
                                 '&:hover fieldset': { borderColor: theme.palette.divider },
-                                '&.Mui-focused fieldset': { borderColor: theme.palette.primary.main },
+                                '&.Mui-focused': {
+                                    bgcolor: theme.palette.background.paper,
+                                    boxShadow: `0 0 0 3px ${alpha(theme.palette.secondary.main, 0.15)}`,
+                                },
+                                '&.Mui-focused fieldset': { borderColor: theme.palette.text.primary },
                             },
                         }}
                     />

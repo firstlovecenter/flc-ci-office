@@ -217,7 +217,7 @@ export default function EditUserDialog({
 
     return (
         <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
-            <DialogTitle sx={{ textAlign: 'center', color: 'primary.main' }}>Edit User Details</DialogTitle>
+            <DialogTitle>Edit user</DialogTitle>
             <DialogContent>
                 {error && (
                     <Alert severity="error" sx={{ mb: 2 }}>

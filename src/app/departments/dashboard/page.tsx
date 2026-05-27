@@ -247,74 +247,85 @@ export default function DepartmentDashboardPage() {
 
     return (
         <Box sx={{ px: { xs: 1.5, sm: 3, md: 6, lg: 8 }, py: { xs: 1.5, sm: 2, md: 1.5 }, maxWidth: '1600px', mx: 'auto' }}>
-            {/* Header */}
-            <Box sx={{ mb: { xs: 3, md: 4 } }}>
-                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1 }}>
+            {/* Page Header */}
+            <Box
+                sx={(theme) => ({
+                    display: 'flex',
+                    alignItems: { xs: 'flex-start', sm: 'flex-end' },
+                    justifyContent: 'space-between',
+                    gap: 2,
+                    flexWrap: 'wrap',
+                    mb: { xs: 3, md: 4 },
+                    pb: { xs: 2.5, md: 3 },
+                    borderBottom: `1px solid ${theme.palette.divider}`,
+                })}
+            >
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2.5, minWidth: 0, flex: 1 }}>
                     {departmentLeader ? (
-                         <Avatar 
-                            src={departmentLeader.image || undefined} 
+                        <Avatar
+                            src={departmentLeader.image || undefined}
                             alt={departmentLeader.name}
-                            sx={{ 
-                                width: { xs: 48, sm: 64 }, 
-                                height: { xs: 48, sm: 64 },
-                                boxShadow: '0 4px 14px rgba(0, 0, 0, 0.1)',
-                                border: `2px solid ${theme.palette.background.paper}`
+                            sx={{
+                                width: { xs: 52, sm: 60 },
+                                height: { xs: 52, sm: 60 },
+                                fontFamily: theme.typography.h3.fontFamily,
+                                fontSize: '1.25rem',
+                                border: `1px solid ${theme.palette.divider}`,
+                                flexShrink: 0,
                             }}
                         >
                             {departmentLeader.name.charAt(0)}
                         </Avatar>
                     ) : (
-                         <Box
-                            sx={{
-                                width: { xs: 40, sm: 48 },
-                                height: { xs: 40, sm: 48 },
-                                borderRadius: 2,
-                                border: '1px solid',
-                                borderColor: 'divider',
+                        <Box
+                            sx={(theme) => ({
+                                width: 48,
+                                height: 48,
+                                borderRadius: 1.5,
                                 display: 'flex',
                                 alignItems: 'center',
                                 justifyContent: 'center',
-                            }}
+                                bgcolor: alpha(theme.palette.text.primary, 0.06),
+                                color: theme.palette.text.primary,
+                                flexShrink: 0,
+                            })}
                         >
-                            <AccountBalanceWalletIcon sx={{ fontSize: { xs: 22, sm: 26 }, color: theme.palette.text.primary }} />
+                            <AccountBalanceWalletIcon sx={{ fontSize: 22 }} />
                         </Box>
                     )}
-                    
-                    <Box>
-                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                            <Typography 
-                                variant="h4" 
-                                fontWeight="700" 
-                                sx={{ 
+                    <Box sx={{ minWidth: 0 }}>
+                        <Typography variant="overline" sx={{ display: 'block', mb: 0.5 }}>
+                            Department
+                        </Typography>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+                            <Typography
+                                component="h1"
+                                sx={(theme) => ({
+                                    fontFamily: theme.typography.h2.fontFamily,
+                                    fontSize: { xs: '1.625rem', sm: '1.875rem', md: '2.125rem' },
+                                    fontWeight: 600,
+                                    letterSpacing: '-0.025em',
+                                    lineHeight: 1.15,
                                     color: 'text.primary',
-                                    fontSize: { xs: '1.25rem', sm: '1.75rem', md: '2rem' },
-                                    letterSpacing: '-0.5px',
-                                }}
+                                })}
                             >
-                                {department?.name || 'Church Dashboard'}
+                                {department?.name || 'Church dashboard'}
                             </Typography>
                             {canEdit && (
-                                <IconButton 
+                                <IconButton
                                     onClick={() => setEditDialogOpen(true)}
-                                    color="primary"
                                     size="small"
+                                    sx={{ color: 'text.secondary' }}
                                 >
-                                    <EditIcon fontSize="small"/>
+                                    <EditIcon sx={{ fontSize: 16 }} />
                                 </IconButton>
                             )}
                         </Box>
-                        <Typography 
-                            variant="body2" 
-                            color="text.secondary" 
-                            sx={{ 
-                                fontSize: { xs: '0.75rem', sm: '0.9rem' },
-                                mt: 0.25,
-                            }}
-                        >
-                            {departmentLeader ? departmentLeader.name : "Here's what's happening with your finances today"}
+                        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75, maxWidth: 560 }}>
+                            {departmentLeader ? `Led by ${departmentLeader.name}` : "Here's what's happening with your finances today."}
                         </Typography>
                     </Box>
-                 </Box>
+                </Box>
             </Box>
 
             {/* Stats Grid - Adaptable based on count */}
@@ -378,9 +389,11 @@ export default function DepartmentDashboardPage() {
                                 contentStyle={{
                                     backgroundColor: theme.palette.background.paper,
                                     border: `1px solid ${theme.palette.divider}`,
-                                    borderRadius: 12,
-                                    boxShadow: '0 8px 32px rgba(0, 0, 0, 0.15)',
-                                    backdropFilter: 'blur(10px)',
+                                    borderRadius: 10,
+                                    boxShadow: theme.palette.mode === 'dark'
+                                        ? '0 16px 40px rgba(0,0,0,0.55)'
+                                        : '0 16px 40px rgba(11,19,32,0.08)',
+                                    fontSize: '0.8125rem',
                                 }}
                                 labelStyle={{ color: theme.palette.text.primary, fontWeight: 600 }}
                                 cursor={{ fill: alpha(theme.palette.primary.main, 0.1), radius: 4 }}

@@ -8,66 +8,71 @@ interface PageHeaderProps {
     subtitle?: string;
     icon?: ReactNode;
     actions?: ReactNode;
+    /** Legacy prop — retained for compatibility, no longer applies a gradient. */
     gradient?: boolean;
+    /** Optional eyebrow / kicker label above the title */
+    eyebrow?: string;
 }
 
-export default function PageHeader({ 
-    title, 
-    subtitle, 
-    icon, 
+export default function PageHeader({
+    title,
+    subtitle,
+    icon,
     actions,
-    gradient = true 
+    eyebrow,
 }: PageHeaderProps) {
     const theme = useTheme();
-    const isDark = theme.palette.mode === 'dark';
 
     return (
         <Box
             sx={{
                 display: 'flex',
-                alignItems: 'center',
+                alignItems: { xs: 'flex-start', sm: 'flex-end' },
                 justifyContent: 'space-between',
-                mb: 4,
-                pb: 3,
-                borderBottom: `1px solid ${isDark ? alpha('#ffffff', 0.1) : alpha('#000000', 0.1)}`,
+                gap: 2,
+                flexWrap: { xs: 'wrap', sm: 'nowrap' },
+                mb: { xs: 3, md: 4 },
+                pb: { xs: 2.5, md: 3 },
+                borderBottom: `1px solid ${theme.palette.divider}`,
             }}
         >
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, minWidth: 0, flex: 1 }}>
                 {icon && (
                     <Box
                         sx={{
-                            p: 1.5,
-                            borderRadius: 2,
-                            background: gradient 
-                                ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
-                                : isDark 
-                                    ? alpha(theme.palette.primary.main, 0.2)
-                                    : alpha(theme.palette.primary.main, 0.1),
-                            color: gradient ? '#fff' : theme.palette.primary.main,
+                            width: 44,
+                            height: 44,
+                            borderRadius: 1.5,
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
-                            boxShadow: gradient ? `0 4px 20px ${alpha('#667eea', 0.3)}` : 'none',
-                            '& svg': {
-                                fontSize: 28,
-                            },
+                            backgroundColor: alpha(theme.palette.secondary.main, 0.10),
+                            color: theme.palette.secondary.main,
+                            flexShrink: 0,
+                            '& svg': { fontSize: 22 },
                         }}
                     >
                         {icon}
                     </Box>
                 )}
-                <Box>
+                <Box sx={{ minWidth: 0 }}>
+                    {eyebrow && (
+                        <Typography
+                            variant="overline"
+                            sx={{ display: 'block', mb: 0.5 }}
+                        >
+                            {eyebrow}
+                        </Typography>
+                    )}
                     <Typography
-                        variant="h4"
+                        component="h1"
                         sx={{
-                            fontWeight: 700,
-                            background: gradient 
-                                ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
-                                : 'none',
-                            backgroundClip: gradient ? 'text' : 'unset',
-                            WebkitBackgroundClip: gradient ? 'text' : 'unset',
-                            WebkitTextFillColor: gradient ? 'transparent' : 'unset',
+                            fontFamily: theme.typography.h2.fontFamily,
+                            fontSize: { xs: '1.625rem', sm: '1.875rem', md: '2.125rem' },
+                            fontWeight: 500,
                             letterSpacing: '-0.02em',
+                            lineHeight: 1.15,
+                            color: theme.palette.text.primary,
                         }}
                     >
                         {title}
@@ -75,10 +80,7 @@ export default function PageHeader({
                     {subtitle && (
                         <Typography
                             variant="body2"
-                            sx={{
-                                color: 'text.secondary',
-                                mt: 0.5,
-                            }}
+                            sx={{ color: 'text.secondary', mt: 0.75, maxWidth: 640 }}
                         >
                             {subtitle}
                         </Typography>
@@ -86,7 +88,7 @@ export default function PageHeader({
                 </Box>
             </Box>
             {actions && (
-                <Box sx={{ display: 'flex', gap: 1 }}>
+                <Box sx={{ display: 'flex', gap: 1, flexShrink: 0, mt: { xs: 1, sm: 0 } }}>
                     {actions}
                 </Box>
             )}

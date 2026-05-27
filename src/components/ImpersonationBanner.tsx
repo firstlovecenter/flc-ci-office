@@ -44,7 +44,7 @@ export default function ImpersonationBanner() {
                     disabled={stopping}
                     startIcon={stopping ? <CircularProgress size={14} color="inherit" /> : undefined}
                 >
-                    {stopping ? 'Stopping...' : 'Stop Impersonation'}
+                    {stopping ? 'Stopping…' : 'Stop impersonation'}
                 </Button>
             }
             sx={{

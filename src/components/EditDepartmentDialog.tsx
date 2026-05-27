@@ -312,7 +312,7 @@ export default function EditDepartmentDialog({
                 sx: { maxHeight: '90vh' }
             }}
         >
-            <DialogTitle>Edit Department</DialogTitle>
+            <DialogTitle>Edit department</DialogTitle>
             <DialogContent dividers sx={{ overflowY: 'auto' }}>
                 {error && (
                     <Alert severity="error" sx={{ mb: 2 }}>
@@ -493,8 +493,8 @@ export default function EditDepartmentDialog({
                 fullWidth
             >
                 <DialogTitle sx={{ color: 'error.main', display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <BlockIcon />
-                    Close Department
+                    <BlockIcon sx={{ fontSize: 22 }} />
+                    Close department
                 </DialogTitle>
                 <DialogContent>
                     {closeLoading ? (
