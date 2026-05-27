@@ -1,59 +1,52 @@
 import { NextAuthOptions } from 'next-auth';
 import CredentialsProvider from 'next-auth/providers/credentials';
-import bcrypt from 'bcryptjs';
 import { prisma } from '@/lib/prisma';
 import type { Role } from '@prisma/client';
 
 /**
- * In-memory account lockout tracker.
- * Tracks failed login attempts per identifier and locks accounts after 5 failures.
+ * Credential verification is delegated to the custom auth lambda.
+ * NextAuth here is only a session shell: the lambda confirms the password,
+ * and this app derives roles/departments from its own Prisma DB by email.
+ * Account lockout / rate-limiting is owned by the lambda.
  */
-const loginAttempts = new Map<string, { count: number; lockedUntil: number | null }>();
+const AUTH_API_URL = process.env.AUTH_API_URL;
+const AUTH_API_KEY = process.env.AUTH_API_KEY;
 
-const MAX_LOGIN_ATTEMPTS = 5;
-const LOCKOUT_DURATION_MS = 15 * 60 * 1000; // 15 minutes
-
-function checkAccountLockout(identifier: string): { locked: boolean; remainingMs?: number } {
-  const entry = loginAttempts.get(identifier);
-  if (!entry) return { locked: false };
-
-  if (entry.lockedUntil && Date.now() < entry.lockedUntil) {
-    return { locked: true, remainingMs: entry.lockedUntil - Date.now() };
+/**
+ * Call the auth lambda's POST /login. Returns the authenticated email on
+ * success, or null on any failure (bad credentials, validation, network).
+ */
+async function verifyWithAuthLambda(email: string, password: string): Promise<string | null> {
+  if (!AUTH_API_URL) {
+    console.error('AUTH_API_URL is not configured');
+    return null;
   }
 
-  // Lockout expired, reset
-  if (entry.lockedUntil && Date.now() >= entry.lockedUntil) {
-    loginAttempts.delete(identifier);
-    return { locked: false };
-  }
+  try {
+    const res = await fetch(`${AUTH_API_URL}/login`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(AUTH_API_KEY ? { 'x-api-key': AUTH_API_KEY } : {}),
+      },
+      body: JSON.stringify({ email, password }),
+    });
 
-  return { locked: false };
-}
-
-function recordFailedLogin(identifier: string): void {
-  const entry = loginAttempts.get(identifier) || { count: 0, lockedUntil: null };
-  entry.count++;
-
-  if (entry.count >= MAX_LOGIN_ATTEMPTS) {
-    entry.lockedUntil = Date.now() + LOCKOUT_DURATION_MS;
-  }
-
-  loginAttempts.set(identifier, entry);
-}
-
-function clearLoginAttempts(identifier: string): void {
-  loginAttempts.delete(identifier);
-}
-
-// Cleanup stale lockout entries every 30 minutes
-setInterval(() => {
-  const now = Date.now();
-  for (const [key, entry] of loginAttempts) {
-    if (entry.lockedUntil && now > entry.lockedUntil) {
-      loginAttempts.delete(key);
+    if (!res.ok) {
+      // 401 invalid credentials, 400 validation, etc. — treat all as failure.
+      return null;
     }
+
+    const data = await res.json();
+    // Lambda returns { message, tokens, user: { id, email, ... }, membership }.
+    // We only consume the verified email; roles/department come from Prisma.
+    const verifiedEmail = data?.user?.email;
+    return typeof verifiedEmail === 'string' ? verifiedEmail.toLowerCase().trim() : null;
+  } catch (error) {
+    console.error('Auth lambda request failed:', error);
+    return null;
   }
-}, 30 * 60 * 1000).unref?.();
+}
 
 export const authOptions: NextAuthOptions = {
     secret: process.env.NEXTAUTH_SECRET,
@@ -69,7 +62,7 @@ export const authOptions: NextAuthOptions = {
         CredentialsProvider({
             name: 'Credentials',
             credentials: {
-                email: { label: 'Email or Phone', type: 'text' },
+                email: { label: 'Email', type: 'text' },
                 password: { label: 'Password', type: 'password' },
             },
             async authorize(credentials) {
@@ -77,23 +70,23 @@ export const authOptions: NextAuthOptions = {
                     return null;
                 }
 
-                const loginIdentifier = credentials.email.toLowerCase().trim();
-                
-                // Check account lockout
-                const lockout = checkAccountLockout(loginIdentifier);
-                if (lockout.locked) {
-                    throw new Error('Account temporarily locked due to too many failed login attempts. Please try again in 15 minutes.');
+                // Step 1: verify credentials against the auth lambda (source of truth
+                // for passwords). The lambda only accepts email — no phone login.
+                const verifiedEmail = await verifyWithAuthLambda(
+                    credentials.email.trim(),
+                    credentials.password,
+                );
+
+                if (!verifiedEmail) {
+                    return null;
                 }
-                
-                // Determine if input is email or phone
-                const isEmail = loginIdentifier.includes('@');
-                
-                // Build the query based on input type
+
+                // Step 2: derive this app's roles/department from its own Prisma DB,
+                // matched by the lambda-verified email. A user authenticated by the
+                // lambda but absent from this accounting app's DB is denied.
                 const user = await prisma.user.findFirst({
                     where: {
-                        ...(isEmail 
-                            ? { email: loginIdentifier }
-                            : { phone: loginIdentifier }),
+                        email: verifiedEmail,
                         archived: false,
                     },
                     include: {
@@ -112,25 +105,9 @@ export const authOptions: NextAuthOptions = {
                 });
 
                 if (!user) {
-                    recordFailedLogin(loginIdentifier);
+                    console.warn(`Auth lambda authenticated ${verifiedEmail} but no matching active user exists in this app`);
                     return null;
                 }
-
-                if (!user.password) {
-                    recordFailedLogin(loginIdentifier);
-                    return null;
-                }
-
-                // Verify password
-                const isValid = await bcrypt.compare(credentials.password, user.password);
-
-                if (!isValid) {
-                    recordFailedLogin(loginIdentifier);
-                    return null;
-                }
-
-                // Successful login - clear any lockout tracking
-                clearLoginAttempts(loginIdentifier);
 
                 // SUPERADMIN users may not have UserRole entries (legacy setup)
                 // Check if user has a direct activeRole set

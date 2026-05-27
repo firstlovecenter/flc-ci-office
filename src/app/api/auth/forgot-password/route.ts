@@ -1,12 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
-import crypto from 'crypto';
-import { prisma } from '@/lib/prisma';
-import { sendSms, formatGhanaPhone } from '@/lib/sms';
-import { generatePasswordResetSms } from '@/lib/sms-templates';
-import { sendEmail } from '@/lib/email';
-import { generatePasswordResetEmail } from '@/lib/email-templates';
 import { checkRateLimit, rateLimits, getClientIp, rateLimitResponse } from '@/lib/rate-limit';
 
+const AUTH_API_URL = process.env.AUTH_API_URL;
+const AUTH_API_KEY = process.env.AUTH_API_KEY;
+
+/**
+ * Password reset is owned by the auth lambda. This route proxies the request
+ * to the lambda's POST /forgot-password (which sends its own reset link) and
+ * relays the response. The lambda only accepts email addresses.
+ *
+ * The client still posts `{ identifier }`; we forward it as `{ email }`.
+ */
 export async function POST(request: NextRequest) {
   try {
     // Rate limit: 3 requests per 15 minutes per IP
@@ -18,114 +22,58 @@ export async function POST(request: NextRequest) {
 
     const { identifier } = await request.json();
 
-    if (!identifier) {
+    if (!identifier || typeof identifier !== 'string') {
       return NextResponse.json(
-        { error: 'Phone number or email is required' },
+        { error: 'Email is required' },
         { status: 400 }
       );
     }
 
-    // Check if it's an email or phone number
-    const isEmail = identifier.includes('@');
-    
-    // Find user by email or phone
-    const user = await prisma.user.findFirst({
-      where: isEmail 
-        ? { email: identifier.toLowerCase() }
-        : { phone: identifier },
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        phone: true,
-      },
-    });
+    const email = identifier.toLowerCase().trim();
 
-    // Always return success to prevent user enumeration
-    if (!user) {
-      return NextResponse.json({
-        message: 'If an account exists with this information, password reset instructions have been sent.',
-      });
-    }
-
-    // Generate secure random token
-    const token = crypto.randomBytes(32).toString('hex');
-    const expiresAt = new Date();
-    expiresAt.setHours(expiresAt.getHours() + 12); // 12 hours expiration for reset link
-
-    // Invalidate any existing unused tokens for this user
-    await prisma.passwordReset.updateMany({
-      where: {
-        userId: user.id,
-        used: false,
-      },
-      data: {
-        used: true,
-        usedAt: new Date(),
-      },
-    });
-
-    // Create new password reset record
-    await prisma.passwordReset.create({
-      data: {
-        id: crypto.randomUUID(),
-        userId: user.id,
-        token,
-        expiresAt,
-      },
-    });
-
-    // Generate 6-digit code for SMS (easier to type than full token)
-    const resetCode = token.substring(0, 6).toUpperCase();
-
-    let smsSent = false;
-    let emailSent = false;
-
-    // Send SMS with reset code only (no URL to avoid truncation)
-    if (user.phone) {
-      const formattedPhone = formatGhanaPhone(user.phone);
-      if (formattedPhone) {
-        const smsContent = await generatePasswordResetSms({
-          resetCode: resetCode,
-          expirationMinutes: 15, // OTP validity window
-          // Don't include resetUrl - SMS links often get truncated
-        });
-
-        smsSent = await sendSms({
-          to: formattedPhone,
-          message: smsContent,
-        });
-      }
-    }
-
-    // Send email if user has an email address
-    if (user.email) {
-      const baseUrl =
-        process.env.APP_URL ||
-        process.env.NEXTAUTH_URL ||
-        (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL.replace(/^https?:\/\//, '')}` : '');
-      const resetUrl = baseUrl ? `${baseUrl}/auth/reset-password?token=${token}` : undefined;
-      const { subject, html } = generatePasswordResetEmail({
-        userName: user.name || undefined,
-        resetCode,
-        resetUrl,
-        expirationHours: 12,
-        otpExpirationMinutes: 15,
-      });
-      emailSent = await sendEmail({ to: user.email, subject, html });
-    }
-
-    if (!smsSent && !emailSent) {
+    // The lambda is email-only — phone-based reset is no longer supported.
+    if (!email.includes('@')) {
       return NextResponse.json(
-        { error: 'Failed to send password reset instructions. Please contact support.' },
+        { error: 'Please enter the email address associated with your account.' },
+        { status: 400 }
+      );
+    }
+
+    if (!AUTH_API_URL) {
+      console.error('AUTH_API_URL is not configured');
+      return NextResponse.json(
+        { error: 'An error occurred while processing your request' },
         { status: 500 }
       );
     }
 
+    const res = await fetch(`${AUTH_API_URL}/forgot-password`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(AUTH_API_KEY ? { 'x-api-key': AUTH_API_KEY } : {}),
+      },
+      body: JSON.stringify({ email }),
+    });
+
+    const data = await res.json().catch(() => null);
+
+    if (!res.ok) {
+      // Don't leak lambda internals; relay a generic message.
+      return NextResponse.json(
+        { error: data?.error || 'An error occurred while processing your request' },
+        { status: res.status }
+      );
+    }
+
+    // Lambda returns a non-enumerating success message; relay it.
     return NextResponse.json({
-      message: 'If an account exists with this information, password reset instructions have been sent.',
+      message:
+        data?.message ||
+        'If an account exists with this email, password reset instructions have been sent.',
     });
   } catch (error) {
+    console.error('Forgot-password proxy failed:', error);
     return NextResponse.json(
       { error: 'An error occurred while processing your request' },
       { status: 500 }

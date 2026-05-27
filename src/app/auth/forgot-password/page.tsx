@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
 import {
     TextField,
     Button,
@@ -16,7 +15,6 @@ import Image from 'next/image';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 
 export default function ForgotPasswordPage() {
-    const router = useRouter();
     const theme = useTheme();
     const [identifier, setIdentifier] = useState('');
     const [loading, setLoading] = useState(false);
@@ -37,11 +35,11 @@ export default function ForgotPasswordPage() {
             });
 
             const data = await response.json();
-            if (!response.ok) throw new Error(data.error || 'Failed to send reset SMS');
+            if (!response.ok) throw new Error(data.error || 'Failed to send reset email');
 
+            // The auth lambda emails a reset link; the user continues from their inbox.
             setSuccess(true);
             setIdentifier('');
-            setTimeout(() => router.push('/auth/reset-password'), 2000);
         } catch (err) {
             setError(err instanceof Error ? err.message : 'An error occurred');
         } finally {
@@ -121,7 +119,7 @@ export default function ForgotPasswordPage() {
                     Forgot your password?
                 </Typography>
                 <Typography variant="body2" color="text.secondary" sx={{ mb: 4 }}>
-                    Enter the email or phone number on your account. We&apos;ll text you a reset code.
+                    Enter the email address associated with your account and we&apos;ll send you a link to reset your password.
                 </Typography>
 
                 {error && (
@@ -131,7 +129,7 @@ export default function ForgotPasswordPage() {
                 )}
                 {success && (
                     <Alert severity="success" variant="standard" sx={{ borderRadius: 2, mb: 2 }}>
-                        If an account exists, a reset code has been sent. Redirecting&hellip;
+                        If an account exists with this email, a password reset link has been sent. Please check your inbox.
                     </Alert>
                 )}
 
@@ -149,14 +147,15 @@ export default function ForgotPasswordPage() {
                                 letterSpacing: '0.02em',
                             }}
                         >
-                            Email or phone
+                            Email
                         </Typography>
                         <TextField
                             required
                             fullWidth
                             id="identifier"
                             name="identifier"
-                            placeholder="email@example.com or 0241234567"
+                            type="email"
+                            placeholder="you@example.com"
                             autoFocus
                             value={identifier}
                             onChange={(e) => setIdentifier(e.target.value)}
@@ -173,7 +172,7 @@ export default function ForgotPasswordPage() {
                         disabled={loading || success || !identifier}
                         sx={{ mt: 1.5, py: 1.5, fontWeight: 500 }}
                     >
-                        {loading ? 'Sending…' : 'Send reset code via SMS'}
+                        {loading ? 'Sending…' : 'Send Reset Link'}
                     </Button>
 
                     <Box

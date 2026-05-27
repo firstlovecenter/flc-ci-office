@@ -24,12 +24,34 @@ import Visibility from '@mui/icons-material/Visibility';
 import VisibilityOff from '@mui/icons-material/VisibilityOff';
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
 
+// Dark "institutional canvas" palette — matches the desktop left panel.
+// Applied to the form panel on mobile (xs) only, where the left panel is hidden,
+// so the small-screen sign-in shares the same dark aesthetic regardless of theme.
+const INK = {
+    canvas: '#0B1320',
+    text: '#F1F3F5',
+    textMuted: alpha('#F1F3F5', 0.65),
+    textFaint: alpha('#F1F3F5', 0.45),
+    border: alpha('#F1F3F5', 0.14),
+    surface: alpha('#F1F3F5', 0.04),
+    accent: '#FF5A4E',
+};
+
 function LoginForm() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const { data: session, status } = useSession();
     const theme = useTheme();
-    const isDark = theme.palette.mode === 'dark';
+
+    // On mobile (xs) the form sits on the dark canvas, so the outlined inputs
+    // need light ink + visible borders. On sm+ they fall back to theme defaults.
+    const mobileInputSx = {
+        '& .MuiInputBase-input': { color: { xs: INK.text, sm: 'inherit' } },
+        '& .MuiInputBase-input::placeholder': { color: { xs: INK.textFaint, sm: 'inherit' }, opacity: 1 },
+        '& .MuiOutlinedInput-notchedOutline': { borderColor: { xs: INK.border, sm: undefined } },
+        '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: { xs: alpha('#F1F3F5', 0.28), sm: undefined } },
+        '& .Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: { xs: INK.accent, sm: undefined } },
+    } as const;
 
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -239,19 +261,35 @@ function LoginForm() {
                 </Box>
             </Box>
 
-            {/* Right — sign-in panel */}
+            {/* Right — sign-in panel.
+                On mobile the left panel is hidden, so this panel adopts the dark
+                institutional canvas (xs) while keeping the theme surface on sm+. */}
             <Box
                 sx={{
                     flex: 1,
+                    position: 'relative',
+                    overflow: 'hidden',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     px: { xs: 3, sm: 6 },
                     py: { xs: 5, sm: 8 },
-                    bgcolor: 'background.default',
+                    bgcolor: { xs: INK.canvas, sm: 'background.default' },
                 }}
             >
-                <Box sx={{ width: '100%', maxWidth: 420 }}>
+                {/* Brand glow — mobile only, mirrors the left panel */}
+                <Box
+                    aria-hidden
+                    sx={{
+                        display: { xs: 'block', sm: 'none' },
+                        position: 'absolute',
+                        inset: 0,
+                        background: `radial-gradient(70% 50% at 100% 0%, ${alpha('#E63329', 0.18)} 0%, transparent 65%),
+                                     radial-gradient(60% 50% at 0% 100%, ${alpha('#FF5A4E', 0.07)} 0%, transparent 70%)`,
+                        pointerEvents: 'none',
+                    }}
+                />
+                <Box sx={{ position: 'relative', zIndex: 1, width: '100%', maxWidth: 420 }}>
                     {/* Compact brand on mobile only */}
                     <Box
                         sx={{
@@ -266,11 +304,11 @@ function LoginForm() {
                                 width: 36,
                                 height: 36,
                                 borderRadius: 1.25,
-                                border: `1px solid ${theme.palette.divider}`,
+                                border: `1px solid ${INK.border}`,
                                 display: 'flex',
                                 alignItems: 'center',
                                 justifyContent: 'center',
-                                bgcolor: 'background.paper',
+                                bgcolor: INK.surface,
                                 overflow: 'hidden',
                             }}
                         >
@@ -283,6 +321,7 @@ function LoginForm() {
                                     fontSize: '1.0625rem',
                                     fontWeight: 600,
                                     letterSpacing: '-0.02em',
+                                    color: INK.text,
                                 }}
                             >
                                 CI Office
@@ -293,7 +332,7 @@ function LoginForm() {
                                     fontWeight: 600,
                                     letterSpacing: '0.18em',
                                     textTransform: 'uppercase',
-                                    color: 'primary.main',
+                                    color: INK.accent,
                                     lineHeight: 1,
                                 }}
                             >
@@ -302,7 +341,7 @@ function LoginForm() {
                         </Box>
                     </Box>
 
-                    <Typography variant="overline" sx={{ display: 'block', mb: 1.5 }}>
+                    <Typography variant="overline" sx={{ display: 'block', mb: 1.5, color: { xs: INK.accent, sm: 'primary.main' } }}>
                         Welcome back
                     </Typography>
                     <Typography
@@ -314,12 +353,13 @@ function LoginForm() {
                             letterSpacing: '-0.025em',
                             lineHeight: 1.15,
                             mb: 1.25,
+                            color: { xs: INK.text, sm: 'text.primary' },
                         }}
                     >
                         Sign in to your account
                     </Typography>
-                    <Typography variant="body2" color="text.secondary" sx={{ mb: 4 }}>
-                        Use your registered email or phone number.
+                    <Typography variant="body2" sx={{ mb: 4, color: { xs: INK.textMuted, sm: 'text.secondary' } }}>
+                        Use your registered email address.
                     </Typography>
 
                     <Stack spacing={1.5} sx={{ mb: 2 }}>
@@ -344,27 +384,29 @@ function LoginForm() {
                                     display: 'block',
                                     fontSize: '0.75rem',
                                     fontWeight: 500,
-                                    color: 'text.secondary',
+                                    color: { xs: INK.textMuted, sm: 'text.secondary' },
                                     mb: 0.75,
                                     letterSpacing: '0.02em',
                                 }}
                             >
-                                Email or phone
+                                Email
                             </Typography>
                             <TextField
                                 required
                                 fullWidth
                                 id="email"
                                 name="email"
+                                type="email"
                                 autoComplete="email"
                                 autoFocus
                                 value={email}
                                 onChange={(e) => setEmail(e.target.value)}
-                                placeholder="you@church.org"
+                                placeholder="you@example.com"
+                                sx={mobileInputSx}
                                 InputProps={{
                                     startAdornment: (
                                         <InputAdornment position="start">
-                                            <EmailIcon sx={{ fontSize: 18, color: 'text.disabled' }} />
+                                            <EmailIcon sx={{ fontSize: 18, color: { xs: INK.textFaint, sm: 'text.disabled' } }} />
                                         </InputAdornment>
                                     ),
                                 }}
@@ -386,7 +428,7 @@ function LoginForm() {
                                     sx={{
                                         fontSize: '0.75rem',
                                         fontWeight: 500,
-                                        color: 'text.secondary',
+                                        color: { xs: INK.textMuted, sm: 'text.secondary' },
                                         letterSpacing: '0.02em',
                                     }}
                                 >
@@ -399,8 +441,8 @@ function LoginForm() {
                                     sx={{
                                         fontSize: '0.75rem',
                                         fontWeight: 500,
-                                        color: 'text.secondary',
-                                        '&:hover': { color: 'text.primary' },
+                                        color: { xs: INK.textMuted, sm: 'text.secondary' },
+                                        '&:hover': { color: { xs: INK.text, sm: 'text.primary' } },
                                     }}
                                 >
                                     Forgot password?
@@ -415,10 +457,11 @@ function LoginForm() {
                                 autoComplete="current-password"
                                 value={password}
                                 onChange={(e) => setPassword(e.target.value)}
+                                sx={mobileInputSx}
                                 InputProps={{
                                     startAdornment: (
                                         <InputAdornment position="start">
-                                            <LockIcon sx={{ fontSize: 18, color: 'text.disabled' }} />
+                                            <LockIcon sx={{ fontSize: 18, color: { xs: INK.textFaint, sm: 'text.disabled' } }} />
                                         </InputAdornment>
                                     ),
                                     endAdornment: (
@@ -428,7 +471,7 @@ function LoginForm() {
                                                 onClick={() => setShowPassword(!showPassword)}
                                                 edge="end"
                                                 size="small"
-                                                sx={{ color: 'text.disabled' }}
+                                                sx={{ color: { xs: INK.textFaint, sm: 'text.disabled' } }}
                                             >
                                                 {showPassword ? <VisibilityOff sx={{ fontSize: 18 }} /> : <Visibility sx={{ fontSize: 18 }} />}
                                             </IconButton>
@@ -464,12 +507,12 @@ function LoginForm() {
                                 gap: 2,
                                 mt: 3,
                                 pt: 3,
-                                borderTop: `1px solid ${theme.palette.divider}`,
+                                borderTop: { xs: `1px solid ${INK.border}`, sm: `1px solid ${theme.palette.divider}` },
                             }}
                         >
                             <Box sx={{ flex: 1 }}>
-                                <Typography sx={{ fontSize: '0.75rem', color: 'text.secondary', mb: 0.25 }}>
-                                    Council leader outside Accra?
+                                <Typography sx={{ fontSize: '0.75rem', color: { xs: INK.textMuted, sm: 'text.secondary' }, mb: 0.25 }}>
+                                    Campus leader outside Accra?
                                 </Typography>
                                 <MuiLink
                                     component={Link}
@@ -481,8 +524,8 @@ function LoginForm() {
                                         gap: 0.75,
                                         fontSize: '0.875rem',
                                         fontWeight: 500,
-                                        color: 'text.primary',
-                                        '&:hover': { color: 'secondary.main' },
+                                        color: { xs: INK.text, sm: 'text.primary' },
+                                        '&:hover': { color: { xs: INK.accent, sm: 'secondary.main' } },
                                         transition: 'color 160ms ease',
                                     }}
                                 >
