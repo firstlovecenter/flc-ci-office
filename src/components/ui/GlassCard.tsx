@@ -1,6 +1,6 @@
 'use client';
 
-import { Box, Card, CardProps, useTheme, alpha } from '@mui/material';
+import { Card, CardProps, useTheme, alpha } from '@mui/material';
 import { ReactNode } from 'react';
 
 interface GlassCardProps extends Omit<CardProps, 'variant'> {
@@ -12,18 +12,18 @@ interface GlassCardProps extends Omit<CardProps, 'variant'> {
     variant?: 'standard' | 'highlight';
 }
 
+// Flat surface card. Name retained for compatibility — no longer glass.
 export default function GlassCard({
     children,
     gradient,
     glowColor,
     hoverLift = true,
-    blur = 10,
     variant = 'standard',
     sx,
     ...cardProps
 }: GlassCardProps) {
     const theme = useTheme();
-    const isDark = theme.palette.mode === 'dark';
+    const isHighlight = variant === 'highlight';
 
     return (
         <Card
@@ -31,42 +31,30 @@ export default function GlassCard({
             sx={{
                 position: 'relative',
                 overflow: 'hidden',
-                background: gradient || (isDark 
-                    ? `linear-gradient(135deg, ${alpha(theme.palette.background.paper, 0.8)} 0%, ${alpha(theme.palette.background.paper, 0.6)} 100%)`
-                    : `linear-gradient(135deg, ${alpha('#ffffff', 0.9)} 0%, ${alpha('#ffffff', 0.7)} 100%)`
+                background: gradient || theme.palette.background.paper,
+                border: `1px solid ${isHighlight
+                    ? alpha(theme.palette.secondary.main, 0.45)
+                    : theme.palette.divider}`,
+                borderRadius: 3.5,
+                boxShadow: 'none',
+                transition: theme.transitions.create(
+                    ['transform', 'box-shadow', 'border-color'],
+                    { duration: 220 }
                 ),
-                backdropFilter: `blur(${blur}px)`,
-                WebkitBackdropFilter: `blur(${blur}px)`,
-                border: `1px solid ${isDark ? alpha('#ffffff', 0.1) : alpha('#000000', 0.05)}`,
-                boxShadow: isDark 
-                    ? `0 8px 32px ${alpha('#000000', 0.3)}, inset 0 1px 0 ${alpha('#ffffff', 0.05)}`
-                    : `0 8px 32px ${alpha('#000000', 0.1)}, inset 0 1px 0 ${alpha('#ffffff', 0.5)}`,
-                transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
                 ...(hoverLift && {
                     '&:hover': {
-                        transform: 'translateY(-4px)',
-                        boxShadow: isDark 
-                            ? `0 20px 40px ${alpha('#000000', 0.4)}, inset 0 1px 0 ${alpha('#ffffff', 0.1)}`
-                            : `0 20px 40px ${alpha('#000000', 0.15)}, inset 0 1px 0 ${alpha('#ffffff', 0.8)}`,
-                        ...(glowColor && {
-                            boxShadow: `0 20px 40px ${alpha(glowColor, 0.3)}, 0 0 60px ${alpha(glowColor, 0.1)}`,
-                        }),
+                        transform: 'translateY(-2px)',
+                        borderColor: glowColor
+                            ? alpha(glowColor, 0.5)
+                            : alpha(theme.palette.text.primary, 0.16),
+                        boxShadow: theme.palette.mode === 'dark'
+                            ? '0 12px 32px rgba(0,0,0,0.4)'
+                            : '0 12px 32px rgba(20,17,15,0.06)',
                     },
                 }),
                 ...sx,
             }}
         >
-            {/* Gradient overlay for extra depth */}
-            <Box
-                sx={{
-                    position: 'absolute',
-                    top: 0,
-                    left: 0,
-                    right: 0,
-                    height: '1px',
-                    background: `linear-gradient(90deg, transparent, ${alpha('#ffffff', isDark ? 0.1 : 0.3)}, transparent)`,
-                }}
-            />
             {children}
         </Card>
     );

@@ -21,6 +21,7 @@ import {
     ListItemIcon,
     ListItemText,
     CircularProgress,
+    alpha,
 } from '@mui/material';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import ErrorIcon from '@mui/icons-material/Error';
@@ -312,7 +313,7 @@ export default function EditDepartmentDialog({
                 sx: { maxHeight: '90vh' }
             }}
         >
-            <DialogTitle>Edit Department</DialogTitle>
+            <DialogTitle>Edit department</DialogTitle>
             <DialogContent dividers sx={{ overflowY: 'auto' }}>
                 {error && (
                     <Alert severity="error" sx={{ mb: 2 }}>
@@ -451,15 +452,15 @@ export default function EditDepartmentDialog({
 
                 {/* Close Department Section */}
                 <Divider sx={{ my: 3 }} />
-                <Box sx={{ 
-                    mt: 2, 
-                    p: 2, 
-                    border: '2px solid #d32f2f', 
-                    borderRadius: 1,
-                    backgroundColor: '#ffebee',
-                }}>
-                    <Typography variant="subtitle2" sx={{ color: '#c62828', fontWeight: 'bold', mb: 1 }}>
-                        ⚠️ Danger Zone
+                <Box sx={(theme) => ({
+                    mt: 2,
+                    p: 2,
+                    border: `1px solid ${alpha(theme.palette.error.main, 0.4)}`,
+                    borderRadius: 1.5,
+                    backgroundColor: alpha(theme.palette.error.main, 0.08),
+                })}>
+                    <Typography variant="overline" sx={{ display: 'block', mb: 1, color: 'error.main' }}>
+                        Danger zone
                     </Typography>
                     <Button
                         variant="contained"
@@ -493,8 +494,8 @@ export default function EditDepartmentDialog({
                 fullWidth
             >
                 <DialogTitle sx={{ color: 'error.main', display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <BlockIcon />
-                    Close Department
+                    <BlockIcon sx={{ fontSize: 22 }} />
+                    Close department
                 </DialogTitle>
                 <DialogContent>
                     {closeLoading ? (

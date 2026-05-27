@@ -27,139 +27,6 @@ import { Role } from '@prisma/client';
 import { BarChart, Bar, XAxis, Tooltip, ResponsiveContainer, Cell, LabelList } from 'recharts';
 import { AnimatedCounter, StatCardSkeleton, ChartSkeleton, GlassCard, SimpleStatCard } from '@/components/ui';
 
-// Gradient Dashboard Stat Card (Standard Style)
-const GradientStatCard = ({
-    title,
-    amount,
-    icon: Icon,
-    gradient,
-    currencySymbol,
-    isBlinking = false
-}: {
-    title: string;
-    amount: number | string;
-    icon: React.ElementType;
-    gradient: string;
-    currencySymbol?: string;
-    isBlinking?: boolean;
-}) => {
-    return (
-        <Box
-            sx={{
-                position: 'relative',
-                p: { xs: 1.5, sm: 2, md: 2.5 },
-                borderRadius: 3,
-                background: gradient,
-                overflow: 'hidden',
-                boxShadow: '0 8px 32px rgba(0, 0, 0, 0.12)',
-                transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                '@keyframes blink': {
-                    '0%, 100%': { opacity: 1 },
-                    '50%': { opacity: 0.6 }
-                },
-                animation: isBlinking ? 'blink 1.5s ease-in-out infinite' : 'none',
-                '&:hover': {
-                    transform: 'translateY(-4px)',
-                    boxShadow: '0 12px 40px rgba(0, 0, 0, 0.2)',
-                },
-                '&::before': {
-                    content: '""',
-                    position: 'absolute',
-                    top: 0,
-                    left: 0,
-                    right: 0,
-                    bottom: 0,
-                    background: 'linear-gradient(135deg, rgba(255,255,255,0.1) 0%, transparent 50%)',
-                    pointerEvents: 'none',
-                },
-            }}
-        >
-            <Box
-                sx={{
-                    position: 'absolute',
-                    top: -20,
-                    right: -20,
-                    width: 100,
-                    height: 100,
-                    borderRadius: '50%',
-                    background: 'rgba(255, 255, 255, 0.1)',
-                }}
-            />
-            <Box
-                sx={{
-                    position: 'absolute',
-                    bottom: -30,
-                    right: 30,
-                    width: 60,
-                    height: 60,
-                    borderRadius: '50%',
-                    background: 'rgba(255, 255, 255, 0.08)',
-                }}
-            />
-            
-            <Stack spacing={{ xs: 1, sm: 1.25 }} sx={{ position: 'relative', zIndex: 1 }}>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <Typography 
-                        variant="body2" 
-                        sx={{ 
-                            color: 'rgba(255, 255, 255, 0.9)',
-                            fontWeight: 500,
-                            fontSize: { xs: '0.7rem', sm: '0.8rem' },
-                            letterSpacing: '0.5px',
-                        }}
-                    >
-                        {title}
-                    </Typography>
-                    <Box
-                        sx={{
-                            width: { xs: 32, sm: 40 },
-                            height: { xs: 32, sm: 40 },
-                            borderRadius: 2,
-                            bgcolor: 'rgba(255, 255, 255, 0.2)',
-                            backdropFilter: 'blur(10px)',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            transition: 'transform 0.3s ease',
-                            '&:hover': {
-                                transform: 'rotate(10deg) scale(1.1)',
-                            }
-                        }}
-                    >
-                        <Icon sx={{ fontSize: { xs: 16, sm: 20 }, color: 'white' }} />
-                    </Box>
-                </Box>
-                <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.5 }}>
-                    {currencySymbol && (
-                        <Typography 
-                            component="span" 
-                            sx={{ 
-                                color: 'white', 
-                                fontSize: { xs: '0.75rem', sm: '0.9rem' },
-                                fontWeight: 600,
-                                opacity: 0.9,
-                                mr: 0.25
-                            }}
-                        >
-                            {currencySymbol}
-                        </Typography>
-                    )}
-                    <AnimatedCounter
-                        value={amount}
-                        duration={1200}
-                        sx={{
-                            color: 'white',
-                            fontSize: { xs: '1.1rem', sm: '1.35rem', md: '1.6rem' },
-                            fontWeight: 700,
-                            textShadow: '0 2px 4px rgba(0,0,0,0.1)',
-                            letterSpacing: '-0.03em',
-                        }}
-                    />
-                </Box>
-            </Stack>
-        </Box>
-    );
-};
 
 // Minimalistic Dashboard Stat Card (SuperAdmin only)
 const MinimalStatCard = ({ 
@@ -501,21 +368,6 @@ export default function DashboardPage() {
         return theme.palette.success.main;
     };
 
-    // Different stat cards for leaders vs admins
-    const getGradient = (type: string, balance?: number | string) => {
-        const b = balance !== undefined ? Number(balance) : undefined;
-        if (type === 'balance') {
-            if (b !== undefined && b < 0) return 'linear-gradient(135deg, #ef5350 0%, #c62828 100%)';
-            if (b !== undefined && b === 0) return 'linear-gradient(135deg, #ff9800 0%, #f57c00 100%)';
-            if (b !== undefined && b < 5000) return 'linear-gradient(135deg, #ffc107 0%, #ff9800 100%)';
-            return 'linear-gradient(135deg, #66bb6a 0%, #43a047 100%)';
-        }
-        if (type === 'income') return 'linear-gradient(135deg, #4caf50 0%, #2e7d32 100%)';
-        if (type === 'expense') return 'linear-gradient(135deg, #ef5350 0%, #c62828 100%)';
-        if (type === 'weeklyIncome') return 'linear-gradient(135deg, #42a5f5 0%, #1976d2 100%)';
-        return 'linear-gradient(135deg, #7c4dff 0%, #651fff 100%)';
-    };
-
     const getStatColor = (type: string, balance?: number | string) => {
         const b = balance !== undefined ? Number(balance) : undefined;
         if (type === 'balance') {
@@ -527,151 +379,47 @@ export default function DashboardPage() {
         if (type === 'income') return theme.palette.success.main;
         if (type === 'expense') return theme.palette.error.main;
         if (type === 'weeklyIncome') return theme.palette.info.main;
-        return theme.palette.primary.main;
+        return theme.palette.text.primary;
     };
 
     const statCards = isSuperAdmin && stats.superAdminStats ? [
-        {
-            title: 'Total Users',
-            amount: stats.superAdminStats.users,
-            icon: PeopleIcon,
-            gradient: 'linear-gradient(135deg, #42a5f5 0%, #1976d2 100%)',
-            color: theme.palette.primary.main,
-            isBlinking: false
-        },
-        {
-            title: 'Total Departments',
-            amount: stats.superAdminStats.departments,
-            icon: BusinessIcon,
-            gradient: 'linear-gradient(135deg, #ffa726 0%, #f57c00 100%)',
-            color: theme.palette.warning.main,
-            isBlinking: false
-        },
-        {
-            title: 'Total Transactions',
-            amount: stats.superAdminStats.transactions,
-            icon: ReceiptIcon,
-            gradient: 'linear-gradient(135deg, #26c6da 0%, #00acc1 100%)',
-            color: theme.palette.info.main,
-            isBlinking: false
-        },
-        {
-            title: 'Pending Approvals',
-            amount: stats.superAdminStats.pendingApprovals,
-            icon: PendingActionsIcon,
-            gradient: 'linear-gradient(135deg, #ef5350 0%, #e53935 100%)',
-            color: theme.palette.error.main,
-            isBlinking: stats.superAdminStats.pendingApprovals > 0
-        },
-        {
-            title: "Today's Logins",
-            amount: stats.superAdminStats.todaysLogins,
-            icon: VerifiedUserIcon,
-            gradient: 'linear-gradient(135deg, #66bb6a 0%, #43a047 100%)',
-            color: theme.palette.success.main,
-            isBlinking: false
-        },
-        {
-            title: 'Active Currencies',
-            amount: stats.superAdminStats.activeCurrencies,
-            icon: MonetizationOnIcon,
-            gradient: 'linear-gradient(135deg, #7e57c2 0%, #5e35b1 100%)',
-            color: theme.palette.secondary.main,
-            isBlinking: false
-        },
-        {
-            title: 'Critical Errors (Today)',
-            amount: stats.superAdminStats.criticalErrors,
-            icon: ErrorOutlineIcon,
-            gradient: 'linear-gradient(135deg, #FF5252 0%, #FF1744 100%)',
-            color: theme.palette.error.dark,
-            isBlinking: stats.superAdminStats.criticalErrors > 0
-        },
-        {
-            title: 'Active Departments',
-            amount: stats.superAdminStats.activeDepartments,
-            icon: BusinessIcon,
-            gradient: 'linear-gradient(135deg, #ab47bc 0%, #8e24aa 100%)',
-            color: theme.palette.secondary.dark,
-            isBlinking: false
-        }
+        { title: 'Total Users', amount: stats.superAdminStats.users, icon: PeopleIcon, color: theme.palette.text.primary, isBlinking: false },
+        { title: 'Total Departments', amount: stats.superAdminStats.departments, icon: BusinessIcon, color: theme.palette.warning.main, isBlinking: false },
+        { title: 'Total Transactions', amount: stats.superAdminStats.transactions, icon: ReceiptIcon, color: theme.palette.info.main, isBlinking: false },
+        { title: 'Pending Approvals', amount: stats.superAdminStats.pendingApprovals, icon: PendingActionsIcon, color: theme.palette.error.main, isBlinking: stats.superAdminStats.pendingApprovals > 0 },
+        { title: "Today's Logins", amount: stats.superAdminStats.todaysLogins, icon: VerifiedUserIcon, color: theme.palette.success.main, isBlinking: false },
+        { title: 'Active Currencies', amount: stats.superAdminStats.activeCurrencies, icon: MonetizationOnIcon, color: theme.palette.text.primary, isBlinking: false },
+        { title: 'Critical Errors (Today)', amount: stats.superAdminStats.criticalErrors, icon: ErrorOutlineIcon, color: theme.palette.error.dark, isBlinking: stats.superAdminStats.criticalErrors > 0 },
+        { title: 'Active Departments', amount: stats.superAdminStats.activeDepartments, icon: BusinessIcon, color: theme.palette.text.primary, isBlinking: false },
     ] : isLeader ? [
-        {
-            title: 'Account Balance',
-            amount: stats.balance || 0,
-            icon: AccountBalanceWalletIcon,
-            gradient: getGradient('balance', stats.balance),
-            color: getStatColor('balance', stats.balance),
-            isBlinking: Number(stats.balance || 0) < 5000
-        },
-        {
-            title: "This Week's Income",
-            amount: stats.weeklyIncome || 0,
-            icon: TrendingUpIcon,
-            gradient: getGradient('weeklyIncome'),
-            color: getStatColor('weeklyIncome'),
-            isBlinking: false
-        }
+        { title: 'Account Balance', amount: stats.balance || 0, icon: AccountBalanceWalletIcon, color: getStatColor('balance', stats.balance), isBlinking: Number(stats.balance || 0) < 5000 },
+        { title: "This Week's Income", amount: stats.weeklyIncome || 0, icon: TrendingUpIcon, color: getStatColor('weeklyIncome'), isBlinking: false },
     ] : [
-        {
-            title: 'Account Balance',
-            amount: stats.balance || 0,
-            icon: AccountBalanceWalletIcon,
-            gradient: getGradient('balance', stats.balance),
-            color: getStatColor('balance', stats.balance),
-            isBlinking: Number(stats.balance || 0) < 5000
-        },
-        {
-            title: 'Total Inflows',
-            amount: stats.income || 0,
-            icon: TrendingUpIcon,
-            gradient: getGradient('income'),
-            color: getStatColor('income'),
-            isBlinking: false
-        },
-        {
-            title: 'Total Expenses',
-            amount: stats.expense || 0,
-            icon: TrendingDownIcon,
-            gradient: getGradient('expense'),
-            color: getStatColor('expense'),
-            isBlinking: false
-        },
-        {
-            title: "This Week's Income",
-            amount: stats.weeklyIncome || 0,
-            icon: TrendingUpIcon,
-            gradient: getGradient('weeklyIncome'),
-            color: getStatColor('weeklyIncome'),
-            isBlinking: false
-        }
+        { title: 'Account Balance', amount: stats.balance || 0, icon: AccountBalanceWalletIcon, color: getStatColor('balance', stats.balance), isBlinking: Number(stats.balance || 0) < 5000 },
+        { title: 'Total Inflows', amount: stats.income || 0, icon: TrendingUpIcon, color: getStatColor('income'), isBlinking: false },
+        { title: 'Total Expenses', amount: stats.expense || 0, icon: TrendingDownIcon, color: getStatColor('expense'), isBlinking: false },
+        { title: "This Week's Income", amount: stats.weeklyIncome || 0, icon: TrendingUpIcon, color: getStatColor('weeklyIncome'), isBlinking: false },
     ];
 
     const renderChartContent = () => (
         <>
-            <Typography
-                variant="h6"
-                fontWeight="600"
-                sx={{
-                    mb: { xs: 1.5, sm: 2 },
-                    fontSize: { xs: '0.9rem', sm: '1.1rem' },
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 1,
-                }}
-            >
-                <Box
-                    component="span"
+            <Box sx={{ mb: { xs: 1.5, sm: 2.5 } }}>
+                <Typography variant="overline" sx={{ display: 'block', mb: 0.5 }}>
+                    Cash flow
+                </Typography>
+                <Typography
+                    component="h2"
                     sx={{
-                        width: 4,
-                        height: 20,
-                        bgcolor: 'primary.main',
-                        borderRadius: 1,
-                        display: 'inline-block',
+                        fontFamily: theme.typography.h3.fontFamily,
+                        fontSize: { xs: '1.0625rem', sm: '1.25rem' },
+                        fontWeight: 500,
+                        letterSpacing: '-0.015em',
+                        color: 'text.primary',
                     }}
-                />
-                {chartOffset === 0 ? 'Weekly Income & Expense (Last 4 Weeks)' : 'Weekly Income & Expense'}
-            </Typography>
+                >
+                    {chartOffset === 0 ? 'Weekly income & expense, last 4 weeks' : 'Weekly income & expense'}
+                </Typography>
+            </Box>
             <Box sx={{ width: '100%', height: { xs: 280, sm: 320, md: 350 }, position: 'relative', opacity: chartLoading ? 0.5 : 1, transition: 'opacity 0.2s' }}>
                 <ResponsiveContainer width="100%" height="100%">
                     <BarChart
@@ -699,14 +447,23 @@ export default function DashboardPage() {
                                 return [formatted, label];
                             }}
                             contentStyle={{
-                                backgroundColor: alpha(theme.palette.background.paper, 0.95),
-                                border: 'none',
-                                borderRadius: 12,
-                                boxShadow: '0 8px 32px rgba(0, 0, 0, 0.15)',
-                                backdropFilter: 'blur(10px)',
+                                backgroundColor: theme.palette.background.paper,
+                                border: `1px solid ${theme.palette.divider}`,
+                                borderRadius: 10,
+                                boxShadow: theme.palette.mode === 'dark'
+                                    ? '0 16px 40px rgba(0,0,0,0.55)'
+                                    : '0 16px 40px rgba(20,17,15,0.08)',
+                                fontSize: '0.8125rem',
                             }}
-                            labelStyle={{ color: theme.palette.text.primary, fontWeight: 600 }}
-                            cursor={{ fill: alpha(theme.palette.primary.main, 0.1), radius: 4 }}
+                            labelStyle={{
+                                color: theme.palette.text.primary,
+                                fontWeight: 600,
+                                fontSize: '0.75rem',
+                                textTransform: 'uppercase',
+                                letterSpacing: '0.06em',
+                                marginBottom: 4,
+                            }}
+                            cursor={{ fill: alpha(theme.palette.text.primary, 0.04), radius: 4 }}
                         />
                         <Bar
                             dataKey="income"
@@ -739,21 +496,32 @@ export default function DashboardPage() {
                     </BarChart>
                 </ResponsiveContainer>
             </Box>
-            {/* Navigation Arrows */}
-            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 2, mt: 1.5 }}>
+            {/* Navigation */}
+            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 1.5, mt: 2 }}>
                 <IconButton
                     size="small"
                     onClick={() => setChartOffset(prev => prev + 1)}
                     disabled={chartLoading}
                     sx={{
-                        bgcolor: alpha(theme.palette.primary.main, 0.08),
-                        '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.16) },
-                        '&.Mui-disabled': { bgcolor: alpha(theme.palette.action.disabled, 0.04) },
+                        border: `1px solid ${theme.palette.divider}`,
+                        borderRadius: 1,
+                        color: 'text.secondary',
+                        '&:hover': { color: 'text.primary', borderColor: alpha(theme.palette.text.primary, 0.3) },
                     }}
                 >
-                    <ArrowBackIosNewIcon sx={{ fontSize: 18 }} />
+                    <ArrowBackIosNewIcon sx={{ fontSize: 14 }} />
                 </IconButton>
-                <Typography variant="body2" color="text.secondary" sx={{ fontSize: { xs: '0.75rem', sm: '0.85rem' }, minWidth: 80, textAlign: 'center' }}>
+                <Typography
+                    sx={{
+                        fontSize: '0.6875rem',
+                        fontWeight: 500,
+                        letterSpacing: '0.10em',
+                        textTransform: 'uppercase',
+                        color: 'text.secondary',
+                        minWidth: 100,
+                        textAlign: 'center',
+                    }}
+                >
                     {chartOffset === 0 ? 'Current' : `${chartOffset * 4} weeks ago`}
                 </Typography>
                 <IconButton
@@ -761,12 +529,13 @@ export default function DashboardPage() {
                     onClick={() => setChartOffset(prev => Math.max(0, prev - 1))}
                     disabled={chartOffset === 0 || chartLoading}
                     sx={{
-                        bgcolor: alpha(theme.palette.primary.main, 0.08),
-                        '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.16) },
-                        '&.Mui-disabled': { bgcolor: alpha(theme.palette.action.disabled, 0.04) },
+                        border: `1px solid ${theme.palette.divider}`,
+                        borderRadius: 1,
+                        color: 'text.secondary',
+                        '&:hover': { color: 'text.primary', borderColor: alpha(theme.palette.text.primary, 0.3) },
                     }}
                 >
-                    <ArrowForwardIosIcon sx={{ fontSize: 18 }} />
+                    <ArrowForwardIosIcon sx={{ fontSize: 14 }} />
                 </IconButton>
             </Box>
         </>
@@ -774,71 +543,89 @@ export default function DashboardPage() {
 
     return (
         <Box sx={{ px: { xs: 1.5, sm: 3, md: 6, lg: 8 }, py: { xs: 1.5, sm: 2, md: 1.5 }, maxWidth: '1600px', mx: 'auto' }}>
-            {/* Header */}
-            <Box sx={{ mb: { xs: 3, md: 4 } }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1 }}>
+            {/* Header — editorial hero */}
+            <Box
+                sx={{
+                    mb: { xs: 3, md: 4 },
+                    pb: { xs: 2.5, md: 3 },
+                    borderBottom: `1px solid ${theme.palette.divider}`,
+                    display: 'flex',
+                    alignItems: { xs: 'flex-start', sm: 'flex-end' },
+                    justifyContent: 'space-between',
+                    gap: 2,
+                    flexWrap: 'wrap',
+                }}
+            >
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2.5, minWidth: 0, flex: 1 }}>
                     {isSuperAdmin ? (
-                    <Box
-                        sx={{
-                            width: { xs: 40, sm: 48 },
-                            height: { xs: 40, sm: 48 },
-                            borderRadius: 2,
-                            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            boxShadow: '0 4px 14px rgba(102, 126, 234, 0.4)',
-                        }}
-                    >
-                        <BusinessIcon sx={{ fontSize: { xs: 22, sm: 26 }, color: 'white' }} />
-                    </Box>
+                        <Box
+                            sx={{
+                                width: 48,
+                                height: 48,
+                                borderRadius: 1.5,
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                bgcolor: alpha(theme.palette.secondary.main, 0.10),
+                                color: theme.palette.secondary.main,
+                                flexShrink: 0,
+                            }}
+                        >
+                            <BusinessIcon sx={{ fontSize: 24 }} />
+                        </Box>
                     ) : departmentLeader ? (
-                         <Avatar 
-                            src={departmentLeader.image || undefined} 
+                        <Avatar
+                            src={departmentLeader.image || undefined}
                             alt={departmentLeader.name}
-                            sx={{ 
-                                width: { xs: 48, sm: 64 }, 
-                                height: { xs: 48, sm: 64 },
-                                boxShadow: '0 4px 14px rgba(0, 0, 0, 0.1)',
-                                border: `2px solid ${theme.palette.background.paper}`
+                            sx={{
+                                width: { xs: 52, sm: 60 },
+                                height: { xs: 52, sm: 60 },
+                                fontFamily: theme.typography.h3.fontFamily,
+                                fontSize: '1.25rem',
+                                border: `1px solid ${theme.palette.divider}`,
                             }}
                         >
                             {departmentLeader.name.charAt(0)}
                         </Avatar>
                     ) : (
-                    <Box
-                        sx={{
-                            width: { xs: 40, sm: 48 },
-                            height: { xs: 40, sm: 48 },
-                            borderRadius: 2,
-                            background: 'transparent',
-                            border: '1px solid',
-                            borderColor: 'divider',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                        }}
-                    >
-                        <AccountBalanceWalletIcon sx={{ fontSize: { xs: 22, sm: 26 }, color: theme.palette.text.primary }} />
-                    </Box>
+                        <Box
+                            sx={{
+                                width: 48,
+                                height: 48,
+                                borderRadius: 1.5,
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                bgcolor: alpha(theme.palette.text.primary, 0.06),
+                                color: theme.palette.text.primary,
+                                flexShrink: 0,
+                            }}
+                        >
+                            <AccountBalanceWalletIcon sx={{ fontSize: 22 }} />
+                        </Box>
                     )}
-                    <Box>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap' }}>
+                    <Box sx={{ minWidth: 0 }}>
+                        <Typography variant="overline" sx={{ display: 'block', mb: 0.5 }}>
+                            {isSuperAdmin
+                                ? 'Administration'
+                                : isLeader
+                                    ? 'Leader overview'
+                                    : 'Account overview'}
+                        </Typography>
+                        <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1.5, flexWrap: 'wrap' }}>
                             <Typography
-                                variant="h4"
-                                fontWeight="700"
+                                component="h1"
                                 sx={{
-                                    background: isSuperAdmin ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' : 'none',
-                                    backgroundClip: isSuperAdmin ? 'text' : 'border-box',
-                                    WebkitBackgroundClip: isSuperAdmin ? 'text' : 'border-box',
-                                    WebkitTextFillColor: isSuperAdmin ? 'transparent' : theme.palette.text.primary,
-                                    color: isSuperAdmin ? 'inherit' : 'text.primary',
-                                    fontSize: { xs: '1.25rem', sm: '1.75rem', md: '2rem' },
-                                    letterSpacing: '-0.5px',
+                                    fontFamily: theme.typography.h2.fontFamily,
+                                    fontSize: { xs: '1.625rem', sm: '1.875rem', md: '2.25rem' },
+                                    fontWeight: 500,
+                                    letterSpacing: '-0.02em',
+                                    lineHeight: 1.15,
+                                    color: theme.palette.text.primary,
                                 }}
                             >
                                 {isSuperAdmin
-                                    ? 'System Management'
+                                    ? 'System management'
                                     : session?.user?.departmentName && session?.user?.departmentLevel
                                         ? `${session.user.departmentName} ${session.user.departmentLevel}`
                                         : session?.user?.departmentName || 'Dashboard'}
@@ -848,24 +635,26 @@ export default function DashboardPage() {
                                     label={getDisplayRole(session.user.role)}
                                     size="small"
                                     variant="outlined"
-                                    color={isSuperAdmin ? 'secondary' : isLeader ? 'primary' : 'default'}
-                                    sx={{ fontWeight: 600, fontSize: '0.7rem', height: 22 }}
+                                    sx={{
+                                        fontWeight: 500,
+                                        fontSize: '0.625rem',
+                                        letterSpacing: '0.10em',
+                                        textTransform: 'uppercase',
+                                        height: 22,
+                                    }}
                                 />
                             )}
                         </Box>
                         <Typography
                             variant="body2"
                             color="text.secondary"
-                            sx={{
-                                fontSize: { xs: '0.75rem', sm: '0.9rem' },
-                                mt: 0.25,
-                            }}
+                            sx={{ mt: 0.75, maxWidth: 580 }}
                         >
                             {isSuperAdmin
-                                ? 'Manage all aspects of the system from one place'
+                                ? 'Manage every part of the system from one place.'
                                 : departmentLeader
-                                    ? departmentLeader.name
-                                    : "Here's what's happening with your finances today"}
+                                    ? `Led by ${departmentLeader.name}`
+                                    : "Here's what's happening with your finances today."}
                         </Typography>
                     </Box>
                 </Box>
@@ -922,10 +711,10 @@ export default function DashboardPage() {
                 <Card
                     elevation={0}
                     sx={{
-                        p: { xs: 2, sm: 3 },
+                        p: { xs: 2.5, sm: 3.5 },
                         mt: { xs: 2, md: 0 },
                         bgcolor: 'background.paper',
-                        borderRadius: 2,
+                        borderRadius: 3.5,
                         boxShadow: 'none',
                         border: '1px solid',
                         borderColor: 'divider',
@@ -1010,34 +799,51 @@ export default function DashboardPage() {
                             border: `1px solid ${theme.palette.divider}`,
                             bgcolor: 'background.paper',
                             cursor: 'pointer',
-                            transition: 'all 0.2s ease-in-out',
+                            transition: 'border-color 160ms ease, background-color 160ms ease',
                             '&:hover': {
-                                bgcolor: theme.palette.action.hover,
-                                borderColor: link.color,
-                                transform: 'translateX(4px)',
-                            }
+                                bgcolor: alpha(theme.palette.text.primary, 0.02),
+                                borderColor: alpha(link.color || theme.palette.text.primary, 0.4),
+                                '& .arrow': {
+                                    transform: 'translateX(4px)',
+                                    color: theme.palette.text.primary,
+                                },
+                            },
                         }}
                     >
-                        <Box sx={{ p: 2, display: 'flex', alignItems: 'center', gap: 2 }}>
+                        <Box sx={{ px: 2.25, py: 1.75, display: 'flex', alignItems: 'center', gap: 2 }}>
                             <Box
                                 sx={{
-                                    width: 44,
-                                    height: 44,
-                                    borderRadius: 2,
+                                    width: 36,
+                                    height: 36,
+                                    borderRadius: 1.25,
                                     display: 'flex',
                                     alignItems: 'center',
                                     justifyContent: 'center',
-                                    bgcolor: alpha(link.color || theme.palette.primary.main, 0.1),
+                                    bgcolor: alpha(link.color || theme.palette.text.primary, 0.08),
                                     color: link.color,
                                 }}
                             >
-                                <link.icon sx={{ fontSize: 24 }} />
+                                <link.icon sx={{ fontSize: 18 }} />
                             </Box>
-                            <Typography variant="subtitle1" fontWeight={600} color="text.primary">
+                            <Typography
+                                sx={{
+                                    fontSize: '0.9375rem',
+                                    fontWeight: 500,
+                                    color: 'text.primary',
+                                    letterSpacing: '-0.005em',
+                                }}
+                            >
                                 {link.title}
                             </Typography>
                             <Box sx={{ ml: 'auto' }}>
-                                <ArrowForwardIosIcon sx={{ fontSize: 16, color: 'text.disabled' }} />
+                                <ArrowForwardIosIcon
+                                    className="arrow"
+                                    sx={{
+                                        fontSize: 12,
+                                        color: 'text.disabled',
+                                        transition: 'transform 160ms ease, color 160ms ease',
+                                    }}
+                                />
                             </Box>
                         </Box>
                     </Card>

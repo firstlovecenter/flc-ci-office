@@ -136,8 +136,16 @@ export default function RoleSwitcher() {
                     sx: { minWidth: 300 },
                 }}
             >
-                <Typography variant="caption" sx={{ px: 2, py: 1, display: 'block' }}>
-                    Switch Role
+                <Typography
+                    variant="overline"
+                    sx={{
+                        px: 2,
+                        py: 1,
+                        display: 'block',
+                        color: 'text.disabled',
+                    }}
+                >
+                    Switch role
                 </Typography>
                 <Divider />
                 {userRoles.map((userRole) => (

@@ -3,12 +3,8 @@
 import { Box, keyframes, useTheme, alpha } from '@mui/material';
 
 const shimmer = keyframes`
-    0% {
-        transform: translateX(-100%);
-    }
-    100% {
-        transform: translateX(100%);
-    }
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(100%); }
 `;
 
 interface ShimmerSkeletonProps {
@@ -20,7 +16,7 @@ interface ShimmerSkeletonProps {
 
 export function ShimmerSkeleton({
     width = '100%',
-    height = 20,
+    height = 16,
     borderRadius,
     variant = 'rectangular',
 }: ShimmerSkeletonProps) {
@@ -37,79 +33,66 @@ export function ShimmerSkeleton({
         }
     };
 
+    const base = isDark ? alpha('#F4EFE3', 0.05) : alpha('#14110F', 0.05);
+    const sweep = isDark ? alpha('#F4EFE3', 0.10) : alpha('#14110F', 0.08);
+
     return (
         <Box
             sx={{
                 width,
                 height: variant === 'circular' ? width : height,
                 borderRadius: getBorderRadius(),
-                background: isDark 
-                    ? `linear-gradient(90deg, ${alpha('#ffffff', 0.05)} 0%, ${alpha('#ffffff', 0.1)} 50%, ${alpha('#ffffff', 0.05)} 100%)`
-                    : `linear-gradient(90deg, ${alpha('#000000', 0.06)} 0%, ${alpha('#000000', 0.1)} 50%, ${alpha('#000000', 0.06)} 100%)`,
+                backgroundColor: base,
                 position: 'relative',
                 overflow: 'hidden',
                 '&::after': {
                     content: '""',
                     position: 'absolute',
-                    top: 0,
-                    left: 0,
-                    right: 0,
-                    bottom: 0,
-                    background: isDark
-                        ? `linear-gradient(90deg, transparent, ${alpha('#ffffff', 0.1)}, transparent)`
-                        : `linear-gradient(90deg, transparent, ${alpha('#ffffff', 0.5)}, transparent)`,
-                    animation: `${shimmer} 1.5s infinite`,
+                    inset: 0,
+                    background: `linear-gradient(90deg, transparent, ${sweep}, transparent)`,
+                    animation: `${shimmer} 1.6s infinite`,
                 },
             }}
         />
     );
 }
 
-// Stat card skeleton
 export function StatCardSkeleton() {
     const theme = useTheme();
-    const isDark = theme.palette.mode === 'dark';
 
     return (
         <Box
             sx={{
-                p: 3,
-                borderRadius: 2,
-                background: isDark 
-                    ? alpha(theme.palette.background.paper, 0.6)
-                    : alpha(theme.palette.background.paper, 0.8),
-                backdropFilter: 'blur(10px)',
-                border: `1px solid ${isDark ? alpha('#ffffff', 0.05) : alpha('#000000', 0.05)}`,
+                p: 2.75,
+                borderRadius: 3.5,
+                border: `1px solid ${theme.palette.divider}`,
+                backgroundColor: theme.palette.background.paper,
             }}
         >
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 2 }}>
                 <Box sx={{ flex: 1 }}>
-                    <ShimmerSkeleton width={80} height={12} />
+                    <ShimmerSkeleton width={70} height={10} />
                     <Box sx={{ mt: 2 }}>
-                        <ShimmerSkeleton width={150} height={32} />
+                        <ShimmerSkeleton width={140} height={28} borderRadius={6} />
                     </Box>
                 </Box>
-                <ShimmerSkeleton width={48} height={48} borderRadius={12} />
+                <ShimmerSkeleton width={40} height={40} borderRadius={12} />
             </Box>
         </Box>
     );
 }
 
-// Chart skeleton
-export function ChartSkeleton({ height = 300 }: { height?: number }) {
+export function ChartSkeleton({ height = 280 }: { height?: number }) {
     const theme = useTheme();
-    const isDark = theme.palette.mode === 'dark';
 
     return (
         <Box
             sx={{
                 width: '100%',
                 height,
-                borderRadius: 2,
-                background: isDark 
-                    ? alpha(theme.palette.background.paper, 0.4)
-                    : alpha(theme.palette.background.paper, 0.6),
-                backdropFilter: 'blur(10px)',
+                borderRadius: 3.5,
+                border: `1px solid ${theme.palette.divider}`,
+                backgroundColor: theme.palette.background.paper,
                 display: 'flex',
                 alignItems: 'flex-end',
                 justifyContent: 'space-around',
@@ -117,44 +100,41 @@ export function ChartSkeleton({ height = 300 }: { height?: number }) {
                 gap: 2,
             }}
         >
-            {[0.4, 0.7, 0.5, 0.9, 0.6, 0.8].map((h, i) => (
-                <Box key={i} sx={{ flex: 1, height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
-                    <ShimmerSkeleton 
-                        width="100%" 
-                        height={`${h * 100}%`} 
-                        borderRadius={4} 
-                    />
+            {[0.45, 0.7, 0.5, 0.9, 0.6, 0.8, 0.55].map((h, i) => (
+                <Box
+                    key={i}
+                    sx={{ flex: 1, height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}
+                >
+                    <ShimmerSkeleton width="100%" height={`${h * 100}%`} borderRadius={4} />
                 </Box>
             ))}
         </Box>
     );
 }
 
-// Table row skeleton
 export function TableRowSkeleton({ columns = 5 }: { columns?: number }) {
     return (
         <Box sx={{ display: 'flex', gap: 2, py: 2, px: 2 }}>
             {Array.from({ length: columns }).map((_, i) => (
                 <Box key={i} sx={{ flex: i === 0 ? 2 : 1 }}>
-                    <ShimmerSkeleton height={16} />
+                    <ShimmerSkeleton height={14} />
                 </Box>
             ))}
         </Box>
     );
 }
 
-// List item skeleton
 export function ListItemSkeleton() {
     return (
         <Box sx={{ display: 'flex', gap: 2, p: 2, alignItems: 'center' }}>
-            <ShimmerSkeleton width={48} height={48} variant="circular" />
+            <ShimmerSkeleton width={40} height={40} variant="circular" />
             <Box sx={{ flex: 1 }}>
-                <ShimmerSkeleton width="60%" height={16} />
+                <ShimmerSkeleton width="55%" height={14} />
                 <Box sx={{ mt: 1 }}>
-                    <ShimmerSkeleton width="40%" height={12} />
+                    <ShimmerSkeleton width="35%" height={10} />
                 </Box>
             </Box>
-            <ShimmerSkeleton width={80} height={24} borderRadius={12} />
+            <ShimmerSkeleton width={70} height={20} borderRadius={999} />
         </Box>
     );
 }

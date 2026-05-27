@@ -29,6 +29,7 @@ import {
     Cancel as CancelIcon,
     People as PeopleIcon,
     Business as BusinessIcon,
+    ShowChart as ShowChartIcon,
 } from '@mui/icons-material';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
@@ -221,11 +222,56 @@ export default function AnalyticsPage() {
 
     return (
         <Box>
-            {/* Header */}
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-                <Typography variant="h4">
-                    Analytics Dashboard
-                </Typography>
+            {/* Page Header */}
+            <Box
+                sx={(theme) => ({
+                    display: 'flex',
+                    alignItems: { xs: 'flex-start', sm: 'flex-end' },
+                    justifyContent: 'space-between',
+                    gap: 2,
+                    flexWrap: 'wrap',
+                    mb: { xs: 3, md: 4 },
+                    pb: { xs: 2.5, md: 3 },
+                    borderBottom: `1px solid ${theme.palette.divider}`,
+                })}
+            >
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2.5, minWidth: 0, flex: 1 }}>
+                    <Box
+                        sx={(theme) => ({
+                            width: 48,
+                            height: 48,
+                            borderRadius: 1.5,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            bgcolor: alpha(theme.palette.secondary.main, 0.10),
+                            color: theme.palette.secondary.main,
+                            flexShrink: 0,
+                        })}
+                    >
+                        <ShowChartIcon sx={{ fontSize: 22 }} />
+                    </Box>
+                    <Box sx={{ minWidth: 0 }}>
+                        <Typography variant="overline" sx={{ display: 'block', mb: 0.5 }}>
+                            Insights
+                        </Typography>
+                        <Typography
+                            component="h1"
+                            sx={(theme) => ({
+                                fontFamily: theme.typography.h2.fontFamily,
+                                fontSize: { xs: '1.625rem', sm: '1.875rem', md: '2.125rem' },
+                                fontWeight: 600,
+                                letterSpacing: '-0.025em',
+                                lineHeight: 1.15,
+                            })}
+                        >
+                            Analytics
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75 }}>
+                            Approval rates, status breakdown, and departmental performance.
+                        </Typography>
+                    </Box>
+                </Box>
             </Box>
 
             {/* Filters */}

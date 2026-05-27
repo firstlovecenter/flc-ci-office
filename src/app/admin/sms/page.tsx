@@ -18,6 +18,7 @@ import {
     InputAdornment,
     IconButton,
     Chip,
+    alpha,
 } from '@mui/material';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
@@ -428,14 +429,56 @@ export default function SMSManagementPage() {
 
     return (
         <Box>
-            {/* Header */}
-            <Box sx={{ mb: 3 }}>
-                <Typography variant="h4" fontWeight="600" gutterBottom>
-                    SMS Management
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                    Resend SMS notifications to users who didn't receive them
-                </Typography>
+            {/* Page Header */}
+            <Box
+                sx={(theme) => ({
+                    display: 'flex',
+                    alignItems: { xs: 'flex-start', sm: 'flex-end' },
+                    justifyContent: 'space-between',
+                    gap: 2,
+                    flexWrap: 'wrap',
+                    mb: { xs: 3, md: 4 },
+                    pb: { xs: 2.5, md: 3 },
+                    borderBottom: `1px solid ${theme.palette.divider}`,
+                })}
+            >
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2.5, minWidth: 0, flex: 1 }}>
+                    <Box
+                        sx={(theme) => ({
+                            width: 48,
+                            height: 48,
+                            borderRadius: 1.5,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            bgcolor: alpha(theme.palette.secondary.main, 0.10),
+                            color: theme.palette.secondary.main,
+                            flexShrink: 0,
+                        })}
+                    >
+                        <SmsIcon sx={{ fontSize: 22 }} />
+                    </Box>
+                    <Box sx={{ minWidth: 0 }}>
+                        <Typography variant="overline" sx={{ display: 'block', mb: 0.5 }}>
+                            Administration
+                        </Typography>
+                        <Typography
+                            component="h1"
+                            sx={(theme) => ({
+                                fontFamily: theme.typography.h2.fontFamily,
+                                fontSize: { xs: '1.625rem', sm: '1.875rem', md: '2.125rem' },
+                                fontWeight: 600,
+                                letterSpacing: '-0.025em',
+                                lineHeight: 1.15,
+                            })}
+                        >
+                            SMS management
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75 }}>
+                            Resend SMS notifications to users who didn't receive them.
+                        </Typography>
+                    </Box>
+                </Box>
             </Box>
 
             {/* Main Form */}

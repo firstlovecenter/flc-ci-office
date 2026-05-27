@@ -114,7 +114,7 @@ export default function ReceiptUpload({ transactionId, open, onClose, onUploaded
 
     return (
         <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth>
-            <DialogTitle>Upload Receipt</DialogTitle>
+            <DialogTitle>Upload receipt</DialogTitle>
             <DialogContent>
                 <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
                     Attach a photo or PDF of the receipt. Once uploaded, the receipt cannot be replaced.

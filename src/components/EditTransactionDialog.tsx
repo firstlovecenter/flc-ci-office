@@ -251,13 +251,13 @@ export default function EditTransactionDialog({
         <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
             <DialogTitle>
                 <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    Edit Transaction
+                    Edit transaction
                     {transaction?.locked && isSuperAdmin && (
-                        <Chip 
-                            label="SUPERADMIN OVERRIDE" 
-                            color="warning" 
+                        <Chip
+                            label="Superadmin override"
+                            color="warning"
                             size="small"
-                            sx={{ fontWeight: 700 }}
+                            sx={{ textTransform: 'none', letterSpacing: 0 }}
                         />
                     )}
                 </Box>

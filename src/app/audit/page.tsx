@@ -28,8 +28,10 @@ import {
     Button,
     Stack,
     Grid,
+    alpha,
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
+import HistoryIcon from '@mui/icons-material/History';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { GlassCard } from '@/components/ui';
@@ -149,13 +151,56 @@ export default function AuditPage() {
 
     return (
         <Box>
-            <Box sx={{ mb: 4 }}>
-                <Typography variant="h4" fontWeight="700">
-                    Audit Trail
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                    View all system activity and changes
-                </Typography>
+            {/* Page Header */}
+            <Box
+                sx={(theme) => ({
+                    display: 'flex',
+                    alignItems: { xs: 'flex-start', sm: 'flex-end' },
+                    justifyContent: 'space-between',
+                    gap: 2,
+                    flexWrap: 'wrap',
+                    mb: { xs: 3, md: 4 },
+                    pb: { xs: 2.5, md: 3 },
+                    borderBottom: `1px solid ${theme.palette.divider}`,
+                })}
+            >
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2.5, minWidth: 0, flex: 1 }}>
+                    <Box
+                        sx={(theme) => ({
+                            width: 48,
+                            height: 48,
+                            borderRadius: 1.5,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            bgcolor: alpha(theme.palette.secondary.main, 0.10),
+                            color: theme.palette.secondary.main,
+                            flexShrink: 0,
+                        })}
+                    >
+                        <HistoryIcon sx={{ fontSize: 22 }} />
+                    </Box>
+                    <Box sx={{ minWidth: 0 }}>
+                        <Typography variant="overline" sx={{ display: 'block', mb: 0.5 }}>
+                            System
+                        </Typography>
+                        <Typography
+                            component="h1"
+                            sx={(theme) => ({
+                                fontFamily: theme.typography.h2.fontFamily,
+                                fontSize: { xs: '1.625rem', sm: '1.875rem', md: '2.125rem' },
+                                fontWeight: 600,
+                                letterSpacing: '-0.025em',
+                                lineHeight: 1.15,
+                            })}
+                        >
+                            Audit trail
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75 }}>
+                            Every system action and change, with full attribution.
+                        </Typography>
+                    </Box>
+                </Box>
             </Box>
 
             {/* Filters */}

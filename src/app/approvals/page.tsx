@@ -290,37 +290,55 @@ export default function ApprovalsPage() {
     return (
         <Box>
             {/* Page Header */}
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 4 }}>
-                <Box
-                    sx={{
-                        width: 56,
-                        height: 56,
-                        borderRadius: 3,
-                        background: 'linear-gradient(135deg, #ff9800 0%, #f57c00 100%)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        boxShadow: '0 4px 14px rgba(255, 152, 0, 0.4)',
-                    }}
-                >
-                    <PendingActionsIcon sx={{ fontSize: 28, color: 'white' }} />
-                </Box>
-                <Box>
-                    <Typography 
-                        variant="h4" 
-                        fontWeight="700"
-                        sx={{
-                            background: 'linear-gradient(135deg, #ff9800 0%, #f57c00 100%)',
-                            backgroundClip: 'text',
-                            WebkitBackgroundClip: 'text',
-                            WebkitTextFillColor: 'transparent',
-                        }}
+            <Box
+                sx={(theme) => ({
+                    display: 'flex',
+                    alignItems: { xs: 'flex-start', sm: 'flex-end' },
+                    justifyContent: 'space-between',
+                    gap: 2,
+                    flexWrap: 'wrap',
+                    mb: { xs: 3, md: 4 },
+                    pb: { xs: 2.5, md: 3 },
+                    borderBottom: `1px solid ${theme.palette.divider}`,
+                })}
+            >
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2.5, minWidth: 0, flex: 1 }}>
+                    <Box
+                        sx={(theme) => ({
+                            width: 48,
+                            height: 48,
+                            borderRadius: 1.5,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            bgcolor: alpha(theme.palette.warning.main, 0.10),
+                            color: theme.palette.warning.main,
+                            flexShrink: 0,
+                        })}
                     >
-                        Expense Approvals
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                        Review and manage pending transactions
-                    </Typography>
+                        <PendingActionsIcon sx={{ fontSize: 22 }} />
+                    </Box>
+                    <Box sx={{ minWidth: 0 }}>
+                        <Typography variant="overline" sx={{ display: 'block', mb: 0.5 }}>
+                            Review queue
+                        </Typography>
+                        <Typography
+                            component="h1"
+                            sx={(theme) => ({
+                                fontFamily: theme.typography.h2.fontFamily,
+                                fontSize: { xs: '1.625rem', sm: '1.875rem', md: '2.125rem' },
+                                fontWeight: 500,
+                                letterSpacing: '-0.02em',
+                                lineHeight: 1.15,
+                                color: theme.palette.text.primary,
+                            })}
+                        >
+                            Expense approvals
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75 }}>
+                            Review and decide on pending transactions.
+                        </Typography>
+                    </Box>
                 </Box>
             </Box>
 

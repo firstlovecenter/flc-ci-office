@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
+import Link from 'next/link';
 import {
     Box,
     Typography,
@@ -13,9 +14,13 @@ import {
     Paper,
     Divider,
     InputAdornment,
+    alpha,
+    useTheme,
+    Link as MuiLink,
 } from '@mui/material';
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
 import SendIcon from '@mui/icons-material/Send';
+import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
 
 interface OversightOption {
     id: string;
@@ -35,7 +40,129 @@ function getExpenseWindowStatus() {
     };
 }
 
+// Shared shell: brand mark + sign-in link + page content
+function PageShell({ children }: { children: React.ReactNode }) {
+    const theme = useTheme();
+    return (
+        <Box
+            sx={{
+                minHeight: '100vh',
+                display: 'flex',
+                flexDirection: 'column',
+                bgcolor: 'background.default',
+            }}
+        >
+            {/* Top bar: brand + sign-in */}
+            <Box
+                sx={(theme) => ({
+                    position: 'sticky',
+                    top: 0,
+                    zIndex: 10,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: 2,
+                    px: { xs: 2, sm: 4 },
+                    py: 1.5,
+                    bgcolor: alpha(theme.palette.background.default, 0.85),
+                    backdropFilter: 'saturate(180%) blur(12px)',
+                    WebkitBackdropFilter: 'saturate(180%) blur(12px)',
+                    borderBottom: `1px solid ${theme.palette.divider}`,
+                })}
+            >
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, minWidth: 0 }}>
+                    <Box
+                        sx={{
+                            width: 32,
+                            height: 32,
+                            borderRadius: 1.25,
+                            border: `1px solid ${theme.palette.divider}`,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            bgcolor: 'background.paper',
+                            overflow: 'hidden',
+                            flexShrink: 0,
+                        }}
+                    >
+                        <Image src="/flc-logo.webp" alt="CI Office" width={20} height={20} />
+                    </Box>
+                    <Box sx={{ lineHeight: 1, minWidth: 0 }}>
+                        <Typography
+                            noWrap
+                            sx={{
+                                fontFamily: theme.typography.h3.fontFamily,
+                                fontSize: '0.9375rem',
+                                fontWeight: 600,
+                                letterSpacing: '-0.02em',
+                                color: 'text.primary',
+                            }}
+                        >
+                            CI Office
+                        </Typography>
+                        <Typography
+                            noWrap
+                            sx={{
+                                fontSize: '0.625rem',
+                                fontWeight: 600,
+                                letterSpacing: '0.18em',
+                                textTransform: 'uppercase',
+                                color: 'primary.main',
+                                mt: 0.25,
+                                display: { xs: 'none', sm: 'block' },
+                            }}
+                        >
+                            Accounts
+                        </Typography>
+                    </Box>
+                </Box>
+                <MuiLink
+                    component={Link}
+                    href="/auth/login"
+                    underline="none"
+                    sx={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 0.75,
+                        fontSize: '0.875rem',
+                        fontWeight: 500,
+                        color: 'text.secondary',
+                        px: 1.5,
+                        py: 0.75,
+                        borderRadius: 999,
+                        border: `1px solid ${theme.palette.divider}`,
+                        '&:hover': {
+                            color: 'text.primary',
+                            borderColor: alpha(theme.palette.text.primary, 0.3),
+                        },
+                        transition: 'color 160ms ease, border-color 160ms ease',
+                    }}
+                >
+                    <Box component="span" sx={{ display: { xs: 'none', sm: 'inline' } }}>Sign in</Box>
+                    <Box component="span" sx={{ display: { xs: 'inline', sm: 'none' } }}>Sign in</Box>
+                    <ArrowForwardIcon sx={{ fontSize: 14 }} />
+                </MuiLink>
+            </Box>
+
+            {/* Body */}
+            <Box
+                sx={{
+                    flex: 1,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    px: { xs: 2, sm: 4 },
+                    py: { xs: 3, sm: 5 },
+                }}
+            >
+                {children}
+            </Box>
+        </Box>
+    );
+}
+
 export default function PublicExpensePage() {
+    const theme = useTheme();
     const [oversights, setOversights] = useState<OversightOption[]>([]);
     const [loadingOversights, setLoadingOversights] = useState(true);
 
@@ -121,95 +248,109 @@ export default function PublicExpensePage() {
         }
     };
 
+    // ── Submitted success state ──────────────────────────────
     if (submitted) {
         return (
-            <Box
-                sx={{
-                    minHeight: '100vh',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    bgcolor: '#f0f4f8',
-                    p: 2,
-                }}
-            >
+            <PageShell>
                 <Paper
-                    elevation={3}
+                    elevation={0}
                     sx={{
-                        p: 5,
+                        p: { xs: 3, sm: 5 },
                         maxWidth: 480,
                         width: '100%',
                         textAlign: 'center',
-                        borderRadius: 3,
+                        borderRadius: 3.5,
+                        border: `1px solid ${theme.palette.divider}`,
                     }}
                 >
                     <Box
-                        sx={{
-                            width: 72,
-                            height: 72,
+                        sx={(theme) => ({
+                            width: 56,
+                            height: 56,
                             borderRadius: '50%',
-                            bgcolor: 'success.light',
+                            bgcolor: alpha(theme.palette.success.main, 0.10),
+                            color: 'success.main',
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
                             mx: 'auto',
-                            mb: 2.5,
+                            mb: 3,
+                        })}
+                    >
+                        <CheckCircleOutlineIcon sx={{ fontSize: 28 }} />
+                    </Box>
+                    <Typography variant="overline" sx={{ display: 'block', mb: 1 }}>
+                        Request received
+                    </Typography>
+                    <Typography
+                        component="h1"
+                        sx={{
+                            fontFamily: theme.typography.h2.fontFamily,
+                            fontSize: { xs: '1.625rem', sm: '1.875rem' },
+                            fontWeight: 600,
+                            letterSpacing: '-0.025em',
+                            lineHeight: 1.15,
+                            mb: 1.5,
                         }}
                     >
-                        <CheckCircleOutlineIcon sx={{ fontSize: 44, color: 'success.main' }} />
-                    </Box>
-                    <Typography variant="h5" fontWeight={700} gutterBottom>
-                        Request Submitted
+                        Submitted for review
                     </Typography>
-                    <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
-                        Your expense request has been submitted successfully. Your oversight leader will review it and contact you via the Momo number provided.
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 3, maxWidth: 360, mx: 'auto' }}>
+                        Your oversight leader will review this and contact you via the Momo number you provided.
                     </Typography>
                     {referenceId && (
                         <Box
-                            sx={{
+                            sx={(theme) => ({
                                 px: 3,
                                 py: 2,
                                 mb: 3,
                                 borderRadius: 2,
-                                bgcolor: '#f0f4f8',
-                                border: '1px solid #d0d7e0',
-                            }}
+                                bgcolor: alpha(theme.palette.text.primary, 0.03),
+                                border: `1px solid ${theme.palette.divider}`,
+                            })}
                         >
-                            <Typography variant="caption" color="text.secondary" display="block" gutterBottom>
-                                Reference Number
+                            <Typography variant="overline" sx={{ display: 'block', mb: 0.5 }}>
+                                Reference
                             </Typography>
                             <Typography
-                                variant="body1"
-                                fontWeight={700}
-                                sx={{ fontFamily: 'monospace', letterSpacing: 1, color: 'text.primary' }}
+                                sx={{
+                                    fontFamily: theme.typography.fontFamily,
+                                    fontVariantNumeric: 'tabular-nums',
+                                    fontSize: '1.125rem',
+                                    fontWeight: 600,
+                                    letterSpacing: '0.08em',
+                                    color: 'text.primary',
+                                }}
                             >
                                 {referenceId.slice(0, 8).toUpperCase()}
                             </Typography>
-                            <Typography variant="caption" color="text.disabled">
-                                Keep this for your records
+                            <Typography variant="caption" color="text.disabled" sx={{ display: 'block', mt: 0.5 }}>
+                                Keep this for your records.
                             </Typography>
                         </Box>
                     )}
                     <Button
                         variant="outlined"
+                        fullWidth
                         onClick={() => {
                             setSubmitted(false);
                             setReferenceId(null);
                             setForm({ oversightDeptId: '', requesterName: '', leaderPhone: '', churchName: '', momoName: '', momoNumber: '', amount: '', description: '' });
                         }}
+                        sx={{ py: 1.25 }}
                     >
-                        Submit Another Request
+                        Submit another request
                     </Button>
                 </Paper>
-            </Box>
+            </PageShell>
         );
     }
 
+    // ── Window closed state ──────────────────────────────────
     const expenseWindow = getExpenseWindowStatus();
     if (!expenseWindow.isOpen) {
         const now = expenseWindow.now;
         const hour = now.getHours();
-        // Next opening: if before 6am today, it's today at 6am; otherwise next day at 6am
         const nextOpen = new Date(now);
         if (hour < 6) {
             nextOpen.setHours(6, 0, 0, 0);
@@ -222,246 +363,296 @@ export default function PublicExpensePage() {
         const minutesUntilOpen = Math.floor((msUntilOpen % (1000 * 60 * 60)) / (1000 * 60));
 
         return (
-            <Box
-                sx={{
-                    minHeight: '100vh',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    bgcolor: '#f0f4f8',
-                    p: 2,
-                }}
-            >
+            <PageShell>
                 <Paper
-                    elevation={3}
+                    elevation={0}
                     sx={{
                         p: { xs: 3, sm: 5 },
                         maxWidth: 480,
                         width: '100%',
-                        borderRadius: 3,
+                        borderRadius: 3.5,
                         textAlign: 'center',
+                        border: `1px solid ${theme.palette.divider}`,
                     }}
                 >
-                    <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', mb: 3 }}>
-                        <Image src="/flc-logo.webp" alt="CI Office" width={44} height={44} />
-                        <Typography variant="h6" fontWeight={700} sx={{ mt: 1.5 }}>
-                            CI Office — Expense Requests
-                        </Typography>
-                    </Box>
-                    <Box
+                    <Typography variant="overline" sx={{ display: 'block', mb: 1 }}>
+                        Expense requests
+                    </Typography>
+                    <Typography
+                        component="h1"
                         sx={{
+                            fontFamily: theme.typography.h2.fontFamily,
+                            fontSize: { xs: '1.625rem', sm: '1.875rem' },
+                            fontWeight: 600,
+                            letterSpacing: '-0.025em',
+                            lineHeight: 1.15,
+                            mb: 1,
+                        }}
+                    >
+                        Submissions closed
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 3, maxWidth: 360, mx: 'auto' }}>
+                        Requests are accepted between <strong>{expenseWindow.timeRange}</strong>.
+                    </Typography>
+
+                    <Box
+                        sx={(theme) => ({
                             px: 3,
                             py: 2.5,
-                            mb: 3,
+                            mb: 2,
                             borderRadius: 2,
-                            bgcolor: '#fff8e1',
-                            border: '1px solid #ffe082',
-                        }}
+                            bgcolor: alpha(theme.palette.warning.main, 0.08),
+                            border: `1px solid ${alpha(theme.palette.warning.main, 0.30)}`,
+                        })}
                     >
-                        <Typography variant="body1" fontWeight={700} color="warning.dark" gutterBottom>
-                            Submissions Closed
+                        <Typography variant="overline" sx={{ display: 'block', mb: 0.5 }}>
+                            Current time
                         </Typography>
-                        <Typography variant="body2" color="text.secondary">
-                            Requests are accepted between <strong>{expenseWindow.timeRange}</strong>.
-                        </Typography>
-                        <Typography variant="caption" color="text.disabled" display="block" sx={{ mt: 1 }}>
-                            Current time: {now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}
+                        <Typography
+                            sx={{
+                                fontFamily: theme.typography.h3.fontFamily,
+                                fontSize: '1.25rem',
+                                fontWeight: 600,
+                                color: 'warning.dark',
+                                fontVariantNumeric: 'tabular-nums',
+                            }}
+                        >
+                            {now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}
                         </Typography>
                     </Box>
+
                     <Box
-                        sx={{
+                        sx={(theme) => ({
                             px: 3,
-                            py: 2,
+                            py: 2.5,
                             borderRadius: 2,
-                            bgcolor: '#e8f5e9',
-                            border: '1px solid #a5d6a7',
-                        }}
+                            bgcolor: alpha(theme.palette.success.main, 0.08),
+                            border: `1px solid ${alpha(theme.palette.success.main, 0.30)}`,
+                        })}
                     >
-                        <Typography variant="caption" color="text.secondary" display="block" gutterBottom>
+                        <Typography variant="overline" sx={{ display: 'block', mb: 0.5 }}>
                             Window opens in
                         </Typography>
-                        <Typography variant="h4" fontWeight={700} color="success.dark">
+                        <Typography
+                            sx={{
+                                fontFamily: theme.typography.h2.fontFamily,
+                                fontSize: { xs: '1.75rem', sm: '2rem' },
+                                fontWeight: 600,
+                                color: 'success.dark',
+                                letterSpacing: '-0.02em',
+                                fontVariantNumeric: 'tabular-nums',
+                            }}
+                        >
                             {hoursUntilOpen}h {minutesUntilOpen}m
                         </Typography>
-                        <Typography variant="caption" color="text.disabled">
+                        <Typography variant="caption" color="text.disabled" sx={{ display: 'block', mt: 0.5 }}>
                             at {nextOpen.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}
                         </Typography>
                     </Box>
                 </Paper>
-            </Box>
+            </PageShell>
         );
     }
 
+    // ── Main form ────────────────────────────────────────────
     return (
-        <Box
-            sx={{
-                minHeight: '100vh',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                bgcolor: '#f0f4f8',
-                p: 2,
-            }}
-        >
+        <PageShell>
             <Paper
-                elevation={3}
+                elevation={0}
                 sx={{
-                    p: { xs: 3, sm: 5 },
-                    maxWidth: 520,
+                    p: { xs: 2.5, sm: 4 },
+                    maxWidth: 540,
                     width: '100%',
-                    borderRadius: 3,
+                    borderRadius: 3.5,
+                    border: `1px solid ${theme.palette.divider}`,
                 }}
             >
-                {/* Header */}
-                <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', mb: 3 }}>
-                    <Image src="/flc-logo.webp" alt="CI Office" width={48} height={48} />
-                    <Typography variant="h5" fontWeight={700} sx={{ mt: 1.5 }}>
-                        Expense Request
+                <Box sx={{ mb: 3 }}>
+                    <Typography variant="overline" sx={{ display: 'block', mb: 0.5 }}>
+                        Public form
                     </Typography>
-                    <Typography variant="body2" color="text.secondary" textAlign="center" sx={{ mt: 0.5 }}>
-                        Submit an expense request to your oversight leader for approval.
+                    <Typography
+                        component="h1"
+                        sx={{
+                            fontFamily: theme.typography.h2.fontFamily,
+                            fontSize: { xs: '1.625rem', sm: '1.875rem' },
+                            fontWeight: 600,
+                            letterSpacing: '-0.025em',
+                            lineHeight: 1.15,
+                            mb: 0.75,
+                        }}
+                    >
+                        Expense request
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                        Submit for review by your oversight leader. You&apos;ll be contacted via the Momo number you provide.
                     </Typography>
                 </Box>
 
                 <Divider sx={{ mb: 3 }} />
 
                 {error && (
-                    <Alert severity="error" sx={{ mb: 2 }}>
+                    <Alert severity="error" variant="standard" sx={{ borderRadius: 2, mb: 2 }}>
                         {error}
                     </Alert>
                 )}
 
                 <Box component="form" onSubmit={handleSubmit} noValidate>
-                    {/* Oversight Church */}
-                    <TextField
-                        select
-                        label="Oversight Church"
-                        fullWidth
-                        required
-                        value={form.oversightDeptId}
-                        onChange={handleChange('oversightDeptId')}
-                        disabled={loadingOversights}
-                        helperText={loadingOversights ? 'Loading churches...' : ''}
-                        sx={{ mb: 2 }}
-                    >
-                        {oversights.map(o => (
-                            <MenuItem key={o.id} value={o.id}>
-                                {o.name}
-                            </MenuItem>
-                        ))}
-                    </TextField>
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                        <TextField
+                            select
+                            label="Oversight church"
+                            fullWidth
+                            required
+                            value={form.oversightDeptId}
+                            onChange={handleChange('oversightDeptId')}
+                            disabled={loadingOversights}
+                            helperText={loadingOversights ? 'Loading churches…' : ''}
+                        >
+                            {oversights.map(o => (
+                                <MenuItem key={o.id} value={o.id}>
+                                    {o.name}
+                                </MenuItem>
+                            ))}
+                        </TextField>
 
-                    {/* Requester Name */}
-                    <TextField
-                        label="Leader's Full Name"
-                        fullWidth
-                        required
-                        value={form.requesterName}
-                        onChange={handleChange('requesterName')}
-                        placeholder="e.g. Daniel Adansie"
-                        sx={{ mb: 2 }}
-                    />
+                        <TextField
+                            label="Leader's full name"
+                            fullWidth
+                            required
+                            value={form.requesterName}
+                            onChange={handleChange('requesterName')}
+                            placeholder="e.g. Daniel Adansie"
+                        />
 
-                    {/* Leader Phone */}
-                    <TextField
-                        label="Leader's Phone Number"
-                        fullWidth
-                        required
-                        value={form.leaderPhone}
-                        onChange={handleChange('leaderPhone')}
-                        placeholder="e.g. 0241234567"
-                        slotProps={{ htmlInput: { inputMode: 'tel' } }}
-                        helperText="SMS notifications will be sent to this number"
-                        sx={{ mb: 2 }}
-                    />
+                        <TextField
+                            label="Leader's phone number"
+                            fullWidth
+                            required
+                            value={form.leaderPhone}
+                            onChange={handleChange('leaderPhone')}
+                            placeholder="e.g. 0241234567"
+                            slotProps={{ htmlInput: { inputMode: 'tel' } }}
+                            helperText="SMS notifications will be sent to this number"
+                        />
 
-                    {/* Church Name */}
-                    <TextField
-                        label="Your Campus"
-                        fullWidth
-                        required
-                        value={form.churchName}
-                        onChange={handleChange('churchName')}
-                        placeholder="e.g. FL Cape Coast"
-                        sx={{ mb: 2 }}
-                    />
+                        <TextField
+                            label="Your campus"
+                            fullWidth
+                            required
+                            value={form.churchName}
+                            onChange={handleChange('churchName')}
+                            placeholder="e.g. FL Cape Coast"
+                        />
+                    </Box>
 
-                    <Divider sx={{ mb: 2 }}>
-                        <Typography variant="caption" color="text.secondary">
-                            Momo Details
+                    <Divider sx={{ my: 3 }}>
+                        <Typography variant="overline" sx={{ color: 'text.disabled' }}>
+                            Momo details
                         </Typography>
                     </Divider>
 
-                    {/* Momo Name */}
-                    <TextField
-                        label="Momo Account Name"
-                        fullWidth
-                        required
-                        value={form.momoName}
-                        onChange={handleChange('momoName')}
-                        placeholder="Name on Momo account"
-                        sx={{ mb: 2 }}
-                    />
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                        <TextField
+                            label="Momo account name"
+                            fullWidth
+                            required
+                            value={form.momoName}
+                            onChange={handleChange('momoName')}
+                            placeholder="Name on Momo account"
+                        />
 
-                    {/* Momo Number */}
-                    <TextField
-                        label="Momo Number (MTN Only)"
-                        fullWidth
-                        required
-                        value={form.momoNumber}
-                        onChange={handleChange('momoNumber')}
-                        placeholder="e.g. 0241234567"
-                        sx={{ mb: 2 }}
-                    />
+                        <TextField
+                            label="Momo number (MTN only)"
+                            fullWidth
+                            required
+                            value={form.momoNumber}
+                            onChange={handleChange('momoNumber')}
+                            placeholder="e.g. 0241234567"
+                            slotProps={{ htmlInput: { inputMode: 'tel' } }}
+                        />
+                    </Box>
 
-                    <Divider sx={{ mb: 2 }}>
-                        <Typography variant="caption" color="text.secondary">
-                            Request Details
+                    <Divider sx={{ my: 3 }}>
+                        <Typography variant="overline" sx={{ color: 'text.disabled' }}>
+                            Request details
                         </Typography>
                     </Divider>
 
-                    {/* Amount */}
-                    <TextField
-                        label="Amount"
-                        fullWidth
-                        required
-                        type="number"
-                        inputProps={{ min: 0.01, step: '0.01' }}
-                        InputProps={{
-                            startAdornment: <InputAdornment position="start">GH₵</InputAdornment>,
-                        }}
-                        value={form.amount}
-                        onChange={handleChange('amount')}
-                        placeholder="0.00"
-                        sx={{ mb: 2 }}
-                    />
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                        <TextField
+                            label="Amount"
+                            fullWidth
+                            required
+                            type="number"
+                            inputProps={{ min: 0.01, step: '0.01' }}
+                            InputProps={{
+                                startAdornment: (
+                                    <InputAdornment position="start">
+                                        <Typography sx={{ color: 'text.secondary', fontWeight: 500 }}>GH₵</Typography>
+                                    </InputAdornment>
+                                ),
+                            }}
+                            value={form.amount}
+                            onChange={handleChange('amount')}
+                            placeholder="0.00"
+                        />
 
-                    {/* Description / Reason */}
-                    <TextField
-                        label="Reason for Request"
-                        fullWidth
-                        required
-                        multiline
-                        rows={3}
-                        value={form.description}
-                        onChange={handleChange('description')}
-                        placeholder="Briefly describe what this expense is for..."
-                        sx={{ mb: 3 }}
-                    />
+                        <TextField
+                            label="Reason for request"
+                            fullWidth
+                            required
+                            multiline
+                            rows={3}
+                            value={form.description}
+                            onChange={handleChange('description')}
+                            placeholder="Briefly describe what this expense is for…"
+                        />
+                    </Box>
 
                     <Button
                         type="submit"
                         variant="contained"
+                        color="primary"
                         fullWidth
                         size="large"
                         disabled={submitting}
-                        startIcon={submitting ? <CircularProgress size={18} color="inherit" /> : <SendIcon />}
-                        sx={{ py: 1.5, fontWeight: 700 }}
+                        startIcon={submitting ? <CircularProgress size={18} color="inherit" /> : <SendIcon sx={{ fontSize: 18 }} />}
+                        sx={{ mt: 3, py: 1.5, fontWeight: 500 }}
                     >
-                        {submitting ? 'Submitting...' : 'Submit Request'}
+                        {submitting ? 'Submitting…' : 'Submit request'}
                     </Button>
+
+                    <Box
+                        sx={{
+                            display: 'flex',
+                            justifyContent: 'center',
+                            mt: 3,
+                            pt: 3,
+                            borderTop: `1px solid ${theme.palette.divider}`,
+                        }}
+                    >
+                        <MuiLink
+                            component={Link}
+                            href="/auth/login"
+                            underline="none"
+                            sx={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 0.75,
+                                fontSize: '0.875rem',
+                                fontWeight: 500,
+                                color: 'text.secondary',
+                                '&:hover': { color: 'text.primary' },
+                                transition: 'color 160ms ease',
+                            }}
+                        >
+                            Have an account? Sign in
+                            <ArrowForwardIcon sx={{ fontSize: 14 }} />
+                        </MuiLink>
+                    </Box>
                 </Box>
             </Paper>
-        </Box>
+        </PageShell>
     );
 }

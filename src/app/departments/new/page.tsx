@@ -262,9 +262,32 @@ function NewDepartmentForm() {
 
     return (
         <Box maxWidth="sm" sx={{ mx: 'auto' }}>
-            <Typography variant="h4" gutterBottom fontWeight="700">
-                Create Department
-            </Typography>
+            <Box
+                sx={(theme) => ({
+                    mb: { xs: 3, md: 4 },
+                    pb: { xs: 2.5, md: 3 },
+                    borderBottom: `1px solid ${theme.palette.divider}`,
+                })}
+            >
+                <Typography variant="overline" sx={{ display: 'block', mb: 0.5 }}>
+                    Hierarchy
+                </Typography>
+                <Typography
+                    component="h1"
+                    sx={(theme) => ({
+                        fontFamily: theme.typography.h2.fontFamily,
+                        fontSize: { xs: '1.625rem', sm: '1.875rem' },
+                        fontWeight: 600,
+                        letterSpacing: '-0.025em',
+                        lineHeight: 1.15,
+                    })}
+                >
+                    New department
+                </Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75 }}>
+                    Add a department under the selected parent.
+                </Typography>
+            </Box>
             <Paper elevation={0} sx={{ p: 4, border: '1px solid', borderColor: 'divider' }}>
                 <form onSubmit={handleSubmit}>
                     {error && (

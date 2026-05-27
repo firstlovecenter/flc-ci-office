@@ -440,45 +440,94 @@ function NewTransactionForm() {
 
     return (
         <Box maxWidth="sm" sx={{ mx: 'auto' }}>
-            <Typography variant="h4" gutterBottom>
-                {isLeader ? 'New Expense Request' : needsApproval ? 'New Transaction Request' : 'New Transaction'}
-            </Typography>
+            {/* Page Header */}
+            <Box
+                sx={(theme) => ({
+                    mb: { xs: 3, md: 4 },
+                    pb: { xs: 2.5, md: 3 },
+                    borderBottom: `1px solid ${theme.palette.divider}`,
+                })}
+            >
+                <Typography variant="overline" sx={{ display: 'block', mb: 0.5 }}>
+                    {isLeader ? 'Expense request' : 'New entry'}
+                </Typography>
+                <Typography
+                    component="h1"
+                    sx={(theme) => ({
+                        fontFamily: theme.typography.h2.fontFamily,
+                        fontSize: { xs: '1.625rem', sm: '1.875rem' },
+                        fontWeight: 600,
+                        letterSpacing: '-0.025em',
+                        lineHeight: 1.15,
+                    })}
+                >
+                    {isLeader
+                        ? 'New expense request'
+                        : needsApproval
+                            ? 'New transaction request'
+                            : 'New transaction'}
+                </Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75 }}>
+                    {isLeader
+                        ? 'Submit for approval by your admin.'
+                        : 'Record an income or expense entry.'}
+                </Typography>
+            </Box>
             {leaderTimeWindowBanner}
 
-            {/* Show account balance for expense requests */}
+            {/* Available balance card — for expense requests */}
             {type === 'EXPENSE' && (
-                <GlassCard 
-                    variant="highlight"
-                    sx={{ 
-                        p: 3, 
-                        mb: 3, 
-                        background: (theme) => theme.palette.mode === 'dark' 
-                            ? 'linear-gradient(135deg, #1a472a 0%, #2d5a3d 100%)' 
-                            : 'linear-gradient(135deg, #2e7d32 0%, #4caf50 100%)',
-                        color: 'white',
-                        border: 'none'
-                    }}
+                <Box
+                    sx={(theme) => ({
+                        p: 2.75,
+                        mb: 3,
+                        borderRadius: 3.5,
+                        bgcolor: 'background.paper',
+                        border: `1px solid ${theme.palette.divider}`,
+                        position: 'relative',
+                        overflow: 'hidden',
+                        '&::before': {
+                            content: '""',
+                            position: 'absolute',
+                            top: 0,
+                            left: 0,
+                            right: 0,
+                            height: 2,
+                            background: `linear-gradient(90deg, transparent, ${theme.palette.success.main}, transparent)`,
+                            opacity: 0.8,
+                        },
+                    })}
                 >
-                    <Typography variant="subtitle2" sx={{ opacity: 0.9, mb: 0.5 }}>
-                        Available Balance
+                    <Typography variant="overline" sx={{ display: 'block', mb: 1 }}>
+                        Available balance
                     </Typography>
                     {balanceLoading ? (
-                        <CircularProgress size={24} sx={{ color: 'white' }} />
+                        <CircularProgress size={20} thickness={4} />
                     ) : departmentBalance !== null ? (
                         <>
-                            <Typography variant="h4" sx={{ fontWeight: 'bold' }}>
+                            <Typography
+                                className="tabular"
+                                sx={(theme) => ({
+                                    fontFamily: theme.typography.h2.fontFamily,
+                                    fontSize: { xs: '1.875rem', sm: '2.125rem' },
+                                    fontWeight: 600,
+                                    letterSpacing: '-0.02em',
+                                    lineHeight: 1.1,
+                                    color: 'success.main',
+                                })}
+                            >
                                 {balanceCurrency?.symbol || '₵'}{formatNumber(departmentBalance)}
                             </Typography>
-                            <Typography variant="caption" sx={{ opacity: 0.8 }}>
-                                You cannot request more than this amount
+                            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                                You cannot request more than this amount.
                             </Typography>
                         </>
                     ) : (
-                        <Typography variant="body2" sx={{ opacity: 0.8 }}>
+                        <Typography variant="body2" color="text.secondary">
                             Unable to load balance
                         </Typography>
                     )}
-                </GlassCard>
+                </Box>
             )}
 
             <GlassCard sx={{ p: 4, borderRadius: 3 }}>
