@@ -156,7 +156,7 @@ model Transaction {
   departmentId    String
   userId          String
   type            TransactionType
-  amount          Decimal
+  amount          Decimal           @db.Decimal(14, 2)
   description     String
   weekNumber      Int
   year            Int
@@ -166,7 +166,7 @@ model Transaction {
   approvedAt      DateTime?
   approvedBy      String?
   status          TransactionStatus @default(PENDING)
-  amountInBase    Decimal?
+  amountInBase    Decimal?          @db.Decimal(14, 2)
   currencyId      String?
   exchangeRate    Decimal?
   rejectedAt      DateTime?
@@ -300,7 +300,7 @@ model PublicExpenseRequest {
   momoName        String
   momoNumber      String
   leaderPhone     String?
-  amount          Decimal
+  amount          Decimal                    @db.Decimal(14, 2)
   description     String
   status          PublicExpenseRequestStatus @default(PENDING)
   oversightDeptId String
