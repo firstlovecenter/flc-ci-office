@@ -36,6 +36,7 @@ import CancelIcon from '@mui/icons-material/Cancel';
 import InboxIcon from '@mui/icons-material/Inbox';
 import { useToast } from '@/components/ToastProvider';
 import { formatNumber } from '@/lib/utils';
+import { sumMoney } from '@/lib/format-money';
 
 interface PublicRequest {
     id: string;
@@ -138,10 +139,10 @@ export default function PublicRequestsPage() {
             const res = await fetch(`/api/transactions?departmentId=${deptId}&exactDepartment=true&status=APPROVED`);
             const txs = await res.json();
             if (Array.isArray(txs)) {
-                const balance = txs.reduce((sum: number, tx: any) => {
+                const balance = sumMoney(txs.map((tx: any) => {
                     const amt = Number(tx.amountInBase || tx.amount);
-                    return sum + (tx.type === 'INCOME' ? amt : -amt);
-                }, 0);
+                    return tx.type === 'INCOME' ? amt : -amt;
+                }));
                 setDeptBalance(balance);
             }
         } catch {

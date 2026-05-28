@@ -42,6 +42,7 @@ import VisibilityIcon from '@mui/icons-material/Visibility';
 import PendingActionsIcon from '@mui/icons-material/PendingActions';
 import BusinessIcon from '@mui/icons-material/Business';
 import { formatDepartmentLevel, formatNumber } from '@/lib/utils';
+import { sumMoney } from '@/lib/format-money';
 import { useToast } from '@/components/ToastProvider';
 import { GlassCard, StatusChip, AnimatedCounter, TableRowSkeleton, EmptyState } from '@/components/ui';
 import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
@@ -410,7 +411,7 @@ export default function ApprovalsPage() {
                                 Total Amount
                             </Typography>
                             <AnimatedCounter
-                                value={transactions.reduce((sum, t) => sum + parseFloat(t.amount), 0)}
+                                value={sumMoney(transactions.map(t => t.amount))}
                                 duration={1000}
                                 sx={{
                                     fontSize: '2rem',

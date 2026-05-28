@@ -20,6 +20,7 @@ import {
 } from '@mui/material';
 import { useSession } from 'next-auth/react';
 import { formatNumber, formatDepartmentLevel } from '@/lib/utils';
+import { roundMoney } from '@/lib/format-money';
 import { useToast } from '@/components/ToastProvider';
 import { GlassCard } from '@/components/ui';
 
@@ -635,7 +636,7 @@ function NewTransactionForm() {
                             </Typography>
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                                 <Typography variant="body2" fontWeight={700} color="info.main">
-                                    {baseCurrency?.symbol}{formatNumber(parseFloat(amount) * exchangeRate)}
+                                    {baseCurrency?.symbol}{formatNumber(roundMoney(parseFloat(amount) * exchangeRate))}
                                 </Typography>
                                 <Chip
                                     label={`${currencies.find(c => c.id === currencyId)?.code} → ${baseCurrency?.code} @ ${exchangeRate.toFixed(4)}`}

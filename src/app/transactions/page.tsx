@@ -606,13 +606,16 @@ function TransactionsPageContent() {
                     {(() => {
                         // Pre-compute running balances: iterate oldest→newest so each row shows the balance at that point in time
                         const balances = new Array(filteredTransactions.length);
-                        let cumulative = 0;
+                        // Accumulate in integer cents so the running balance never drifts
+                        // into floating-point noise (amounts are stored at 2dp).
+                        let cumulativeCents = 0;
                         for (let i = filteredTransactions.length - 1; i >= 0; i--) {
                             const tx = filteredTransactions[i];
                             if (tx.status === 'APPROVED') {
-                                cumulative += tx.type === 'INCOME' ? Number(tx.amountInBase || tx.amount) : -Number(tx.amountInBase || tx.amount);
+                                const cents = Math.round(Number(tx.amountInBase || tx.amount) * 100);
+                                cumulativeCents += tx.type === 'INCOME' ? cents : -cents;
                             }
-                            balances[i] = cumulative;
+                            balances[i] = cumulativeCents / 100;
                         }
                         return filteredTransactions.map((tx, index) => {
                          const runningBalance = balances[index];
@@ -691,13 +694,16 @@ function TransactionsPageContent() {
                         {(() => {
                             // Pre-compute running balances: iterate oldest→newest so each row shows the balance at that point in time
                             const balances = new Array(filteredTransactions.length);
-                            let cumulative = 0;
+                            // Accumulate in integer cents so the running balance never drifts
+                            // into floating-point noise (amounts are stored at 2dp).
+                            let cumulativeCents = 0;
                             for (let i = filteredTransactions.length - 1; i >= 0; i--) {
                                 const tx = filteredTransactions[i];
                                 if (tx.status === 'APPROVED') {
-                                    cumulative += tx.type === 'INCOME' ? Number(tx.amountInBase || tx.amount) : -Number(tx.amountInBase || tx.amount);
+                                    const cents = Math.round(Number(tx.amountInBase || tx.amount) * 100);
+                                    cumulativeCents += tx.type === 'INCOME' ? cents : -cents;
                                 }
-                                balances[i] = cumulative;
+                                balances[i] = cumulativeCents / 100;
                             }
                             return filteredTransactions.map((tx, index) => {
                             const runningBalance = balances[index];

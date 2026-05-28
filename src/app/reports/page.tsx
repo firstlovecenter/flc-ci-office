@@ -30,6 +30,7 @@ import {
 import { Download as DownloadIcon, Print as PrintIcon, Assessment as AssessmentIcon } from '@mui/icons-material';
 import { formatDepartmentLevel } from '@/lib/utils';
 import { formatCurrency } from '@/lib/utils';
+import { roundMoney, sumMoney } from '@/lib/format-money';
 import { BarChart, Bar, XAxis, Tooltip, ResponsiveContainer, Cell, LabelList } from 'recharts';
 import { useSession } from 'next-auth/react';
 import { GlassCard } from '@/components/ui';
@@ -203,12 +204,10 @@ function ReportsPageContent() {
                 const openingResponse = await fetch(openingUrl);
                 if (openingResponse.ok) {
                     const openingData = await openingResponse.json();
-                    opening = openingData
-                        .filter((t: any) => t.type === 'INCOME')
-                        .reduce((sum: number, t: any) => sum + Number(t.amountInBase || t.amount), 0) -
-                        openingData
-                        .filter((t: any) => t.type === 'EXPENSE')
-                        .reduce((sum: number, t: any) => sum + Number(t.amountInBase || t.amount), 0);
+                    opening = roundMoney(
+                        sumMoney(openingData.filter((t: any) => t.type === 'INCOME').map((t: any) => t.amountInBase || t.amount)) -
+                        sumMoney(openingData.filter((t: any) => t.type === 'EXPENSE').map((t: any) => t.amountInBase || t.amount))
+                    );
                 }
             }
             setOpeningBalance(opening);
@@ -240,16 +239,12 @@ function ReportsPageContent() {
                 setTransactions(sortedData);
 
                 // Calculate stats using converted amounts
-                const income = data
-                    .filter((t: any) => t.type === 'INCOME')
-                    .reduce((sum: number, t: any) => sum + Number(t.amountInBase || t.amount), 0);
-                const expense = data
-                    .filter((t: any) => t.type === 'EXPENSE')
-                    .reduce((sum: number, t: any) => sum + Number(t.amountInBase || t.amount), 0);
+                const income = sumMoney(data.filter((t: any) => t.type === 'INCOME').map((t: any) => t.amountInBase || t.amount));
+                const expense = sumMoney(data.filter((t: any) => t.type === 'EXPENSE').map((t: any) => t.amountInBase || t.amount));
 
-                const closing = opening + income - expense;
+                const closing = roundMoney(opening + income - expense);
                 setClosingBalance(closing);
-                setStats({ income, expense, balance: income - expense });
+                setStats({ income, expense, balance: roundMoney(income - expense) });
             }
         } catch (error) {
         } finally {
@@ -336,7 +331,7 @@ function ReportsPageContent() {
         const rows = transactions.map(tx => {
             const debit = tx.type === 'EXPENSE' ? Number(tx.amountInBase || tx.amount) : 0;
             const credit = tx.type === 'INCOME' ? Number(tx.amountInBase || tx.amount) : 0;
-            balance += credit - debit;
+            balance = roundMoney(balance + credit - debit);
             return `${new Date(tx.createdAt).toLocaleDateString()},${tx.description},${tx.department.name},${debit || ''},${credit || ''},${balance}`;
         }).join('\n');
         return headers + rows;
@@ -394,7 +389,7 @@ function ReportsPageContent() {
                             const amount = Number(tx.amountInBase || tx.amount);
                             const debit = tx.type === 'EXPENSE' ? amount : 0;
                             const credit = tx.type === 'INCOME' ? amount : 0;
-                            runningBalance += credit - debit;
+                            runningBalance = roundMoney(runningBalance + credit - debit);
                             
                             return (
                                 <Box key={tx.id} sx={{ mb: 2, p: 2, bgcolor: (index % 2 === 0) ? 'action.hover' : 'background.paper', borderRadius: 2, border: 1, borderColor: 'divider' }}>
@@ -464,7 +459,7 @@ function ReportsPageContent() {
                             const amount = Number(tx.amountInBase || tx.amount);
                             const debit = tx.type === 'EXPENSE' ? amount : 0;
                             const credit = tx.type === 'INCOME' ? amount : 0;
-                            runningBalance += credit - debit;
+                            runningBalance = roundMoney(runningBalance + credit - debit);
                             
                             return (
                                 <TableRow 
