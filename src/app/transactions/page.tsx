@@ -406,6 +406,38 @@ function TransactionsPageContent() {
         return 'success';
     })();
 
+    // Running balance per transaction, anchored to the authoritative account
+    // balance from the server. The list endpoint only returns the 500 most
+    // recent rows, so summing from zero would omit the older history (the
+    // opening balance) and skew every line negative. We compute the net of the
+    // loaded window, then offset every row so the newest approved row equals
+    // summary.balance. Keyed by id so filtering/searching never re-bases it.
+    const runningBalanceById = useMemo(() => {
+        const map = new Map<string, number>();
+        if (transactions.length === 0) return map;
+
+        // transactions are ordered newest-first; accumulate oldest→newest in
+        // integer cents so the running total never drifts into float noise.
+        const windowCents = new Array<number>(transactions.length);
+        let acc = 0;
+        for (let i = transactions.length - 1; i >= 0; i--) {
+            const tx = transactions[i];
+            if (tx.status === 'APPROVED') {
+                const cents = Math.round(Number(tx.amountInBase ?? tx.amount) * 100);
+                acc += tx.type === 'INCOME' ? cents : -cents;
+            }
+            windowCents[i] = acc;
+        }
+
+        // Opening balance = everything older than the loaded window.
+        const summaryCents = Math.round(Number(summary.balance) * 100);
+        const openingCents = summaryCents - windowCents[0];
+        for (let i = 0; i < transactions.length; i++) {
+            map.set(transactions[i].id, (windowCents[i] + openingCents) / 100);
+        }
+        return map;
+    }, [transactions, summary.balance]);
+
     return (
         <Box>
             {/* Page Header */}
@@ -603,23 +635,7 @@ function TransactionsPageContent() {
 
             {isMobile ? (
                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                    {(() => {
-                        // Pre-compute running balances: iterate oldest→newest so each row shows the balance at that point in time
-                        const balances = new Array(filteredTransactions.length);
-                        // Accumulate in integer cents so the running balance never drifts
-                        // into floating-point noise (amounts are stored at 2dp).
-                        let cumulativeCents = 0;
-                        for (let i = filteredTransactions.length - 1; i >= 0; i--) {
-                            const tx = filteredTransactions[i];
-                            if (tx.status === 'APPROVED') {
-                                const cents = Math.round(Number(tx.amountInBase || tx.amount) * 100);
-                                cumulativeCents += tx.type === 'INCOME' ? cents : -cents;
-                            }
-                            balances[i] = cumulativeCents / 100;
-                        }
-                        return filteredTransactions.map((tx, index) => {
-                         const runningBalance = balances[index];
-                        
+                    {filteredTransactions.map((tx) => {
                         return (
                         <GlassCard 
                             key={tx.id} 
@@ -668,8 +684,7 @@ function TransactionsPageContent() {
                                 </Box>
                             </CardActionArea>
                         </GlassCard>
-                    )})
-                    })()}
+                    )})}
                     {filteredTransactions.length === 0 && !loading && (
                         <Typography variant="body1" color="text.secondary" align="center" sx={{ py: 4 }}>
                             No transactions found
@@ -691,22 +706,8 @@ function TransactionsPageContent() {
                         </TableRow>
                     </TableHead>
                     <TableBody>
-                        {(() => {
-                            // Pre-compute running balances: iterate oldest→newest so each row shows the balance at that point in time
-                            const balances = new Array(filteredTransactions.length);
-                            // Accumulate in integer cents so the running balance never drifts
-                            // into floating-point noise (amounts are stored at 2dp).
-                            let cumulativeCents = 0;
-                            for (let i = filteredTransactions.length - 1; i >= 0; i--) {
-                                const tx = filteredTransactions[i];
-                                if (tx.status === 'APPROVED') {
-                                    const cents = Math.round(Number(tx.amountInBase || tx.amount) * 100);
-                                    cumulativeCents += tx.type === 'INCOME' ? cents : -cents;
-                                }
-                                balances[i] = cumulativeCents / 100;
-                            }
-                            return filteredTransactions.map((tx, index) => {
-                            const runningBalance = balances[index];
+                        {filteredTransactions.map((tx) => {
+                            const runningBalance = runningBalanceById.get(tx.id) ?? 0;
 
                             return (
                             <TableRow 
@@ -830,8 +831,7 @@ function TransactionsPageContent() {
                                 )}
                             </TableRow>
                             );
-                        });
-                        })()}
+                        })}
                         {filteredTransactions.length === 0 && !loading && (
                             <TableRow>
                                 <TableCell colSpan={isAdmin ? 6 : 5} align="center" sx={{ py: 8 }}>
