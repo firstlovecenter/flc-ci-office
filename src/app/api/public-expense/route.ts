@@ -3,7 +3,6 @@ import { prisma } from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { sendSms } from '@/lib/sms';
-import { sendEmail } from '@/lib/email';
 import { generatePublicExpenseRequestSms, generatePublicExpenseLeaderSubmittedSms } from '@/lib/sms-templates';
 import { formatTimeInExpenseWindowTimeZone, getExpenseWindowStatus } from '@/lib/expense-window';
 
@@ -178,25 +177,6 @@ export async function POST(request: Request) {
                     } else {
                         console.warn('[Notify] Oversight admin has no phone number:', admin.email);
                     }
-                    sendEmail({
-                        to: admin.email,
-                        subject: `New Public Expense Request — ${requesterName} (${churchName})`,
-                        html: `
-                            <p>Dear ${admin.name || 'Oversight Admin'},</p>
-                            <p>A new public expense request has been submitted and requires your review.</p>
-                            <table style="border-collapse:collapse;width:100%">
-                                <tr><td style="padding:8px;border:1px solid #ddd"><strong>Requester</strong></td><td style="padding:8px;border:1px solid #ddd">${requesterName}</td></tr>
-                                <tr><td style="padding:8px;border:1px solid #ddd"><strong>Church</strong></td><td style="padding:8px;border:1px solid #ddd">${churchName}</td></tr>
-                                <tr><td style="padding:8px;border:1px solid #ddd"><strong>Momo Name</strong></td><td style="padding:8px;border:1px solid #ddd">${momoName}</td></tr>
-                                <tr><td style="padding:8px;border:1px solid #ddd"><strong>Momo Number</strong></td><td style="padding:8px;border:1px solid #ddd">${momoNumber}</td></tr>
-                                <tr><td style="padding:8px;border:1px solid #ddd"><strong>Amount</strong></td><td style="padding:8px;border:1px solid #ddd">${amount}</td></tr>
-                                <tr><td style="padding:8px;border:1px solid #ddd"><strong>Reason</strong></td><td style="padding:8px;border:1px solid #ddd">${description}</td></tr>
-                            </table>
-                            <p>Please log in to the app and go to <strong>Public Requests</strong> to process this request.</p>
-                        `,
-                    }).catch((err: any) => {
-                            console.error('[Notify] Email failed for oversight admin', admin.email, err?.message || err);
-                        });
                 } catch (err) {
                     console.error('[Notify] Error sending notification to oversight admin:', err);
                 }

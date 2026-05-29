@@ -7,8 +7,6 @@ import { authOptions } from '@/lib/auth';
 import { getDescendantDepartmentIds, canCreateDepartmentLevel, getLeaderRoleForLevel, getAdminRoleForLevel } from '@/lib/departments';
 import { sendSms, formatGhanaPhone } from '@/lib/sms';
 import { generateFirstRoleAssignmentSms } from '@/lib/sms-templates';
-import { sendEmail } from '@/lib/email';
-import { generateFirstRoleAssignmentEmail } from '@/lib/email-templates';
 import crypto from 'crypto';
 
 // Force dynamic rendering - data is user/role specific
@@ -318,16 +316,6 @@ export async function POST(request: Request) {
                 // Don't fail the request if SMS fails
             }
 
-            // Send welcome email
-            if (leader.email) {
-                const { subject, html } = generateFirstRoleAssignmentEmail({
-                    userName: leader.name || 'User',
-                    role: leaderRole,
-                    department: name,
-                    resetLink,
-                });
-                sendEmail({ to: leader.email, subject, html }).catch(() => {});
-            }
         }
 
         // Handle admin assignment if provided
@@ -394,16 +382,6 @@ export async function POST(request: Request) {
                         console.error('Failed to send SMS to admin:', smsError);
                     }
 
-                    // Send welcome email to admin
-                    if (admin.email) {
-                        const { subject, html } = generateFirstRoleAssignmentEmail({
-                            userName: admin.name || 'User',
-                            role: adminRole,
-                            department: name,
-                            resetLink,
-                        });
-                        sendEmail({ to: admin.email, subject, html }).catch(() => {});
-                    }
                 }
             }
         }
