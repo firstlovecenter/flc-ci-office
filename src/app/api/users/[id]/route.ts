@@ -6,8 +6,6 @@ import bcrypt from 'bcrypt';
 import crypto from 'crypto';
 import { sendSms, formatGhanaPhone } from '@/lib/sms';
 import { generateFirstRoleAssignmentSms } from '@/lib/sms-templates';
-import { sendEmail } from '@/lib/email';
-import { generateFirstRoleAssignmentEmail } from '@/lib/email-templates';
 import { canManageUser, canAssignRole, ROLE_HIERARCHY } from '@/lib/roles';
 import { getDescendantDepartmentIds } from '@/lib/departments';
 import type { Role } from '@prisma/client';
@@ -421,17 +419,6 @@ export async function PUT(
                         }
                     }
 
-                    // Send welcome email in addition to SMS
-                    const userEmail = email || updatedUser.email;
-                    if (userEmail) {
-                        const { subject, html } = generateFirstRoleAssignmentEmail({
-                            userName: name || email || 'User',
-                            role: primaryRolePair.role,
-                            department: department?.name || 'Unknown Department',
-                            resetLink,
-                        });
-                        sendEmail({ to: userEmail, subject, html }).catch(() => {});
-                    }
                 } catch (notificationError) {
                     console.error('Failed to send role notification SMS:', notificationError);
                 }

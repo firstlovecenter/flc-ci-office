@@ -3,8 +3,6 @@ import crypto from 'crypto';
 import { prisma } from '@/lib/prisma';
 import { sendSms, formatGhanaPhone } from '@/lib/sms';
 import { generatePasswordResetSms } from '@/lib/sms-templates';
-import { sendEmail } from '@/lib/email';
-import { generatePasswordResetEmail } from '@/lib/email-templates';
 import { checkRateLimit, rateLimits, getClientIp, rateLimitResponse } from '@/lib/rate-limit';
 
 export async function POST(request: NextRequest) {
@@ -79,7 +77,6 @@ export async function POST(request: NextRequest) {
     const resetCode = token.substring(0, 6).toUpperCase();
 
     let smsSent = false;
-    let emailSent = false;
 
     // Send SMS with reset code only (no URL to avoid truncation)
     if (user.phone) {
@@ -98,24 +95,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Send email if user has an email address
-    if (user.email) {
-      const baseUrl =
-        process.env.APP_URL ||
-        process.env.NEXTAUTH_URL ||
-        (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL.replace(/^https?:\/\//, '')}` : '');
-      const resetUrl = baseUrl ? `${baseUrl}/auth/reset-password?token=${token}` : undefined;
-      const { subject, html } = generatePasswordResetEmail({
-        userName: user.name || undefined,
-        resetCode,
-        resetUrl,
-        expirationHours: 12,
-        otpExpirationMinutes: 15,
-      });
-      emailSent = await sendEmail({ to: user.email, subject, html });
-    }
-
-    if (!smsSent && !emailSent) {
+    if (!smsSent) {
       return NextResponse.json(
         { error: 'Failed to send password reset instructions. Please contact support.' },
         { status: 500 }

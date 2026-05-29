@@ -5,9 +5,7 @@ import { authOptions } from '@/lib/auth';
 import crypto from 'crypto';
 import { getCurrentWeek, formatNumber } from '@/lib/utils';
 import { sendSms } from '@/lib/sms';
-import { sendEmail } from '@/lib/email';
 import { generatePendingApprovalRequestSms, generateDebitAlertSms, generatePublicExpenseLeaderApprovedSms, generatePublicExpenseLeaderDeclinedSms } from '@/lib/sms-templates';
-import { generatePendingApprovalEmail } from '@/lib/email-templates';
 import { getDescendantDepartmentIds, getLeaderRoleForLevel } from '@/lib/departments';
 import { toDecimal, gt, isPositive, moneyToString, toMoney2dp } from '@/lib/money';
 import { getDepartmentApprovedBalance } from '@/lib/balance';
@@ -278,16 +276,6 @@ export async function PATCH(
                         if (admin.phone) {
                             sendSms({ to: admin.phone, message: smsMessage }).catch(() => {});
                         }
-                        const { subject, html } = generatePendingApprovalEmail({
-                            adminName: admin.name || 'Admin',
-                            submittedBy: session.user.name || 'Oversight Admin',
-                            transactionType: 'expense',
-                            currency: '',
-                            amount: formatNumber(moneyToString(requestAmountDec)),
-                            description,
-                            departmentName: transaction.department?.name,
-                        });
-                        sendEmail({ to: admin.email, subject, html }).catch(() => {});
                     } catch (err) {
                         console.error('[Notify] Error notifying campus admin:', err);
                     }

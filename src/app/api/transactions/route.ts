@@ -6,8 +6,6 @@ import crypto from 'crypto';
 import { getCurrentWeek, getWeekFromDate, formatNumber } from '@/lib/utils';
 import { sendSms } from '@/lib/sms';
 import { generatePendingApprovalRequestSms, generateCreditAlertSms, generateDebitAlertSms } from '@/lib/sms-templates';
-import { sendEmail } from '@/lib/email';
-import { generatePendingApprovalEmail, generateCreditAlertEmail, generateDebitAlertEmail } from '@/lib/email-templates';
 import { getDescendantDepartmentIds, hasDepartmentAccess } from '@/lib/departments';
 import { getUserBaseCurrency, convertToUserBaseCurrency } from '@/lib/currency-conversion';
 import { formatTimeInExpenseWindowTimeZone, getExpenseWindowStatus } from '@/lib/expense-window';
@@ -455,16 +453,6 @@ export async function POST(request: Request) {
                                 const sent = await sendSms({ to: admin.phone, message: smsMessage }).catch(() => false);
                                 console.log(`[SMS] Sent to ${admin.phone}: ${sent ? 'SUCCESS' : 'FAILED'}`);
                             }
-                            const { subject, html } = generatePendingApprovalEmail({
-                                adminName: admin.name || 'Admin',
-                                submittedBy: session.user.name || 'A user',
-                                transactionType: type.toLowerCase(),
-                                currency: currencySymbol,
-                                amount: formatNumber(amount),
-                                description,
-                                departmentName: transaction.department?.name,
-                            });
-                            sendEmail({ to: admin.email, subject, html }).catch(() => {});
                         } catch (err) {
                             console.error(`[SMS] Error sending to ${admin.email}:`, err);
                         }
@@ -561,16 +549,6 @@ export async function POST(request: Request) {
                                 const sent = await sendSms({ to: leader.phone, message: smsMessage }).catch(() => false);
                                 console.log(`[SMS] ${alertType} alert to ${leader.phone}: ${sent ? 'SUCCESS' : 'FAILED'}`);
                             }
-                            const alertEmailFn = type === 'INCOME' ? generateCreditAlertEmail : generateDebitAlertEmail;
-                            const { subject, html } = alertEmailFn({
-                                recipientName: leader.name || 'Leader',
-                                currency: currencySymbol,
-                                amount: amtStr,
-                                departmentName: deptName,
-                                description: descShort,
-                                balance: balStr,
-                            });
-                            sendEmail({ to: leader.email, subject, html }).catch(() => {});
                         } catch (err) {
                             console.error(`[SMS] Error sending ${alertType} alert to leader:`, err);
                         }
