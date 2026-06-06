@@ -4,8 +4,6 @@ import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import * as webpush from 'web-push';
 import { sendSms, formatGhanaPhone } from '@/lib/sms';
-import { sendEmail } from '@/lib/email';
-import { generateGeneralNotificationEmail } from '@/lib/email-templates';
 import { Role } from '@prisma/client';
 
 // Configure web-push with VAPID keys
@@ -231,35 +229,24 @@ async function handleSMSRequest(body: any) {
       }, { status: 400 });
     }
 
-    // Send SMS and email to all recipients
+    // Send SMS to all recipients
     const results = await Promise.allSettled(
       recipients.map(async recipient => {
         let smsResult = false;
-        let emailResult = false;
 
         if (recipient.phone) {
           smsResult = await sendSms({ to: recipient.phone, message }).catch(() => false);
         }
 
-        if (recipient.email) {
-          const { subject: s, html } = generateGeneralNotificationEmail({
-            recipientName: recipient.name,
-            title: 'CI-OFFICE Notification',
-            message,
-          });
-          emailResult = await sendEmail({ to: recipient.email, subject: s, html }).catch(() => false);
-        }
-
-        return { smsResult, emailResult };
+        return { smsResult };
       })
     );
 
     const successful = results.filter(r =>
-      r.status === 'fulfilled' && (r.value.smsResult || r.value.emailResult)
+      r.status === 'fulfilled' && r.value.smsResult
     ).length;
     const failed = results.length - successful;
     const smsSent = results.filter(r => r.status === 'fulfilled' && r.value.smsResult).length;
-    const emailSent = results.filter(r => r.status === 'fulfilled' && r.value.emailResult).length;
 
     return NextResponse.json({
       success: true,
@@ -268,7 +255,6 @@ async function handleSMSRequest(body: any) {
       failed: failed,
       total: recipients.length,
       smsSent,
-      emailSent,
     });
   } catch (error: any) {
     return NextResponse.json({ 

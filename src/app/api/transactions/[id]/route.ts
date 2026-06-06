@@ -6,8 +6,6 @@ import crypto from 'crypto';
 import { hasDepartmentAccess } from '@/lib/departments';
 import { sendSms } from '@/lib/sms';
 import { generateTransactionApprovedSms, generateTransactionDeclinedSms, generateTransactionChargeSms, generateCreditAlertSms, generateDebitAlertSms, generateTransactionEditNotificationSms, generateApproverApprovedSms, generateApproverDeclinedSms } from '@/lib/sms-templates';
-import { sendEmail } from '@/lib/email';
-import { generateTransactionApprovedEmail, generateTransactionDeclinedEmail, generateTransactionChargeEmail, generateCreditAlertEmail, generateDebitAlertEmail, generateTransactionEditEmail, generateApproverApprovedEmail, generateApproverDeclinedEmail } from '@/lib/email-templates';
 import { formatNumber, isWeekLocked, getWeekFromDate } from '@/lib/utils';
 import { toDecimal, eq, moneyToString, toMoney2dp } from '@/lib/money';
 import { getDepartmentApprovedBalance } from '@/lib/balance';
@@ -199,17 +197,8 @@ export async function PUT(
                         editedBy: session.user.name || 'Admin',
                     });
 
-                    const { subject: editSubject, html: editHtml } = generateTransactionEditEmail({
-                        recipientName: 'Leader',
-                        departmentName: dept.name,
-                        description: existingTransaction.description || description,
-                        changes: changesSummary,
-                        editedBy: session.user.name || 'Admin',
-                    });
-
                     for (const lr of leaders.filter(ur => !ur.user.archived)) {
                         if (lr.user.phone) await sendSms({ to: lr.user.phone!, message: smsMessage }).catch(() => {});
-                        if (lr.user.email) sendEmail({ to: lr.user.email, subject: editSubject, html: editHtml.replace('Hello Leader,', `Hello ${lr.user.name || 'Leader'},`) }).catch(() => {});
                     }
                 }
             } catch (smsError) {
@@ -408,18 +397,7 @@ export async function PATCH(
                             if (leader.phone) {
                                 await sendSms({ to: leader.phone, message: smsMessage }).catch(() => false);
                             }
-                            if (leader.email) {
-                                const { subject, html } = generateTransactionChargeEmail({
-                                    recipientName: leader.name || 'Leader',
-                                    currency: currencySymbol,
-                                    chargeAmount: chargeAmountStr,
-                                    departmentName: transaction.department.name,
-                                    transactionRef: chargeRef,
-                                    description: chargeDesc,
-                                });
-                                sendEmail({ to: leader.email, subject, html }).catch(() => {});
-                            }
-                        } catch (err) {
+                            } catch (err) {
                             console.error('Failed to send charge notification to leader:', err);
                         }
                     }
@@ -490,32 +468,6 @@ export async function PATCH(
                     console.log(`[SMS] Transaction ${status} notification: ${sent ? 'SUCCESS' : 'FAILED'}`);
                 }
 
-                // Send email in addition to SMS
-                if (updatedTransaction.user.email) {
-                    if (status === 'APPROVED') {
-                        const { subject, html } = generateTransactionApprovedEmail({
-                            userName: updatedTransaction.user.name || 'User',
-                            transactionType,
-                            currency: currencySymbol,
-                            amount: formatNumber(moneyToString(updatedTransaction.amount)),
-                            chargeAmount: chargeDec && chargeDec.gt(0) ? formatNumber(chargeDec.toString()) : undefined,
-                            departmentName: updatedTransaction.department.name,
-                            balance: formatNumber(moneyToString(approvedBalance!)),
-                            description: updatedTransaction.description || undefined,
-                        });
-                        sendEmail({ to: updatedTransaction.user.email, subject, html }).catch(() => {});
-                    } else {
-                        const { subject, html } = generateTransactionDeclinedEmail({
-                            userName: updatedTransaction.user.name || 'User',
-                            transactionType,
-                            currency: currencySymbol,
-                            amount: formatNumber(moneyToString(updatedTransaction.amount)),
-                            reason: rejectionReason || undefined,
-                            description: updatedTransaction.description || undefined,
-                        });
-                        sendEmail({ to: updatedTransaction.user.email, subject, html }).catch(() => {});
-                    }
-                }
             } catch (smsError) {
                 // Don't fail the request if SMS fails
                 console.error('[SMS] Error sending approval/decline notification:', smsError);
@@ -526,59 +478,33 @@ export async function PATCH(
         try {
             const approverUser = await prisma.user.findUnique({
                 where: { id: session.user.id },
-                select: { phone: true, email: true, name: true },
+                select: { phone: true, name: true },
             });
 
-            if (approverUser && (approverUser.phone || approverUser.email)) {
+            if (approverUser?.phone) {
                 const currencySymbol = updatedTransaction.currency?.symbol || '$';
                 const transactionType = updatedTransaction.type === 'EXPENSE' ? 'expense' : 'income';
                 const submitterName = updatedTransaction.user.name || 'User';
                 const deptName = updatedTransaction.department.name;
                 const amountStr = formatNumber(moneyToString(updatedTransaction.amount));
-                const approverName = approverUser.name || session.user.name || 'Admin';
 
                 if (status === 'APPROVED') {
                     const balStr = formatNumber(moneyToString(approvedBalance!));
                     const chargeText = chargeDec && chargeDec.gt(0)
                         ? ` Charge: ${currencySymbol}${formatNumber(chargeDec.toString())}.`
                         : '';
-
-                    if (approverUser.phone) {
-                        const sms = generateApproverApprovedSms({
-                            transactionType, currency: currencySymbol, amount: amountStr,
-                            submitterName, departmentName: deptName, balance: balStr, chargeText,
-                        });
-                        await sendSms({ to: approverUser.phone, message: sms }).catch(() => false);
-                    }
-                    if (approverUser.email) {
-                        const { subject, html } = generateApproverApprovedEmail({
-                            approverName, submitterName, transactionType, currency: currencySymbol,
-                            amount: amountStr,
-                            chargeAmount: chargeDec && chargeDec.gt(0) ? formatNumber(chargeDec.toString()) : undefined,
-                            departmentName: deptName, balance: balStr,
-                            description: updatedTransaction.description || undefined,
-                        });
-                        sendEmail({ to: approverUser.email, subject, html }).catch(() => {});
-                    }
+                    const sms = generateApproverApprovedSms({
+                        transactionType, currency: currencySymbol, amount: amountStr,
+                        submitterName, departmentName: deptName, balance: balStr, chargeText,
+                    });
+                    await sendSms({ to: approverUser.phone, message: sms }).catch(() => false);
                 } else {
                     const reasonText = rejectionReason ? ` Reason: ${rejectionReason}` : '';
-
-                    if (approverUser.phone) {
-                        const sms = generateApproverDeclinedSms({
-                            transactionType, currency: currencySymbol, amount: amountStr,
-                            submitterName, departmentName: deptName, reasonText,
-                        });
-                        await sendSms({ to: approverUser.phone, message: sms }).catch(() => false);
-                    }
-                    if (approverUser.email) {
-                        const { subject, html } = generateApproverDeclinedEmail({
-                            approverName, submitterName, transactionType, currency: currencySymbol,
-                            amount: amountStr, reason: rejectionReason || undefined,
-                            departmentName: deptName,
-                            description: updatedTransaction.description || undefined,
-                        });
-                        sendEmail({ to: approverUser.email, subject, html }).catch(() => {});
-                    }
+                    const sms = generateApproverDeclinedSms({
+                        transactionType, currency: currencySymbol, amount: amountStr,
+                        submitterName, departmentName: deptName, reasonText,
+                    });
+                    await sendSms({ to: approverUser.phone, message: sms }).catch(() => false);
                 }
             }
         } catch (err) {
@@ -653,18 +579,6 @@ export async function PATCH(
                             if (leader.phone) {
                                 console.log(`[SMS] Sending ${updatedTransaction.type === 'INCOME' ? 'credit' : 'debit'} alert to leader: ${leader.phone}`);
                                 await sendSms({ to: leader.phone, message: alertMessage }).catch(() => false);
-                            }
-                            if (leader.email) {
-                                const alertEmailFn = updatedTransaction.type === 'INCOME' ? generateCreditAlertEmail : generateDebitAlertEmail;
-                                const { subject, html } = alertEmailFn({
-                                    recipientName: leader.name || 'Leader',
-                                    currency: currencySymbol,
-                                    amount: txAmount,
-                                    departmentName: updatedTransaction.department.name,
-                                    description: descShort,
-                                    balance: balStr,
-                                });
-                                sendEmail({ to: leader.email, subject, html }).catch(() => {});
                             }
                         } catch (err) {
                             console.error(`[SMS] Failed to send alert to leader:`, err);
