@@ -1,269 +1,190 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import {
-  Box,
-  Typography,
-  Paper,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  Chip,
-  CircularProgress,
-  Alert,
-  IconButton,
-  Tooltip,
-} from '@mui/material';
-import CheckCircleIcon from '@mui/icons-material/CheckCircle';
-import InfoIcon from '@mui/icons-material/Info';
-import DeleteIcon from '@mui/icons-material/Delete';
+import { CheckCircle2, Info, Trash2, Loader2 } from 'lucide-react';
 import { useSession } from 'next-auth/react';
-import { GlassCard } from '@/components/ui';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import {
+    Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { useToast } from '@/components/ToastProvider';
+import { cn } from '@/lib/utils';
 
-interface Currency {
-  id: string;
-  code: string;
-  name: string;
-  symbol: string;
-}
-
+interface Currency { id: string; code: string; name: string; symbol: string; }
 interface OversightDepartment {
-  departmentId: string;
-  departmentName: string;
-  baseCurrency: Currency | null;
-  isCustom: boolean;
-  setBy: {
-    name: string;
-    email: string;
-  } | null;
-  setAt: string | null;
+    departmentId: string;
+    departmentName: string;
+    baseCurrency: Currency | null;
+    isCustom: boolean;
+    setBy: { name: string; email: string } | null;
+    setAt: string | null;
 }
 
 export default function BaseCurrenciesAdminPage() {
-  const { data: session, status } = useSession();
-  const { showSuccess, showError } = useToast();
-  const [departments, setDepartments] = useState<OversightDepartment[]>([]);
-  const [systemBase, setSystemBase] = useState<Currency | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
+    const { data: session } = useSession();
+    const { showSuccess, showError } = useToast();
+    const [departments, setDepartments] = useState<OversightDepartment[]>([]);
+    const [systemBase, setSystemBase] = useState<Currency | null>(null);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+    const [deletingId, setDeletingId] = useState<string | null>(null);
 
-  useEffect(() => {
-    fetchBaseCurrencies();
-  }, []);
+    useEffect(() => { fetchBaseCurrencies(); }, []);
 
-  const fetchBaseCurrencies = async () => {
-    try {
-      setLoading(true);
-      setError(null);
+    const fetchBaseCurrencies = async () => {
+        try {
+            setLoading(true);
+            setError(null);
+            const res = await fetch('/api/admin/base-currencies');
+            if (!res.ok) throw new Error('Failed to fetch base currencies');
+            const data = await res.json();
+            setDepartments(data.oversightDepartments);
+            setSystemBase(data.systemBase);
+        } catch (err: any) {
+            setError(err.message);
+        } finally {
+            setLoading(false);
+        }
+    };
 
-      const response = await fetch('/api/admin/base-currencies');
-      if (!response.ok) {
-        throw new Error('Failed to fetch base currencies');
-      }
+    const handleDelete = async (departmentId: string, departmentName: string) => {
+        if (!confirm(`Delete the custom base currency for ${departmentName}? The department will revert to the system default.`)) return;
+        try {
+            setDeletingId(departmentId);
+            const res = await fetch(`/api/admin/base-currencies?departmentId=${departmentId}`, { method: 'DELETE' });
+            if (!res.ok) {
+                const data = await res.json();
+                throw new Error(data.error || 'Failed to delete base currency');
+            }
+            await fetchBaseCurrencies();
+            showSuccess('Base currency deleted successfully');
+        } catch (err: any) {
+            showError(`Error: ${err.message}`);
+        } finally {
+            setDeletingId(null);
+        }
+    };
 
-      const data = await response.json();
-      setDepartments(data.oversightDepartments);
-      setSystemBase(data.systemBase);
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
+    if (loading) {
+        return (
+            <div className="flex justify-center items-center min-h-[400px]">
+                <Loader2 className="h-7 w-7 animate-spin text-muted-foreground" />
+            </div>
+        );
     }
-  };
 
-  const handleDeleteBaseCurrency = async (departmentId: string, departmentName: string) => {
-    if (!confirm(`Are you sure you want to delete the custom base currency for ${departmentName}?\n\nThe department will revert to using the system default currency.`)) {
-      return;
+    if (error) {
+        return (
+            <div className="p-6">
+                <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>
+            </div>
+        );
     }
 
-    try {
-      setDeletingId(departmentId);
-      const response = await fetch(`/api/admin/base-currencies?departmentId=${departmentId}`, {
-        method: 'DELETE',
-      });
+    const customizedCount = departments.filter(d => d.isCustom).length;
+    const usingSystemCount = departments.length - customizedCount;
 
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || 'Failed to delete base currency');
-      }
-
-      // Refresh the list
-      await fetchBaseCurrencies();
-      showSuccess('Base currency deleted successfully');
-    } catch (err: any) {
-      showError(`Error: ${err.message}`);
-    } finally {
-      setDeletingId(null);
-    }
-  };
-
-  if (loading) {
     return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '400px' }}>
-        <CircularProgress />
-      </Box>
+        <TooltipProvider>
+            <div className="p-4 sm:p-6">
+                <h1 className="text-[1.5rem] font-semibold tracking-tight text-foreground mb-6">
+                    Oversight Base Currencies
+                </h1>
+
+                {/* Summary tiles */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+                    {[
+                        { label: 'Total Oversight Departments', value: departments.length },
+                        { label: 'Custom Base Currency', value: customizedCount, highlight: true },
+                        { label: 'Using System Default', value: usingSystemCount },
+                        { label: 'System Base Currency', value: systemBase ? `${systemBase.code} (${systemBase.symbol})` : 'N/A', highlight: true },
+                    ].map(t => (
+                        <div key={t.label} className="rounded-xl border border-border bg-card p-3 sm:p-4">
+                            <p className="text-xs text-muted-foreground mb-1">{t.label}</p>
+                            <p className={cn('text-2xl font-bold', t.highlight && 'text-primary')}>
+                                {t.value}
+                            </p>
+                        </div>
+                    ))}
+                </div>
+
+                {/* Table */}
+                <div className="rounded-xl border border-border bg-card overflow-hidden">
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                            <thead>
+                                <tr className="bg-muted/40">
+                                    {['Department', 'Base Currency', 'Status', 'Set By', 'Last Updated', 'Actions'].map(h => (
+                                        <th key={h} className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+                                            {h}
+                                        </th>
+                                    ))}
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {departments.map(dept => (
+                                    <tr key={dept.departmentId} className="border-t border-border hover:bg-muted/20 transition-colors">
+                                        <td className="px-4 py-3 font-medium text-foreground">{dept.departmentName}</td>
+                                        <td className="px-4 py-3">
+                                            {dept.baseCurrency ? (
+                                                <span className="text-foreground">
+                                                    <strong>{dept.baseCurrency.code}</strong>
+                                                    <span className="text-muted-foreground ml-1">({dept.baseCurrency.symbol}) — {dept.baseCurrency.name}</span>
+                                                </span>
+                                            ) : (
+                                                <span className="text-muted-foreground">Not Set</span>
+                                            )}
+                                        </td>
+                                        <td className="px-4 py-3">
+                                            {dept.isCustom ? (
+                                                <Badge className="gap-1"><CheckCircle2 className="h-3 w-3" />Custom</Badge>
+                                            ) : (
+                                                <Badge variant="outline" className="gap-1"><Info className="h-3 w-3" />System Default</Badge>
+                                            )}
+                                        </td>
+                                        <td className="px-4 py-3">
+                                            {dept.setBy ? (
+                                                <div>
+                                                    <p className="text-foreground">{dept.setBy.name}</p>
+                                                    <p className="text-xs text-muted-foreground">{dept.setBy.email}</p>
+                                                </div>
+                                            ) : <span className="text-muted-foreground">—</span>}
+                                        </td>
+                                        <td className="px-4 py-3 text-muted-foreground">
+                                            {dept.setAt
+                                                ? `${new Date(dept.setAt).toLocaleDateString()} at ${new Date(dept.setAt).toLocaleTimeString()}`
+                                                : '—'}
+                                        </td>
+                                        <td className="px-4 py-3 text-center">
+                                            {session?.user?.roles?.includes('SUPERADMIN') && dept.isCustom ? (
+                                                <Tooltip>
+                                                    <TooltipTrigger asChild>
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="icon-sm"
+                                                            className="text-destructive hover:text-destructive"
+                                                            onClick={() => handleDelete(dept.departmentId, dept.departmentName)}
+                                                            disabled={deletingId === dept.departmentId}
+                                                        >
+                                                            {deletingId === dept.departmentId
+                                                                ? <Loader2 className="h-4 w-4 animate-spin" />
+                                                                : <Trash2 className="h-4 w-4" />
+                                                            }
+                                                        </Button>
+                                                    </TooltipTrigger>
+                                                    <TooltipContent>Delete custom base currency (revert to system default)</TooltipContent>
+                                                </Tooltip>
+                                            ) : <span className="text-muted-foreground">—</span>}
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </TooltipProvider>
     );
-  }
-
-  if (error) {
-    return (
-      <Box sx={{ p: 3 }}>
-        <Alert severity="error">{error}</Alert>
-      </Box>
-    );
-  }
-
-  const customizedCount = departments.filter((d) => d.isCustom).length;
-  const usingSystemCount = departments.length - customizedCount;
-
-  return (
-    <Box sx={{ p: 3 }}>
-      <Typography variant="h4" gutterBottom>
-        Oversight Base Currencies
-      </Typography>
-
-      {/* Summary Cards */}
-      <Box sx={{ display: 'flex', gap: 2, mb: 3 }}>
-        <GlassCard sx={{ p: 2, flex: 1 }}>
-          <Typography variant="body2" color="text.secondary">
-            Total Oversight Departments
-          </Typography>
-          <Typography variant="h4">{departments.length}</Typography>
-        </GlassCard>
-        <GlassCard sx={{ p: 2, flex: 1 }}>
-          <Typography variant="body2" color="text.secondary">
-            Custom Base Currency
-          </Typography>
-          <Typography variant="h4" color="primary.main">{customizedCount}</Typography>
-        </GlassCard>
-        <GlassCard sx={{ p: 2, flex: 1 }}>
-          <Typography variant="body2" color="text.secondary">
-            Using System Default
-          </Typography>
-          <Typography variant="h4">{usingSystemCount}</Typography>
-        </GlassCard>
-        <GlassCard sx={{ p: 2, flex: 1 }} variant="highlight">
-          <Typography variant="body2" color="text.secondary">
-            System Base Currency
-          </Typography>
-          <Typography variant="h4" color="primary.main">
-            {systemBase?.code || 'N/A'} ({systemBase?.symbol || ''})
-          </Typography>
-        </GlassCard>
-      </Box>
-
-      {/* Departments Table */}
-      <TableContainer component={GlassCard}>
-        <Table>
-          <TableHead>
-            <TableRow sx={{ bgcolor: 'action.hover' }}>
-              <TableCell sx={{ fontWeight: 700 }}>Department</TableCell>
-              <TableCell sx={{ fontWeight: 700 }}>Base Currency</TableCell>
-              <TableCell sx={{ fontWeight: 700 }}>Status</TableCell>
-              <TableCell sx={{ fontWeight: 700 }}>Set By</TableCell>
-              <TableCell sx={{ fontWeight: 700 }}>Last Updated</TableCell>
-              <TableCell align="center" sx={{ fontWeight: 700 }}>Actions</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {departments.map((dept) => (
-              <TableRow key={dept.departmentId} sx={{ '&:hover': { bgcolor: 'action.hover' } }}>
-                <TableCell>
-                  <Typography variant="body1" fontWeight="medium">
-                    {dept.departmentName}
-                  </Typography>
-                </TableCell>
-                <TableCell>
-                  {dept.baseCurrency ? (
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <Typography variant="body1" fontWeight="medium">
-                        {dept.baseCurrency.code}
-                      </Typography>
-                      <Typography variant="body2" color="text.secondary">
-                        ({dept.baseCurrency.symbol}) - {dept.baseCurrency.name}
-                      </Typography>
-                    </Box>
-                  ) : (
-                    <Typography variant="body2" color="text.secondary">
-                      Not Set
-                    </Typography>
-                  )}
-                </TableCell>
-                <TableCell>
-                  {dept.isCustom ? (
-                    <Chip
-                      icon={<CheckCircleIcon />}
-                      label="Custom"
-                      color="primary"
-                      size="small"
-                    />
-                  ) : (
-                    <Chip
-                      icon={<InfoIcon />}
-                      label="System Default"
-                      variant="outlined"
-                      size="small"
-                    />
-                  )}
-                </TableCell>
-                <TableCell>
-                  {dept.setBy ? (
-                    <Box>
-                      <Typography variant="body2">{dept.setBy.name}</Typography>
-                      <Typography variant="caption" color="text.secondary">
-                        {dept.setBy.email}
-                      </Typography>
-                    </Box>
-                  ) : (
-                    <Typography variant="body2" color="text.secondary">
-                      -
-                    </Typography>
-                  )}
-                </TableCell>
-                <TableCell>
-                  {dept.setAt ? (
-                    <Typography variant="body2">
-                      {new Date(dept.setAt).toLocaleDateString()} at{' '}
-                      {new Date(dept.setAt).toLocaleTimeString()}
-                    </Typography>
-                  ) : (
-                    <Typography variant="body2" color="text.secondary">
-                      -
-                    </Typography>
-                  )}
-                </TableCell>
-                <TableCell align="center">
-                  {session?.user?.roles?.includes('SUPERADMIN') && dept.isCustom ? (
-                    <Tooltip title="Delete custom base currency (revert to system default)">
-                      <IconButton
-                        size="small"
-                        color="error"
-                        onClick={() => handleDeleteBaseCurrency(dept.departmentId, dept.departmentName)}
-                        disabled={deletingId === dept.departmentId}
-                      >
-                        {deletingId === dept.departmentId ? (
-                          <CircularProgress size={20} />
-                        ) : (
-                          <DeleteIcon fontSize="small" />
-                        )}
-                      </IconButton>
-                    </Tooltip>
-                  ) : (
-                    <Typography variant="body2" color="text.secondary">
-                      -
-                    </Typography>
-                  )}
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </TableContainer>
-    </Box>
-  );
 }

@@ -3,33 +3,16 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
-import {
-    Box,
-    Typography,
-    Card,
-    CardActionArea,
-    Avatar,
-    alpha,
-    CircularProgress,
-    useTheme,
-} from '@mui/material';
-import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
-import BusinessIcon from '@mui/icons-material/Business';
-import GroupsIcon from '@mui/icons-material/Groups';
-import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
-import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
+import { Building2, Users, ShieldCheck, Loader2, ArrowRight, Landmark } from 'lucide-react';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { cn } from '@/lib/utils';
 import { formatRole } from '@/lib/utils';
 
-const roleIcons: Record<string, React.ReactElement> = {
-    SUPERADMIN: <AdminPanelSettingsIcon />,
-    DENOMINATION_ADMIN: <AccountBalanceIcon />,
-    DENOMINATION_LEADER: <BusinessIcon />,
-    OVERSIGHT_ADMIN: <AccountBalanceIcon />,
-    OVERSIGHT_LEADER: <BusinessIcon />,
-    CAMPUS_ADMIN: <AccountBalanceIcon />,
-    CAMPUS_LEADER: <BusinessIcon />,
-    STREAM_LEADER: <GroupsIcon />,
-    COUNCIL_LEADER: <GroupsIcon />,
+const getRoleIcon = (role: string) => {
+    if (role === 'SUPERADMIN') return ShieldCheck;
+    if (role.includes('ADMIN') || role.includes('DENOMINATION')) return Landmark;
+    if (role.includes('LEADER')) return Building2;
+    return Users;
 };
 
 const roleDescriptions: Record<string, string> = {
@@ -47,7 +30,6 @@ const roleDescriptions: Record<string, string> = {
 export default function SelectRolePage() {
     const { data: session, update } = useSession();
     const router = useRouter();
-    const theme = useTheme();
     const [loading, setLoading] = useState(true);
     const [selecting, setSelecting] = useState<string | null>(null);
     const [detailedRoles, setDetailedRoles] = useState<any[]>([]);
@@ -59,14 +41,14 @@ export default function SelectRolePage() {
             return;
         }
         try {
-            const response = await fetch('/api/users/select-role', {
+            const res = await fetch('/api/users/select-role', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ userRoleId }),
             });
-            if (!response.ok) throw new Error('Failed to update role');
+            if (!res.ok) throw new Error('Failed to update role');
             await update();
-            await new Promise(resolve => setTimeout(resolve, 100));
+            await new Promise(r => setTimeout(r, 100));
             router.push('/dashboard');
             router.refresh();
         } catch (error) {
@@ -77,7 +59,6 @@ export default function SelectRolePage() {
 
     useEffect(() => {
         if (!session?.user) return;
-
         const fetchRoles = async () => {
             try {
                 const res = await fetch('/api/users/me');
@@ -90,210 +71,112 @@ export default function SelectRolePage() {
                             return;
                         }
                     } else if (session.user.roles && session.user.roles.length > 0) {
-                        const fallbackRoles = session.user.roles.map(role => ({
-                            role,
-                            department: { name: 'Global / System' },
-                        }));
-                        setDetailedRoles(fallbackRoles);
-                        if (fallbackRoles.length === 1) {
-                            router.push('/dashboard');
-                            return;
-                        }
+                        const fallback = session.user.roles.map(role => ({ role, department: { name: 'Global / System' } }));
+                        setDetailedRoles(fallback);
+                        if (fallback.length === 1) { router.push('/dashboard'); return; }
                     }
                 }
             } catch {
                 if (session.user.roles) {
-                    setDetailedRoles(
-                        session.user.roles.map(role => ({ role, department: null })),
-                    );
+                    setDetailedRoles(session.user.roles.map(role => ({ role, department: null })));
                 }
             } finally {
                 setLoading(false);
             }
         };
-
         fetchRoles();
     }, [session, router, handleRoleSelect]);
 
     if (loading || !session?.user) {
         return (
-            <Box
-                sx={{
-                    minHeight: '100vh',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    bgcolor: 'background.default',
-                }}
-            >
-                <CircularProgress size={28} thickness={3} />
-            </Box>
+            <div className="min-h-screen flex items-center justify-center bg-background">
+                <Loader2 className="h-7 w-7 animate-spin text-muted-foreground" />
+            </div>
         );
     }
 
     return (
-        <Box
-            sx={{
-                minHeight: '100vh',
-                bgcolor: 'background.default',
-                py: { xs: 5, md: 8 },
-                px: { xs: 3, md: 6 },
-            }}
-        >
-            <Box sx={{ maxWidth: 960, mx: 'auto' }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2.5, mb: { xs: 4, md: 6 } }}>
-                    <Avatar
-                        src={session.user.image || undefined}
-                        sx={{
-                            width: 56,
-                            height: 56,
-                            border: `1px solid ${theme.palette.divider}`,
-                            fontFamily: theme.typography.h3.fontFamily,
-                            fontSize: '1.25rem',
-                            fontWeight: 600,
-                        }}
-                    >
-                        {session.user.name?.[0]?.toUpperCase()}
+        <div className="min-h-screen bg-background py-10 md:py-16 px-6 md:px-12">
+            <div className="max-w-[960px] mx-auto">
+                {/* Header */}
+                <div className="flex items-center gap-5 mb-10 md:mb-14">
+                    <Avatar className="w-14 h-14 border border-border shrink-0">
+                        {session.user.image && <AvatarImage src={session.user.image} alt={session.user.name || ''} />}
+                        <AvatarFallback className="text-xl font-semibold">
+                            {session.user.name?.[0]?.toUpperCase()}
+                        </AvatarFallback>
                     </Avatar>
-                    <Box>
-                        <Typography variant="overline" sx={{ display: 'block', mb: 0.5 }}>
+                    <div>
+                        <p className="text-[0.6875rem] font-medium uppercase tracking-[0.12em] text-muted-foreground mb-1">
                             Welcome back
-                        </Typography>
-                        <Typography
-                            component="h1"
-                            sx={{
-                                fontFamily: theme.typography.h2.fontFamily,
-                                fontSize: { xs: '1.625rem', sm: '1.875rem' },
-                                fontWeight: 600,
-                                letterSpacing: '-0.025em',
-                                lineHeight: 1.15,
-                            }}
-                        >
+                        </p>
+                        <h1 className="text-[1.625rem] sm:text-[1.875rem] font-semibold tracking-[-0.025em] leading-[1.15] text-foreground">
                             {session.user.name}
-                        </Typography>
-                        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75 }}>
+                        </h1>
+                        <p className="text-sm text-muted-foreground mt-1.5">
                             You have multiple roles. Choose one to continue.
-                        </Typography>
-                    </Box>
-                </Box>
+                        </p>
+                    </div>
+                </div>
 
-                <Box
-                    sx={{
-                        display: 'grid',
-                        gridTemplateColumns: {
-                            xs: '1fr',
-                            sm: 'repeat(2, 1fr)',
-                            md: 'repeat(3, 1fr)',
-                        },
-                        gap: 2,
-                    }}
-                >
+                {/* Role cards */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                     {detailedRoles.map((item) => {
                         const role = item.role;
                         const departmentName = item.department?.name;
                         const isLoading = selecting === role;
+                        const Icon = getRoleIcon(role);
 
                         return (
-                            <Card
+                            <button
                                 key={item.id || role}
-                                elevation={0}
-                                sx={{
-                                    borderRadius: 3,
-                                    border: `1px solid ${theme.palette.divider}`,
-                                    bgcolor: 'background.paper',
-                                    transition: 'border-color 160ms ease',
-                                    '&:hover': {
-                                        borderColor: alpha(theme.palette.primary.main, 0.4),
-                                        '& .arrow': {
-                                            transform: 'translateX(4px)',
-                                            color: 'text.primary',
-                                        },
-                                    },
-                                }}
+                                onClick={() => handleRoleSelect(item.id, role)}
+                                disabled={selecting !== null}
+                                className={cn(
+                                    'group text-left rounded-2xl border border-border bg-card p-5 h-full',
+                                    'transition-colors duration-150',
+                                    'hover:border-primary/40 hover:bg-card',
+                                    'disabled:opacity-60 disabled:cursor-not-allowed',
+                                    'flex flex-col gap-4',
+                                )}
                             >
-                                <CardActionArea
-                                    onClick={() => handleRoleSelect(item.id, role)}
-                                    disabled={selecting !== null}
-                                    sx={{ p: 2.5, height: '100%', alignItems: 'stretch' }}
-                                >
-                                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, height: '100%' }}>
-                                        <Box
-                                            sx={{
-                                                width: 40,
-                                                height: 40,
-                                                borderRadius: 1.5,
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                justifyContent: 'center',
-                                                bgcolor: alpha(theme.palette.primary.main, 0.10),
-                                                color: 'primary.main',
-                                            }}
-                                        >
-                                            {isLoading ? (
-                                                <CircularProgress size={18} thickness={4} color="inherit" />
-                                            ) : (
-                                                <Box sx={{ '& svg': { fontSize: 20 } }}>
-                                                    {roleIcons[role] || <BusinessIcon />}
-                                                </Box>
-                                            )}
-                                        </Box>
+                                <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-primary/10 text-primary">
+                                    {isLoading ? (
+                                        <Loader2 className="h-5 w-5 animate-spin" />
+                                    ) : (
+                                        <Icon className="h-5 w-5" />
+                                    )}
+                                </div>
 
-                                        <Box>
-                                            <Typography
-                                                variant="overline"
-                                                sx={{ display: 'block', mb: 0.5, color: 'primary.main' }}
-                                            >
-                                                {formatRole(role)}
-                                            </Typography>
-                                            {departmentName && (
-                                                <Typography
-                                                    sx={{
-                                                        fontSize: '1rem',
-                                                        fontWeight: 600,
-                                                        color: 'text.primary',
-                                                        letterSpacing: '-0.005em',
-                                                        mb: 0.5,
-                                                    }}
-                                                >
-                                                    {departmentName}
-                                                </Typography>
-                                            )}
-                                            <Typography variant="body2" color="text.secondary">
-                                                {roleDescriptions[role] || 'Manage your responsibilities'}
-                                            </Typography>
-                                        </Box>
+                                <div className="flex-1">
+                                    <p className="text-[0.625rem] font-semibold uppercase tracking-[0.12em] text-primary mb-1">
+                                        {formatRole(role)}
+                                    </p>
+                                    {departmentName && (
+                                        <p className="text-base font-semibold text-foreground tracking-[-0.005em] mb-1">
+                                            {departmentName}
+                                        </p>
+                                    )}
+                                    <p className="text-sm text-muted-foreground">
+                                        {roleDescriptions[role] || 'Manage your responsibilities'}
+                                    </p>
+                                </div>
 
-                                        <Box
-                                            className="arrow"
-                                            sx={{
-                                                mt: 'auto',
-                                                display: 'inline-flex',
-                                                alignItems: 'center',
-                                                gap: 0.75,
-                                                fontSize: '0.8125rem',
-                                                fontWeight: 500,
-                                                color: 'text.disabled',
-                                                transition: 'transform 160ms ease, color 160ms ease',
-                                            }}
-                                        >
-                                            Continue
-                                            <ArrowForwardIcon sx={{ fontSize: 14 }} />
-                                        </Box>
-                                    </Box>
-                                </CardActionArea>
-                            </Card>
+                                <div className="flex items-center gap-1.5 text-[0.8125rem] font-medium text-muted-foreground group-hover:text-foreground transition-colors mt-auto">
+                                    Continue
+                                    <ArrowRight className="h-3.5 w-3.5 transition-transform duration-150 group-hover:translate-x-1" />
+                                </div>
+                            </button>
                         );
                     })}
-                </Box>
+                </div>
 
                 {detailedRoles.length === 0 && (
-                    <Box sx={{ textAlign: 'center', mt: 6 }}>
-                        <Typography variant="body1" color="text.secondary">
-                            No roles assigned. Please contact your administrator.
-                        </Typography>
-                    </Box>
+                    <p className="text-center text-sm text-muted-foreground mt-12">
+                        No roles assigned. Please contact your administrator.
+                    </p>
                 )}
-            </Box>
-        </Box>
+            </div>
+        </div>
     );
 }

@@ -1,140 +1,74 @@
 'use client';
 
-import { useState, useEffect, Suspense, useCallback, useMemo } from 'react';
+import { useState, useEffect, Suspense, useMemo } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import {
-    Box,
-    Typography,
-    Paper,
-    Table,
-    TableBody,
-    TableCell,
-    TableContainer,
-    TableHead,
-    TableRow,
-    Button,
-    Chip,
-    IconButton,
-    TextField,
-    InputAdornment,
-    MenuItem,
-    Select,
-    FormControl,
-    InputLabel,
-    Tooltip,
-    Card,
-    CardContent,
-    CardActionArea,
-    alpha,
-    Skeleton,
-    useTheme,
-    useMediaQuery,
-    Dialog,
-    DialogTitle,
-    DialogContent,
-    DialogActions,
-    Stack,
-    Grid,
-} from '@mui/material';
-import AddIcon from '@mui/icons-material/Add';
-import DeleteIcon from '@mui/icons-material/Delete';
-import SearchIcon from '@mui/icons-material/Search';
-import FilterListIcon from '@mui/icons-material/FilterList';
-import AttachFileIcon from '@mui/icons-material/AttachFile';
-import CheckCircleIcon from '@mui/icons-material/CheckCircle';
-import CancelIcon from '@mui/icons-material/Cancel';
-import EditIcon from '@mui/icons-material/Edit';
-import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
+import { Plus, Search, Pencil, Trash2, Paperclip, Receipt, TrendingUp, Wallet, Loader2 } from 'lucide-react';
 import Link from 'next/link';
-import { formatCurrency, formatDepartmentLevel, isWeekLocked } from '@/lib/utils';
 import { useSession } from 'next-auth/react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { cn, formatCurrency, formatDepartmentLevel, isWeekLocked } from '@/lib/utils';
+import { formatMoney } from '@/lib/format-money';
+import { useToast } from '@/components/ToastProvider';
 import EditTransactionDialog from '@/components/EditTransactionDialog';
 import ReceiptUpload from '@/components/ReceiptUpload';
-import { useToast } from '@/components/ToastProvider';
-import { AnimatedCounter, GlassCard, StatCard, StatusChip, TableRowSkeleton } from '@/components/ui';
-import { formatMoney } from '@/lib/format-money';
 
-type Transaction = {
-    id: string;
-    description: string;
-    amount: number;
-    currencyId?: string | null;
-    type: 'INCOME' | 'EXPENSE';
-    date: Date;
-    departmentId: string;
-    createdBy: string;
-    weekLocked: boolean;
-    status: 'PENDING' | 'APPROVED' | 'REJECTED';
-    approvedBy: string | null;
-    approvedAt: Date | null;
-    declineReason: string | null;
-    createdAt: Date;
-    updatedAt: Date;
-};
-
-type Department = {
-    id: string;
-    name: string;
-    level: string;
-};
-
-type User = {
-    id: string;
-    name: string;
-    email: string;
-};
-
-type TransactionFile = {
-    id: string;
-    fileName: string;
-    fileUrl: string;
-    fileMime: string;
-    fileSize: number | null;
-    uploadedAt: string;
-    uploadedBy: string;
-    uploader?: { id: string; name: string | null; email: string };
-};
-
-type TransactionWithDetails = Transaction & {
-    department: Department;
-    user: User;
-    userId: string;
-    files: TransactionFile[];
+type TransactionWithDetails = {
+    id: string; description: string; amount: number; currencyId?: string | null;
+    type: 'INCOME' | 'EXPENSE'; status: 'PENDING' | 'APPROVED' | 'REJECTED';
+    weekLocked?: boolean; locked?: boolean; weekNumber?: number; year?: number;
+    departmentId: string; userId: string;
+    department: { id: string; name: string; level: string };
+    user: { id: string; name: string; email: string };
+    files: { id: string; fileName: string; fileUrl: string; fileMime: string; fileSize: number | null; uploadedAt: string; uploadedBy: string; uploader?: { id: string; name: string | null; email: string } }[];
     currency?: { id: string; code: string; symbol: string; name: string } | null;
     amountInBase?: number;
+    createdAt: string; updatedAt: string;
 };
 
+function statusBadgeVariant(status: string): 'success' | 'warning' | 'destructive' {
+    if (status === 'APPROVED') return 'success';
+    if (status === 'PENDING') return 'warning';
+    return 'destructive';
+}
+
+function SummaryCard({ title, value, symbol, Icon, colorClass }: { title: string; value: string; symbol?: string; Icon: any; colorClass: string }) {
+    return (
+        <div className="rounded-xl border border-border bg-card p-4">
+            <div className="flex items-center gap-2 mb-2">
+                <Icon className={cn('h-4 w-4', colorClass)} />
+                <p className="text-xs font-medium uppercase tracking-[0.07em] text-muted-foreground">{title}</p>
+            </div>
+            <p className={cn('text-[1.375rem] font-bold tabular-nums tracking-tight', colorClass)}>
+                {symbol && <span className="text-sm font-medium text-muted-foreground mr-0.5">{symbol}</span>}
+                {value}
+            </p>
+        </div>
+    );
+}
+
 function TransactionsPageContent() {
-    const router = useRouter();
     const { showSuccess, showError } = useToast();
+    const { data: session } = useSession();
+    const searchParams = useSearchParams();
+    const deptParam = searchParams?.get('dept');
+
     const [transactions, setTransactions] = useState<TransactionWithDetails[]>([]);
-    const [filteredTransactions, setFilteredTransactions] = useState<TransactionWithDetails[]>([]);
-    // Stored as exact decimal strings from the server; never coerced to Number for display.
-    const [summary, setSummary] = useState<{ income: string; expense: string; balance: string }>({ income: '0', expense: '0', balance: '0' });
+    const [summary, setSummary] = useState({ income: '0', expense: '0', balance: '0' });
     const [baseCurrency, setBaseCurrency] = useState<{ id: string; code: string; symbol: string } | null>(null);
     const [currencies, setCurrencies] = useState<any[]>([]);
     const [department, setDepartment] = useState<any>(null);
     const [loading, setLoading] = useState(true);
-    const [typeFilter, setTypeFilter] = useState('ALL');
-    const [approvalFilter, setApprovalFilter] = useState('ALL'); // NEW: Filter by approval status
-    const [editDialog, setEditDialog] = useState<{ open: boolean; transaction: any }>({
-        open: false,
-        transaction: null,
-    });
-    const [detailsDialog, setDetailsDialog] = useState<{ open: boolean; transaction: any }>({
-        open: false,
-        transaction: null,
-    });
-    const [receiptDialog, setReceiptDialog] = useState<{ open: boolean; transactionId: string | null }>({
-        open: false,
-        transactionId: null,
-    });
-    const { data: session } = useSession();
-    const searchParams = useSearchParams();
-    const deptParam = searchParams?.get('dept');
     const [searchTerm, setSearchTerm] = useState(searchParams?.get('search') || '');
-    const theme = useTheme();
-    const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+    const [typeFilter, setTypeFilter] = useState('ALL');
+    const [approvalFilter, setApprovalFilter] = useState('ALL');
+    const [editDialog, setEditDialog] = useState<{ open: boolean; transaction: any }>({ open: false, transaction: null });
+    const [detailsDialog, setDetailsDialog] = useState<{ open: boolean; transaction: any }>({ open: false, transaction: null });
+    const [receiptDialog, setReceiptDialog] = useState<{ open: boolean; transactionId: string | null }>({ open: false, transactionId: null });
 
     const isSuperAdmin = session?.user?.role === 'SUPERADMIN';
     const isAdmin = session?.user?.role && ['SUPERADMIN', 'DENOMINATION_ADMIN', 'OVERSIGHT_ADMIN', 'CAMPUS_ADMIN'].includes(session.user.role);
@@ -142,908 +76,298 @@ function TransactionsPageContent() {
     const canSelectBaseCurrency = session?.user?.role === 'OVERSIGHT_ADMIN';
 
     useEffect(() => {
-        fetchCurrencies();
-        fetchBaseCurrency();
-        fetchTransactions();
-        fetchSummary();
-        if (deptParam) {
-            fetchDepartment();
-        }
-
-        // Refresh data when page becomes visible (e.g., after switching tabs)
-        const handleVisibilityChange = () => {
-            if (document.visibilityState === 'visible') {
-                fetchBaseCurrency();
-                fetchTransactions();
-                fetchSummary();
-            }
-        };
-
-        document.addEventListener('visibilitychange', handleVisibilityChange);
-        return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+        fetchCurrencies(); fetchBaseCurrency(); fetchTransactions(); fetchSummary();
+        if (deptParam) fetchDepartment();
+        const onVisible = () => { if (document.visibilityState === 'visible') { fetchBaseCurrency(); fetchTransactions(); fetchSummary(); } };
+        document.addEventListener('visibilitychange', onVisible);
+        return () => document.removeEventListener('visibilitychange', onVisible);
     }, [deptParam, session?.user?.role]);
 
-    useEffect(() => {
-        filterTransactions();
-    }, [transactions, searchTerm, typeFilter, approvalFilter]);
-
-    const fetchCurrencies = async () => {
-        try {
-            const response = await fetch('/api/currencies?active=true');
-            if (response.ok) {
-                const data = await response.json();
-                setCurrencies(data);
-            }
-        } catch (error) {
-            console.error('Failed to fetch currencies:', error);
-        }
-    };
-
+    const fetchCurrencies = async () => { try { const r = await fetch('/api/currencies?active=true'); if (r.ok) setCurrencies(await r.json()); } catch {} };
     const fetchBaseCurrency = async () => {
         try {
-            // For denomination level and above, use system base currency (USD)
             if (session?.user?.role && ['SUPERADMIN', 'DENOMINATION_ADMIN', 'DENOMINATION_LEADER'].includes(session.user.role)) {
-                const response = await fetch('/api/currencies?active=true');
-                if (response.ok) {
-                    const currencies = await response.json();
-                    const base = currencies.find((c: any) => c.isBase);
-                    if (base) {
-                        setBaseCurrency({ id: base.id, code: base.code, symbol: base.symbol });
-                    }
-                }
+                const r = await fetch('/api/currencies?active=true'); if (r.ok) { const cs = await r.json(); const base = cs.find((c: any) => c.isBase); if (base) setBaseCurrency(base); }
             } else {
-                // For oversight level and below, fetch user's base currency preference
-                const userResponse = await fetch('/api/users/me');
-                if (userResponse.ok) {
-                    const userData = await userResponse.json();
-                    if (userData.baseCurrency) {
-                        setBaseCurrency({ 
-                            id: userData.baseCurrency.id, 
-                            code: userData.baseCurrency.code, 
-                            symbol: userData.baseCurrency.symbol 
-                        });
-                    } else {
-                        // Fallback to system base currency if user doesn't have one set
-                        const response = await fetch('/api/currencies?active=true');
-                        if (response.ok) {
-                            const currencies = await response.json();
-                            const base = currencies.find((c: any) => c.isBase);
-                            if (base) {
-                                setBaseCurrency({ id: base.id, code: base.code, symbol: base.symbol });
-                            }
-                        }
-                    }
-                }
+                const r = await fetch('/api/users/me'); if (r.ok) { const d = await r.json(); if (d.baseCurrency) setBaseCurrency(d.baseCurrency); else { const r2 = await fetch('/api/currencies?active=true'); if (r2.ok) { const cs = await r2.json(); const base = cs.find((c: any) => c.isBase); if (base) setBaseCurrency(base); } } }
             }
-        } catch (error) {
-            console.error('Failed to fetch base currency:', error);
-        }
+        } catch {}
     };
+    const handleBaseCurrencyChange = async (currencyId: string) => { try { await fetch('/api/users/me', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ baseCurrencyId: currencyId }) }); await fetchBaseCurrency(); await fetchTransactions(); } catch {} };
+    const fetchDepartment = async () => { try { const r = await fetch(`/api/departments/${deptParam}`); if (r.ok) setDepartment(await r.json()); } catch {} };
+    const fetchTransactions = async () => { try { const url = deptParam ? `/api/transactions?departmentId=${deptParam}` : '/api/transactions'; const r = await fetch(url); if (r.ok) setTransactions(await r.json()); } catch {} finally { setLoading(false); } };
+    const fetchSummary = async () => { try { const url = deptParam ? `/api/transactions/summary?departmentId=${deptParam}` : '/api/transactions/summary'; const r = await fetch(url, { cache: 'no-store' }); if (r.ok) { const d = await r.json(); setSummary({ income: String(d.income ?? '0'), expense: String(d.expense ?? '0'), balance: String(d.balance ?? '0') }); } } catch {} };
 
-    const handleBaseCurrencyChange = async (currencyId: string) => {
+    const handleDelete = async (id: string, desc: string) => {
+        if (!confirm(`Delete "${desc}"? This cannot be undone.`)) return;
         try {
-            // Update user's base currency preference
-            const response = await fetch('/api/users/me', {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    baseCurrencyId: currencyId,
-                }),
-            });
-
-            if (response.ok) {
-                // Refresh data after base currency change
-                await fetchBaseCurrency();
-                await fetchTransactions();
-            }
-        } catch (error) {
-            console.error('Failed to change base currency:', error);
-        }
+            const r = await fetch(`/api/transactions/${id}`, { method: 'DELETE' });
+            if (r.ok) { showSuccess('Transaction deleted'); fetchTransactions(); fetchSummary(); }
+            else { const d = await r.json(); showError(d.error || 'Failed to delete'); }
+        } catch { showError('Error deleting transaction'); }
     };
 
-    const fetchDepartment = async () => {
-        if (!deptParam) return;
-        try {
-            const response = await fetch(`/api/departments/${deptParam}`);
-            if (response.ok) {
-                const data = await response.json();
-                setDepartment(data);
-            }
-        } catch (error) {
-            console.error('Failed to fetch department:', error);
-        }
-    };
-
-    const fetchTransactions = async () => {
-        try {
-            let url = '/api/transactions';
-            const params = new URLSearchParams();
-            
-            if (deptParam) {
-                params.append('departmentId', deptParam);
-                // Always include sub-departments
-            }
-            
-            if (params.toString()) {
-                url += `?${params.toString()}`;
-            }
-            
-            const response = await fetch(url);
-            if (response.ok) {
-                const data = await response.json();
-                setTransactions(data);
-            }
-        } catch (error) {
-            console.error('Failed to fetch transactions:', error);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const fetchSummary = async () => {
-        try {
-            let url = '/api/transactions/summary';
-            const params = new URLSearchParams();
-
-            if (deptParam) {
-                params.append('departmentId', deptParam);
-            }
-
-            if (params.toString()) {
-                url += `?${params.toString()}`;
-            }
-
-            const response = await fetch(url, { cache: 'no-store' });
-            if (response.ok) {
-                const data = await response.json();
-                setSummary({
-                    income: String(data.income ?? '0'),
-                    expense: String(data.expense ?? '0'),
-                    balance: String(data.balance ?? '0'),
-                });
-            }
-        } catch (error) {
-            console.error('Failed to fetch transaction summary:', error);
-        }
-    };
-
-    const filterTransactions = () => {
-        let filtered = [...transactions];
-
-        // Search filter
-        if (searchTerm) {
-            filtered = filtered.filter(
-                (tx) =>
-                    tx.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                    tx.department.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                    tx.user?.name?.toLowerCase().includes(searchTerm.toLowerCase())
-            );
-        }
-
-        // Type filter
-        if (typeFilter !== 'ALL') {
-            filtered = filtered.filter((tx) => tx.type === typeFilter);
-        }
-
-        // Approval status filter
-        if (approvalFilter !== 'ALL') {
-            filtered = filtered.filter((tx) => tx.status === approvalFilter);
-        }
-
-        // Sort by date (newest first)
-        filtered.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-
-        setFilteredTransactions(filtered);
-    };
-
-    const handleEdit = (transaction: any) => {
-        setEditDialog({ open: true, transaction });
-    };
-
-    const handleCloseEdit = () => {
-        setEditDialog({ open: false, transaction: null });
-    };
-
-    const handleSaveEdit = () => {
-        showSuccess('Transaction updated successfully');
-        fetchTransactions();
-        fetchSummary();
-    };
-
-    /**
-     * Determine if a transaction can be edited by the current user.
-     * All admins can edit, with restrictions for locked/past-week transactions.
-     */
-    const canEditTransaction = (tx: any): boolean => {
-        // Must be an admin
+    const canEditTransaction = (tx: any) => {
         if (!isAdmin) return false;
-        // Locked transactions - only superadmin
         if (tx.locked && !isSuperAdmin) return false;
-        // Week lock check - oversight admin and above can edit past weeks
-        const oversightAndAboveRoles = ['SUPERADMIN', 'DENOMINATION_ADMIN', 'OVERSIGHT_ADMIN'];
-        const canEditPastWeeks = session?.user?.role && oversightAndAboveRoles.includes(session.user.role);
-        if (tx.weekNumber && tx.year && isWeekLocked(tx.weekNumber, tx.year) && !canEditPastWeeks) {
-            return false;
-        }
+        const oversightAndAbove = ['SUPERADMIN', 'DENOMINATION_ADMIN', 'OVERSIGHT_ADMIN'];
+        if (tx.weekNumber && tx.year && isWeekLocked(tx.weekNumber, tx.year) && !(session?.user?.role && oversightAndAbove.includes(session.user.role))) return false;
         return true;
     };
 
-    const handleViewDetails = (transaction: any) => {
-        setDetailsDialog({ open: true, transaction });
-    };
+    const filteredTransactions = useMemo(() => {
+        let filtered = [...transactions];
+        if (searchTerm) filtered = filtered.filter(tx => tx.description.toLowerCase().includes(searchTerm.toLowerCase()) || tx.department.name.toLowerCase().includes(searchTerm.toLowerCase()) || tx.user?.name?.toLowerCase().includes(searchTerm.toLowerCase()));
+        if (typeFilter !== 'ALL') filtered = filtered.filter(tx => tx.type === typeFilter);
+        if (approvalFilter !== 'ALL') filtered = filtered.filter(tx => tx.status === approvalFilter);
+        return filtered.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    }, [transactions, searchTerm, typeFilter, approvalFilter]);
 
-    const handleCloseDetails = () => {
-        setDetailsDialog({ open: false, transaction: null });
-    };
-
-    const handleDelete = async (id: string, description: string) => {
-        if (!confirm(`Are you sure you want to delete this transaction?\n\n"${description}"\n\nThis action cannot be undone.`)) {
-            return;
-        }
-
-        try {
-            const response = await fetch(`/api/transactions/${id}`, {
-                method: 'DELETE',
-            });
-
-            if (response.ok) {
-                showSuccess('Transaction deleted successfully');
-                fetchTransactions();
-                fetchSummary();
-            } else {
-                const data = await response.json();
-                showError(data.error || 'Failed to delete transaction');
-            }
-        } catch (error) {
-            showError('Error deleting transaction');
-        }
-    };
-
-    const balanceTone = (() => {
-        const b = Number(summary.balance);
-        if (b < 0) return 'error';
-        if (b === 0 || b < 5000) return 'warning';
-        return 'success';
-    })();
-
-    // Running balance per transaction, anchored to the authoritative account
-    // balance from the server. The list endpoint only returns the 500 most
-    // recent rows, so summing from zero would omit the older history (the
-    // opening balance) and skew every line negative. We compute the net of the
-    // loaded window, then offset every row so the newest approved row equals
-    // summary.balance. Keyed by id so filtering/searching never re-bases it.
     const runningBalanceById = useMemo(() => {
         const map = new Map<string, number>();
-        if (transactions.length === 0) return map;
-
-        // transactions are ordered newest-first; accumulate oldest→newest in
-        // integer cents so the running total never drifts into float noise.
+        if (!transactions.length) return map;
         const windowCents = new Array<number>(transactions.length);
         let acc = 0;
         for (let i = transactions.length - 1; i >= 0; i--) {
             const tx = transactions[i];
-            if (tx.status === 'APPROVED') {
-                const cents = Math.round(Number(tx.amountInBase ?? tx.amount) * 100);
-                acc += tx.type === 'INCOME' ? cents : -cents;
-            }
+            if (tx.status === 'APPROVED') { const c = Math.round(Number(tx.amountInBase ?? tx.amount) * 100); acc += tx.type === 'INCOME' ? c : -c; }
             windowCents[i] = acc;
         }
-
-        // Opening balance = everything older than the loaded window.
         const summaryCents = Math.round(Number(summary.balance) * 100);
         const openingCents = summaryCents - windowCents[0];
-        for (let i = 0; i < transactions.length; i++) {
-            map.set(transactions[i].id, (windowCents[i] + openingCents) / 100);
-        }
+        for (let i = 0; i < transactions.length; i++) map.set(transactions[i].id, (windowCents[i] + openingCents) / 100);
         return map;
     }, [transactions, summary.balance]);
 
-    return (
-        <Box>
-            {/* Page Header */}
-            <Box
-                sx={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: { xs: 'flex-start', sm: 'flex-end' },
-                    flexWrap: 'wrap',
-                    gap: 2,
-                    mb: { xs: 3, md: 4 },
-                    pb: { xs: 2.5, md: 3 },
-                    borderBottom: (theme) => `1px solid ${theme.palette.divider}`,
-                }}
-            >
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2.5, minWidth: 0, flex: 1 }}>
-                    <Box
-                        sx={(theme) => ({
-                            width: 48,
-                            height: 48,
-                            borderRadius: 1.5,
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            bgcolor: alpha(theme.palette.secondary.main, 0.10),
-                            color: theme.palette.secondary.main,
-                            flexShrink: 0,
-                        })}
-                    >
-                        <ReceiptLongIcon sx={{ fontSize: 22 }} />
-                    </Box>
-                    <Box sx={{ minWidth: 0 }}>
-                        <Typography variant="overline" sx={{ display: 'block', mb: 0.5 }}>
-                            Ledger
-                        </Typography>
-                        <Typography
-                            component="h1"
-                            sx={(theme) => ({
-                                fontFamily: theme.typography.h2.fontFamily,
-                                fontSize: { xs: '1.625rem', sm: '1.875rem', md: '2.125rem' },
-                                fontWeight: 500,
-                                letterSpacing: '-0.02em',
-                                lineHeight: 1.15,
-                                color: theme.palette.text.primary,
-                            })}
-                        >
-                            {department?.name && department?.level
-                                ? `${department.name} ${formatDepartmentLevel(department.level)}`
-                                : department?.name
-                                    ? department.name
-                                    : 'Transaction history'}
-                        </Typography>
-                        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75, maxWidth: 560 }}>
-                            {department ? 'Including sub-departments.' : 'Every entry, recorded and reconciled.'}
-                        </Typography>
-                    </Box>
-                </Box>
-                <Button
-                    component={Link}
-                    href={deptParam ? `/transactions/new?dept=${deptParam}` : '/transactions/new'}
-                    variant="contained"
-                    color="primary"
-                    startIcon={<AddIcon sx={{ fontSize: 18 }} />}
-                >
-                    {isLeader ? 'Request expense' : 'New transaction'}
-                </Button>
-            </Box>
+    const balance = Number(summary.balance);
+    const balanceColor = balance < 0 ? 'text-destructive' : balance < 5000 ? 'text-warning' : 'text-success';
+    const fmtAmt = (tx: TransactionWithDetails) => baseCurrency ? formatCurrency(Number(tx.amountInBase || tx.amount), baseCurrency.code, baseCurrency.symbol) : formatCurrency(Number(tx.amountInBase || tx.amount));
 
-            {/* Summary Cards */}
-            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr 1fr' }, gap: 2, mb: 4 }}>
-                <StatCard
-                    icon={<ReceiptLongIcon />}
-                    title="Account balance"
-                    gradient={balanceTone === 'error' ? 'expense' : balanceTone === 'warning' ? 'warning' : 'balance'}
-                    value={
-                        <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.5 }}>
-                            {baseCurrency && (
-                                <Box component="span" sx={{ fontSize: '0.95rem', color: 'text.secondary', fontWeight: 500 }}>
-                                    {baseCurrency.symbol}
-                                </Box>
-                            )}
-                            <AnimatedCounter
-                                value={summary.balance}
-                                duration={1000}
-                                sx={{ fontVariantNumeric: 'tabular-nums' }}
-                            />
-                        </Box>
-                    }
-                />
-                <StatCard
-                    icon={<CheckCircleIcon />}
-                    title="Total inflows"
-                    gradient="income"
-                    value={
-                        <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.5 }}>
-                            {baseCurrency && (
-                                <Box component="span" sx={{ fontSize: '0.95rem', color: 'text.secondary', fontWeight: 500 }}>
-                                    {baseCurrency.symbol}
-                                </Box>
-                            )}
-                            <AnimatedCounter
-                                value={summary.income}
-                                duration={1000}
-                                sx={{ fontVariantNumeric: 'tabular-nums' }}
-                            />
-                        </Box>
-                    }
-                />
-                <StatCard
-                    icon={<CancelIcon />}
-                    title="Total expense"
-                    gradient="expense"
-                    value={
-                        <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.5 }}>
-                            {baseCurrency && (
-                                <Box component="span" sx={{ fontSize: '0.95rem', color: 'text.secondary', fontWeight: 500 }}>
-                                    {baseCurrency.symbol}
-                                </Box>
-                            )}
-                            <AnimatedCounter
-                                value={summary.expense}
-                                duration={1000}
-                                sx={{ fontVariantNumeric: 'tabular-nums' }}
-                            />
-                        </Box>
-                    }
-                />
-            </Box>
+    return (
+        <div>
+            {/* Header */}
+            <div className="flex justify-between items-start sm:items-end flex-wrap gap-4 mb-8 pb-6 border-b border-border">
+                <div className="flex items-center gap-4 min-w-0 flex-1">
+                    <div className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0 bg-secondary text-muted-foreground"><Receipt className="h-5 w-5" /></div>
+                    <div className="min-w-0">
+                        <p className="text-[0.6875rem] font-medium uppercase tracking-[0.10em] text-muted-foreground mb-0.5">Ledger</p>
+                        <h1 className="text-[1.625rem] sm:text-[1.875rem] font-semibold tracking-[-0.025em] text-foreground">
+                            {department?.name ? `${department.name}${department.level ? ` ${formatDepartmentLevel(department.level)}` : ''}` : 'Transaction history'}
+                        </h1>
+                        <p className="text-sm text-muted-foreground mt-0.5">{department ? 'Including sub-departments.' : 'Every entry, recorded and reconciled.'}</p>
+                    </div>
+                </div>
+                <Button asChild><Link href={deptParam ? `/transactions/new?dept=${deptParam}` : '/transactions/new'}><Plus className="mr-1.5 h-4 w-4" />{isLeader ? 'Request expense' : 'New transaction'}</Link></Button>
+            </div>
+
+            {/* Summary */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
+                <SummaryCard title="Account balance" value={Number(summary.balance).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} symbol={baseCurrency?.symbol} Icon={Wallet} colorClass={balanceColor} />
+                <SummaryCard title="Total inflows" value={Number(summary.income).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} symbol={baseCurrency?.symbol} Icon={TrendingUp} colorClass="text-success" />
+                <SummaryCard title="Total expense" value={Number(summary.expense).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} symbol={baseCurrency?.symbol} Icon={TrendingUp} colorClass="text-destructive" />
+            </div>
 
             {/* Filters */}
-            <GlassCard sx={{ p: 3, mb: 3 }}>
-                <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center' }}>
-                    <TextField
-                        placeholder="Search transactions…"
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        sx={{
-                            flexGrow: 1,
-                            minWidth: 250,
-                            '& .MuiOutlinedInput-root': {
-                                borderRadius: 999,
-                            },
-                        }}
-                        InputProps={{
-                            startAdornment: (
-                                <InputAdornment position="start">
-                                    <SearchIcon color="action" />
-                                </InputAdornment>
-                            ),
-                        }}
-                    />
-                    {canSelectBaseCurrency && (
-                        <FormControl sx={{ minWidth: 150 }}>
-                            <InputLabel>Base Currency</InputLabel>
-                            <Select
-                                value={baseCurrency?.id || ''}
-                                label="Base Currency"
-                                onChange={(e) => handleBaseCurrencyChange(e.target.value)}
-                            >
-                                {currencies.map((currency) => (
-                                    <MenuItem key={currency.id} value={currency.id}>
-                                        {currency.symbol} {currency.code}
-                                    </MenuItem>
-                                ))}
-                            </Select>
-                        </FormControl>
-                    )}
-                    <FormControl sx={{ minWidth: 150 }}>
-                        <InputLabel>Type</InputLabel>
-                        <Select
-                            value={typeFilter}
-                            label="Type"
-                            onChange={(e) => setTypeFilter(e.target.value)}
-                        >
-                            <MenuItem value="ALL">All Types</MenuItem>
-                            <MenuItem value="INCOME">Income</MenuItem>
-                            <MenuItem value="EXPENSE">Expense</MenuItem>
-                        </Select>
-                    </FormControl>
-                    <FormControl sx={{ minWidth: 150 }}>
-                        <InputLabel>Approval</InputLabel>
-                        <Select
-                            value={approvalFilter}
-                            label="Approval"
-                            onChange={(e) => setApprovalFilter(e.target.value)}
-                        >
-                            <MenuItem value="ALL">All</MenuItem>
-                            <MenuItem value="PENDING">Pending</MenuItem>
-                            <MenuItem value="APPROVED">Approved</MenuItem>
-                            <MenuItem value="REJECTED">Declined</MenuItem>
-                        </Select>
-                    </FormControl>
-                </Box>
-            </GlassCard>
+            <div className="rounded-xl border border-border bg-card p-3 mb-4 flex flex-wrap gap-3 items-center">
+                <div className="relative flex-1 min-w-[200px]">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+                    <Input placeholder="Search transactions…" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="pl-9 rounded-full" />
+                </div>
+                {canSelectBaseCurrency && (
+                    <Select value={baseCurrency?.id || ''} onValueChange={handleBaseCurrencyChange}>
+                        <SelectTrigger className="w-[140px]"><SelectValue placeholder="Base Currency" /></SelectTrigger>
+                        <SelectContent>{currencies.map(c => <SelectItem key={c.id} value={c.id}>{c.symbol} {c.code}</SelectItem>)}</SelectContent>
+                    </Select>
+                )}
+                <Select value={typeFilter} onValueChange={setTypeFilter}>
+                    <SelectTrigger className="w-[130px]"><SelectValue placeholder="Type" /></SelectTrigger>
+                    <SelectContent><SelectItem value="ALL">All Types</SelectItem><SelectItem value="INCOME">Income</SelectItem><SelectItem value="EXPENSE">Expense</SelectItem></SelectContent>
+                </Select>
+                <Select value={approvalFilter} onValueChange={setApprovalFilter}>
+                    <SelectTrigger className="w-[130px]"><SelectValue placeholder="Status" /></SelectTrigger>
+                    <SelectContent><SelectItem value="ALL">All</SelectItem><SelectItem value="PENDING">Pending</SelectItem><SelectItem value="APPROVED">Approved</SelectItem><SelectItem value="REJECTED">Declined</SelectItem></SelectContent>
+                </Select>
+            </div>
 
-            {isMobile ? (
-                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                    {filteredTransactions.map((tx) => {
-                        return (
-                        <GlassCard 
-                            key={tx.id} 
-                            sx={{ 
-                                p: 0, // padding handled by CardActionArea content
-                                bgcolor: tx.status === 'PENDING' ? 'warning.light' : tx.status === 'REJECTED' ? 'error.light' : 'background.paper',
-                                opacity: tx.status !== 'APPROVED' ? 0.9 : 1,
-                                position: 'relative',
-                                overflow: 'hidden',
-                                transition: 'all 0.1s'
-                            }}
-                        >
-                            <CardActionArea 
-                                onClick={() => handleViewDetails(tx)}
-                                sx={{ p: 2, width: '100%', height: '100%' }}
-                            >
-                                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                    <Box sx={{ minWidth: 0, flex: 1, mr: 2 }}>
-                                        <Typography variant="subtitle2" fontWeight={600} noWrap>
-                                            {tx.description}
-                                        </Typography>
-                                        <Typography variant="caption" color="primary.main" fontWeight={600} display="block">
-                                            {tx.department.name}
-                                        </Typography>
-                                        <Typography variant="caption" color="text.secondary">
-                                            {new Date(tx.createdAt).toLocaleDateString()}
-                                        </Typography>
-                                    </Box>
-                                    <Box sx={{ textAlign: 'right' }}>
-                                        <Typography 
-                                            variant="body2" 
-                                            fontWeight={700}
-                                            color={tx.type === 'INCOME' ? 'success.main' : 'error.main'}
-                                            sx={{ display: 'block', mb: 0.5 }}
-                                        >
-                                            {tx.type === 'INCOME' ? '+' : '-'}{baseCurrency ? formatCurrency(Number(tx.amountInBase || tx.amount), baseCurrency.code, baseCurrency.symbol) : formatCurrency(Number(tx.amountInBase || tx.amount))}
-                                        </Typography>
-                                        <Chip 
-                                            label={tx.status} 
-                                            size="small" 
-                                            color={tx.status === 'APPROVED' ? 'success' : tx.status === 'PENDING' ? 'warning' : 'error'}
-                                            variant="outlined"
-                                            sx={{ height: 20, fontSize: '0.65rem' }}
-                                        />
-                                    </Box>
-                                </Box>
-                            </CardActionArea>
-                        </GlassCard>
-                    )})}
-                    {filteredTransactions.length === 0 && !loading && (
-                        <Typography variant="body1" color="text.secondary" align="center" sx={{ py: 4 }}>
-                            No transactions found
-                        </Typography>
-                    )}
-                </Box>
+            {loading ? (
+                <div className="flex flex-col gap-2">{[1,2,3,4,5].map(i => <Skeleton key={i} className="h-14 w-full rounded-xl" />)}</div>
             ) : (
-            <GlassCard sx={{ overflow: 'hidden' }}>
-                <TableContainer sx={{ background: 'transparent' }}>
-                <Table size="small">
-                    <TableHead>
-                        <TableRow>
-                            <TableCell sx={{ fontWeight: 700, py: 1 }}>Date</TableCell>
-                            <TableCell sx={{ fontWeight: 700, py: 1 }}>Description</TableCell>
-                            <TableCell align="right" sx={{ fontWeight: 700, py: 1 }}>Debit</TableCell>
-                            <TableCell align="right" sx={{ fontWeight: 700, py: 1 }}>Credit</TableCell>
-                            <TableCell align="right" sx={{ fontWeight: 700, py: 1 }}>Balance</TableCell>
-                            {isAdmin && <TableCell align="center" sx={{ fontWeight: 700, py: 1 }}>Actions</TableCell>}
-                        </TableRow>
-                    </TableHead>
-                    <TableBody>
-                        {filteredTransactions.map((tx) => {
-                            const runningBalance = runningBalanceById.get(tx.id) ?? 0;
+                <>
+                    {/* Mobile */}
+                    <div className="md:hidden flex flex-col gap-2">
+                        {filteredTransactions.map(tx => (
+                            <button key={tx.id} onClick={() => setDetailsDialog({ open: true, transaction: tx })}
+                                className={cn('w-full text-left rounded-xl border border-border bg-card px-4 py-3 hover:bg-muted/10 transition-colors',
+                                    tx.status === 'PENDING' && 'border-warning/30 bg-warning/5',
+                                    tx.status === 'REJECTED' && 'border-destructive/30 bg-destructive/5 opacity-70',
+                                )}>
+                                <div className="flex justify-between items-center gap-2">
+                                    <div className="min-w-0 flex-1">
+                                        <p className="font-semibold text-foreground truncate text-sm">{tx.description}</p>
+                                        <p className="text-xs text-primary font-medium mt-0.5">{tx.department.name}</p>
+                                        <p className="text-xs text-muted-foreground">{new Date(tx.createdAt).toLocaleDateString()}</p>
+                                    </div>
+                                    <div className="text-right shrink-0">
+                                        <p className={cn('font-bold text-sm', tx.type === 'INCOME' ? 'text-success' : 'text-destructive')}>
+                                            {tx.type === 'INCOME' ? '+' : '−'}{fmtAmt(tx)}
+                                        </p>
+                                        <Badge variant={statusBadgeVariant(tx.status)} className="text-[0.65rem] h-4 mt-0.5">{tx.status}</Badge>
+                                    </div>
+                                </div>
+                            </button>
+                        ))}
+                        {filteredTransactions.length === 0 && <p className="text-center py-8 text-sm text-muted-foreground">No transactions found</p>}
+                    </div>
 
-                            return (
-                            <TableRow 
-                                key={tx.id}
-                                sx={{ 
-                                    '&:hover': { bgcolor: 'action.hover' },
-                                    transition: 'background-color 0.2s',
-                                    '& td': { py: 0.5 },
-                                    bgcolor: tx.status === 'PENDING' ? 'warning.light' : tx.status === 'REJECTED' ? 'error.light' : 'inherit',
-                                    opacity: tx.status !== 'APPROVED' ? 0.7 : 1
-                                }}
-                            >
-                                <TableCell>
-                                    <Typography variant="body2" fontWeight={600}>
-                                        {new Date(tx.createdAt).toLocaleDateString()}
-                                    </Typography>
-                                    <Typography variant="caption" color="text.secondary">
-                                        {new Date(tx.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                    </Typography>
-                                </TableCell>
-                                <TableCell>
-                                    <Typography variant="body2" fontWeight={600}>
-                                        {tx.description}
-                                    </Typography>
-                                    <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', mt: 0.5 }}>
-                                        {!isLeader && (
-                                            <Typography variant="caption" color="text.secondary">
-                                                {tx.department.name}
-                                            </Typography>
-                                        )}
-                                        {tx.files && tx.files.length > 0 && (
-                                            <Tooltip title="Receipt attached">
-                                                <Chip
-                                                    icon={<AttachFileIcon sx={{ fontSize: 10 }} />}
-                                                    label="Receipt"
-                                                    size="small"
-                                                    variant="outlined"
-                                                    sx={{ height: 18, fontSize: '0.65rem' }}
-                                                />
-                                            </Tooltip>
-                                        )}
-                                    </Box>
-                                    {tx.user?.email !== 'skaduteye@gmail.com' && (
-                                        <Typography variant="caption" color="text.secondary" display="block">
-                                            By: {tx.user?.name || tx.user?.email}
-                                        </Typography>
+                    {/* Desktop table */}
+                    <div className="hidden md:block rounded-xl border border-border bg-card overflow-hidden">
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-sm">
+                                <thead>
+                                    <tr className="bg-muted/30">
+                                        {['Date', 'Description', 'Debit', 'Credit', 'Balance', ...(isAdmin ? ['Actions'] : [])].map(h => (
+                                            <th key={h} className={cn('px-4 py-3 text-xs font-semibold uppercase tracking-[0.06em] text-muted-foreground whitespace-nowrap', h === 'Debit' || h === 'Credit' || h === 'Balance' || h === 'Actions' ? 'text-right' : 'text-left')}>{h}</th>
+                                        ))}
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {filteredTransactions.map(tx => {
+                                        const runBalance = runningBalanceById.get(tx.id) ?? 0;
+                                        return (
+                                            <tr key={tx.id} onClick={() => setDetailsDialog({ open: true, transaction: tx })}
+                                                className={cn('border-t border-border cursor-pointer hover:bg-muted/10 transition-colors',
+                                                    tx.status === 'PENDING' && 'bg-warning/5',
+                                                    tx.status === 'REJECTED' && 'bg-destructive/5 opacity-70',
+                                                )}>
+                                                <td className="px-4 py-2.5">
+                                                    <p className="font-semibold text-foreground">{new Date(tx.createdAt).toLocaleDateString()}</p>
+                                                    <p className="text-xs text-muted-foreground">{new Date(tx.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+                                                </td>
+                                                <td className="px-4 py-2.5">
+                                                    <p className="font-semibold text-foreground">{tx.description}</p>
+                                                    <div className="flex flex-wrap items-center gap-1 mt-0.5">
+                                                        {!isLeader && <p className="text-xs text-muted-foreground">{tx.department.name}</p>}
+                                                        {tx.files?.length > 0 && <Badge variant="outline" className="h-4 text-[0.6rem] gap-0.5"><Paperclip className="h-2.5 w-2.5" />Receipt</Badge>}
+                                                    </div>
+                                                    {tx.user?.email !== 'skaduteye@gmail.com' && <p className="text-xs text-muted-foreground">By: {tx.user?.name || tx.user?.email}</p>}
+                                                    {tx.currency && baseCurrency && tx.currency.code !== baseCurrency.code && <p className="text-xs text-muted-foreground">Original: {tx.currency.symbol}{Number(tx.amount).toLocaleString()} {tx.currency.code}</p>}
+                                                </td>
+                                                <td className="px-4 py-2.5 text-right font-bold text-destructive">{tx.type === 'EXPENSE' && tx.status === 'APPROVED' ? fmtAmt(tx) : '—'}</td>
+                                                <td className="px-4 py-2.5 text-right font-bold text-success">{tx.type === 'INCOME' && tx.status === 'APPROVED' ? fmtAmt(tx) : '—'}</td>
+                                                <td className={cn('px-4 py-2.5 text-right font-bold', runBalance >= 0 ? 'text-success' : 'text-destructive')}>
+                                                    {baseCurrency ? formatCurrency(runBalance, baseCurrency.code, baseCurrency.symbol) : formatCurrency(runBalance)}
+                                                </td>
+                                                {isAdmin && (
+                                                    <td className="px-4 py-2.5">
+                                                        <div className="flex gap-1 justify-end" onClick={e => e.stopPropagation()}>
+                                                            {canEditTransaction(tx) && (
+                                                                <button onClick={() => setEditDialog({ open: true, transaction: tx })} className="p-1 rounded text-primary hover:bg-primary/10 transition-colors" title="Edit"><Pencil className="h-3.5 w-3.5" /></button>
+                                                            )}
+                                                            {isSuperAdmin && (
+                                                                <button onClick={() => handleDelete(tx.id, tx.description)} className="p-1 rounded text-destructive hover:bg-destructive/10 transition-colors" title="Delete"><Trash2 className="h-3.5 w-3.5" /></button>
+                                                            )}
+                                                        </div>
+                                                    </td>
+                                                )}
+                                            </tr>
+                                        );
+                                    })}
+                                    {filteredTransactions.length === 0 && (
+                                        <tr><td colSpan={isAdmin ? 6 : 5} className="text-center py-12 text-muted-foreground">No transactions found</td></tr>
                                     )}
-                                    {tx.currency && tx.currencyId && baseCurrency && tx.currency.code !== baseCurrency.code && (
-                                        <Typography variant="caption" color="text.secondary" display="block">
-                                            Original: {tx.currency.symbol}{Number(tx.amount).toLocaleString()} {tx.currency.code}
-                                        </Typography>
-                                    )}
-                                </TableCell>
-                                <TableCell align="right">
-                                    <Typography
-                                        variant="body2"
-                                        fontWeight="700"
-                                        color="error.main"
-                                    >
-                                        {tx.type === 'EXPENSE' && tx.status === 'APPROVED' ? (
-                                            baseCurrency ? formatCurrency(Number(tx.amountInBase || tx.amount), baseCurrency.code, baseCurrency.symbol) : formatCurrency(Number(tx.amountInBase || tx.amount))
-                                        ) : '-'}
-                                    </Typography>
-                                </TableCell>
-                                <TableCell align="right">
-                                    <Typography
-                                        variant="body2"
-                                        fontWeight="700"
-                                        color="success.main"
-                                    >
-                                        {tx.type === 'INCOME' && tx.status === 'APPROVED' ? (
-                                            baseCurrency ? formatCurrency(Number(tx.amountInBase || tx.amount), baseCurrency.code, baseCurrency.symbol) : formatCurrency(Number(tx.amountInBase || tx.amount))
-                                        ) : '-'}
-                                    </Typography>
-                                </TableCell>
-                                <TableCell align="right">
-                                    <Typography
-                                        variant="body2"
-                                        fontWeight="700"
-                                        color={runningBalance >= 0 ? 'success.main' : 'error.main'}
-                                    >
-                                        {baseCurrency ? formatCurrency(runningBalance, baseCurrency.code, baseCurrency.symbol) : formatCurrency(runningBalance)}
-                                    </Typography>
-                                </TableCell>
-                                {isAdmin && (
-                                <TableCell align="center">
-                                    <Box sx={{ display: 'flex', gap: 1, justifyContent: 'center' }}>
-                                        {/* Edit button for transactions that can be edited */}
-                                        {canEditTransaction(tx) && (
-                                            <Tooltip title="Edit Transaction">
-                                                <IconButton
-                                                    size="small"
-                                                    color="primary"
-                                                    onClick={() => handleEdit(tx)}
-                                                    sx={{
-                                                        '&:hover': { bgcolor: 'primary.dark', color: 'white' }
-                                                    }}
-                                                >
-                                                    <EditIcon fontSize="small" />
-                                                </IconButton>
-                                            </Tooltip>
-                                        )}
-
-                                        {/* Delete button for superadmin only */}
-                                        {isSuperAdmin && (
-                                            <Tooltip title="Delete">
-                                                <IconButton
-                                                    size="small"
-                                                    color="error"
-                                                    onClick={() => handleDelete(tx.id, tx.description)}
-                                                    sx={{
-                                                        '&:hover': { bgcolor: 'error.dark', color: 'white' }
-                                                    }}
-                                                >
-                                                    <DeleteIcon fontSize="small" />
-                                                </IconButton>
-                                            </Tooltip>
-                                        )}
-                                    </Box>
-                                </TableCell>
-                                )}
-                            </TableRow>
-                            );
-                        })}
-                        {filteredTransactions.length === 0 && !loading && (
-                            <TableRow>
-                                <TableCell colSpan={isAdmin ? 6 : 5} align="center" sx={{ py: 8 }}>
-                                    <Typography variant="body1" color="text.secondary">
-                                        No transactions found
-                                    </Typography>
-                                </TableCell>
-                            </TableRow>
-                        )}
-                    </TableBody>
-                </Table>
-            </TableContainer>
-            </GlassCard>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </>
             )}
 
-            <Dialog open={detailsDialog.open} onClose={handleCloseDetails} maxWidth="sm" fullWidth>
-                <DialogTitle>Transaction Details</DialogTitle>
-                <DialogContent>
-                    {detailsDialog.transaction && (
-                        <Box sx={{ pt: 2 }}>
-                            <Stack spacing={2}>
-                                <Box>
-                                    <Typography variant="caption" color="text.secondary">Description</Typography>
-                                    <Typography variant="body1" fontWeight={600}>{detailsDialog.transaction.description}</Typography>
-                                </Box>
-                                <Grid container spacing={2}>
-                                    <Grid size={6}>
-                                        <Typography variant="caption" color="text.secondary">Amount</Typography>
-                                        <Typography 
-                                            variant="h6" 
-                                            fontWeight={700}
-                                            color={detailsDialog.transaction.type === 'INCOME' ? 'success.main' : 'error.main'}
-                                        >
-                                            {detailsDialog.transaction.type === 'INCOME' ? '+' : '-'}
-                                            {baseCurrency ? formatCurrency(Number(detailsDialog.transaction.amountInBase || detailsDialog.transaction.amount), baseCurrency.code, baseCurrency.symbol) : formatCurrency(Number(detailsDialog.transaction.amountInBase || detailsDialog.transaction.amount))}
-                                        </Typography>
-                                    </Grid>
-                                    <Grid size={6}>
-                                        <Typography variant="caption" color="text.secondary">Status</Typography>
-                                        <Box>
-                                            <Chip 
-                                                label={detailsDialog.transaction.status} 
-                                                size="small" 
-                                                color={detailsDialog.transaction.status === 'APPROVED' ? 'success' : detailsDialog.transaction.status === 'PENDING' ? 'warning' : 'error'}
-                                            />
-                                        </Box>
-                                    </Grid>
-                                </Grid>
-                                <Box>
-                                    <Typography variant="caption" color="text.secondary">Department</Typography>
-                                    <Typography variant="body1">{detailsDialog.transaction.department?.name}</Typography>
-                                </Box>
-                                <Box>
-                                    <Typography variant="caption" color="text.secondary">Submitted By</Typography>
-                                    <Typography variant="body1">{detailsDialog.transaction.user?.name}</Typography>
-                                    <Typography variant="caption">{detailsDialog.transaction.user?.email}</Typography>
-                                </Box>
-                                <Box>
-                                    <Typography variant="caption" color="text.secondary">Date</Typography>
-                                    <Typography variant="body1">
-                                        {new Date(detailsDialog.transaction.createdAt).toLocaleString()}
-                                    </Typography>
-                                </Box>
-                                {detailsDialog.transaction.currency && detailsDialog.transaction.currency.code !== (baseCurrency?.code) && (
-                                    <Box>
-                                        <Typography variant="caption" color="text.secondary">Original Amount</Typography>
-                                        <Typography variant="body2">
-                                            {detailsDialog.transaction.currency.symbol}{Number(detailsDialog.transaction.amount).toLocaleString()} {detailsDialog.transaction.currency.code}
-                                        </Typography>
-                                    </Box>
+            {/* Details dialog */}
+            <Dialog open={detailsDialog.open} onOpenChange={v => { if (!v) setDetailsDialog({ open: false, transaction: null }); }}>
+                <DialogContent className="max-w-lg">
+                    <DialogHeader><DialogTitle>Transaction Details</DialogTitle></DialogHeader>
+                    {detailsDialog.transaction && (() => {
+                        const tx = detailsDialog.transaction;
+                        const receipt = tx.files?.[0];
+                        const isOwner = session?.user?.id === tx.userId;
+                        const canUpload = tx.status === 'APPROVED' && !receipt && (isOwner || isSuperAdmin);
+                        return (
+                            <div className="space-y-4 pt-2">
+                                <div><p className="text-xs text-muted-foreground mb-0.5">Description</p><p className="font-semibold text-foreground">{tx.description}</p></div>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div><p className="text-xs text-muted-foreground mb-0.5">Amount</p><p className={cn('text-xl font-bold', tx.type === 'INCOME' ? 'text-success' : 'text-destructive')}>{tx.type === 'INCOME' ? '+' : '−'}{fmtAmt(tx)}</p></div>
+                                    <div><p className="text-xs text-muted-foreground mb-1">Status</p><Badge variant={statusBadgeVariant(tx.status)}>{tx.status}</Badge></div>
+                                </div>
+                                <div><p className="text-xs text-muted-foreground mb-0.5">Department</p><p className="text-foreground">{tx.department?.name}</p></div>
+                                <div><p className="text-xs text-muted-foreground mb-0.5">Submitted By</p><p className="text-foreground font-medium">{tx.user?.name}</p><p className="text-xs text-muted-foreground">{tx.user?.email}</p></div>
+                                <div><p className="text-xs text-muted-foreground mb-0.5">Date</p><p className="text-foreground">{new Date(tx.createdAt).toLocaleString()}</p></div>
+                                {tx.currency && baseCurrency && tx.currency.code !== baseCurrency.code && (
+                                    <div><p className="text-xs text-muted-foreground mb-0.5">Original Amount</p><p className="text-sm text-foreground">{tx.currency.symbol}{Number(tx.amount).toLocaleString()} {tx.currency.code}</p></div>
                                 )}
-
-                                {detailsDialog.transaction.type === 'EXPENSE' && (() => {
-                                    const tx = detailsDialog.transaction;
-                                    const receipt: TransactionFile | undefined = tx.files?.[0];
-                                    const isOwner = session?.user?.id === tx.userId;
-                                    const canUpload = tx.status === 'APPROVED' && !receipt && (isOwner || isSuperAdmin);
-                                    return (
-                                        <Box sx={{ pt: 2, borderTop: 1, borderColor: 'divider' }}>
-                                            <Typography variant="caption" color="text.secondary">Receipt</Typography>
-                                            {receipt ? (
-                                                <Box sx={{ mt: 0.5 }}>
-                                                    {receipt.fileMime?.startsWith('image/') ? (
-                                                        <a href={receipt.fileUrl} target="_blank" rel="noopener noreferrer">
-                                                            <img
-                                                                src={receipt.fileUrl}
-                                                                alt={receipt.fileName}
-                                                                style={{
-                                                                    maxWidth: '100%',
-                                                                    maxHeight: 240,
-                                                                    borderRadius: 8,
-                                                                    border: '1px solid rgba(0,0,0,0.12)',
-                                                                    cursor: 'zoom-in',
-                                                                }}
-                                                            />
-                                                        </a>
-                                                    ) : (
-                                                        <Button
-                                                            variant="outlined"
-                                                            size="small"
-                                                            href={receipt.fileUrl}
-                                                            target="_blank"
-                                                            rel="noopener noreferrer"
-                                                            startIcon={<AttachFileIcon />}
-                                                        >
-                                                            {receipt.fileName}
-                                                        </Button>
-                                                    )}
-                                                    <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.5 }}>
-                                                        Uploaded by {receipt.uploader?.name || receipt.uploader?.email || 'unknown'}
-                                                        {' · '}
-                                                        {new Date(receipt.uploadedAt).toLocaleString()}
-                                                        {receipt.fileSize ? ` · ${formatMoney(receipt.fileSize / 1024, 0)} KB` : ''}
-                                                    </Typography>
-                                                </Box>
-                                            ) : canUpload ? (
-                                                <Box sx={{ mt: 1 }}>
-                                                    <Button
-                                                        variant="outlined"
-                                                        size="small"
-                                                        startIcon={<AttachFileIcon />}
-                                                        onClick={() => setReceiptDialog({ open: true, transactionId: tx.id })}
-                                                    >
-                                                        Upload Receipt
-                                                    </Button>
-                                                    <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.5 }}>
-                                                        Once uploaded, the receipt cannot be replaced.
-                                                    </Typography>
-                                                </Box>
-                                            ) : (
-                                                <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                                                    {tx.status !== 'APPROVED' ? 'Available after approval.' : 'No receipt attached.'}
-                                                </Typography>
-                                            )}
-                                        </Box>
-                                    );
-                                })()}
-
+                                {tx.type === 'EXPENSE' && (
+                                    <div className="pt-3 border-t border-border">
+                                        <p className="text-xs text-muted-foreground mb-2">Receipt</p>
+                                        {receipt ? (
+                                            <div>
+                                                {receipt.fileMime?.startsWith('image/') ? (
+                                                    <a href={receipt.fileUrl} target="_blank" rel="noopener noreferrer">
+                                                        <img src={receipt.fileUrl} alt={receipt.fileName} className="max-w-full max-h-[240px] rounded-lg border border-border cursor-zoom-in" />
+                                                    </a>
+                                                ) : (
+                                                    <a href={receipt.fileUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline">
+                                                        <Paperclip className="h-3.5 w-3.5" />{receipt.fileName}
+                                                    </a>
+                                                )}
+                                                <p className="text-xs text-muted-foreground mt-1">
+                                                    Uploaded by {receipt.uploader?.name || receipt.uploader?.email || 'unknown'} · {new Date(receipt.uploadedAt).toLocaleString()}{receipt.fileSize ? ` · ${formatMoney(receipt.fileSize / 1024, 0)} KB` : ''}
+                                                </p>
+                                            </div>
+                                        ) : canUpload ? (
+                                            <div>
+                                                <Button variant="outline" size="sm" onClick={() => { setDetailsDialog({ open: false, transaction: null }); setTimeout(() => setReceiptDialog({ open: true, transactionId: tx.id }), 100); }}>
+                                                    <Paperclip className="mr-1.5 h-3.5 w-3.5" />Upload Receipt
+                                                </Button>
+                                                <p className="text-xs text-muted-foreground mt-1">Once uploaded, the receipt cannot be replaced.</p>
+                                            </div>
+                                        ) : (
+                                            <p className="text-sm text-muted-foreground">{tx.status !== 'APPROVED' ? 'Available after approval.' : 'No receipt attached.'}</p>
+                                        )}
+                                    </div>
+                                )}
                                 {isAdmin && (
-                                    <Box sx={{ display: 'flex', gap: 1, mt: 2, pt: 2, borderTop: 1, borderColor: 'divider', flexWrap: 'wrap' }}>
-                                        {canEditTransaction(detailsDialog.transaction) && (
-                                            <Button
-                                                fullWidth
-                                                variant="outlined"
-                                                color="primary"
-                                                onClick={() => {
-                                                    handleCloseDetails();
-                                                    handleEdit(detailsDialog.transaction);
-                                                }}
-                                            >
-                                                Edit Transaction
-                                            </Button>
-                                        )}
-                                        {isSuperAdmin && (
-                                            <Button
-                                                fullWidth
-                                                variant="outlined"
-                                                color="error"
-                                                onClick={() => {
-                                                    handleCloseDetails();
-                                                    handleDelete(detailsDialog.transaction.id, detailsDialog.transaction.description);
-                                                }}
-                                            >
-                                                Delete
-                                            </Button>
-                                        )}
-                                    </Box>
+                                    <div className="flex gap-2 pt-3 border-t border-border">
+                                        {canEditTransaction(tx) && <Button variant="outline" className="flex-1" onClick={() => { setDetailsDialog({ open: false, transaction: null }); setEditDialog({ open: true, transaction: tx }); }}>Edit Transaction</Button>}
+                                        {isSuperAdmin && <Button variant="destructive" className="flex-1" onClick={() => { setDetailsDialog({ open: false, transaction: null }); handleDelete(tx.id, tx.description); }}>Delete</Button>}
+                                    </div>
                                 )}
-                            </Stack>
-                        </Box>
-                    )}
+                            </div>
+                        );
+                    })()}
+                    <DialogFooter><Button variant="outline" onClick={() => setDetailsDialog({ open: false, transaction: null })}>Close</Button></DialogFooter>
                 </DialogContent>
-                <DialogActions>
-                    <Button onClick={handleCloseDetails}>Close</Button>
-                </DialogActions>
             </Dialog>
 
-            <EditTransactionDialog
-                open={editDialog.open}
-                transaction={editDialog.transaction}
-                onClose={handleCloseEdit}
-                onSave={handleSaveEdit}
-                isSuperAdmin={isSuperAdmin}
-                userRole={session?.user?.role}
-            />
+            <EditTransactionDialog open={editDialog.open} transaction={editDialog.transaction} onClose={() => setEditDialog({ open: false, transaction: null })} onSave={() => { showSuccess('Transaction updated'); fetchTransactions(); fetchSummary(); }} isSuperAdmin={isSuperAdmin} userRole={session?.user?.role} />
 
             {receiptDialog.transactionId && (
                 <ReceiptUpload
                     open={receiptDialog.open}
                     transactionId={receiptDialog.transactionId}
                     onClose={() => setReceiptDialog({ open: false, transactionId: null })}
-                    onUploaded={(file) => {
-                        // Update the open details dialog and the transactions list with the new receipt.
-                        setDetailsDialog((prev) =>
-                            prev.transaction && prev.transaction.id === receiptDialog.transactionId
-                                ? { ...prev, transaction: { ...prev.transaction, files: [file] } }
-                                : prev,
-                        );
-                        setTransactions((prev) =>
-                            prev.map((t) => (t.id === receiptDialog.transactionId ? { ...t, files: [file as TransactionFile] } : t)),
-                        );
+                    onUploaded={file => {
+                        setDetailsDialog(p => p.transaction?.id === receiptDialog.transactionId ? { ...p, transaction: { ...p.transaction, files: [file] } } : p);
+                        setTransactions(p => p.map(t => t.id === receiptDialog.transactionId ? { ...t, files: [file as any] } : t));
                         showSuccess('Receipt uploaded.');
                     }}
                 />
             )}
-        </Box>
+        </div>
     );
 }
 
 export default function TransactionsPage() {
     return (
-        <Suspense fallback={<div>Loading...</div>}>
+        <Suspense fallback={<div className="flex flex-col gap-2">{[1,2,3].map(i => <Skeleton key={i} className="h-14 w-full rounded-xl" />)}</div>}>
             <TransactionsPageContent />
         </Suspense>
     );

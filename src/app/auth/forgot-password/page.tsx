@@ -2,22 +2,16 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import {
-    TextField,
-    Button,
-    Typography,
-    Box,
-    Alert,
-    Link as MuiLink,
-    useTheme,
-} from '@mui/material';
 import Link from 'next/link';
 import Image from 'next/image';
-import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+import { ArrowLeft } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 export default function ForgotPasswordPage() {
     const router = useRouter();
-    const theme = useTheme();
     const [identifier, setIdentifier] = useState('');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
@@ -50,162 +44,81 @@ export default function ForgotPasswordPage() {
     };
 
     return (
-        <Box
-            sx={{
-                minHeight: '100vh',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                px: { xs: 3, sm: 6 },
-                py: { xs: 5, sm: 8 },
-                bgcolor: 'background.default',
-            }}
-        >
-            <Box sx={{ width: '100%', maxWidth: 420 }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 5 }}>
-                    <Box
-                        sx={{
-                            width: 36,
-                            height: 36,
-                            borderRadius: 1.25,
-                            border: `1px solid ${theme.palette.divider}`,
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            bgcolor: 'background.paper',
-                            overflow: 'hidden',
-                        }}
-                    >
+        <div className="min-h-screen flex items-center justify-center px-6 sm:px-12 py-10 sm:py-16 bg-background">
+            <div className="w-full max-w-[420px]">
+                {/* Brand */}
+                <div className="flex items-center gap-3 mb-10">
+                    <div className="w-9 h-9 rounded-[5px] border border-border flex items-center justify-center overflow-hidden bg-card">
                         <Image src="/flc-logo.webp" alt="CI Office" width={22} height={22} />
-                    </Box>
-                    <Box>
-                        <Typography
-                            sx={{
-                                fontFamily: theme.typography.h3.fontFamily,
-                                fontSize: '1.0625rem',
-                                fontWeight: 600,
-                                letterSpacing: '-0.02em',
-                            }}
-                        >
-                            CI Office
-                        </Typography>
-                        <Typography
-                            sx={{
-                                fontSize: '0.625rem',
-                                fontWeight: 600,
-                                letterSpacing: '0.18em',
-                                textTransform: 'uppercase',
-                                color: 'primary.main',
-                                lineHeight: 1,
-                            }}
-                        >
+                    </div>
+                    <div>
+                        <p className="text-[1.0625rem] font-semibold tracking-tight text-foreground">CI Office</p>
+                        <p className="text-[0.625rem] font-semibold tracking-[0.18em] uppercase text-primary leading-none">
                             Accounts
-                        </Typography>
-                    </Box>
-                </Box>
+                        </p>
+                    </div>
+                </div>
 
-                <Typography variant="overline" sx={{ display: 'block', mb: 1.5 }}>
+                <p className="text-[0.6875rem] font-medium tracking-[0.12em] uppercase text-muted-foreground mb-1.5">
                     Account recovery
-                </Typography>
-                <Typography
-                    component="h1"
-                    sx={{
-                        fontFamily: theme.typography.h2.fontFamily,
-                        fontSize: { xs: '1.75rem', sm: '2rem' },
-                        fontWeight: 600,
-                        letterSpacing: '-0.025em',
-                        lineHeight: 1.15,
-                        mb: 1.25,
-                    }}
-                >
+                </p>
+                <h1 className="text-[1.75rem] sm:text-[2rem] font-semibold tracking-[-0.025em] leading-[1.15] mb-[5px] text-foreground">
                     Forgot your password?
-                </Typography>
-                <Typography variant="body2" color="text.secondary" sx={{ mb: 4 }}>
+                </h1>
+                <p className="text-sm text-muted-foreground mb-8">
                     Enter the email or phone number on your account. We&apos;ll text you a reset code.
-                </Typography>
+                </p>
 
                 {error && (
-                    <Alert severity="error" variant="standard" sx={{ borderRadius: 2, mb: 2 }}>
-                        {error}
+                    <Alert variant="destructive" className="mb-4">
+                        <AlertDescription>{error}</AlertDescription>
                     </Alert>
                 )}
                 {success && (
-                    <Alert severity="success" variant="standard" sx={{ borderRadius: 2, mb: 2 }}>
-                        If an account exists, a reset code has been sent. Redirecting&hellip;
+                    <Alert variant="success" className="mb-4">
+                        <AlertDescription>
+                            If an account exists, a reset code has been sent. Redirecting&hellip;
+                        </AlertDescription>
                     </Alert>
                 )}
 
-                <Box component="form" onSubmit={handleSubmit} sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                    <Box>
-                        <Typography
-                            component="label"
-                            htmlFor="identifier"
-                            sx={{
-                                display: 'block',
-                                fontSize: '0.75rem',
-                                fontWeight: 500,
-                                color: 'text.secondary',
-                                mb: 0.75,
-                                letterSpacing: '0.02em',
-                            }}
-                        >
+                <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+                    <div className="space-y-1.5">
+                        <Label htmlFor="identifier" className="text-xs text-muted-foreground tracking-[0.02em]">
                             Email or phone
-                        </Typography>
-                        <TextField
-                            required
-                            fullWidth
+                        </Label>
+                        <Input
                             id="identifier"
                             name="identifier"
                             placeholder="email@example.com or 0241234567"
                             autoFocus
+                            required
                             value={identifier}
                             onChange={(e) => setIdentifier(e.target.value)}
                             disabled={loading || success}
                         />
-                    </Box>
+                    </div>
 
                     <Button
                         type="submit"
-                        fullWidth
-                        variant="contained"
-                        color="primary"
-                        size="large"
+                        size="lg"
+                        className="mt-2 w-full font-medium"
                         disabled={loading || success || !identifier}
-                        sx={{ mt: 1.5, py: 1.5, fontWeight: 500 }}
                     >
                         {loading ? 'Sending…' : 'Send reset code via SMS'}
                     </Button>
 
-                    <Box
-                        sx={{
-                            display: 'flex',
-                            justifyContent: 'center',
-                            mt: 3,
-                            pt: 3,
-                            borderTop: `1px solid ${theme.palette.divider}`,
-                        }}
-                    >
-                        <MuiLink
-                            component={Link}
+                    <div className="flex justify-center mt-3 pt-4 border-t border-border">
+                        <Link
                             href="/auth/login"
-                            underline="none"
-                            sx={{
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: 0.75,
-                                fontSize: '0.875rem',
-                                fontWeight: 500,
-                                color: 'text.secondary',
-                                '&:hover': { color: 'text.primary' },
-                                transition: 'color 160ms ease',
-                            }}
+                            className="inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors duration-150"
                         >
-                            <ArrowBackIcon sx={{ fontSize: 14 }} />
+                            <ArrowLeft className="h-3.5 w-3.5" />
                             Back to sign in
-                        </MuiLink>
-                    </Box>
-                </Box>
-            </Box>
-        </Box>
+                        </Link>
+                    </div>
+                </form>
+            </div>
+        </div>
     );
 }

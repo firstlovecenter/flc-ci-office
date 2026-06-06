@@ -3,33 +3,19 @@
 import { signIn, useSession } from 'next-auth/react';
 import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import {
-    TextField,
-    Button,
-    Typography,
-    Box,
-    Alert,
-    InputAdornment,
-    IconButton,
-    Stack,
-    alpha,
-    useTheme,
-    Link as MuiLink,
-} from '@mui/material';
 import Link from 'next/link';
 import Image from 'next/image';
-import EmailIcon from '@mui/icons-material/MailOutline';
-import LockIcon from '@mui/icons-material/LockOutlined';
-import Visibility from '@mui/icons-material/Visibility';
-import VisibilityOff from '@mui/icons-material/VisibilityOff';
-import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
+import { Mail, Lock, Eye, EyeOff, ArrowRight } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { cn } from '@/lib/utils';
 
 function LoginForm() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const { data: session, status } = useSession();
-    const theme = useTheme();
-    const isDark = theme.palette.mode === 'dark';
 
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -80,439 +66,243 @@ function LoginForm() {
     };
 
     return (
-        <Box
-            sx={{
-                minHeight: '100vh',
-                display: 'flex',
-                bgcolor: 'background.default',
-            }}
-        >
-            {/* Left — institutional canvas (hidden on small screens) */}
-            <Box
-                sx={{
-                    display: { xs: 'none', md: 'flex' },
-                    flex: 1.05,
-                    position: 'relative',
-                    overflow: 'hidden',
-                    bgcolor: '#0B1320',
-                    color: '#F1F3F5',
-                    flexDirection: 'column',
-                    justifyContent: 'space-between',
-                    p: { md: 6, lg: 8 },
-                }}
+        <div className="min-h-screen flex bg-background">
+            {/* Left — institutional canvas (hidden on mobile) */}
+            <div
+                className="hidden md:flex flex-[1.05] relative overflow-hidden flex-col justify-between p-12 lg:p-16"
+                style={{ backgroundColor: '#0B1320', color: '#F1F3F5' }}
             >
-                {/* Subtle radial — vermilion brand glow */}
-                <Box
+                {/* Brand glow */}
+                <div
                     aria-hidden
-                    sx={{
-                        position: 'absolute',
-                        inset: 0,
-                        background: `radial-gradient(60% 60% at 100% 100%, ${alpha('#E63329', 0.20)} 0%, transparent 65%),
-                                     radial-gradient(40% 40% at 0% 0%, ${alpha('#FF5A4E', 0.08)} 0%, transparent 70%)`,
-                        pointerEvents: 'none',
+                    className="absolute inset-0 pointer-events-none"
+                    style={{
+                        background:
+                            'radial-gradient(60% 60% at 100% 100%, rgba(255,66,102,0.20) 0%, transparent 65%), radial-gradient(40% 40% at 0% 0%, rgba(255,90,78,0.08) 0%, transparent 70%)',
                     }}
                 />
                 {/* Subtle grid */}
-                <Box
+                <div
                     aria-hidden
-                    sx={{
-                        position: 'absolute',
-                        inset: 0,
-                        backgroundImage: `linear-gradient(${alpha('#F1F3F5', 0.04)} 1px, transparent 1px),
-                                          linear-gradient(90deg, ${alpha('#F1F3F5', 0.04)} 1px, transparent 1px)`,
+                    className="absolute inset-0 pointer-events-none"
+                    style={{
+                        backgroundImage:
+                            'linear-gradient(rgba(241,243,245,0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(241,243,245,0.04) 1px, transparent 1px)',
                         backgroundSize: '64px 64px',
-                        maskImage: 'radial-gradient(ellipse 80% 60% at 50% 50%, #000 30%, transparent 80%)',
-                        WebkitMaskImage: 'radial-gradient(ellipse 80% 60% at 50% 50%, #000 30%, transparent 80%)',
-                        pointerEvents: 'none',
+                        maskImage:
+                            'radial-gradient(ellipse 80% 60% at 50% 50%, #000 30%, transparent 80%)',
+                        WebkitMaskImage:
+                            'radial-gradient(ellipse 80% 60% at 50% 50%, #000 30%, transparent 80%)',
                     }}
                 />
 
-                <Box sx={{ position: 'relative', zIndex: 1, display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                    <Box
-                        sx={{
-                            width: 36,
-                            height: 36,
-                            borderRadius: 1.25,
-                            border: `1px solid ${alpha('#F1F3F5', 0.14)}`,
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            bgcolor: alpha('#F1F3F5', 0.04),
-                            overflow: 'hidden',
+                {/* Logo */}
+                <div className="relative z-10 flex items-center gap-3">
+                    <div
+                        className="w-9 h-9 rounded-[5px] flex items-center justify-center overflow-hidden"
+                        style={{
+                            border: '1px solid rgba(241,243,245,0.14)',
+                            backgroundColor: 'rgba(241,243,245,0.04)',
                         }}
                     >
                         <Image src="/flc-logo.webp" alt="CI Office" width={22} height={22} />
-                    </Box>
-                    <Box sx={{ lineHeight: 1 }}>
-                        <Typography
-                            sx={{
-                                fontFamily: theme.typography.h3.fontFamily,
-                                fontSize: '1.0625rem',
-                                fontWeight: 600,
-                                letterSpacing: '-0.02em',
-                                color: '#F1F3F5',
-                            }}
+                    </div>
+                    <div className="leading-none">
+                        <p
+                            className="text-[1.0625rem] font-semibold tracking-tight"
+                            style={{ color: '#F1F3F5' }}
                         >
                             CI Office
-                        </Typography>
-                        <Typography
-                            sx={{
-                                fontSize: '0.625rem',
-                                fontWeight: 500,
-                                letterSpacing: '0.18em',
-                                textTransform: 'uppercase',
-                                color: '#FF5A4E',
-                                mt: 0.25,
-                            }}
+                        </p>
+                        <p
+                            className="text-[0.625rem] font-medium tracking-[0.18em] uppercase mt-0.5"
+                            style={{ color: '#FF4266' }}
                         >
                             Accounts
-                        </Typography>
-                    </Box>
-                </Box>
+                        </p>
+                    </div>
+                </div>
 
-                <Box sx={{ position: 'relative', zIndex: 1, maxWidth: 540 }}>
-                    <Typography
-                        component="p"
-                        sx={{
-                            fontSize: '0.6875rem',
-                            fontWeight: 500,
-                            letterSpacing: '0.18em',
-                            textTransform: 'uppercase',
-                            color: '#7CB4A2',
-                            mb: 3,
-                        }}
+                {/* Headline */}
+                <div className="relative z-10 max-w-[540px]">
+                    <p
+                        className="text-[0.6875rem] font-medium tracking-[0.18em] uppercase mb-3"
+                        style={{ color: '#7CB4A2' }}
                     >
                         Built for stewardship
-                    </Typography>
-                    <Typography
-                        component="h1"
-                        sx={{
-                            fontFamily: theme.typography.h1.fontFamily,
-                            fontSize: { md: '2.5rem', lg: '3rem' },
-                            fontWeight: 600,
-                            letterSpacing: '-0.03em',
-                            lineHeight: 1.08,
-                            color: '#F1F3F5',
-                            mb: 3,
-                        }}
+                    </p>
+                    <h1
+                        className="text-[2.5rem] lg:text-[3rem] font-semibold tracking-[-0.03em] leading-[1.08] mb-3"
+                        style={{ color: '#F1F3F5' }}
                     >
                         Clear books.<br />
                         Confident decisions.
-                    </Typography>
-                    <Typography
-                        sx={{
-                            fontSize: '0.9375rem',
-                            lineHeight: 1.65,
-                            color: alpha('#F1F3F5', 0.65),
-                            maxWidth: 460,
-                        }}
+                    </h1>
+                    <p
+                        className="text-[0.9375rem] leading-relaxed max-w-[460px]"
+                        style={{ color: 'rgba(241,243,245,0.65)' }}
                     >
                         A unified ledger across denomination, oversight, campus, stream, and council &mdash;
                         with multi&#8209;currency, approval workflow, and audit trail built in.
-                    </Typography>
-                </Box>
+                    </p>
+                </div>
 
-                <Box
-                    sx={{
-                        position: 'relative',
-                        zIndex: 1,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        pt: 4,
-                        borderTop: `1px solid ${alpha('#F1F3F5', 0.10)}`,
-                    }}
+                {/* Footer */}
+                <div
+                    className="relative z-10 flex items-center justify-between pt-4"
+                    style={{ borderTop: '1px solid rgba(241,243,245,0.10)' }}
                 >
-                    <Typography sx={{ fontSize: '0.75rem', color: alpha('#F1F3F5', 0.5), letterSpacing: '0.01em' }}>
+                    <p className="text-xs tracking-[0.01em]" style={{ color: 'rgba(241,243,245,0.5)' }}>
                         &copy; {new Date().getFullYear()} CI Office
-                    </Typography>
-                    <Typography
-                        sx={{
-                            fontSize: '0.6875rem',
-                            color: alpha('#F1F3F5', 0.5),
-                            letterSpacing: '0.14em',
-                            textTransform: 'uppercase',
-                        }}
+                    </p>
+                    <p
+                        className="text-[0.6875rem] tracking-[0.14em] uppercase"
+                        style={{ color: 'rgba(241,243,245,0.5)' }}
                     >
                         Secured access
-                    </Typography>
-                </Box>
-            </Box>
+                    </p>
+                </div>
+            </div>
 
             {/* Right — sign-in panel */}
-            <Box
-                sx={{
-                    flex: 1,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    px: { xs: 3, sm: 6 },
-                    py: { xs: 5, sm: 8 },
-                    bgcolor: 'background.default',
-                }}
-            >
-                <Box sx={{ width: '100%', maxWidth: 420 }}>
-                    {/* Compact brand on mobile only */}
-                    <Box
-                        sx={{
-                            display: { xs: 'flex', md: 'none' },
-                            alignItems: 'center',
-                            gap: 1.5,
-                            mb: 5,
-                        }}
-                    >
-                        <Box
-                            sx={{
-                                width: 36,
-                                height: 36,
-                                borderRadius: 1.25,
-                                border: `1px solid ${theme.palette.divider}`,
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                bgcolor: 'background.paper',
-                                overflow: 'hidden',
-                            }}
-                        >
+            <div className="flex-1 flex items-center justify-center px-6 sm:px-12 py-10 sm:py-16 bg-background">
+                <div className="w-full max-w-[420px]">
+                    {/* Mobile brand */}
+                    <div className="flex md:hidden items-center gap-3 mb-10">
+                        <div className="w-9 h-9 rounded-[5px] border border-border flex items-center justify-center overflow-hidden bg-card">
                             <Image src="/flc-logo.webp" alt="CI Office" width={22} height={22} />
-                        </Box>
-                        <Box>
-                            <Typography
-                                sx={{
-                                    fontFamily: theme.typography.h3.fontFamily,
-                                    fontSize: '1.0625rem',
-                                    fontWeight: 600,
-                                    letterSpacing: '-0.02em',
-                                }}
-                            >
+                        </div>
+                        <div>
+                            <p className="text-[1.0625rem] font-semibold tracking-tight text-foreground">
                                 CI Office
-                            </Typography>
-                            <Typography
-                                sx={{
-                                    fontSize: '0.625rem',
-                                    fontWeight: 600,
-                                    letterSpacing: '0.18em',
-                                    textTransform: 'uppercase',
-                                    color: 'primary.main',
-                                    lineHeight: 1,
-                                }}
-                            >
+                            </p>
+                            <p className="text-[0.625rem] font-semibold tracking-[0.18em] uppercase text-primary leading-none">
                                 Accounts
-                            </Typography>
-                        </Box>
-                    </Box>
+                            </p>
+                        </div>
+                    </div>
 
-                    <Typography variant="overline" sx={{ display: 'block', mb: 1.5 }}>
+                    <p className="text-[0.6875rem] font-medium tracking-[0.12em] uppercase text-muted-foreground mb-1.5">
                         Welcome back
-                    </Typography>
-                    <Typography
-                        component="h2"
-                        sx={{
-                            fontFamily: theme.typography.h2.fontFamily,
-                            fontSize: { xs: '1.75rem', sm: '2rem' },
-                            fontWeight: 600,
-                            letterSpacing: '-0.025em',
-                            lineHeight: 1.15,
-                            mb: 1.25,
-                        }}
-                    >
+                    </p>
+                    <h2 className="text-[1.75rem] sm:text-[2rem] font-semibold tracking-[-0.025em] leading-[1.15] mb-[5px] text-foreground">
                         Sign in to your account
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary" sx={{ mb: 4 }}>
+                    </h2>
+                    <p className="text-sm text-muted-foreground mb-8">
                         Use your registered email or phone number.
-                    </Typography>
+                    </p>
 
-                    <Stack spacing={1.5} sx={{ mb: 2 }}>
+                    <div className="flex flex-col gap-3 mb-2">
                         {logoutMessage && (
-                            <Alert severity="success" variant="standard" sx={{ borderRadius: 2 }}>
-                                {logoutMessage}
+                            <Alert variant="success">
+                                <AlertDescription>{logoutMessage}</AlertDescription>
                             </Alert>
                         )}
                         {error && (
-                            <Alert severity="error" variant="standard" sx={{ borderRadius: 2 }}>
-                                {error}
+                            <Alert variant="destructive">
+                                <AlertDescription>{error}</AlertDescription>
                             </Alert>
                         )}
-                    </Stack>
+                    </div>
 
-                    <Box component="form" onSubmit={handleSubmit} sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                        <Box>
-                            <Typography
-                                component="label"
-                                htmlFor="email"
-                                sx={{
-                                    display: 'block',
-                                    fontSize: '0.75rem',
-                                    fontWeight: 500,
-                                    color: 'text.secondary',
-                                    mb: 0.75,
-                                    letterSpacing: '0.02em',
-                                }}
-                            >
+                    <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+                        <div className="space-y-1.5">
+                            <Label htmlFor="email" className="text-xs text-muted-foreground tracking-[0.02em]">
                                 Email or phone
-                            </Typography>
-                            <TextField
-                                required
-                                fullWidth
-                                id="email"
-                                name="email"
-                                autoComplete="email"
-                                autoFocus
-                                value={email}
-                                onChange={(e) => setEmail(e.target.value)}
-                                placeholder="you@church.org"
-                                InputProps={{
-                                    startAdornment: (
-                                        <InputAdornment position="start">
-                                            <EmailIcon sx={{ fontSize: 18, color: 'text.disabled' }} />
-                                        </InputAdornment>
-                                    ),
-                                }}
-                            />
-                        </Box>
+                            </Label>
+                            <div className="relative">
+                                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-[18px] w-[18px] text-muted-foreground pointer-events-none" />
+                                <Input
+                                    id="email"
+                                    name="email"
+                                    type="email"
+                                    autoComplete="email"
+                                    autoFocus
+                                    required
+                                    placeholder="you@church.org"
+                                    value={email}
+                                    onChange={(e) => setEmail(e.target.value)}
+                                    className="pl-9"
+                                />
+                            </div>
+                        </div>
 
-                        <Box>
-                            <Box
-                                sx={{
-                                    display: 'flex',
-                                    justifyContent: 'space-between',
-                                    alignItems: 'baseline',
-                                    mb: 0.75,
-                                }}
-                            >
-                                <Typography
-                                    component="label"
-                                    htmlFor="password"
-                                    sx={{
-                                        fontSize: '0.75rem',
-                                        fontWeight: 500,
-                                        color: 'text.secondary',
-                                        letterSpacing: '0.02em',
-                                    }}
-                                >
+                        <div className="space-y-1.5">
+                            <div className="flex items-baseline justify-between">
+                                <Label htmlFor="password" className="text-xs text-muted-foreground tracking-[0.02em]">
                                     Password
-                                </Typography>
-                                <MuiLink
-                                    component={Link}
+                                </Label>
+                                <Link
                                     href="/auth/forgot-password"
-                                    underline="hover"
-                                    sx={{
-                                        fontSize: '0.75rem',
-                                        fontWeight: 500,
-                                        color: 'text.secondary',
-                                        '&:hover': { color: 'text.primary' },
-                                    }}
+                                    className="text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
                                 >
                                     Forgot password?
-                                </MuiLink>
-                            </Box>
-                            <TextField
-                                required
-                                fullWidth
-                                name="password"
-                                type={showPassword ? 'text' : 'password'}
-                                id="password"
-                                autoComplete="current-password"
-                                value={password}
-                                onChange={(e) => setPassword(e.target.value)}
-                                InputProps={{
-                                    startAdornment: (
-                                        <InputAdornment position="start">
-                                            <LockIcon sx={{ fontSize: 18, color: 'text.disabled' }} />
-                                        </InputAdornment>
-                                    ),
-                                    endAdornment: (
-                                        <InputAdornment position="end">
-                                            <IconButton
-                                                aria-label="toggle password visibility"
-                                                onClick={() => setShowPassword(!showPassword)}
-                                                edge="end"
-                                                size="small"
-                                                sx={{ color: 'text.disabled' }}
-                                            >
-                                                {showPassword ? <VisibilityOff sx={{ fontSize: 18 }} /> : <Visibility sx={{ fontSize: 18 }} />}
-                                            </IconButton>
-                                        </InputAdornment>
-                                    ),
-                                }}
-                            />
-                        </Box>
+                                </Link>
+                            </div>
+                            <div className="relative">
+                                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-[18px] w-[18px] text-muted-foreground pointer-events-none" />
+                                <Input
+                                    id="password"
+                                    name="password"
+                                    type={showPassword ? 'text' : 'password'}
+                                    autoComplete="current-password"
+                                    required
+                                    value={password}
+                                    onChange={(e) => setPassword(e.target.value)}
+                                    className="pl-9 pr-10"
+                                />
+                                <button
+                                    type="button"
+                                    aria-label="Toggle password visibility"
+                                    onClick={() => setShowPassword(!showPassword)}
+                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                                >
+                                    {showPassword
+                                        ? <EyeOff className="h-[18px] w-[18px]" />
+                                        : <Eye className="h-[18px] w-[18px]" />
+                                    }
+                                </button>
+                            </div>
+                        </div>
 
                         <Button
                             type="submit"
-                            fullWidth
-                            variant="contained"
-                            color="primary"
-                            size="large"
+                            size="lg"
+                            className={cn('mt-2 w-full font-medium')}
                             disabled={loading}
-                            endIcon={!loading && <ArrowForwardIcon sx={{ fontSize: 18 }} />}
-                            sx={{
-                                mt: 1.5,
-                                py: 1.5,
-                                fontWeight: 500,
-                                letterSpacing: '0.01em',
-                            }}
                         >
-                            {loading ? 'Signing in…' : 'Sign in'}
+                            {loading ? 'Signing in…' : (
+                                <>
+                                    Sign in
+                                    <ArrowRight className="ml-2 h-4 w-4" />
+                                </>
+                            )}
                         </Button>
 
-                        {/* Sub-link to public expense form — quiet, editorial */}
-                        <Box
-                            sx={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: 2,
-                                mt: 3,
-                                pt: 3,
-                                borderTop: `1px solid ${theme.palette.divider}`,
-                            }}
-                        >
-                            <Box sx={{ flex: 1 }}>
-                                <Typography sx={{ fontSize: '0.75rem', color: 'text.secondary', mb: 0.25 }}>
+                        <div className="flex items-center gap-4 mt-3 pt-4 border-t border-border">
+                            <div className="flex-1">
+                                <p className="text-xs text-muted-foreground mb-0.5">
                                     Council leader outside Accra?
-                                </Typography>
-                                <MuiLink
-                                    component={Link}
+                                </p>
+                                <Link
                                     href="/public-expense"
-                                    underline="none"
-                                    sx={{
-                                        display: 'inline-flex',
-                                        alignItems: 'center',
-                                        gap: 0.75,
-                                        fontSize: '0.875rem',
-                                        fontWeight: 500,
-                                        color: 'text.primary',
-                                        '&:hover': { color: 'secondary.main' },
-                                        transition: 'color 160ms ease',
-                                    }}
+                                    className="inline-flex items-center gap-1.5 text-sm font-medium text-foreground hover:text-primary transition-colors duration-150"
                                 >
                                     Submit an expense request
-                                    <ArrowForwardIcon sx={{ fontSize: 14 }} />
-                                </MuiLink>
-                            </Box>
-                        </Box>
-                    </Box>
-                </Box>
-            </Box>
-        </Box>
+                                    <ArrowRight className="h-3.5 w-3.5" />
+                                </Link>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
     );
 }
 
 export default function LoginPage() {
     return (
-        <Suspense
-            fallback={
-                <Box
-                    sx={{
-                        minHeight: '100vh',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        bgcolor: 'background.default',
-                    }}
-                />
-            }
-        >
+        <Suspense fallback={<div className="min-h-screen bg-background" />}>
             <LoginForm />
         </Suspense>
     );

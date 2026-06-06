@@ -2,27 +2,18 @@
 
 import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
-import {
-    Box,
-    Typography,
-    Button,
-    TextField,
-    Card,
-    CardActionArea,
-    Avatar,
-    InputAdornment,
-    IconButton,
-    alpha,
-    useTheme,
-} from '@mui/material';
-import AddIcon from '@mui/icons-material/Add';
-import SearchIcon from '@mui/icons-material/Search';
-import BusinessIcon from '@mui/icons-material/Business';
+import { Search, Building2, Plus } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import EditDepartmentDialog from '@/components/EditDepartmentDialog';
+import { useSession } from 'next-auth/react';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Skeleton } from '@/components/ui/skeleton';
+import { cn } from '@/lib/utils';
 import { formatDepartmentLevel } from '@/lib/utils';
 import { useToast } from '@/components/ToastProvider';
+import EditDepartmentDialog from '@/components/EditDepartmentDialog';
 
 type Department = {
     id: string;
@@ -32,12 +23,15 @@ type Department = {
     createdAt: Date;
     updatedAt: Date;
 };
-import { useSession } from 'next-auth/react';
+
+const LEVEL_ORDER: Record<string, number> = { COUNCIL: 5, STREAM: 4, CAMPUS: 3, OVERSIGHT: 2, DENOMINATION: 1 };
+const SUB_LEVEL: Record<string, string> = {
+    DENOMINATION: 'Oversights', OVERSIGHT: 'Campuses', CAMPUS: 'Streams', STREAM: 'Councils', COUNCIL: 'Councils',
+};
 
 function DepartmentsPageContent() {
     const { data: session } = useSession();
     const router = useRouter();
-    const theme = useTheme();
     const searchParams = useSearchParams();
     const parentParam = searchParams?.get('parent');
     const { showSuccess, showError } = useToast();
@@ -47,8 +41,6 @@ function DepartmentsPageContent() {
     const [loading, setLoading] = useState(true);
     const [editDialogOpen, setEditDialogOpen] = useState(false);
     const [selectedDepartment, setSelectedDepartment] = useState<any>(null);
-    
-    // Filter state
     const [searchQuery, setSearchQuery] = useState('');
 
     useEffect(() => {
@@ -66,88 +58,42 @@ function DepartmentsPageContent() {
     const fetchParentDepartment = async () => {
         if (!parentParam) return;
         try {
-            const response = await fetch(`/api/departments/${parentParam}?t=${Date.now()}`, {
-                cache: 'no-store',
-            });
-            if (response.ok) {
-                const data = await response.json();
-                setParentDepartment(data);
-            }
-        } catch (error) {
-            console.error('Failed to fetch parent department:', error);
-        }
+            const res = await fetch(`/api/departments/${parentParam}?t=${Date.now()}`, { cache: 'no-store' });
+            if (res.ok) setParentDepartment(await res.json());
+        } catch (e) { console.error(e); }
     };
 
-    const fetchDepartments = async (currentParentParam: string | null) => {
+    const fetchDepartments = async (currentParent: string | null) => {
         setLoading(true);
         try {
-            const response = await fetch(`/api/departments?t=${Date.now()}`, {
-                cache: 'no-store',
-                headers: {
-                    'Cache-Control': 'no-cache',
-                },
-            });
-            if (response.ok) {
-                const data = await response.json();
-                // Filter by parent if parentParam is present
-                if (currentParentParam) {
-                    const filtered = data.filter((dept: any) => dept.parentId === currentParentParam);
-                    setDepartments(filtered);
-                } else {
-                    // No parent param - show all departments the user has access to
-                    // The API already filters by user's permissions, so just show all
-                    setDepartments(data);
-                }
+            const res = await fetch(`/api/departments?t=${Date.now()}`, { cache: 'no-store', headers: { 'Cache-Control': 'no-cache' } });
+            if (res.ok) {
+                const data = await res.json();
+                setDepartments(currentParent ? data.filter((d: any) => d.parentId === currentParent) : data);
             }
-        } catch (error) {
-            console.error('Failed to fetch departments:', error);
-        } finally {
-            setLoading(false);
-        }
+        } catch (e) { console.error(e); }
+        finally { setLoading(false); }
     };
 
     const fetchAllDepartments = async () => {
         try {
-            const response = await fetch(`/api/departments?all=true&t=${Date.now()}`, {
-                cache: 'no-store',
-                headers: {
-                    'Cache-Control': 'no-cache',
-                },
-            });
-            if (response.ok) {
-                const data = await response.json();
-                setAllDepartments(data);
-            }
-        } catch (error) {
-            console.error('Failed to fetch all departments:', error);
-        }
-    };
-
-    const handleEdit = (dept: any) => {
-        setSelectedDepartment(dept);
-        setEditDialogOpen(true);
+            const res = await fetch(`/api/departments?all=true&t=${Date.now()}`, { cache: 'no-store', headers: { 'Cache-Control': 'no-cache' } });
+            if (res.ok) setAllDepartments(await res.json());
+        } catch (e) { console.error(e); }
     };
 
     const handleDelete = async (id: string) => {
-        if (!confirm('Are you sure you want to delete this department?')) {
-            return;
-        }
-
+        if (!confirm('Are you sure you want to delete this department?')) return;
         try {
-            const response = await fetch(`/api/departments/${id}`, {
-                method: 'DELETE',
-            });
-
-            if (response.ok) {
+            const res = await fetch(`/api/departments/${id}`, { method: 'DELETE' });
+            if (res.ok) {
                 showSuccess('Department deleted successfully');
                 fetchDepartments(parentParam);
             } else {
-                const data = await response.json();
+                const data = await res.json();
                 showError(data.error || 'Failed to delete department');
             }
-        } catch (error) {
-            showError('Error deleting department');
-        }
+        } catch { showError('Error deleting department'); }
     };
 
     const handleSaveEdit = () => {
@@ -157,303 +103,146 @@ function DepartmentsPageContent() {
     };
 
     const handleDepartmentClosed = () => {
-        // Redirect to the parent department list or main departments page
-        if (parentParam) {
-            // If viewing a parent's children, go back to main departments
-            router.push('/departments');
-        } else {
-            // Just refresh the current list
-            fetchDepartments(parentParam);
-            fetchAllDepartments();
-        }
+        if (parentParam) router.push('/departments');
+        else { fetchDepartments(parentParam); fetchAllDepartments(); }
     };
 
-    // Filter departments based on search
     const filteredDepartments = departments.filter((dept: any) => {
         if (!searchQuery.trim()) return true;
-        const query = searchQuery.toLowerCase();
-        
-        // Search by name or leader name
+        const q = searchQuery.toLowerCase();
         const leaderName = dept.userRoles?.find((ur: any) => ur.role?.includes('LEADER'))?.user?.name || '';
         const adminName = dept.userRoles?.find((ur: any) => ur.role?.includes('ADMIN'))?.user?.name || '';
-        
-        return dept.name.toLowerCase().includes(query) ||
-            leaderName.toLowerCase().includes(query) ||
-            adminName.toLowerCase().includes(query);
+        return dept.name.toLowerCase().includes(q) || leaderName.toLowerCase().includes(q) || adminName.toLowerCase().includes(q);
     }).sort((a: any, b: any) => {
-        // Sort by level hierarchy - lowest level (deepest/most specific) at top
-        // Order: COUNCIL > STREAM > CAMPUS > OVERSIGHT > DENOMINATION
-        const levelOrder: Record<string, number> = {
-            'COUNCIL': 5,
-            'STREAM': 4,
-            'CAMPUS': 3,
-            'OVERSIGHT': 2,
-            'DENOMINATION': 1,
-        };
-        
-        const levelDiff = (levelOrder[b.level] || 0) - (levelOrder[a.level] || 0);
-        if (levelDiff !== 0) return levelDiff;
-        
-        // If same level, sort by name alphabetically
-        return a.name.localeCompare(b.name);
+        const diff = (LEVEL_ORDER[b.level] || 0) - (LEVEL_ORDER[a.level] || 0);
+        return diff !== 0 ? diff : a.name.localeCompare(b.name);
     });
 
-    // Get sub-department level name for display
-    const getSubLevelName = (level: string) => {
-        const levelMap: Record<string, string> = {
-            'DENOMINATION': 'Oversights',
-            'OVERSIGHT': 'Campuses',
-            'CAMPUS': 'Streams',
-            'STREAM': 'Councils',
-            'COUNCIL': 'Councils',
-        };
-        return levelMap[level] || 'Sub-churches';
-    };
-
-    // Get parent leader and admin
-    const getParentLeader = () => {
-        if (!parentDepartment?.userRoles) return null;
-        const leaderRole = parentDepartment.userRoles.find((ur: any) => ur.role?.includes('LEADER'));
-        return leaderRole?.user;
-    };
-
-    const getParentAdmin = () => {
-        if (!parentDepartment?.userRoles) return null;
-        const adminRole = parentDepartment.userRoles.find((ur: any) => ur.role?.includes('ADMIN'));
-        return adminRole?.user;
-    };
-
-    const parentLeader = getParentLeader();
-    const parentAdmin = getParentAdmin();
-
-    const levels = ['DENOMINATION', 'OVERSIGHT', 'CAMPUS', 'STREAM', 'COUNCIL'];
-
+    const parentLeader = parentDepartment?.userRoles?.find((ur: any) => ur.role?.includes('LEADER'))?.user;
+    const parentAdmin = parentDepartment?.userRoles?.find((ur: any) => ur.role?.includes('ADMIN'))?.user;
     const isLeader = session?.user?.role?.includes('LEADER');
-    const canCreateDepartment = !isLeader; // Only admins and superadmin can create
+    const canCreate = !isLeader;
 
     return (
-        <Box>
-            {/* Page Header */}
-            <Box
-                sx={(theme) => ({
-                    display: 'flex',
-                    alignItems: { xs: 'flex-start', sm: 'flex-end' },
-                    justifyContent: 'space-between',
-                    gap: 2,
-                    flexWrap: 'wrap',
-                    mb: { xs: 3, md: 4 },
-                    pb: { xs: 2.5, md: 3 },
-                    borderBottom: `1px solid ${theme.palette.divider}`,
-                })}
-            >
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2.5, minWidth: 0, flex: 1 }}>
-                    <Box
-                        sx={(theme) => ({
-                            width: 48,
-                            height: 48,
-                            borderRadius: 1.5,
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            bgcolor: alpha(theme.palette.secondary.main, 0.10),
-                            color: theme.palette.secondary.main,
-                            flexShrink: 0,
-                        })}
-                    >
-                        <BusinessIcon sx={{ fontSize: 22 }} />
-                    </Box>
-                    <Box sx={{ minWidth: 0 }}>
-                        <Typography variant="overline" sx={{ display: 'block', mb: 0.5 }}>
+        <div>
+            {/* Header */}
+            <div className="flex items-start sm:items-end justify-between gap-4 flex-wrap mb-8 pb-6 border-b border-border">
+                <div className="flex items-center gap-4 min-w-0 flex-1">
+                    <div className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0 bg-secondary text-muted-foreground">
+                        <Building2 className="h-5 w-5" />
+                    </div>
+                    <div className="min-w-0">
+                        <p className="text-[0.6875rem] font-medium uppercase tracking-[0.10em] text-muted-foreground mb-0.5">
                             {parentDepartment ? 'Sub-departments' : 'Hierarchy'}
-                        </Typography>
-                        <Typography
-                            component="h1"
-                            sx={(theme) => ({
-                                fontFamily: theme.typography.h2.fontFamily,
-                                fontSize: { xs: '1.625rem', sm: '1.875rem', md: '2.125rem' },
-                                fontWeight: 600,
-                                letterSpacing: '-0.025em',
-                                lineHeight: 1.15,
-                            })}
-                        >
+                        </p>
+                        <h1 className="text-[1.625rem] sm:text-[1.875rem] font-semibold tracking-[-0.025em] text-foreground">
                             {parentDepartment
-                                ? `${parentDepartment.name} ${getSubLevelName(parentDepartment.level)}`
+                                ? `${parentDepartment.name} ${SUB_LEVEL[parentDepartment.level]}`
                                 : 'Churches'}
-                        </Typography>
-                        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75 }}>
+                        </h1>
+                        <p className="text-sm text-muted-foreground mt-1">
                             {departments.length} {departments.length === 1 ? 'entry' : 'entries'}
                             {parentLeader ? ` · Overseer: ${parentLeader.name || parentLeader.email}` : ''}
                             {parentAdmin ? ` · Admin: ${parentAdmin.name || parentAdmin.email}` : ''}
-                        </Typography>
-                    </Box>
-                </Box>
-                {canCreateDepartment && (
-                    <Button
-                        component={Link}
-                        href={parentParam ? `/departments/new?parent=${parentParam}` : '/departments/new'}
-                        variant="contained"
-                        color="primary"
-                        startIcon={<AddIcon sx={{ fontSize: 18 }} />}
-                    >
-                        Add new
+                        </p>
+                    </div>
+                </div>
+                {canCreate && (
+                    <Button asChild>
+                        <Link href={parentParam ? `/departments/new?parent=${parentParam}` : '/departments/new'}>
+                            <Plus className="mr-2 h-4 w-4" />
+                            Add new
+                        </Link>
                     </Button>
                 )}
-            </Box>
+            </div>
 
-            {/* Search Bar */}
-            <TextField
-                fullWidth
-                placeholder={parentDepartment 
-                    ? `Search ${getSubLevelName(parentDepartment.level)} or Leader` 
-                    : 'Search Churches or Leader'
-                }
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                InputProps={{
-                    startAdornment: (
-                        <InputAdornment position="start">
-                            <SearchIcon color="action" />
-                        </InputAdornment>
-                    ),
-                }}
-                sx={{
-                    mb: 3,
-                    maxWidth: 480,
-                    '& .MuiOutlinedInput-root': {
-                        borderRadius: 999,
-                    },
-                }}
-                size="small"
-            />
+            {/* Search */}
+            <div className="relative mb-6 max-w-[480px]">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+                <Input
+                    placeholder={parentDepartment
+                        ? `Search ${SUB_LEVEL[parentDepartment.level]} or Leader`
+                        : 'Search Churches or Leader'}
+                    value={searchQuery}
+                    onChange={e => setSearchQuery(e.target.value)}
+                    className="pl-9 rounded-full"
+                />
+            </div>
 
-            {/* Church Cards List */}
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-                {filteredDepartments.map((dept: any) => {
+            {/* Department cards */}
+            <div className="flex flex-col gap-2">
+                {loading ? (
+                    [1, 2, 3, 4, 5].map(i => (
+                        <div key={i} className="rounded-xl border border-border bg-card p-4 flex items-center gap-4">
+                            <Skeleton className="w-10 h-10 md:w-12 md:h-12 rounded-full shrink-0" />
+                            <div className="flex-1">
+                                <Skeleton className="h-4 w-40 mb-1.5" />
+                                <Skeleton className="h-3 w-28" />
+                            </div>
+                        </div>
+                    ))
+                ) : filteredDepartments.map((dept: any) => {
                     const leader = dept.userRoles?.find((ur: any) => ur.role?.includes('LEADER'))?.user;
                     const admin = dept.userRoles?.find((ur: any) => ur.role?.includes('ADMIN'))?.user;
-                    const subDeptCount = dept._count?.children || 0;
-                    
+                    const subCount = dept._count?.children || 0;
+
                     return (
-                        <Card
+                        <button
                             key={dept.id}
-                            sx={(theme) => ({
-                                p: 0,
-                                borderRadius: 3,
-                                bgcolor: 'background.paper',
-                                border: `1px solid ${theme.palette.divider}`,
-                                boxShadow: 'none',
-                                transition: 'border-color 160ms ease, background-color 160ms ease',
-                                '&:hover': {
-                                    borderColor: alpha(theme.palette.text.primary, 0.2),
-                                    bgcolor: alpha(theme.palette.text.primary, 0.02),
-                                },
-                            })}
+                            onClick={() => {
+                                document.cookie = `activeDepartmentId=${dept.id}; path=/; max-age=86400; SameSite=Strict${window.location.protocol === 'https:' ? '; Secure' : ''}`;
+                                router.push('/departments/dashboard');
+                            }}
+                            className="group text-left rounded-xl border border-border bg-card hover:border-foreground/20 hover:bg-foreground/[0.02] transition-colors duration-150 py-3 md:py-4 px-3 md:px-5"
                         >
-                            <CardActionArea 
-                                onClick={() => {
-                                    // Set the active department cookie
-                                    document.cookie = `activeDepartmentId=${dept.id}; path=/; max-age=86400; SameSite=Strict${window.location.protocol === 'https:' ? '; Secure' : ''}`;
-                                    router.push('/departments/dashboard');
-                                }}
-                                sx={{ py: { xs: 1.5, md: 2 }, px: { xs: 2, md: 2.5 } }}
-                            >
-                                <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 1.5, md: 2.5 } }}>
-                                    <Avatar
-                                        src={leader?.image || undefined}
-                                        sx={{
-                                            width: { xs: 40, md: 50 },
-                                            height: { xs: 40, md: 50 },
-                                            bgcolor: alpha(theme.palette.primary.main, 0.1),
-                                            color: 'primary.main',
-                                            fontSize: { xs: '1rem', md: '1.25rem' },
-                                            border: `1px solid ${alpha(theme.palette.primary.main, 0.2)}`,
-                                        }}
-                                    >
+                            <div className="flex items-center gap-3 md:gap-5">
+                                <Avatar className="w-10 h-10 md:w-12 md:h-12 shrink-0 border border-primary/20 bg-primary/10">
+                                    {leader?.image && <AvatarImage src={leader.image} alt={leader.name || ''} />}
+                                    <AvatarFallback className="text-primary font-semibold">
                                         {leader?.name?.[0]?.toUpperCase() || dept.name[0]?.toUpperCase() || 'D'}
-                                    </Avatar>
-                                    <Box sx={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center', minHeight: { md: 48 } }}>
-                                        <Typography 
-                                            variant="subtitle1" 
-                                            fontWeight={700}
-                                            sx={{ 
-                                                overflow: 'hidden',
-                                                textOverflow: 'ellipsis',
-                                                whiteSpace: 'nowrap',
-                                                fontSize: { xs: '0.95rem', md: '1.05rem' },
-                                                mb: 0.25,
-                                                lineHeight: 1.2
-                                            }}
-                                        >
-                                            {dept.name} <Box component="span" sx={{ color: 'text.secondary', fontWeight: 500, fontSize: '0.75rem', ml: 0.5, opacity: 0.8 }}>{formatDepartmentLevel(dept.level)}</Box>
-                                        </Typography>
-                                        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, alignItems: 'center' }}>
-                                            {leader ? (
-                                                <Typography 
-                                                    variant="body2" 
-                                                    sx={{ 
-                                                        color: 'success.main',
-                                                        fontWeight: 500,
-                                                        display: 'flex',
-                                                        alignItems: 'center',
-                                                        gap: 0.5,
-                                                        fontSize: { xs: '0.8rem', md: '0.875rem' }
-                                                    }}
-                                                >
-                                                    {leader.name || leader.email}
-                                                </Typography>
-                                            ) : (
-                                                // Placeholder to maintain height uniformity if needed or just show nothing. 
-                                                // User wants uniformity regardless of presence.
-                                                // On desktop, if we want fixed height, we need a container with min-height.
-                                                // But usually leader is present.
-                                                <Typography variant="body2" color="text.disabled" sx={{ fontSize: { xs: '0.8rem', md: '0.875rem' }, fontStyle: 'italic' }}>
-                                                    No Leader Assigned
-                                                </Typography>
-                                            )}
-                                            
-                                            {/* Admin - Desktop Only */}
-                                            {admin && (
-                                                <Typography 
-                                                    variant="body2" 
-                                                    color="text.secondary"
-                                                    sx={{ display: { xs: 'none', md: 'flex' }, alignItems: 'center', fontSize: '0.875rem' }}
-                                                >
-                                                    <Box component="span" sx={{ mx: 0.5 }}>•</Box>
-                                                    <Box component="span" sx={{ color: 'warning.main', fontWeight: 500, mr: 0.5 }}>Admin:</Box> {admin.name || admin.email}
-                                                </Typography>
-                                            )}
-                                        </Box>
-                                        
-                                        {/* Subdept Count - Desktop Only to keep mobile minimal per request */}
-                                        {subDeptCount > 0 && (
-                                            <Typography 
-                                                variant="caption" 
-                                                color="text.secondary"
-                                                sx={{ 
-                                                    display: { xs: 'none', md: 'block' },
-                                                    mt: 0.5 
-                                                }}
-                                            >
-                                                {subDeptCount} {getSubLevelName(dept.level)}
-                                            </Typography>
+                                    </AvatarFallback>
+                                </Avatar>
+                                <div className="flex-1 min-w-0">
+                                    <p className="font-bold text-foreground truncate text-[0.95rem] md:text-[1.05rem] mb-0.5 leading-tight">
+                                        {dept.name}
+                                        <span className="text-muted-foreground font-medium text-xs ml-1.5 opacity-80">
+                                            {formatDepartmentLevel(dept.level)}
+                                        </span>
+                                    </p>
+                                    <div className="flex flex-wrap items-center gap-1">
+                                        {leader ? (
+                                            <span className="text-[0.8rem] md:text-sm text-success font-medium">
+                                                {leader.name || leader.email}
+                                            </span>
+                                        ) : (
+                                            <span className="text-[0.8rem] text-muted-foreground italic">No Leader Assigned</span>
                                         )}
-                                    </Box>
-                                </Box>
-                            </CardActionArea>
-                        </Card>
+                                        {admin && (
+                                            <span className="hidden md:flex items-center text-sm text-muted-foreground">
+                                                <span className="mx-1">·</span>
+                                                <span className="text-warning font-medium mr-1">Admin:</span>
+                                                {admin.name || admin.email}
+                                            </span>
+                                        )}
+                                    </div>
+                                    {subCount > 0 && (
+                                        <p className="hidden md:block text-xs text-muted-foreground mt-0.5">
+                                            {subCount} {SUB_LEVEL[dept.level]}
+                                        </p>
+                                    )}
+                                </div>
+                            </div>
+                        </button>
                     );
                 })}
-                {filteredDepartments.length === 0 && !loading && (
-                    <Box sx={{ textAlign: 'center', py: 4 }}>
-                        <Typography variant="body2" color="text.secondary">
-                            {departments.length === 0 
-                                ? 'No churches found' 
-                                : 'No churches match your search'
-                            }
-                        </Typography>
-                    </Box>
+
+                {!loading && filteredDepartments.length === 0 && (
+                    <p className="text-center py-8 text-sm text-muted-foreground">
+                        {departments.length === 0 ? 'No churches found' : 'No churches match your search'}
+                    </p>
                 )}
-            </Box>
+            </div>
 
             <EditDepartmentDialog
                 open={editDialogOpen}
@@ -463,13 +252,17 @@ function DepartmentsPageContent() {
                 onSave={handleSaveEdit}
                 onDepartmentClosed={handleDepartmentClosed}
             />
-        </Box>
+        </div>
     );
 }
 
 export default function DepartmentsPage() {
     return (
-        <Suspense fallback={<div>Loading...</div>}>
+        <Suspense fallback={
+            <div className="flex flex-col gap-2 p-6">
+                {[1, 2, 3].map(i => <Skeleton key={i} className="h-16 w-full rounded-xl" />)}
+            </div>
+        }>
             <DepartmentsPageContent />
         </Suspense>
     );

@@ -1,528 +1,252 @@
 'use client';
 
 import { useEffect, useState, useMemo, useRef } from 'react';
-import { Typography, Box, CircularProgress, Grid, Stack, CardActionArea, IconButton, useTheme, alpha, Avatar, Card } from '@mui/material';
-import { formatCurrency } from '@/lib/utils';
-import { GlassCard, SimpleStatCard } from '@/components/ui';
-import TrendingUpIcon from '@mui/icons-material/TrendingUp';
-import TrendingDownIcon from '@mui/icons-material/TrendingDown';
-import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
-import ReceiptIcon from '@mui/icons-material/Receipt';
-import AssessmentIcon from '@mui/icons-material/Assessment';
-import PendingActionsIcon from '@mui/icons-material/PendingActions';
-import EditIcon from '@mui/icons-material/Edit';
-import ArrowBackIosNewIcon from '@mui/icons-material/ArrowBackIosNew';
-import ArrowForwardIosIcon from '@mui/icons-material/ArrowForwardIos';
 import { useRouter } from 'next/navigation';
-import EditDepartmentDialog from '@/components/EditDepartmentDialog';
+import { Loader2, Wallet, TrendingUp, TrendingDown, ChevronLeft, ChevronRight, Pencil } from 'lucide-react';
 import { useSession } from 'next-auth/react';
-import { BarChart, Bar, XAxis, Tooltip, ResponsiveContainer, Cell, LabelList } from 'recharts';
+import { Button } from '@/components/ui/button';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { cn, formatCurrency } from '@/lib/utils';
+import { useColorMode } from '@/app/providers';
+import EditDepartmentDialog from '@/components/EditDepartmentDialog';
+import { BarChart, Bar, XAxis, Tooltip, ResponsiveContainer, LabelList } from 'recharts';
+
+function StatCard({ title, amount, currencySymbol, colorClass }: {
+    title: string; amount: number; currencySymbol: string; colorClass: string;
+}) {
+    return (
+        <div className="rounded-xl border border-border bg-card p-4">
+            <p className="text-[0.75rem] font-medium uppercase tracking-[0.07em] text-muted-foreground mb-2">{title}</p>
+            <p className={cn('text-[1.375rem] font-bold tracking-tight', colorClass)}>
+                {currencySymbol}{Number(amount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </p>
+        </div>
+    );
+}
 
 export default function DepartmentDashboardPage() {
     const router = useRouter();
-    const theme = useTheme();
+    const { resolvedMode } = useColorMode();
     const { data: session } = useSession();
-    
-    // State for department ID from cookie
-    const [departmentId, setDepartmentId] = useState<string | null>(null);
 
+    const [departmentId, setDepartmentId] = useState<string | null>(null);
     const [department, setDepartment] = useState<any>(null);
     const [editDialogOpen, setEditDialogOpen] = useState(false);
     const [allDepartments, setAllDepartments] = useState<any[]>([]);
-    const [departmentLeader, setDepartmentLeader] = useState<{name: string, image: string | null} | null>(null);
-    const [stats, setStats] = useState({ 
-        income: 0, 
-        expense: 0, 
-        balance: 0,
-        weeklyIncome: 0,
+    const [departmentLeader, setDepartmentLeader] = useState<{ name: string; image: string | null } | null>(null);
+    const [stats, setStats] = useState({
+        income: 0, expense: 0, balance: 0, weeklyIncome: 0,
         chartData: [] as { week: string; income: number; expense: number }[],
-        currency: { code: 'GHS', symbol: '₵' }
+        currency: { code: 'GHS', symbol: '₵' },
     });
     const [loading, setLoading] = useState(true);
     const [chartOffset, setChartOffset] = useState(0);
     const [chartLoading, setChartLoading] = useState(false);
     const chartCache = useRef<Map<number, { week: string; income: number; expense: number }[]>>(new Map());
 
-    // Initial check for cookie
     useEffect(() => {
         const getCookie = (name: string) => {
             if (typeof document === 'undefined') return '';
-            const value = `; ${document.cookie}`;
-            const parts = value.split(`; ${name}=`);
+            const parts = `; ${document.cookie}`.split(`; ${name}=`);
             if (parts.length === 2) return parts.pop()?.split(';').shift() || '';
             return '';
         };
-
         const id = getCookie('activeDepartmentId');
-        if (id) {
-            setDepartmentId(id);
-        } else {
-            // If no ID found, redirect back to list
-            router.push('/departments');
-        }
+        if (id) setDepartmentId(id);
+        else router.push('/departments');
     }, [router]);
 
     useEffect(() => {
-        if (departmentId) {
-            fetchDepartment();
-            fetchStats();
-            fetchAllDepartments();
-        }
+        if (departmentId) { fetchDepartment(); fetchStats(); fetchAllDepartments(); }
     }, [departmentId]);
 
-    // Refetch chart data when offset changes
     useEffect(() => {
-        if (departmentId) {
-            fetchStats(chartOffset);
-        }
+        if (departmentId) fetchStats(chartOffset);
     }, [chartOffset, departmentId]);
 
     const fetchDepartment = async () => {
         try {
-            const response = await fetch(`/api/departments/${departmentId}`);
-            if (response.ok) {
-                const data = await response.json();
+            const res = await fetch(`/api/departments/${departmentId}`);
+            if (res.ok) {
+                const data = await res.json();
                 setDepartment(data);
-
-                // Extract Leader
-                const leaderRole = data.userRoles?.find((ur: any) => 
+                const leaderRole = data.userRoles?.find((ur: any) =>
                     ['COUNCIL_LEADER', 'STREAM_LEADER', 'CAMPUS_LEADER', 'OVERSIGHT_LEADER', 'DENOMINATION_LEADER'].includes(ur.role)
                 );
-                if (leaderRole && leaderRole.user) {
-                    setDepartmentLeader(leaderRole.user);
-                }
+                if (leaderRole?.user) setDepartmentLeader(leaderRole.user);
             }
-        } catch (error) {
-            console.error('Failed to fetch department:', error);
-        }
+        } catch (e) { console.error(e); }
     };
 
     const fetchStats = async (offset?: number) => {
-        const currentOffset = offset ?? chartOffset;
-        // Show cached chart data instantly if available
-        const cached = chartCache.current.get(currentOffset);
-        if (cached) {
-            setStats(prev => ({ ...prev, chartData: cached }));
-        } else {
-            setChartLoading(true);
-        }
+        const cur = offset ?? chartOffset;
+        const cached = chartCache.current.get(cur);
+        if (cached) setStats(prev => ({ ...prev, chartData: cached }));
+        else setChartLoading(true);
         try {
-            const response = await fetch(`/api/departments/${departmentId}/stats?chartOffset=${currentOffset}`, { cache: 'no-store' });
-            if (response.ok) {
-                const data = await response.json();
-                // Cache the chart data for this offset
-                if (data.chartData) {
-                    chartCache.current.set(currentOffset, data.chartData);
-                }
+            const res = await fetch(`/api/departments/${departmentId}/stats?chartOffset=${cur}`, { cache: 'no-store' });
+            if (res.ok) {
+                const data = await res.json();
+                if (data.chartData) chartCache.current.set(cur, data.chartData);
                 setStats(data);
             }
-        } catch (error) {
-            console.error('Failed to fetch department stats:', error);
-        } finally {
-            setLoading(false);
-            setChartLoading(false);
-        }
+        } catch (e) { console.error(e); }
+        finally { setLoading(false); setChartLoading(false); }
     };
 
     const fetchAllDepartments = async () => {
         try {
-            const response = await fetch('/api/departments?all=true');
-            if (response.ok) {
-                const data = await response.json();
-                setAllDepartments(data);
-            }
-        } catch (error) {
-            console.error('Failed to fetch all departments:', error);
-        }
+            const res = await fetch('/api/departments?all=true');
+            if (res.ok) setAllDepartments(await res.json());
+        } catch (e) { console.error(e); }
     };
 
-    const handleSaveEdit = async (updatedDept: any) => {
-        await fetchDepartment();
-        await fetchStats();
-        setEditDialogOpen(false);
-    };
-
-    const handleDepartmentClosed = () => {
-        // Redirect to the main departments list after closing
-        router.push('/departments');
-    };
-
-    // Quick links for church dashboard
     const quickLinks = useMemo(() => {
-        const links = [];
-
-        if (department?.level && department.level !== 'COUNCIL') {
-            links.push({
-                title: 'View Churches',
-                href: `/departments?parent=${departmentId}`,
-            });
-        }
-
-        return [
-            ...links,
-            {
-                title: 'Transactions History',
-                href: `/transactions?dept=${departmentId}`,
-            },
-            {
-                title: 'View Trends',
-                href: `/reports?dept=${departmentId}`,
-            },
+        const links: { title: string; href: string }[] = [];
+        if (department?.level && department.level !== 'COUNCIL')
+            links.push({ title: 'View Churches', href: `/departments?parent=${departmentId}` });
+        return [...links,
+            { title: 'Transactions History', href: `/transactions?dept=${departmentId}` },
+            { title: 'View Trends', href: `/reports?dept=${departmentId}` },
         ];
     }, [departmentId, department]);
 
-    if (loading) {
-        return (
-            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '60vh' }}>
-                <CircularProgress size={40} thickness={4} />
-            </Box>
-        );
-    }
-
-    // Check if user is a leader (leaders can't edit)
-    const isLeader = session?.user?.role?.includes('LEADER');
-    const canEdit = !isLeader;
-
-    // Calculate color for Account Balance based on value
-    const getStatColor = (type: string, balance?: number) => {
-        if (type === 'balance') {
-            if (balance !== undefined && balance < 0) return theme.palette.error.main;
-            if (balance !== undefined && balance === 0) return theme.palette.warning.main;
-            if (balance !== undefined && balance < 5000) return theme.palette.warning.dark;
-            return theme.palette.success.main;
-        }
-        if (type === 'income') return theme.palette.success.main;
-        return theme.palette.primary.main;
-    };
-
-    const userRole = session?.user?.role;
-    // Admins and Oversight/Denomination Leaders get expanded stats
-    const isAdvancedView = userRole && (
-        userRole === 'SUPERADMIN' || 
-        userRole.includes('ADMIN') || 
-        ['DENOMINATION_LEADER', 'OVERSIGHT_LEADER'].includes(userRole)
+    if (loading) return (
+        <div className="flex justify-center items-center min-h-[60vh]">
+            <Loader2 className="h-9 w-9 animate-spin text-muted-foreground" />
+        </div>
     );
 
-    // Default stat cards: Account Balance + This Week's Income
-    const statCards = [
-        {
-            title: 'Account Balance',
-            amount: stats.balance,
-            icon: AccountBalanceWalletIcon,
-            color: getStatColor('balance', stats.balance),
-            currencySymbol: stats.currency.symbol
-        },
-        {
-            title: "This Week's Income",
-            amount: stats.weeklyIncome,
-            icon: TrendingUpIcon,
-            color: theme.palette.success.main,
-            currencySymbol: stats.currency.symbol
-        }
-    ];
+    const isLeader = session?.user?.role?.includes('LEADER');
+    const canEdit = !isLeader;
+    const userRole = session?.user?.role;
+    const isAdvancedView = userRole && (userRole === 'SUPERADMIN' || userRole.includes('ADMIN') || ['DENOMINATION_LEADER', 'OVERSIGHT_LEADER'].includes(userRole));
 
-    if (isAdvancedView) {
-        statCards.push(
-            {
-                title: 'Total Inflows',
-                amount: stats.income,
-                icon: TrendingUpIcon,
-                color: theme.palette.info.main,
-                currencySymbol: stats.currency.symbol
-            },
-            {
-                title: 'Total Expenses',
-                amount: stats.expense,
-                icon: TrendingDownIcon,
-                color: theme.palette.error.main,
-                currencySymbol: stats.currency.symbol
-            }
-        );
-    }
+    const getBalanceColor = (bal: number) => {
+        if (bal < 0) return 'text-destructive';
+        if (bal === 0) return 'text-warning';
+        if (bal < 5000) return 'text-warning';
+        return 'text-success';
+    };
 
-    const handleRefresh = () => {
-        fetchDepartment();
-        fetchStats();
+    const isDark = resolvedMode === 'dark';
+    const chartColors = {
+        income: '#22C55E',
+        expense: '#EF4444',
+        text: isDark ? '#94A3B8' : '#64748B',
+        divider: isDark ? '#1E293B' : '#E2E8F0',
+        bg: isDark ? '#0F172A' : '#FFFFFF',
+        tooltipBg: isDark ? '#1E293B' : '#FFFFFF',
     };
 
     return (
-        <Box sx={{ px: { xs: 1.5, sm: 3, md: 6, lg: 8 }, py: { xs: 1.5, sm: 2, md: 1.5 }, maxWidth: '1600px', mx: 'auto' }}>
-            {/* Page Header */}
-            <Box
-                sx={(theme) => ({
-                    display: 'flex',
-                    alignItems: { xs: 'flex-start', sm: 'flex-end' },
-                    justifyContent: 'space-between',
-                    gap: 2,
-                    flexWrap: 'wrap',
-                    mb: { xs: 3, md: 4 },
-                    pb: { xs: 2.5, md: 3 },
-                    borderBottom: `1px solid ${theme.palette.divider}`,
-                })}
-            >
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2.5, minWidth: 0, flex: 1 }}>
+        <div className="max-w-[1600px] mx-auto">
+            {/* Header */}
+            <div className="flex items-start sm:items-end justify-between gap-4 flex-wrap mb-8 pb-6 border-b border-border">
+                <div className="flex items-center gap-4 min-w-0 flex-1">
                     {departmentLeader ? (
-                        <Avatar
-                            src={departmentLeader.image || undefined}
-                            alt={departmentLeader.name}
-                            sx={{
-                                width: { xs: 52, sm: 60 },
-                                height: { xs: 52, sm: 60 },
-                                fontFamily: theme.typography.h3.fontFamily,
-                                fontSize: '1.25rem',
-                                border: `1px solid ${theme.palette.divider}`,
-                                flexShrink: 0,
-                            }}
-                        >
-                            {departmentLeader.name.charAt(0)}
+                        <Avatar className="w-13 h-13 sm:w-15 sm:h-15 shrink-0 border border-border">
+                            {departmentLeader.image && <AvatarImage src={departmentLeader.image} alt={departmentLeader.name} />}
+                            <AvatarFallback className="text-lg font-semibold">{departmentLeader.name[0]}</AvatarFallback>
                         </Avatar>
                     ) : (
-                        <Box
-                            sx={(theme) => ({
-                                width: 48,
-                                height: 48,
-                                borderRadius: 1.5,
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                bgcolor: alpha(theme.palette.text.primary, 0.06),
-                                color: theme.palette.text.primary,
-                                flexShrink: 0,
-                            })}
-                        >
-                            <AccountBalanceWalletIcon sx={{ fontSize: 22 }} />
-                        </Box>
+                        <div className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0 bg-secondary text-muted-foreground">
+                            <Wallet className="h-5 w-5" />
+                        </div>
                     )}
-                    <Box sx={{ minWidth: 0 }}>
-                        <Typography variant="overline" sx={{ display: 'block', mb: 0.5 }}>
-                            Department
-                        </Typography>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
-                            <Typography
-                                component="h1"
-                                sx={(theme) => ({
-                                    fontFamily: theme.typography.h2.fontFamily,
-                                    fontSize: { xs: '1.625rem', sm: '1.875rem', md: '2.125rem' },
-                                    fontWeight: 600,
-                                    letterSpacing: '-0.025em',
-                                    lineHeight: 1.15,
-                                    color: 'text.primary',
-                                })}
-                            >
+                    <div className="min-w-0">
+                        <p className="text-[0.6875rem] font-medium uppercase tracking-[0.10em] text-muted-foreground mb-0.5">Department</p>
+                        <div className="flex items-center gap-2 flex-wrap">
+                            <h1 className="text-[1.625rem] sm:text-[1.875rem] font-semibold tracking-[-0.025em] text-foreground leading-[1.15]">
                                 {department?.name || 'Church dashboard'}
-                            </Typography>
+                            </h1>
                             {canEdit && (
-                                <IconButton
-                                    onClick={() => setEditDialogOpen(true)}
-                                    size="small"
-                                    sx={{ color: 'text.secondary' }}
-                                >
-                                    <EditIcon sx={{ fontSize: 16 }} />
-                                </IconButton>
+                                <button onClick={() => setEditDialogOpen(true)} className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/20 transition-colors">
+                                    <Pencil className="h-4 w-4" />
+                                </button>
                             )}
-                        </Box>
-                        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75, maxWidth: 560 }}>
+                        </div>
+                        <p className="text-sm text-muted-foreground mt-0.75">
                             {departmentLeader ? `Led by ${departmentLeader.name}` : "Here's what's happening with your finances today."}
-                        </Typography>
-                    </Box>
-                </Box>
-            </Box>
+                        </p>
+                    </div>
+                </div>
+            </div>
 
-            {/* Stats Grid - Adaptable based on count */}
-            <Grid container spacing={{ xs: 1.5, sm: 3 }} sx={{ mb: { xs: 2, md: 4 } }}>
-                {statCards.map((card, index) => (
-                    <Grid size={{ xs: 6, md: 6, lg: statCards.length > 2 ? 3 : 6 }} key={index}>
-                        <SimpleStatCard
-                            title={card.title}
-                            amount={card.amount}
-                            icon={card.icon}
-                            color={card.color}
-                            currencySymbol={card.currencySymbol}
-                        />
-                    </Grid>
-                ))}
-            </Grid>
+            {/* Stat cards */}
+            <div className={cn('grid gap-3 sm:gap-4 mb-6', isAdvancedView ? 'grid-cols-2 lg:grid-cols-4' : 'grid-cols-2')}>
+                <StatCard title="Account Balance" amount={stats.balance} currencySymbol={stats.currency.symbol} colorClass={getBalanceColor(stats.balance)} />
+                <StatCard title="This Week's Income" amount={stats.weeklyIncome} currencySymbol={stats.currency.symbol} colorClass="text-success" />
+                {isAdvancedView && <>
+                    <StatCard title="Total Inflows" amount={stats.income} currencySymbol={stats.currency.symbol} colorClass="text-blue-500" />
+                    <StatCard title="Total Expenses" amount={stats.expense} currencySymbol={stats.currency.symbol} colorClass="text-destructive" />
+                </>}
+            </div>
 
-            {/* Weekly Income Chart */}
+            {/* Weekly chart */}
             {stats.chartData && stats.chartData.length > 0 && (
-            <Card
-                sx={{
-                    p: { xs: 2, sm: 3, md: 3 },
-                    borderRadius: { xs: 2, sm: 3 },
-                    overflow: 'visible',
-                    bgcolor: 'background.paper',
-                    boxShadow: 'none',
-                    border: '1px solid',
-                    borderColor: 'divider',
-                }}
-            >
-                <Typography variant="h6" fontWeight="700" sx={{ mb: { xs: 2, sm: 3 }, fontSize: { xs: '0.95rem', sm: '1.1rem' } }}>
-                    {chartOffset === 0 ? 'Weekly Income & Expense (Last 4 Weeks)' : 'Weekly Income & Expense'}
-                </Typography>
-                <Box sx={{ width: '100%', height: { xs: 280, sm: 320, md: 350 }, opacity: chartLoading ? 0.5 : 1, transition: 'opacity 0.2s' }}>
-                    <ResponsiveContainer width="100%" height="100%">
-                        <BarChart
-                            data={stats.chartData}
-                            margin={{
-                                top: 25,
-                                right: 10,
-                                left: 10,
-                                bottom: 5,
-                            }}
-                            style={{ backgroundColor: 'transparent' }}
-                        >
-                            <XAxis 
-                                dataKey="week" 
-                                tick={{ fill: theme.palette.text.secondary, fontSize: 12 }}
-                                axisLine={{ stroke: theme.palette.divider }}
-                                tickLine={false}
-                            />
-                            <Tooltip 
-                                formatter={(value: any, name: any) => {
-                                    const numValue = Number(value);
-                                    const label = name === 'income' ? 'Income' : name === 'expense' ? 'Expense' : name;
-                                    const formatted = stats.currency
-                                        ? `${stats.currency.symbol}${numValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                                        : numValue.toLocaleString();
-                                    return [formatted, label];
-                                }}
-                                contentStyle={{
-                                    backgroundColor: theme.palette.background.paper,
-                                    border: `1px solid ${theme.palette.divider}`,
-                                    borderRadius: 10,
-                                    boxShadow: theme.palette.mode === 'dark'
-                                        ? '0 16px 40px rgba(0,0,0,0.55)'
-                                        : '0 16px 40px rgba(11,19,32,0.08)',
-                                    fontSize: '0.8125rem',
-                                }}
-                                labelStyle={{ color: theme.palette.text.primary, fontWeight: 600 }}
-                                cursor={{ fill: alpha(theme.palette.primary.main, 0.1), radius: 4 }}
-                            />
-                            <Bar 
-                                dataKey="income" 
-                                radius={[6, 6, 0, 0]}
-                                barSize={35}
-                                fill={theme.palette.success.main}
-                            >
-                                <LabelList 
-                                    dataKey="income" 
-                                    position="top"
-                                    fill={theme.palette.text.primary}
-                                    fontSize={11}
-                                    formatter={(value: any) => stats.currency ? `${stats.currency.symbol}${Number(value).toLocaleString()}` : Number(value).toLocaleString()}
+                <div className="rounded-xl border border-border bg-card p-4 sm:p-6 mb-6">
+                    <p className="font-bold text-foreground mb-4 text-[0.95rem] sm:text-[1.1rem]">
+                        {chartOffset === 0 ? 'Weekly Income & Expense (Last 4 Weeks)' : 'Weekly Income & Expense'}
+                    </p>
+                    <div className={cn('w-full transition-opacity duration-200', chartLoading && 'opacity-50')} style={{ height: 320 }}>
+                        <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={stats.chartData} margin={{ top: 25, right: 10, left: 10, bottom: 5 }}>
+                                <XAxis dataKey="week" tick={{ fill: chartColors.text, fontSize: 12 }} axisLine={{ stroke: chartColors.divider }} tickLine={false} />
+                                <Tooltip
+                                    formatter={(value: any, name: any) => {
+                                        const formatted = `${stats.currency.symbol}${Number(value).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+                                        return [formatted, name === 'income' ? 'Income' : 'Expense'];
+                                    }}
+                                    contentStyle={{ backgroundColor: chartColors.tooltipBg, border: `1px solid ${chartColors.divider}`, borderRadius: 10, fontSize: '0.8125rem' }}
+                                    labelStyle={{ color: isDark ? '#F1F5F9' : '#0F172A', fontWeight: 600 }}
                                 />
-                            </Bar>
-                            <Bar 
-                                dataKey="expense" 
-                                radius={[6, 6, 0, 0]}
-                                barSize={35}
-                                fill={theme.palette.error.main}
-                            >
-                                <LabelList 
-                                    dataKey="expense" 
-                                    position="top" 
-                                    fill={theme.palette.text.primary}
-                                    fontSize={11}
-                                    formatter={(value: any) => stats.currency ? `${stats.currency.symbol}${Number(value).toLocaleString()}` : Number(value).toLocaleString()}
-                                />
-                            </Bar>
-                        </BarChart>
-                    </ResponsiveContainer>
-                </Box>
-                {/* Navigation Arrows */}
-                <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 2, mt: 1.5 }}>
-                    <IconButton
-                        size="small"
-                        onClick={() => setChartOffset(prev => prev + 1)}
-                        disabled={chartLoading}
-                        sx={{
-                            bgcolor: alpha(theme.palette.primary.main, 0.08),
-                            '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.16) },
-                            '&.Mui-disabled': { bgcolor: alpha(theme.palette.action.disabled, 0.04) },
-                        }}
-                    >
-                        <ArrowBackIosNewIcon sx={{ fontSize: 18 }} />
-                    </IconButton>
-                    <Typography variant="body2" color="text.secondary" sx={{ fontSize: { xs: '0.75rem', sm: '0.85rem' }, minWidth: 80, textAlign: 'center' }}>
-                        {chartOffset === 0 ? 'Current' : `${chartOffset * 4} weeks ago`}
-                    </Typography>
-                    <IconButton
-                        size="small"
-                        onClick={() => setChartOffset(prev => Math.max(0, prev - 1))}
-                        disabled={chartOffset === 0 || chartLoading}
-                        sx={{
-                            bgcolor: alpha(theme.palette.primary.main, 0.08),
-                            '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.16) },
-                            '&.Mui-disabled': { bgcolor: alpha(theme.palette.action.disabled, 0.04) },
-                        }}
-                    >
-                        <ArrowForwardIosIcon sx={{ fontSize: 18 }} />
-                    </IconButton>
-                </Box>
-            </Card>
+                                <Bar dataKey="income" radius={[6, 6, 0, 0]} barSize={35} fill={chartColors.income}>
+                                    <LabelList dataKey="income" position="top" fill={isDark ? '#94A3B8' : '#475569'} fontSize={11}
+                                        formatter={(v: any) => `${stats.currency.symbol}${Number(v).toLocaleString()}`} />
+                                </Bar>
+                                <Bar dataKey="expense" radius={[6, 6, 0, 0]} barSize={35} fill={chartColors.expense}>
+                                    <LabelList dataKey="expense" position="top" fill={isDark ? '#94A3B8' : '#475569'} fontSize={11}
+                                        formatter={(v: any) => `${stats.currency.symbol}${Number(v).toLocaleString()}`} />
+                                </Bar>
+                            </BarChart>
+                        </ResponsiveContainer>
+                    </div>
+                    <div className="flex justify-center items-center gap-4 mt-3">
+                        <Button variant="outline" size="icon-sm" onClick={() => setChartOffset(p => p + 1)} disabled={chartLoading}>
+                            <ChevronLeft className="h-4 w-4" />
+                        </Button>
+                        <span className="text-xs text-muted-foreground min-w-[80px] text-center">
+                            {chartOffset === 0 ? 'Current' : `${chartOffset * 4} weeks ago`}
+                        </span>
+                        <Button variant="outline" size="icon-sm" onClick={() => setChartOffset(p => Math.max(0, p - 1))} disabled={chartOffset === 0 || chartLoading}>
+                            <ChevronRight className="h-4 w-4" />
+                        </Button>
+                    </div>
+                </div>
             )}
 
-            {/* Quick Links */}
-            <Box
-                sx={{
-                    mt: { xs: 2, md: 4 },
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 2
-                }}
-            >
-                {quickLinks.map((link) => (
-                    <GlassCard
+            {/* Quick links */}
+            <div className="flex flex-col gap-3">
+                {quickLinks.map(link => (
+                    <button
                         key={link.title}
-                        sx={{
-                            border: '1px solid',
-                            borderColor: theme.palette.mode === 'dark' ? 'rgba(255, 182, 193, 0.2)' : 'rgba(255, 182, 193, 0.5)',
-                            background: theme.palette.mode === 'dark' 
-                                ? 'linear-gradient(135deg, rgba(255, 182, 193, 0.05) 0%, rgba(255, 182, 193, 0.1) 100%)' 
-                                : 'linear-gradient(135deg, #FFF0F5 0%, #FFB6C1 100%)',
-                            borderRadius: 3,
-                            overflow: 'hidden',
-                            '&:hover': {
-                                transform: 'translateY(-2px)',
-                                boxShadow: theme.palette.mode === 'dark' 
-                                    ? '0 8px 16px rgba(255, 182, 193, 0.1)' 
-                                    : '0 8px 16px rgba(255, 182, 193, 0.25)',
-                            }
-                        }}
+                        onClick={() => router.push(link.href)}
+                        className="w-full py-4 px-6 rounded-xl border border-primary/20 bg-primary/5 hover:bg-primary/10 hover:border-primary/30 transition-colors duration-150"
                     >
-                        <CardActionArea
-                            onClick={() => router.push(link.href)}
-                            sx={{
-                                py: 2.5,
-                                px: 3,
-                                display: 'flex',
-                                justifyContent: 'center',
-                                alignItems: 'center',
-                            }}
-                        >
-                            <Typography
-                                variant="body1"
-                                fontWeight="700"
-                                sx={{
-                                    color: theme.palette.mode === 'dark' ? '#FFB6C1' : '#D81B60',
-                                    fontSize: { xs: '1rem', sm: '1.05rem' }
-                                }}
-                            >
-                                {link.title}
-                            </Typography>
-                        </CardActionArea>
-                    </GlassCard>
+                        <span className="font-bold text-primary text-[1rem]">{link.title}</span>
+                    </button>
                 ))}
-            </Box>
+            </div>
 
             <EditDepartmentDialog
                 open={editDialogOpen}
                 onClose={() => setEditDialogOpen(false)}
                 department={department}
                 departments={allDepartments}
-                onSave={handleSaveEdit}
-                onDepartmentClosed={handleDepartmentClosed}
+                onSave={async () => { await fetchDepartment(); await fetchStats(); setEditDialogOpen(false); }}
+                onDepartmentClosed={() => router.push('/departments')}
             />
-        </Box>
+        </div>
     );
 }

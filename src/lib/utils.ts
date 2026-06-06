@@ -1,4 +1,10 @@
+import { type ClassValue, clsx } from 'clsx';
+import { twMerge } from 'tailwind-merge';
 import { getISOWeek, getISOWeekYear } from 'date-fns';
+
+export function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs));
+}
 import { formatMoney } from './format-money';
 
 export function getCurrentWeek() {

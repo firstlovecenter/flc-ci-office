@@ -2,63 +2,39 @@
 
 import { useState } from 'react';
 import { useSession } from 'next-auth/react';
-import { useRouter } from 'next/navigation';
-import { Alert, Button, CircularProgress } from '@mui/material';
-import SupervisedUserCircleIcon from '@mui/icons-material/SupervisedUserCircle';
+import { UserCheck, Loader2 } from 'lucide-react';
 
 export default function ImpersonationBanner() {
     const { data: session, update } = useSession();
-    const router = useRouter();
     const [stopping, setStopping] = useState(false);
 
     if (!session?.user?.isImpersonating) return null;
 
-    const handleStopImpersonation = async () => {
+    const handleStop = async () => {
         setStopping(true);
         try {
-            const response = await fetch('/api/admin/impersonate/stop', { method: 'POST' });
-
-            if (!response.ok) {
-                throw new Error('Failed to stop impersonation');
-            }
-
+            const r = await fetch('/api/admin/impersonate/stop', { method: 'POST' });
+            if (!r.ok) throw new Error('Failed to stop impersonation');
             await update({ stopImpersonation: true });
-
-            await new Promise<void>((resolve) => setTimeout(resolve, 200));
+            await new Promise<void>(res => setTimeout(res, 200));
             window.location.replace('/dashboard');
-        } catch (error) {
-            console.error('Failed to stop impersonation:', error);
+        } catch {
             setStopping(false);
         }
     };
 
     return (
-        <Alert
-            severity="warning"
-            icon={<SupervisedUserCircleIcon />}
-            action={
-                <Button
-                    color="inherit"
-                    size="small"
-                    onClick={handleStopImpersonation}
-                    disabled={stopping}
-                    startIcon={stopping ? <CircularProgress size={14} color="inherit" /> : undefined}
-                >
-                    {stopping ? 'Stopping…' : 'Stop impersonation'}
-                </Button>
-            }
-            sx={{
-                position: 'fixed',
-                bottom: 0,
-                left: 0,
-                right: 0,
-                zIndex: (theme) => theme.zIndex.appBar + 10,
-                borderRadius: 0,
-                paddingBottom: 'max(8px, env(safe-area-inset-bottom))',
-            }}
-        >
-            You are impersonating <strong>{session.user.name || session.user.email}</strong>.
-            Acting as: <strong>{session.user.role}</strong>.
-        </Alert>
+        <div className="fixed bottom-0 left-0 right-0 z-[9999] flex items-center justify-between gap-3 px-4 py-2.5 bg-warning/15 border-t border-warning/30" style={{ paddingBottom: 'max(10px, env(safe-area-inset-bottom))' }}>
+            <div className="flex items-center gap-2 min-w-0">
+                <UserCheck className="h-4 w-4 text-warning shrink-0" />
+                <p className="text-sm text-warning-foreground truncate">
+                    Impersonating <strong>{session.user.name || session.user.email}</strong> as <strong>{session.user.role}</strong>
+                </p>
+            </div>
+            <button onClick={handleStop} disabled={stopping} className="flex items-center gap-1.5 text-xs font-semibold text-warning px-3 py-1.5 rounded-lg border border-warning/40 hover:bg-warning/20 transition-colors shrink-0 disabled:opacity-60">
+                {stopping && <Loader2 className="h-3 w-3 animate-spin" />}
+                {stopping ? 'Stopping…' : 'Stop impersonation'}
+            </button>
+        </div>
     );
 }

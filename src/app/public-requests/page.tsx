@@ -3,80 +3,40 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
-import {
-    Box,
-    Typography,
-    Paper,
-    Table,
-    TableBody,
-    TableCell,
-    TableContainer,
-    TableHead,
-    TableRow,
-    Button,
-    Chip,
-    Dialog,
-    DialogTitle,
-    DialogContent,
-    DialogActions,
-    TextField,
-    Alert,
-    MenuItem,
-    CircularProgress,
-    Stack,
-    Skeleton,
-    useTheme,
-    useMediaQuery,
-    Divider,
-    Card,
-    CardContent,
-} from '@mui/material';
-import CheckCircleIcon from '@mui/icons-material/CheckCircle';
-import CancelIcon from '@mui/icons-material/Cancel';
-import InboxIcon from '@mui/icons-material/Inbox';
+import { CheckCircle, XCircle, Inbox, Loader2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { cn, formatNumber } from '@/lib/utils';
 import { useToast } from '@/components/ToastProvider';
-import { formatNumber } from '@/lib/utils';
 import { sumMoney } from '@/lib/format-money';
 
 interface PublicRequest {
-    id: string;
-    requesterName: string;
-    churchName: string;
-    momoName: string;
-    momoNumber: string;
-    amount: string;
-    description: string;
-    status: 'PENDING' | 'PROCESSED' | 'REJECTED';
-    createdAt: string;
-    oversightDeptId: string;
-    transactionId: string | null;
+    id: string; requesterName: string; churchName: string; momoName: string; momoNumber: string;
+    amount: string; description: string; status: 'PENDING' | 'PROCESSED' | 'REJECTED';
+    createdAt: string; oversightDeptId: string; transactionId: string | null;
 }
 
-interface Department {
-    id: string;
-    name: string;
-    level: string;
-}
-
-interface DepartmentWithBalance extends Department {
-    balance?: number;
-    loadingBalance?: boolean;
-}
+const statusBadgeVariant = (s: string): 'success' | 'destructive' | 'warning' => {
+    if (s === 'PROCESSED') return 'success';
+    if (s === 'REJECTED') return 'destructive';
+    return 'warning';
+};
 
 export default function PublicRequestsPage() {
     const { data: session } = useSession();
     const router = useRouter();
-    const theme = useTheme();
-    const isMobile = useMediaQuery(theme.breakpoints.down('md'));
     const { showSuccess, showError } = useToast();
 
     const [requests, setRequests] = useState<PublicRequest[]>([]);
     const [loading, setLoading] = useState(true);
-    const [departments, setDepartments] = useState<DepartmentWithBalance[]>([]);
+    const [departments, setDepartments] = useState<any[]>([]);
     const [loadingDepts, setLoadingDepts] = useState(false);
-    const [statusFilter, setStatusFilter] = useState<string>('PENDING');
+    const [statusFilter, setStatusFilter] = useState('PENDING');
 
-    // Process dialog state
     const [processDialog, setProcessDialog] = useState<{ open: boolean; request: PublicRequest | null }>({ open: false, request: null });
     const [selectedDeptId, setSelectedDeptId] = useState('');
     const [deptBalance, setDeptBalance] = useState<number | null>(null);
@@ -84,12 +44,11 @@ export default function PublicRequestsPage() {
     const [processing, setProcessing] = useState(false);
     const [processError, setProcessError] = useState('');
 
-    // Reject dialog state
     const [rejectDialog, setRejectDialog] = useState<{ open: boolean; request: PublicRequest | null }>({ open: false, request: null });
     const [rejecting, setRejecting] = useState(false);
 
     const normalizedRole = (session?.user?.role || '').toUpperCase();
-    const normalizedRoles = (session?.user?.roles || []).map(role => role.toUpperCase());
+    const normalizedRoles = ((session?.user as any)?.roles || []).map((r: string) => r.toUpperCase());
     const hasSuperAdminAccess = normalizedRole === 'SUPERADMIN' || normalizedRoles.includes('SUPERADMIN');
     const hasOversightAdminAccess = normalizedRole === 'OVERSIGHT_ADMIN' || normalizedRoles.includes('OVERSIGHT_ADMIN');
     const canProcessRequests = hasOversightAdminAccess;
@@ -97,406 +56,247 @@ export default function PublicRequestsPage() {
     const fetchRequests = useCallback(async () => {
         setLoading(true);
         try {
-            const url = statusFilter ? `/api/public-expense?status=${statusFilter}` : '/api/public-expense';
-            const res = await fetch(url);
-            if (!res.ok) throw new Error('Failed to load requests');
+            const res = await fetch(statusFilter ? `/api/public-expense?status=${statusFilter}` : '/api/public-expense');
+            if (!res.ok) throw new Error();
             const data = await res.json();
             setRequests(Array.isArray(data) ? data : []);
-        } catch {
-            showError('Failed to load public expense requests.');
-        } finally {
-            setLoading(false);
-        }
+        } catch { showError('Failed to load public expense requests.'); }
+        finally { setLoading(false); }
     }, [statusFilter]);
 
     useEffect(() => {
         if (!session) return;
-        if (!hasOversightAdminAccess && !hasSuperAdminAccess) {
-            router.replace('/dashboard');
-            return;
-        }
+        if (!hasOversightAdminAccess && !hasSuperAdminAccess) { router.replace('/dashboard'); return; }
         fetchRequests();
     }, [session, fetchRequests, hasOversightAdminAccess, hasSuperAdminAccess]);
 
     const fetchDepartments = async () => {
         if (departments.length > 0) return;
         setLoadingDepts(true);
-        try {
-            const res = await fetch('/api/departments');
-            const data = await res.json();
-            setDepartments(Array.isArray(data) ? data : []);
-        } catch {
-            showError('Failed to load departments.');
-        } finally {
-            setLoadingDepts(false);
-        }
+        try { const res = await fetch('/api/departments'); const d = await res.json(); setDepartments(Array.isArray(d) ? d : []); }
+        catch { showError('Failed to load departments.'); }
+        finally { setLoadingDepts(false); }
     };
 
     const fetchBalance = async (deptId: string) => {
-        setLoadingBalance(true);
-        setDeptBalance(null);
+        setLoadingBalance(true); setDeptBalance(null);
         try {
             const res = await fetch(`/api/transactions?departmentId=${deptId}&exactDepartment=true&status=APPROVED`);
             const txs = await res.json();
-            if (Array.isArray(txs)) {
-                const balance = sumMoney(txs.map((tx: any) => {
-                    const amt = Number(tx.amountInBase || tx.amount);
-                    return tx.type === 'INCOME' ? amt : -amt;
-                }));
-                setDeptBalance(balance);
-            }
-        } catch {
-            setDeptBalance(null);
-        } finally {
-            setLoadingBalance(false);
-        }
+            if (Array.isArray(txs)) setDeptBalance(sumMoney(txs.map((tx: any) => { const a = Number(tx.amountInBase || tx.amount); return tx.type === 'INCOME' ? a : -a; })));
+        } catch { setDeptBalance(null); }
+        finally { setLoadingBalance(false); }
     };
 
-    const openProcessDialog = (request: PublicRequest) => {
-        setProcessDialog({ open: true, request });
-        setSelectedDeptId('');
-        setDeptBalance(null);
-        setProcessError('');
-        fetchDepartments();
+    const openProcessDialog = (req: PublicRequest) => {
+        setProcessDialog({ open: true, request: req }); setSelectedDeptId(''); setDeptBalance(null); setProcessError(''); fetchDepartments();
     };
-
-    const closeProcessDialog = () => {
-        setProcessDialog({ open: false, request: null });
-        setSelectedDeptId('');
-        setDeptBalance(null);
-        setProcessError('');
-    };
-
-    const handleDeptChange = (deptId: string) => {
-        setSelectedDeptId(deptId);
-        if (deptId) fetchBalance(deptId);
-    };
+    const closeProcessDialog = () => { setProcessDialog({ open: false, request: null }); setSelectedDeptId(''); setDeptBalance(null); setProcessError(''); };
 
     const handleProcess = async () => {
         if (!processDialog.request || !selectedDeptId) return;
-        setProcessError('');
-        setProcessing(true);
+        setProcessError(''); setProcessing(true);
         try {
-            const res = await fetch(`/api/public-expense/${processDialog.request.id}`, {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'process', departmentId: selectedDeptId }),
-            });
+            const res = await fetch(`/api/public-expense/${processDialog.request.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'process', departmentId: selectedDeptId }) });
             const data = await res.json();
-            if (!res.ok) {
-                setProcessError(data.error || 'Failed to process request.');
-            } else {
-                showSuccess('Request processed. A pending expense transaction has been created.');
-                closeProcessDialog();
-                fetchRequests();
-            }
-        } catch {
-            setProcessError('Network error. Please try again.');
-        } finally {
-            setProcessing(false);
-        }
+            if (!res.ok) setProcessError(data.error || 'Failed to process request.');
+            else { showSuccess('Request processed. A pending expense transaction has been created.'); closeProcessDialog(); fetchRequests(); }
+        } catch { setProcessError('Network error. Please try again.'); }
+        finally { setProcessing(false); }
     };
 
     const handleReject = async () => {
         if (!rejectDialog.request) return;
         setRejecting(true);
         try {
-            const res = await fetch(`/api/public-expense/${rejectDialog.request.id}`, {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'reject' }),
-            });
-            if (!res.ok) {
-                const data = await res.json();
-                showError(data.error || 'Failed to reject request.');
-            } else {
-                showSuccess('Request rejected.');
-                setRejectDialog({ open: false, request: null });
-                fetchRequests();
-            }
-        } catch {
-            showError('Network error. Please try again.');
-        } finally {
-            setRejecting(false);
-        }
+            const res = await fetch(`/api/public-expense/${rejectDialog.request.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'reject' }) });
+            if (!res.ok) { const d = await res.json(); showError(d.error || 'Failed to reject request.'); }
+            else { showSuccess('Request rejected.'); setRejectDialog({ open: false, request: null }); fetchRequests(); }
+        } catch { showError('Network error. Please try again.'); }
+        finally { setRejecting(false); }
     };
 
     const pendingCount = requests.filter(r => r.status === 'PENDING').length;
-
-    const statusChipColor = (status: string) => {
-        if (status === 'PROCESSED') return 'success';
-        if (status === 'REJECTED') return 'error';
-        return 'warning';
-    };
-
     const requestAmount = processDialog.request ? Number(processDialog.request.amount) : 0;
     const insufficientBalance = deptBalance !== null && requestAmount > deptBalance;
     const noBalance = deptBalance !== null && deptBalance <= 0;
 
+    const filterButtons: { label: string; value: string }[] = [
+        { label: 'Pending', value: 'PENDING' }, { label: 'Processed', value: 'PROCESSED' },
+        { label: 'Rejected', value: 'REJECTED' }, { label: 'All', value: '' },
+    ];
+
     return (
-        <Box>
-            <Box sx={{ mb: 3, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 2 }}>
-                <Box>
-                    <Typography variant="h5" fontWeight={700}>
-                        Public Expense Requests
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                        Expense requests submitted by church members.
-                    </Typography>
-                </Box>
+        <div>
+            {/* Header */}
+            <div className="mb-6 flex items-start justify-between flex-wrap gap-3">
+                <div>
+                    <h1 className="text-[1.5rem] font-bold tracking-tight text-foreground">Public Expense Requests</h1>
+                    <p className="text-sm text-muted-foreground mt-0.5">Expense requests submitted by church members.</p>
+                </div>
                 {pendingCount > 0 && (
-                    <Chip
-                        label={`${pendingCount} pending`}
-                        color="warning"
-                        icon={<InboxIcon />}
-                        sx={{ fontWeight: 700 }}
-                    />
+                    <Badge variant="warning" className="gap-1.5 text-sm px-3 py-1">
+                        <Inbox className="h-4 w-4" />{pendingCount} pending
+                    </Badge>
                 )}
-            </Box>
+            </div>
 
             {/* Filter tabs */}
-            <Stack direction="row" spacing={1} sx={{ mb: 3 }}>
-                {['PENDING', 'PROCESSED', 'REJECTED', ''].map(s => (
-                    <Button
-                        key={s || 'all'}
-                        variant={statusFilter === s ? 'contained' : 'outlined'}
-                        size="small"
-                        onClick={() => setStatusFilter(s)}
-                        color={s === 'REJECTED' ? 'error' : s === 'PROCESSED' ? 'success' : 'primary'}
-                    >
-                        {s || 'All'}
-                    </Button>
+            <div className="flex gap-2 mb-5 flex-wrap">
+                {filterButtons.map(f => (
+                    <button
+                        key={f.value || 'all'}
+                        onClick={() => setStatusFilter(f.value)}
+                        className={cn(
+                            'px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors',
+                            statusFilter === f.value
+                                ? 'bg-primary text-primary-foreground border-primary'
+                                : 'bg-transparent text-muted-foreground border-border hover:bg-muted/20'
+                        )}
+                    >{f.label}</button>
                 ))}
-            </Stack>
+            </div>
 
             {loading ? (
-                <Paper>
-                    {[1, 2, 3].map(i => (
-                        <Box key={i} sx={{ p: 2, borderBottom: '1px solid', borderColor: 'divider' }}>
-                            <Skeleton variant="text" width="60%" />
-                            <Skeleton variant="text" width="40%" />
-                        </Box>
-                    ))}
-                </Paper>
+                <div className="rounded-xl border border-border bg-card overflow-hidden">
+                    {[1, 2, 3].map(i => <div key={i} className="p-4 border-b border-border last:border-0"><Skeleton className="h-4 w-48 mb-1.5" /><Skeleton className="h-3 w-32" /></div>)}
+                </div>
             ) : requests.length === 0 ? (
-                <Paper sx={{ p: 6, textAlign: 'center' }}>
-                    <InboxIcon sx={{ fontSize: 48, color: 'text.disabled', mb: 1 }} />
-                    <Typography color="text.secondary">No {statusFilter.toLowerCase()} requests found.</Typography>
-                </Paper>
-            ) : isMobile ? (
-                // Mobile: card layout
-                <Stack spacing={2}>
-                    {requests.map(req => (
-                        <Card key={req.id} variant="outlined">
-                            <CardContent>
-                                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1 }}>
-                                    <Typography fontWeight={700}>{req.requesterName}</Typography>
-                                    <Chip label={req.status} color={statusChipColor(req.status) as any} size="small" />
-                                </Box>
-                                <Typography variant="body2" color="text.secondary">{req.churchName}</Typography>
-                                <Typography variant="body2" sx={{ mt: 0.5 }}>
-                                    Amount: <strong>GH₵ {formatNumber(Number(req.amount))}</strong>
-                                </Typography>
-                                <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, mb: 1 }}>
-                                    {req.description}
-                                </Typography>
-                                <Typography variant="caption" color="text.disabled">
-                                    {new Date(req.createdAt).toLocaleDateString()}
-                                </Typography>
-                                {req.status === 'PENDING' && canProcessRequests && (
-                                    <Stack direction="row" spacing={1} sx={{ mt: 2 }}>
-                                        <Button
-                                            variant="contained"
-                                            color="success"
-                                            size="small"
-                                            startIcon={<CheckCircleIcon />}
-                                            onClick={() => openProcessDialog(req)}
-                                        >
-                                            Process
-                                        </Button>
-                                        <Button
-                                            variant="outlined"
-                                            color="error"
-                                            size="small"
-                                            startIcon={<CancelIcon />}
-                                            onClick={() => setRejectDialog({ open: true, request: req })}
-                                        >
-                                            Reject
-                                        </Button>
-                                    </Stack>
-                                )}
-                            </CardContent>
-                        </Card>
-                    ))}
-                </Stack>
+                <div className="rounded-xl border border-border bg-card p-10 text-center">
+                    <Inbox className="h-12 w-12 text-muted-foreground/30 mx-auto mb-3" />
+                    <p className="text-muted-foreground">No {statusFilter.toLowerCase() || ''} requests found.</p>
+                </div>
             ) : (
-                // Desktop: table layout
-                <TableContainer component={Paper}>
-                    <Table>
-                        <TableHead>
-                            <TableRow>
-                                <TableCell><strong>Requester</strong></TableCell>
-                                <TableCell><strong>Church</strong></TableCell>
-                                <TableCell><strong>Momo</strong></TableCell>
-                                <TableCell><strong>Amount</strong></TableCell>
-                                <TableCell><strong>Reason</strong></TableCell>
-                                <TableCell><strong>Date</strong></TableCell>
-                                <TableCell><strong>Status</strong></TableCell>
-                                <TableCell align="right"><strong>Actions</strong></TableCell>
-                            </TableRow>
-                        </TableHead>
-                        <TableBody>
-                            {requests.map(req => (
-                                <TableRow key={req.id} hover>
-                                    <TableCell>{req.requesterName}</TableCell>
-                                    <TableCell>{req.churchName}</TableCell>
-                                    <TableCell>
-                                        <Typography variant="body2">{req.momoName}</Typography>
-                                        <Typography variant="caption" color="text.secondary">{req.momoNumber}</Typography>
-                                    </TableCell>
-                                    <TableCell>GH₵ {formatNumber(Number(req.amount))}</TableCell>
-                                    <TableCell sx={{ maxWidth: 200 }}>
-                                        <Typography variant="body2" noWrap title={req.description}>
-                                            {req.description}
-                                        </Typography>
-                                    </TableCell>
-                                    <TableCell>
-                                        {new Date(req.createdAt).toLocaleDateString()}
-                                    </TableCell>
-                                    <TableCell>
-                                        <Chip label={req.status} color={statusChipColor(req.status) as any} size="small" />
-                                    </TableCell>
-                                    <TableCell align="right">
-                                        {req.status === 'PENDING' && canProcessRequests && (
-                                            <Stack direction="row" spacing={1} justifyContent="flex-end">
-                                                <Button
-                                                    variant="contained"
-                                                    color="success"
-                                                    size="small"
-                                                    startIcon={<CheckCircleIcon />}
-                                                    onClick={() => openProcessDialog(req)}
-                                                >
-                                                    Process
-                                                </Button>
-                                                <Button
-                                                    variant="outlined"
-                                                    color="error"
-                                                    size="small"
-                                                    startIcon={<CancelIcon />}
-                                                    onClick={() => setRejectDialog({ open: true, request: req })}
-                                                >
-                                                    Reject
-                                                </Button>
-                                            </Stack>
-                                        )}
-                                    </TableCell>
-                                </TableRow>
-                            ))}
-                        </TableBody>
-                    </Table>
-                </TableContainer>
+                <>
+                    {/* Mobile cards */}
+                    <div className="md:hidden flex flex-col gap-3">
+                        {requests.map(req => (
+                            <div key={req.id} className="rounded-xl border border-border bg-card p-4">
+                                <div className="flex justify-between items-start mb-2">
+                                    <p className="font-bold text-foreground">{req.requesterName}</p>
+                                    <Badge variant={statusBadgeVariant(req.status)}>{req.status}</Badge>
+                                </div>
+                                <p className="text-sm text-muted-foreground">{req.churchName}</p>
+                                <p className="text-sm mt-1">Amount: <strong>GH₵ {formatNumber(Number(req.amount))}</strong></p>
+                                <p className="text-sm text-muted-foreground mt-0.5 mb-2">{req.description}</p>
+                                <p className="text-xs text-muted-foreground/70">{new Date(req.createdAt).toLocaleDateString()}</p>
+                                {req.status === 'PENDING' && canProcessRequests && (
+                                    <div className="flex gap-2 mt-3">
+                                        <Button size="sm" className="bg-success text-success-foreground hover:bg-success/90" onClick={() => openProcessDialog(req)}><CheckCircle className="mr-1 h-3.5 w-3.5" />Process</Button>
+                                        <Button size="sm" variant="outline" className="border-destructive/30 text-destructive hover:bg-destructive/5" onClick={() => setRejectDialog({ open: true, request: req })}><XCircle className="mr-1 h-3.5 w-3.5" />Reject</Button>
+                                    </div>
+                                )}
+                            </div>
+                        ))}
+                    </div>
+
+                    {/* Desktop table */}
+                    <div className="hidden md:block rounded-xl border border-border bg-card overflow-hidden">
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-sm">
+                                <thead>
+                                    <tr className="bg-muted/30">
+                                        {['Requester', 'Church', 'Momo', 'Amount', 'Reason', 'Date', 'Status', ''].map(h => (
+                                            <th key={h} className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-[0.06em] text-muted-foreground whitespace-nowrap">{h}</th>
+                                        ))}
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {requests.map(req => (
+                                        <tr key={req.id} className="border-t border-border hover:bg-muted/10">
+                                            <td className="px-4 py-3 font-semibold text-foreground">{req.requesterName}</td>
+                                            <td className="px-4 py-3 text-muted-foreground">{req.churchName}</td>
+                                            <td className="px-4 py-3"><p className="text-foreground">{req.momoName}</p><p className="text-xs text-muted-foreground">{req.momoNumber}</p></td>
+                                            <td className="px-4 py-3 font-semibold">GH₵ {formatNumber(Number(req.amount))}</td>
+                                            <td className="px-4 py-3 max-w-[200px]"><p className="truncate text-muted-foreground">{req.description}</p></td>
+                                            <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">{new Date(req.createdAt).toLocaleDateString()}</td>
+                                            <td className="px-4 py-3"><Badge variant={statusBadgeVariant(req.status)}>{req.status}</Badge></td>
+                                            <td className="px-4 py-3">
+                                                {req.status === 'PENDING' && canProcessRequests && (
+                                                    <div className="flex gap-2 justify-end">
+                                                        <Button size="sm" className="bg-success text-success-foreground hover:bg-success/90" onClick={() => openProcessDialog(req)}><CheckCircle className="mr-1 h-3.5 w-3.5" />Process</Button>
+                                                        <Button size="sm" variant="outline" className="border-destructive/30 text-destructive hover:bg-destructive/5" onClick={() => setRejectDialog({ open: true, request: req })}><XCircle className="mr-1 h-3.5 w-3.5" />Reject</Button>
+                                                    </div>
+                                                )}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </>
             )}
 
-            {/* Process Dialog */}
-            <Dialog open={processDialog.open} onClose={closeProcessDialog} maxWidth="sm" fullWidth>
-                <DialogTitle fontWeight={700}>Process Expense Request</DialogTitle>
-                <DialogContent dividers>
+            {/* Process dialog */}
+            <Dialog open={processDialog.open} onOpenChange={v => { if (!v) closeProcessDialog(); }}>
+                <DialogContent className="max-w-lg">
+                    <DialogHeader><DialogTitle className="font-bold">Process Expense Request</DialogTitle></DialogHeader>
                     {processDialog.request && (
-                        <Box>
-                            <Typography variant="subtitle2" color="text.secondary" gutterBottom>Request Details</Typography>
-                            <Paper variant="outlined" sx={{ p: 2, mb: 3, bgcolor: 'action.hover' }}>
-                                <Stack spacing={0.5}>
-                                    <Box sx={{ display: 'flex', gap: 1 }}><Typography variant="body2" color="text.secondary" minWidth={100}>Requester:</Typography><Typography variant="body2" fontWeight={600}>{processDialog.request.requesterName}</Typography></Box>
-                                    <Box sx={{ display: 'flex', gap: 1 }}><Typography variant="body2" color="text.secondary" minWidth={100}>Church:</Typography><Typography variant="body2">{processDialog.request.churchName}</Typography></Box>
-                                    <Box sx={{ display: 'flex', gap: 1 }}><Typography variant="body2" color="text.secondary" minWidth={100}>Momo Name:</Typography><Typography variant="body2">{processDialog.request.momoName}</Typography></Box>
-                                    <Box sx={{ display: 'flex', gap: 1 }}><Typography variant="body2" color="text.secondary" minWidth={100}>Momo No.:</Typography><Typography variant="body2">{processDialog.request.momoNumber}</Typography></Box>
-                                    <Box sx={{ display: 'flex', gap: 1 }}><Typography variant="body2" color="text.secondary" minWidth={100}>Amount:</Typography><Typography variant="body2" fontWeight={700} color="error.main">GH₵ {formatNumber(Number(processDialog.request.amount))}</Typography></Box>
-                                    <Box sx={{ display: 'flex', gap: 1 }}><Typography variant="body2" color="text.secondary" minWidth={100}>Reason:</Typography><Typography variant="body2">{processDialog.request.description}</Typography></Box>
-                                </Stack>
-                            </Paper>
-
-                            <Divider sx={{ mb: 2 }} />
-                            <Typography variant="subtitle2" color="text.secondary" gutterBottom>
-                                Select the church/department account to deduct from
-                            </Typography>
-
-                            <TextField
-                                select
-                                label="Church / Department Account"
-                                fullWidth
-                                required
-                                value={selectedDeptId}
-                                onChange={e => handleDeptChange(e.target.value)}
-                                disabled={loadingDepts}
-                                helperText={loadingDepts ? 'Loading departments...' : ''}
-                                sx={{ mb: 2 }}
-                            >
-                                {departments.map(d => (
-                                    <MenuItem key={d.id} value={d.id}>
-                                        {d.name} <Typography component="span" variant="caption" color="text.secondary" sx={{ ml: 1 }}>({d.level})</Typography>
-                                    </MenuItem>
-                                ))}
-                            </TextField>
-
-                            {/* Balance display */}
+                        <div className="space-y-4">
+                            <div>
+                                <p className="text-xs font-semibold uppercase tracking-[0.07em] text-muted-foreground mb-2">Request Details</p>
+                                <div className="rounded-lg border border-border bg-muted/20 p-3 space-y-1.5 text-sm">
+                                    {[
+                                        ['Requester', processDialog.request.requesterName],
+                                        ['Church', processDialog.request.churchName],
+                                        ['Momo Name', processDialog.request.momoName],
+                                        ['Momo No.', processDialog.request.momoNumber],
+                                        ['Reason', processDialog.request.description],
+                                    ].map(([k, v]) => (
+                                        <div key={k} className="flex gap-2"><span className="min-w-[100px] text-muted-foreground">{k}:</span><span className="font-medium text-foreground">{v}</span></div>
+                                    ))}
+                                    <div className="flex gap-2"><span className="min-w-[100px] text-muted-foreground">Amount:</span><span className="font-bold text-destructive">GH₵ {formatNumber(Number(processDialog.request.amount))}</span></div>
+                                </div>
+                            </div>
+                            <div className="border-t border-border pt-3">
+                                <p className="text-xs font-semibold uppercase tracking-[0.07em] text-muted-foreground mb-3">Select account to deduct from</p>
+                                <Select value={selectedDeptId} onValueChange={v => { setSelectedDeptId(v); if (v) fetchBalance(v); }} disabled={loadingDepts}>
+                                    <SelectTrigger><SelectValue placeholder={loadingDepts ? 'Loading...' : 'Church / Department Account'} /></SelectTrigger>
+                                    <SelectContent>
+                                        {departments.map(d => <SelectItem key={d.id} value={d.id}>{d.name} ({d.level})</SelectItem>)}
+                                    </SelectContent>
+                                </Select>
+                            </div>
                             {selectedDeptId && (
-                                <Box sx={{ mb: 2 }}>
-                                    {loadingBalance ? (
-                                        <Skeleton variant="text" width={200} />
-                                    ) : deptBalance !== null ? (
-                                        <Alert severity={noBalance || insufficientBalance ? 'error' : 'info'}>
-                                            {noBalance
-                                                ? 'This department has no positive balance. Cannot process this request.'
-                                                : insufficientBalance
-                                                    ? `Insufficient balance. Available: GH₵ ${formatNumber(deptBalance)}. Requested: GH₵ ${formatNumber(requestAmount)}.`
-                                                    : `Available balance: GH₵ ${formatNumber(deptBalance)}`
-                                            }
-                                        </Alert>
-                                    ) : null}
-                                </Box>
+                                loadingBalance ? <Skeleton className="h-10 w-full" /> :
+                                deptBalance !== null ? (
+                                    <Alert variant={noBalance || insufficientBalance ? 'destructive' : 'default'}>
+                                        <AlertDescription>
+                                            {noBalance ? 'This department has no positive balance. Cannot process this request.'
+                                                : insufficientBalance ? `Insufficient balance. Available: GH₵ ${formatNumber(deptBalance)}. Requested: GH₵ ${formatNumber(requestAmount)}.`
+                                                : `Available balance: GH₵ ${formatNumber(deptBalance)}`}
+                                        </AlertDescription>
+                                    </Alert>
+                                ) : null
                             )}
-
-                            {processError && (
-                                <Alert severity="error">{processError}</Alert>
-                            )}
-                        </Box>
+                            {processError && <Alert variant="destructive"><AlertDescription>{processError}</AlertDescription></Alert>}
+                        </div>
                     )}
+                    <DialogFooter>
+                        <Button variant="outline" onClick={closeProcessDialog} disabled={processing}>Cancel</Button>
+                        <Button className="bg-success text-success-foreground hover:bg-success/90" onClick={handleProcess} disabled={processing || !selectedDeptId || noBalance || insufficientBalance || loadingBalance}>
+                            {processing ? <><Loader2 className="mr-1.5 h-4 w-4 animate-spin" />Processing...</> : <><CheckCircle className="mr-1.5 h-4 w-4" />Confirm &amp; Create Request</>}
+                        </Button>
+                    </DialogFooter>
                 </DialogContent>
-                <DialogActions sx={{ p: 2 }}>
-                    <Button onClick={closeProcessDialog} disabled={processing}>Cancel</Button>
-                    <Button
-                        variant="contained"
-                        color="success"
-                        onClick={handleProcess}
-                        disabled={processing || !selectedDeptId || noBalance || insufficientBalance || loadingBalance}
-                        startIcon={processing ? <CircularProgress size={16} color="inherit" /> : <CheckCircleIcon />}
-                    >
-                        {processing ? 'Processing...' : 'Confirm & Create Request'}
-                    </Button>
-                </DialogActions>
             </Dialog>
 
-            {/* Reject Dialog */}
-            <Dialog open={rejectDialog.open} onClose={() => !rejecting && setRejectDialog({ open: false, request: null })} maxWidth="xs" fullWidth>
-                <DialogTitle fontWeight={700}>Reject Request</DialogTitle>
-                <DialogContent dividers>
-                    <Typography variant="body2">
-                        Are you sure you want to reject the expense request from <strong>{rejectDialog.request?.requesterName}</strong> ({rejectDialog.request?.churchName}) for <strong>GH₵ {rejectDialog.request ? formatNumber(Number(rejectDialog.request.amount)) : ''}</strong>?
-                    </Typography>
+            {/* Reject dialog */}
+            <Dialog open={rejectDialog.open} onOpenChange={v => { if (!rejecting) setRejectDialog(p => ({ ...p, open: v })); }}>
+                <DialogContent className="max-w-sm">
+                    <DialogHeader><DialogTitle className="font-bold">Reject Request</DialogTitle></DialogHeader>
+                    <p className="text-sm text-muted-foreground">
+                        Are you sure you want to reject the expense request from <strong className="text-foreground">{rejectDialog.request?.requesterName}</strong> ({rejectDialog.request?.churchName}) for <strong className="text-foreground">GH₵ {rejectDialog.request ? formatNumber(Number(rejectDialog.request.amount)) : ''}</strong>?
+                    </p>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setRejectDialog({ open: false, request: null })} disabled={rejecting}>Cancel</Button>
+                        <Button variant="destructive" onClick={handleReject} disabled={rejecting}>
+                            {rejecting ? <><Loader2 className="mr-1.5 h-4 w-4 animate-spin" />Rejecting...</> : <><XCircle className="mr-1.5 h-4 w-4" />Reject</>}
+                        </Button>
+                    </DialogFooter>
                 </DialogContent>
-                <DialogActions sx={{ p: 2 }}>
-                    <Button onClick={() => setRejectDialog({ open: false, request: null })} disabled={rejecting}>Cancel</Button>
-                    <Button
-                        variant="contained"
-                        color="error"
-                        onClick={handleReject}
-                        disabled={rejecting}
-                        startIcon={rejecting ? <CircularProgress size={16} color="inherit" /> : <CancelIcon />}
-                    >
-                        {rejecting ? 'Rejecting...' : 'Reject'}
-                    </Button>
-                </DialogActions>
             </Dialog>
-        </Box>
+        </div>
     );
 }

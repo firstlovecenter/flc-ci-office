@@ -1,44 +1,28 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import {
-    Dialog,
-    DialogTitle,
-    DialogContent,
-    DialogActions,
-    TextField,
-    Button,
-    MenuItem,
-    FormControl,
-    InputLabel,
-    Select,
-    Alert,
-    InputAdornment,
-    Box,
-    Chip,
-    Typography,
-} from '@mui/material';
+import { Loader2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
 import { formatNumber, formatDepartmentLevel } from '@/lib/utils';
 
 type TransactionType = 'INCOME' | 'EXPENSE';
 
+const INCOME_PRESETS = ['Tithe', 'Offering', 'Donation', 'Pledge', 'Seed', 'Special Offering'];
+const EXPENSE_PRESETS = ['HR', 'Ministry expense', 'Bussing', 'Construction'];
+
 interface EditTransactionDialogProps {
-    open: boolean;
-    transaction: any;
-    onClose: () => void;
-    onSave: () => void;
-    isSuperAdmin: boolean;
-    userRole?: string;
+    open: boolean; transaction: any; onClose: () => void; onSave: () => void;
+    isSuperAdmin: boolean; userRole?: string;
 }
 
-export default function EditTransactionDialog({
-    open,
-    transaction,
-    onClose,
-    onSave,
-    isSuperAdmin,
-    userRole,
-}: EditTransactionDialogProps) {
+export default function EditTransactionDialog({ open, transaction, onClose, onSave, isSuperAdmin, userRole }: EditTransactionDialogProps) {
     const [type, setType] = useState<TransactionType>('INCOME');
     const [amount, setAmount] = useState('');
     const [description, setDescription] = useState('');
@@ -52,366 +36,145 @@ export default function EditTransactionDialog({
     const [exchangeRate, setExchangeRate] = useState<number | null>(null);
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
-    
-    // Check if user is a leader (not an admin)
-    const isLeader = userRole && !['SUPERADMIN', 'DENOMINATION_ADMIN', 'OVERSIGHT_ADMIN', 'CAMPUS_ADMIN', 'STREAM_ADMIN', 'COUNCIL_ADMIN'].includes(userRole);
 
+    const adminRoles = ['SUPERADMIN', 'DENOMINATION_ADMIN', 'OVERSIGHT_ADMIN', 'CAMPUS_ADMIN', 'STREAM_ADMIN', 'COUNCIL_ADMIN'];
+    const isLeader = userRole && !adminRoles.includes(userRole);
+    const locked = transaction?.locked && !isSuperAdmin;
 
     useEffect(() => {
-        if (transaction) {
-            setType(transaction.type);
-            setAmount(transaction.amount.toString());
-            
-            // Parse description for preset
-            const desc = transaction.description || '';
-            const incomePresets = ['Tithe', 'Offering', 'Donation', 'Pledge', 'Seed', 'Special Offering'];
-            const expensePresets = ['HR', 'Ministry expense', 'Bussing', 'Construction'];
-            const allPresets = [...incomePresets, ...expensePresets];
-            
-            let foundPreset = false;
-            for (const preset of allPresets) {
-                if (desc === preset) {
-                    setDescriptionPreset(preset);
-                    setDescription('');
-                    foundPreset = true;
-                    break;
-                } else if (desc.startsWith(preset + ' - ')) {
-                    setDescriptionPreset(preset);
-                    setDescription(desc.substring(preset.length + 3));
-                    foundPreset = true;
-                    break;
-                }
-            }
-            if (!foundPreset) {
-                setDescriptionPreset('');
-                setDescription(desc);
-            }
-            
-            setDepartmentId(transaction.departmentId);
-            setCurrencyId(transaction.currencyId || transaction.currency?.id || '');
-            // Set date from transaction createdAt or use current date
-            if (transaction.createdAt) {
-                const dateObj = new Date(transaction.createdAt);
-                setDate(dateObj.toISOString().split('T')[0]);
-            } else {
-                setDate(new Date().toISOString().split('T')[0]);
-            }
-            // If transaction has an exchange rate, set it
-            if (transaction.exchangeRate) {
-                setExchangeRate(parseFloat(transaction.exchangeRate.toString()));
-            } else {
-                setExchangeRate(null);
-            }
+        if (!transaction) return;
+        setType(transaction.type); setAmount(transaction.amount.toString());
+        const desc = transaction.description || '';
+        const allPresets = [...INCOME_PRESETS, ...EXPENSE_PRESETS];
+        let found = false;
+        for (const p of allPresets) {
+            if (desc === p) { setDescriptionPreset(p); setDescription(''); found = true; break; }
+            if (desc.startsWith(p + ' - ')) { setDescriptionPreset(p); setDescription(desc.substring(p.length + 3)); found = true; break; }
         }
+        if (!found) { setDescriptionPreset(''); setDescription(desc); }
+        setDepartmentId(transaction.departmentId);
+        setCurrencyId(transaction.currencyId || transaction.currency?.id || '');
+        setDate(transaction.createdAt ? new Date(transaction.createdAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]);
+        setExchangeRate(transaction.exchangeRate ? parseFloat(transaction.exchangeRate.toString()) : null);
     }, [transaction]);
 
-    useEffect(() => {
-        if (open) {
-            fetchDepartments();
-            fetchCurrencies();
-            fetchUserProfile();
-        }
-    }, [open]);
+    useEffect(() => { if (open) { fetchDepartments(); fetchCurrencies(); fetchUserProfile(); } }, [open]);
 
-    // Separate effect to fetch exchange rate when currency or base currency changes
     useEffect(() => {
         if (!currencyId || !baseCurrency) return;
-        
-        // If currency is same as base, no conversion needed
-        if (currencyId === baseCurrency.id) {
-            setExchangeRate(null);
-            return;
-        }
-        
-        // If transaction already has the same currency and exchange rate, use it
-        if (transaction?.currencyId === currencyId && transaction?.exchangeRate) {
-            setExchangeRate(parseFloat(transaction.exchangeRate.toString()));
-            return;
-        }
-        
-        // Otherwise fetch the exchange rate
+        if (currencyId === baseCurrency.id) { setExchangeRate(null); return; }
+        if (transaction?.currencyId === currencyId && transaction?.exchangeRate) { setExchangeRate(parseFloat(transaction.exchangeRate.toString())); return; }
         fetchExchangeRate(currencyId, baseCurrency.id);
     }, [currencyId, baseCurrency, transaction]);
 
-    const fetchDepartments = async () => {
-        const response = await fetch('/api/departments?all=true');
-        if (response.ok) {
-            const data = await response.json();
-            setDepartments(data);
-        }
-    };
-
-    const fetchCurrencies = async () => {
-        const response = await fetch('/api/currencies?active=true');
-        if (response.ok) {
-            const data = await response.json();
-            setCurrencies(data);
-        }
-    };
-
+    const fetchDepartments = async () => { const r = await fetch('/api/departments?all=true'); if (r.ok) setDepartments(await r.json()); };
+    const fetchCurrencies = async () => { const r = await fetch('/api/currencies?active=true'); if (r.ok) setCurrencies(await r.json()); };
     const fetchUserProfile = async () => {
-        try {
-            // Use the /api/users/me endpoint which handles base currency logic
-            const response = await fetch('/api/users/me');
-            if (response.ok) {
-                const profile = await response.json();
-                
-                // Set the base currency from the profile (already computed by the API)
-                if (profile.baseCurrency) {
-                    setBaseCurrency(profile.baseCurrency);
-                    if (!transaction?.currencyId) {
-                        setCurrencyId(profile.baseCurrency.id);
-                    }
-                }
-            }
-        } catch (error) {
-        }
+        try { const r = await fetch('/api/users/me'); if (r.ok) { const p = await r.json(); if (p.baseCurrency) { setBaseCurrency(p.baseCurrency); if (!transaction?.currencyId) setCurrencyId(p.baseCurrency.id); } } } catch {}
     };
-
     const fetchExchangeRate = async (fromId: string, toId: string) => {
         try {
-            // Add timestamp to prevent caching
-            const response = await fetch(`/api/exchange-rates?t=${Date.now()}`, {
-                cache: 'no-store'
-            });
-            if (response.ok) {
-                const rates = await response.json();
-                
-                // Search for exact match: fromId → toId
-                let rate = rates.find((r: any) => 
-                    r.fromCurrency.id === fromId && r.toCurrency.id === toId
-                );
-                
-                if (rate) {
-                    setExchangeRate(parseFloat(rate.rate));
-                    return;
-                }
-                
-                // If not found, try reverse direction and invert the rate
-                rate = rates.find((r: any) => 
-                    r.fromCurrency.id === toId && r.toCurrency.id === fromId
-                );
-                
-                if (rate) {
-                    const invertedRate = 1 / parseFloat(rate.rate);
-                    setExchangeRate(invertedRate);
-                    return;
-                }
-                
+            const r = await fetch(`/api/exchange-rates?t=${Date.now()}`, { cache: 'no-store' });
+            if (r.ok) {
+                const rates = await r.json();
+                let rate = rates.find((r: any) => r.fromCurrency.id === fromId && r.toCurrency.id === toId);
+                if (rate) { setExchangeRate(parseFloat(rate.rate)); return; }
+                rate = rates.find((r: any) => r.fromCurrency.id === toId && r.toCurrency.id === fromId);
+                if (rate) { setExchangeRate(1 / parseFloat(rate.rate)); return; }
                 setExchangeRate(null);
             }
-        } catch (error) {
-            console.error('Failed to fetch exchange rate:', error);
-        }
+        } catch {}
     };
 
     const handleSubmit = async () => {
-        setLoading(true);
-        setError('');
-
+        setLoading(true); setError('');
         try {
-            // Combine preset and custom description
-            const finalDescription = descriptionPreset
-                ? (description ? `${descriptionPreset} - ${description}` : descriptionPreset)
-                : description;
-
-            const response = await fetch(`/api/transactions/${transaction.id}`, {
-                method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    type,
-                    amount: parseFloat(amount),
-                    description: finalDescription,
-                    departmentId,
-                    currencyId: currencyId || null,
-                    exchangeRate: exchangeRate || null,
-                    date: date ? new Date(date).toISOString() : undefined,
-                }),
-            });
-
-            if (!response.ok) {
-                const data = await response.json();
-                throw new Error(data.error || 'Failed to update transaction');
-            }
-
-            onSave();
-            onClose();
-        } catch (err: any) {
-            setError(err.message || 'Error updating transaction');
-        } finally {
-            setLoading(false);
-        }
+            const finalDesc = descriptionPreset ? (description ? `${descriptionPreset} - ${description}` : descriptionPreset) : description;
+            const r = await fetch(`/api/transactions/${transaction.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type, amount: parseFloat(amount), description: finalDesc, departmentId, currencyId: currencyId || null, exchangeRate: exchangeRate || null, date: date ? new Date(date).toISOString() : undefined }) });
+            if (!r.ok) { const d = await r.json(); throw new Error(d.error || 'Failed to update transaction'); }
+            onSave(); onClose();
+        } catch (e: any) { setError(e.message || 'Error updating transaction'); }
+        finally { setLoading(false); }
     };
 
-    const hasTransaction = Boolean(transaction?.id);
+    const selectedCurrency = currencies.find(c => c.id === currencyId);
 
     return (
-        <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
-            <DialogTitle>
-                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    Edit transaction
-                    {transaction?.locked && isSuperAdmin && (
-                        <Chip
-                            label="Superadmin override"
-                            color="warning"
-                            size="small"
-                            sx={{ textTransform: 'none', letterSpacing: 0 }}
-                        />
-                    )}
-                </Box>
-            </DialogTitle>
-            <DialogContent>
-                {error && (
-                    <Alert severity="error" sx={{ mb: 3 }}>
-                        {error}
-                    </Alert>
-                )}
+        <Dialog open={open} onOpenChange={v => { if (!v) onClose(); }}>
+            <DialogContent className="max-w-sm max-h-[90vh] overflow-y-auto">
+                <DialogHeader>
+                    <DialogTitle className="flex items-center gap-2">
+                        Edit transaction
+                        {transaction?.locked && isSuperAdmin && <Badge variant="outline" className="text-xs bg-warning/10 text-warning border-warning/25">Superadmin override</Badge>}
+                    </DialogTitle>
+                </DialogHeader>
+                <div className="flex flex-col gap-4 py-2">
+                    {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
+                    {!transaction?.id && <Alert variant="warning"><AlertDescription>Transaction details are unavailable. Close this dialog and reopen it.</AlertDescription></Alert>}
+                    {locked && <Alert variant="warning"><AlertDescription>This transaction is locked. Only superadmins can edit it.</AlertDescription></Alert>}
 
-                {!hasTransaction && (
-                    <Alert severity="warning" sx={{ mb: 3 }}>
-                        Transaction details are unavailable. Close this dialog and reopen it.
-                    </Alert>
-                )}
+                    <div className="space-y-1.5">
+                        <Label>Church <span className="text-destructive">*</span></Label>
+                        <Select value={departmentId} onValueChange={setDepartmentId} disabled={locked} required>
+                            <SelectTrigger><SelectValue placeholder="Select church" /></SelectTrigger>
+                            <SelectContent>{departments.map(d => <SelectItem key={d.id} value={d.id}>{d.name} ({formatDepartmentLevel(d.level)})</SelectItem>)}</SelectContent>
+                        </Select>
+                    </div>
 
-                {transaction?.locked && !isSuperAdmin && (
-                    <Alert severity="warning" sx={{ mb: 3 }}>
-                        This transaction is locked. Only superadmins can edit it.
-                    </Alert>
-                )}
+                    <div className="space-y-1.5">
+                        <Label>Type</Label>
+                        <Select value={type} onValueChange={v => setType(v as TransactionType)} disabled={locked}>
+                            <SelectTrigger><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                                {!isLeader && <SelectItem value="INCOME">Income</SelectItem>}
+                                <SelectItem value="EXPENSE">Expense</SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
 
-                <FormControl fullWidth sx={{ mb: 3, mt: 2 }}>
-                    <InputLabel>Church</InputLabel>
-                    <Select
-                        value={departmentId}
-                        label="Church"
-                        onChange={(e) => setDepartmentId(e.target.value)}
-                        disabled={transaction?.locked && !isSuperAdmin}
-                        required
-                    >
-                        {departments
-                            .map((dept) => (
-                            <MenuItem key={dept.id} value={dept.id}>
-                                {dept.name} ({formatDepartmentLevel(dept.level)})
-                            </MenuItem>
-                        ))}
-                    </Select>
-                </FormControl>
+                    <div className="space-y-1.5">
+                        <Label>Currency <span className="text-destructive">*</span></Label>
+                        <Select value={currencyId} onValueChange={setCurrencyId} disabled={locked} required>
+                            <SelectTrigger><SelectValue placeholder="Select currency" /></SelectTrigger>
+                            <SelectContent>{currencies.map(c => <SelectItem key={c.id} value={c.id}>{c.code} — {c.name} ({c.symbol}){c.isBase ? ' [Base]' : ''}</SelectItem>)}</SelectContent>
+                        </Select>
+                    </div>
 
-                <FormControl fullWidth sx={{ mb: 3 }}>
-                    <InputLabel>Type</InputLabel>
-                    <Select
-                        value={type}
-                        label="Type"
-                        onChange={(e) => setType(e.target.value as TransactionType)}
-                        disabled={transaction?.locked && !isSuperAdmin}
-                    >
-                        {!isLeader && <MenuItem value="INCOME">Income</MenuItem>}
-                        <MenuItem value="EXPENSE">Expense</MenuItem>
-                    </Select>
-                </FormControl>
+                    <div className="space-y-1.5">
+                        <Label>Amount <span className="text-destructive">*</span></Label>
+                        <div className="relative">
+                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-medium text-muted-foreground">{selectedCurrency?.symbol || '₵'}</span>
+                            <Input type="number" value={amount} onChange={e => setAmount(e.target.value)} disabled={locked} className="pl-8" />
+                        </div>
+                        {exchangeRate && amount && <p className="text-xs text-muted-foreground">≈ {baseCurrency?.symbol}{formatNumber(parseFloat(amount) * exchangeRate)} ({baseCurrency?.code})</p>}
+                    </div>
 
-                <FormControl fullWidth sx={{ mb: 3 }}>
-                    <InputLabel>Currency</InputLabel>
-                    <Select
-                        value={currencyId}
-                        label="Currency"
-                        onChange={(e) => setCurrencyId(e.target.value)}
-                        required
-                        disabled={transaction?.locked && !isSuperAdmin}
-                    >
-                        {currencies.map((currency) => (
-                            <MenuItem key={currency.id} value={currency.id}>
-                                {currency.code} - {currency.name} ({currency.symbol})
-                                {currency.isBase && ' [Base]'}
-                            </MenuItem>
-                        ))}
-                    </Select>
-                </FormControl>
+                    <div className="space-y-1.5">
+                        <Label>Description Type</Label>
+                        <Select value={descriptionPreset} onValueChange={setDescriptionPreset} disabled={locked}>
+                            <SelectTrigger><SelectValue placeholder="Custom" /></SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="">Custom</SelectItem>
+                                {(type === 'EXPENSE' ? EXPENSE_PRESETS : INCOME_PRESETS).map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}
+                            </SelectContent>
+                        </Select>
+                    </div>
 
-                <TextField
-                    fullWidth
-                    label="Amount"
-                    type="number"
-                    value={amount}
-                    onChange={(e) => setAmount(e.target.value)}
-                    required
-                    sx={{ mb: 3 }}
-                    disabled={transaction?.locked && !isSuperAdmin}
-                    InputProps={{
-                        startAdornment: (
-                            <InputAdornment position="start">
-                                {currencies.find(c => c.id === currencyId)?.symbol || '₵'}
-                            </InputAdornment>
-                        ),
-                    }}
-                    helperText={
-                        exchangeRate && amount
-                            ? `≈ ${baseCurrency?.symbol}${formatNumber(parseFloat(amount) * exchangeRate)} (${baseCurrency?.code})`
-                            : ''
-                    }
-                />
+                    <div className="space-y-1.5">
+                        <Label>{descriptionPreset ? 'Additional Details (Optional)' : 'Description'}</Label>
+                        <Textarea rows={3} value={description} onChange={e => setDescription(e.target.value)} required={!descriptionPreset && type === 'EXPENSE'} disabled={locked} placeholder={descriptionPreset ? 'Optional — add more details if needed' : type === 'INCOME' ? 'Optional for income' : 'Required for expenses'} />
+                    </div>
 
-                <FormControl fullWidth sx={{ mb: 3 }}>
-                    <InputLabel>Description Type</InputLabel>
-                    <Select
-                        value={descriptionPreset}
-                        label="Description Type"
-                        onChange={(e) => setDescriptionPreset(e.target.value)}
-                        disabled={transaction?.locked && !isSuperAdmin}
-                    >
-                        <MenuItem value="">Custom</MenuItem>
-                        {type === 'EXPENSE' && <MenuItem value="HR">HR</MenuItem>}
-                        {type === 'EXPENSE' && <MenuItem value="Ministry expense">Ministry expense</MenuItem>}
-                        {type === 'EXPENSE' && <MenuItem value="Bussing">Bussing</MenuItem>}
-                        {type === 'EXPENSE' && <MenuItem value="Construction">Construction</MenuItem>}
-                        {type === 'INCOME' && <MenuItem value="Tithe">Tithe</MenuItem>}
-                        {type === 'INCOME' && <MenuItem value="Offering">Offering</MenuItem>}
-                        {type === 'INCOME' && <MenuItem value="Donation">Donation</MenuItem>}
-                        {type === 'INCOME' && <MenuItem value="Pledge">Pledge</MenuItem>}
-                        {type === 'INCOME' && <MenuItem value="Seed">Seed</MenuItem>}
-                        {type === 'INCOME' && <MenuItem value="Special Offering">Special Offering</MenuItem>}
-                    </Select>
-                </FormControl>
-
-                <TextField
-                    fullWidth
-                    label={descriptionPreset ? "Additional Details (Optional)" : "Description"}
-                    multiline
-                    rows={3}
-                    value={description}
-                    onChange={(e) => setDescription(e.target.value)}
-                    required={!descriptionPreset && type === 'EXPENSE'}
-                    sx={{ mb: 3 }}
-                    disabled={transaction?.locked && !isSuperAdmin}
-                    helperText={descriptionPreset ? 'Optional - Add more details if needed' : (type === 'INCOME' ? 'Optional for income transactions' : 'Required for expenses')}
-                />
-
-                <TextField
-                    fullWidth
-                    label="Transaction Date"
-                    type="date"
-                    value={date}
-                    onChange={(e) => setDate(e.target.value)}
-                    required
-                    sx={{ mb: 3 }}
-                    disabled={transaction?.locked && !isSuperAdmin}
-                    InputLabelProps={{ shrink: true }}
-                />
+                    <div className="space-y-1.5">
+                        <Label>Transaction Date <span className="text-destructive">*</span></Label>
+                        <Input type="date" value={date} onChange={e => setDate(e.target.value)} disabled={locked} required />
+                    </div>
+                </div>
+                <DialogFooter className="gap-2">
+                    <Button variant="outline" onClick={onClose} disabled={loading}>Cancel</Button>
+                    <Button onClick={handleSubmit} disabled={!transaction?.id || loading || locked}>{loading ? <><Loader2 className="mr-1.5 h-4 w-4 animate-spin" />Saving…</> : 'Save Changes'}</Button>
+                </DialogFooter>
             </DialogContent>
-            <DialogActions sx={{ px: 3, pb: 3 }}>
-                <Button onClick={onClose} disabled={loading}>
-                    Cancel
-                </Button>
-                <Button
-                    onClick={handleSubmit}
-                    variant="contained"
-                    disabled={!hasTransaction || loading || (transaction?.locked && !isSuperAdmin)}
-                >
-                    {loading ? 'Saving...' : 'Save Changes'}
-                </Button>
-            </DialogActions>
         </Dialog>
     );
 }

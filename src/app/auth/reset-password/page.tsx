@@ -2,26 +2,16 @@
 
 import { useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import {
-    TextField,
-    Button,
-    Typography,
-    Box,
-    Alert,
-    InputAdornment,
-    IconButton,
-    Link as MuiLink,
-    useTheme,
-} from '@mui/material';
 import Link from 'next/link';
 import Image from 'next/image';
-import Visibility from '@mui/icons-material/Visibility';
-import VisibilityOff from '@mui/icons-material/VisibilityOff';
-import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import { Eye, EyeOff, CheckCircle } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 function ResetPasswordForm() {
     const router = useRouter();
-    const theme = useTheme();
     const searchParams = useSearchParams();
     const urlToken = searchParams.get('token');
     const urlCode = searchParams.get('code');
@@ -70,328 +60,167 @@ function ResetPasswordForm() {
 
     if (success) {
         return (
-            <Box
-                sx={{
-                    minHeight: '100vh',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    px: { xs: 3, sm: 6 },
-                    py: { xs: 5, sm: 8 },
-                    bgcolor: 'background.default',
-                }}
-            >
-                <Box sx={{ width: '100%', maxWidth: 420, textAlign: 'center' }}>
-                    <Box
-                        sx={{
-                            width: 56,
-                            height: 56,
-                            borderRadius: '50%',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            bgcolor: 'success.light',
-                            color: 'success.main',
-                            mx: 'auto',
-                            mb: 3,
-                        }}
-                    >
-                        <CheckCircleIcon sx={{ fontSize: 28 }} />
-                    </Box>
-                    <Typography
-                        component="h1"
-                        sx={{
-                            fontFamily: theme.typography.h2.fontFamily,
-                            fontSize: { xs: '1.75rem', sm: '2rem' },
-                            fontWeight: 600,
-                            letterSpacing: '-0.025em',
-                            mb: 1.25,
-                        }}
-                    >
+            <div className="min-h-screen flex items-center justify-center px-6 sm:px-12 py-10 sm:py-16 bg-background">
+                <div className="w-full max-w-[420px] text-center">
+                    <div className="w-14 h-14 rounded-full flex items-center justify-center bg-success/10 text-success mx-auto mb-6">
+                        <CheckCircle className="h-7 w-7" />
+                    </div>
+                    <h1 className="text-[1.75rem] sm:text-[2rem] font-semibold tracking-[-0.025em] mb-[5px] text-foreground">
                         Password reset
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary" sx={{ mb: 4 }}>
+                    </h1>
+                    <p className="text-sm text-muted-foreground mb-8">
                         Your password has been changed. Redirecting to sign in&hellip;
-                    </Typography>
+                    </p>
                     <Button
-                        fullWidth
-                        variant="contained"
-                        color="primary"
-                        size="large"
+                        size="lg"
+                        className="w-full font-medium"
                         onClick={() => router.push('/auth/login')}
-                        sx={{ py: 1.5, fontWeight: 500 }}
                     >
                         Go to sign in
                     </Button>
-                </Box>
-            </Box>
+                </div>
+            </div>
         );
     }
 
     return (
-        <Box
-            sx={{
-                minHeight: '100vh',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                px: { xs: 3, sm: 6 },
-                py: { xs: 5, sm: 8 },
-                bgcolor: 'background.default',
-            }}
-        >
-            <Box sx={{ width: '100%', maxWidth: 420 }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 5 }}>
-                    <Box
-                        sx={{
-                            width: 36,
-                            height: 36,
-                            borderRadius: 1.25,
-                            border: `1px solid ${theme.palette.divider}`,
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            bgcolor: 'background.paper',
-                            overflow: 'hidden',
-                        }}
-                    >
+        <div className="min-h-screen flex items-center justify-center px-6 sm:px-12 py-10 sm:py-16 bg-background">
+            <div className="w-full max-w-[420px]">
+                {/* Brand */}
+                <div className="flex items-center gap-3 mb-10">
+                    <div className="w-9 h-9 rounded-[5px] border border-border flex items-center justify-center overflow-hidden bg-card">
                         <Image src="/flc-logo.webp" alt="CI Office" width={22} height={22} />
-                    </Box>
-                    <Box>
-                        <Typography
-                            sx={{
-                                fontFamily: theme.typography.h3.fontFamily,
-                                fontSize: '1.0625rem',
-                                fontWeight: 600,
-                                letterSpacing: '-0.02em',
-                            }}
-                        >
-                            CI Office
-                        </Typography>
-                        <Typography
-                            sx={{
-                                fontSize: '0.625rem',
-                                fontWeight: 600,
-                                letterSpacing: '0.18em',
-                                textTransform: 'uppercase',
-                                color: 'primary.main',
-                                lineHeight: 1,
-                            }}
-                        >
+                    </div>
+                    <div>
+                        <p className="text-[1.0625rem] font-semibold tracking-tight text-foreground">CI Office</p>
+                        <p className="text-[0.625rem] font-semibold tracking-[0.18em] uppercase text-primary leading-none">
                             Accounts
-                        </Typography>
-                    </Box>
-                </Box>
+                        </p>
+                    </div>
+                </div>
 
-                <Typography variant="overline" sx={{ display: 'block', mb: 1.5 }}>
+                <p className="text-[0.6875rem] font-medium tracking-[0.12em] uppercase text-muted-foreground mb-1.5">
                     Account recovery
-                </Typography>
-                <Typography
-                    component="h1"
-                    sx={{
-                        fontFamily: theme.typography.h2.fontFamily,
-                        fontSize: { xs: '1.75rem', sm: '2rem' },
-                        fontWeight: 600,
-                        letterSpacing: '-0.025em',
-                        lineHeight: 1.15,
-                        mb: 1.25,
-                    }}
-                >
+                </p>
+                <h1 className="text-[1.75rem] sm:text-[2rem] font-semibold tracking-[-0.025em] leading-[1.15] mb-[5px] text-foreground">
                     Set a new password
-                </Typography>
-                <Typography variant="body2" color="text.secondary" sx={{ mb: 4 }}>
+                </h1>
+                <p className="text-sm text-muted-foreground mb-8">
                     {usingUrlToken
                         ? 'Choose a new password to continue.'
                         : 'Enter the 6-digit code sent to your phone and a new password.'}
-                </Typography>
+                </p>
 
                 {error && (
-                    <Alert severity="error" variant="standard" sx={{ borderRadius: 2, mb: 2 }}>
-                        {error}
+                    <Alert variant="destructive" className="mb-4">
+                        <AlertDescription>{error}</AlertDescription>
                     </Alert>
                 )}
 
-                <Box component="form" onSubmit={handleSubmit} sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                <form onSubmit={handleSubmit} className="flex flex-col gap-4">
                     {!usingUrlToken && (
-                        <Box>
-                            <Typography
-                                component="label"
-                                htmlFor="resetCode"
-                                sx={{
-                                    display: 'block',
-                                    fontSize: '0.75rem',
-                                    fontWeight: 500,
-                                    color: 'text.secondary',
-                                    mb: 0.75,
-                                    letterSpacing: '0.02em',
-                                }}
-                            >
+                        <div className="space-y-1.5">
+                            <Label htmlFor="resetCode" className="text-xs text-muted-foreground tracking-[0.02em]">
                                 Reset code
-                            </Typography>
-                            <TextField
-                                required
-                                fullWidth
+                            </Label>
+                            <Input
                                 id="resetCode"
                                 name="resetCode"
                                 autoComplete="off"
                                 autoFocus
+                                required
                                 value={resetCode}
                                 onChange={(e) => setResetCode(e.target.value.toUpperCase())}
                                 disabled={loading}
                                 placeholder="F823A5"
-                                helperText="6-character code from the SMS"
-                                inputProps={{
-                                    maxLength: 6,
-                                    style: { textTransform: 'uppercase', letterSpacing: '0.25em', fontFamily: theme.typography.fontFamily },
-                                }}
+                                maxLength={6}
+                                className="tracking-[0.25em] uppercase"
                             />
-                        </Box>
+                            <p className="text-xs text-muted-foreground">6-character code from the SMS</p>
+                        </div>
                     )}
 
-                    <Box>
-                        <Typography
-                            component="label"
-                            htmlFor="password"
-                            sx={{
-                                display: 'block',
-                                fontSize: '0.75rem',
-                                fontWeight: 500,
-                                color: 'text.secondary',
-                                mb: 0.75,
-                                letterSpacing: '0.02em',
-                            }}
-                        >
+                    <div className="space-y-1.5">
+                        <Label htmlFor="password" className="text-xs text-muted-foreground tracking-[0.02em]">
                             New password
-                        </Typography>
-                        <TextField
-                            required
-                            fullWidth
-                            name="password"
-                            type={showPassword ? 'text' : 'password'}
-                            id="password"
-                            autoComplete="new-password"
-                            value={password}
-                            onChange={(e) => setPassword(e.target.value)}
-                            disabled={loading}
-                            helperText="At least 8 characters"
-                            InputProps={{
-                                endAdornment: (
-                                    <InputAdornment position="end">
-                                        <IconButton
-                                            aria-label="toggle password visibility"
-                                            onClick={() => setShowPassword(!showPassword)}
-                                            edge="end"
-                                            size="small"
-                                            sx={{ color: 'text.disabled' }}
-                                        >
-                                            {showPassword ? <VisibilityOff sx={{ fontSize: 18 }} /> : <Visibility sx={{ fontSize: 18 }} />}
-                                        </IconButton>
-                                    </InputAdornment>
-                                ),
-                            }}
-                        />
-                    </Box>
+                        </Label>
+                        <div className="relative">
+                            <Input
+                                id="password"
+                                name="password"
+                                type={showPassword ? 'text' : 'password'}
+                                autoComplete="new-password"
+                                required
+                                value={password}
+                                onChange={(e) => setPassword(e.target.value)}
+                                disabled={loading}
+                                className="pr-10"
+                            />
+                            <button
+                                type="button"
+                                aria-label="Toggle password visibility"
+                                onClick={() => setShowPassword(!showPassword)}
+                                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                            >
+                                {showPassword ? <EyeOff className="h-[18px] w-[18px]" /> : <Eye className="h-[18px] w-[18px]" />}
+                            </button>
+                        </div>
+                        <p className="text-xs text-muted-foreground">At least 8 characters</p>
+                    </div>
 
-                    <Box>
-                        <Typography
-                            component="label"
-                            htmlFor="confirmPassword"
-                            sx={{
-                                display: 'block',
-                                fontSize: '0.75rem',
-                                fontWeight: 500,
-                                color: 'text.secondary',
-                                mb: 0.75,
-                                letterSpacing: '0.02em',
-                            }}
-                        >
+                    <div className="space-y-1.5">
+                        <Label htmlFor="confirmPassword" className="text-xs text-muted-foreground tracking-[0.02em]">
                             Confirm new password
-                        </Typography>
-                        <TextField
-                            required
-                            fullWidth
-                            name="confirmPassword"
-                            type={showConfirmPassword ? 'text' : 'password'}
-                            id="confirmPassword"
-                            autoComplete="new-password"
-                            value={confirmPassword}
-                            onChange={(e) => setConfirmPassword(e.target.value)}
-                            disabled={loading}
-                            InputProps={{
-                                endAdornment: (
-                                    <InputAdornment position="end">
-                                        <IconButton
-                                            aria-label="toggle confirm password visibility"
-                                            onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                                            edge="end"
-                                            size="small"
-                                            sx={{ color: 'text.disabled' }}
-                                        >
-                                            {showConfirmPassword ? <VisibilityOff sx={{ fontSize: 18 }} /> : <Visibility sx={{ fontSize: 18 }} />}
-                                        </IconButton>
-                                    </InputAdornment>
-                                ),
-                            }}
-                        />
-                    </Box>
+                        </Label>
+                        <div className="relative">
+                            <Input
+                                id="confirmPassword"
+                                name="confirmPassword"
+                                type={showConfirmPassword ? 'text' : 'password'}
+                                autoComplete="new-password"
+                                required
+                                value={confirmPassword}
+                                onChange={(e) => setConfirmPassword(e.target.value)}
+                                disabled={loading}
+                                className="pr-10"
+                            />
+                            <button
+                                type="button"
+                                aria-label="Toggle confirm password visibility"
+                                onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                            >
+                                {showConfirmPassword ? <EyeOff className="h-[18px] w-[18px]" /> : <Eye className="h-[18px] w-[18px]" />}
+                            </button>
+                        </div>
+                    </div>
 
                     <Button
                         type="submit"
-                        fullWidth
-                        variant="contained"
-                        color="primary"
-                        size="large"
+                        size="lg"
+                        className="mt-2 w-full font-medium"
                         disabled={loading || (!usingUrlToken && !resetCode.trim()) || !password || !confirmPassword}
-                        sx={{ mt: 1.5, py: 1.5, fontWeight: 500 }}
                     >
                         {loading ? 'Resetting…' : 'Reset password'}
                     </Button>
 
-                    <Box
-                        sx={{
-                            display: 'flex',
-                            justifyContent: 'center',
-                            mt: 3,
-                            pt: 3,
-                            borderTop: `1px solid ${theme.palette.divider}`,
-                        }}
-                    >
-                        <MuiLink
-                            component={Link}
+                    <div className="flex justify-center mt-3 pt-4 border-t border-border">
+                        <Link
                             href="/auth/login"
-                            underline="none"
-                            sx={{
-                                fontSize: '0.875rem',
-                                fontWeight: 500,
-                                color: 'text.secondary',
-                                '&:hover': { color: 'text.primary' },
-                                transition: 'color 160ms ease',
-                            }}
+                            className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors duration-150"
                         >
                             Back to sign in
-                        </MuiLink>
-                    </Box>
-                </Box>
-            </Box>
-        </Box>
+                        </Link>
+                    </div>
+                </form>
+            </div>
+        </div>
     );
 }
 
 export default function ResetPasswordPage() {
     return (
-        <Suspense
-            fallback={
-                <Box
-                    sx={{
-                        minHeight: '100vh',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        bgcolor: 'background.default',
-                    }}
-                />
-            }
-        >
+        <Suspense fallback={<div className="min-h-screen bg-background" />}>
             <ResetPasswordForm />
         </Suspense>
     );

@@ -1,76 +1,36 @@
 'use client';
 
-import { Box, Typography, Button, useTheme, alpha } from '@mui/material';
-import CloudOffIcon from '@mui/icons-material/CloudOff';
-import RefreshIcon from '@mui/icons-material/Refresh';
+import { WifiOff, RefreshCw } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 
 export default function OfflinePage() {
-    const theme = useTheme();
-
     return (
-        <Box
-            sx={{
-                minHeight: '100vh',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                px: { xs: 3, sm: 6 },
-                py: { xs: 5, sm: 8 },
-                bgcolor: 'background.default',
-            }}
-        >
-            <Box sx={{ width: '100%', maxWidth: 420, textAlign: 'center' }}>
-                <Box
-                    sx={{
-                        width: 56,
-                        height: 56,
-                        borderRadius: '50%',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        border: `1px solid ${theme.palette.divider}`,
-                        color: 'text.disabled',
-                        mx: 'auto',
-                        mb: 3,
-                        bgcolor: alpha(theme.palette.text.primary, 0.02),
-                    }}
-                >
-                    <CloudOffIcon sx={{ fontSize: 26 }} />
-                </Box>
-                <Typography variant="overline" sx={{ display: 'block', mb: 1 }}>
+        <div className="min-h-screen flex items-center justify-center px-6 sm:px-12 py-10 sm:py-16 bg-background">
+            <div className="w-full max-w-[420px] text-center">
+                <div className="w-14 h-14 rounded-full flex items-center justify-center border border-border text-muted-foreground mx-auto mb-6 bg-foreground/[0.02]">
+                    <WifiOff className="h-6 w-6" />
+                </div>
+                <p className="text-[0.6875rem] font-medium uppercase tracking-[0.12em] text-muted-foreground mb-1.5">
                     No connection
-                </Typography>
-                <Typography
-                    component="h1"
-                    sx={{
-                        fontFamily: theme.typography.h2.fontFamily,
-                        fontSize: { xs: '1.75rem', sm: '2rem' },
-                        fontWeight: 600,
-                        letterSpacing: '-0.025em',
-                        lineHeight: 1.15,
-                        mb: 1.5,
-                    }}
-                >
+                </p>
+                <h1 className="text-[1.75rem] sm:text-[2rem] font-semibold tracking-[-0.025em] leading-[1.15] mb-3 text-foreground">
                     You&apos;re offline
-                </Typography>
-                <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5, maxWidth: 360, mx: 'auto' }}>
+                </h1>
+                <p className="text-sm text-muted-foreground mb-2 max-w-[360px] mx-auto">
                     Some features may be limited until your connection returns.
-                </Typography>
-                <Typography variant="body2" color="text.disabled" sx={{ mb: 4, maxWidth: 360, mx: 'auto' }}>
+                </p>
+                <p className="text-sm text-muted-foreground/60 mb-8 max-w-[360px] mx-auto">
                     Your data is safe and will sync automatically when you&apos;re back online.
-                </Typography>
-
+                </p>
                 <Button
-                    variant="contained"
-                    color="primary"
-                    startIcon={<RefreshIcon sx={{ fontSize: 18 }} />}
+                    size="lg"
+                    className="font-medium"
                     onClick={() => window.location.reload()}
-                    size="large"
-                    sx={{ py: 1.5, fontWeight: 500 }}
                 >
+                    <RefreshCw className="mr-2 h-4 w-4" />
                     Try again
                 </Button>
-            </Box>
-        </Box>
+            </div>
+        </div>
     );
 }

@@ -1,53 +1,30 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo, Suspense } from 'react';
-import { useSearchParams, useRouter } from 'next/navigation';
-import {
-    Box,
-    Typography,
-    Paper,
-    FormControl,
-    InputLabel,
-    Select,
-    MenuItem,
-    Button,
-    Table,
-    TableBody,
-    TableCell,
-    TableContainer,
-    TableHead,
-    TableRow,
-    CircularProgress,
-    TextField,
-    Divider,
-    useTheme,
-    Skeleton,
-    IconButton,
-    alpha,
-    Grid,
-    useMediaQuery,
-} from '@mui/material';
-import { Download as DownloadIcon, Print as PrintIcon, Assessment as AssessmentIcon } from '@mui/icons-material';
-import { formatDepartmentLevel } from '@/lib/utils';
-import { formatCurrency } from '@/lib/utils';
-import { roundMoney, sumMoney } from '@/lib/format-money';
-import { BarChart, Bar, XAxis, Tooltip, ResponsiveContainer, Cell, LabelList } from 'recharts';
+import { useState, useEffect, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
+import { BarChart2, Download, Printer, Loader2 } from 'lucide-react';
 import { useSession } from 'next-auth/react';
-import { GlassCard } from '@/components/ui';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { cn, formatDepartmentLevel, formatCurrency } from '@/lib/utils';
+import { roundMoney, sumMoney } from '@/lib/format-money';
+import { useColorMode } from '@/app/providers';
 import { useToast } from '@/components/ToastProvider';
+import { BarChart, Bar, XAxis, Tooltip, ResponsiveContainer } from 'recharts';
 
 function ReportsPageContent() {
-    const theme = useTheme();
-    const router = useRouter();
-    const isMobile = useMediaQuery(theme.breakpoints.down('md'));
-    const { data: session } = useSession();
     const searchParams = useSearchParams();
-    const { showError } = useToast();
     const deptParam = searchParams?.get('dept');
-    
+    const { data: session } = useSession();
+    const { showError } = useToast();
+    const { resolvedMode } = useColorMode();
+    const isDark = resolvedMode === 'dark';
+
     const [departments, setDepartments] = useState<any[]>([]);
     const [selectedDepartment, setSelectedDepartment] = useState('');
-    const [fixedDepartment, setFixedDepartment] = useState<any>(null); // For when coming from church dashboard
+    const [fixedDepartment, setFixedDepartment] = useState<any>(null);
     const [transactions, setTransactions] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
     const [stats, setStats] = useState({ income: 0, expense: 0, balance: 0 });
@@ -67,778 +44,322 @@ function ReportsPageContent() {
     const leaderRoles = ['DENOMINATION_LEADER', 'OVERSIGHT_LEADER', 'CAMPUS_LEADER', 'STREAM_LEADER', 'COUNCIL_LEADER'];
 
     useEffect(() => {
-        fetchDepartments();
-        fetchBaseCurrency();
-        if (deptParam) {
-            fetchFixedDepartment();
-            fetchChartDataForDept(deptParam);
-        } else {
-            fetchChartData();
-        }
+        fetchDepartments(); fetchBaseCurrency();
+        if (deptParam) { fetchFixedDepartment(); fetchChartDataForDept(deptParam); }
+        else fetchChartData();
     }, [deptParam]);
 
-    // Set default department when user data is loaded
     useEffect(() => {
-        if (deptParam) {
-            setSelectedDepartment(deptParam);
-        } else if (userDepartmentId && !selectedDepartment) {
-            setSelectedDepartment(userDepartmentId);
-        }
+        if (deptParam) setSelectedDepartment(deptParam);
+        else if (userDepartmentId && !selectedDepartment) setSelectedDepartment(userDepartmentId);
     }, [userDepartmentId, deptParam]);
 
     const fetchFixedDepartment = async () => {
         if (!deptParam) return;
-        try {
-            const response = await fetch(`/api/departments/${deptParam}`);
-            if (response.ok) {
-                const data = await response.json();
-                setFixedDepartment(data);
-            }
-        } catch (error) {
-            console.error('Failed to fetch fixed department:', error);
-        }
+        const r = await fetch(`/api/departments/${deptParam}`);
+        if (r.ok) setFixedDepartment(await r.json());
     };
 
     const fetchChartDataForDept = async (deptId: string) => {
         setChartLoading(true);
         try {
-            const response = await fetch(`/api/departments/${deptId}/stats`, { cache: 'no-store' });
-            if (response.ok) {
-                const data = await response.json();
-                if (data.chartData) {
-                    setChartData(data.chartData);
-                }
-                if (data.currency) {
-                    setBaseCurrency({ id: '', code: data.currency.code, symbol: data.currency.symbol });
-                }
-            }
-        } catch (error) {
-            console.error('Error fetching chart data:', error);
-        } finally {
-            setChartLoading(false);
-        }
+            const r = await fetch(`/api/departments/${deptId}/stats`, { cache: 'no-store' });
+            if (r.ok) { const d = await r.json(); if (d.chartData) setChartData(d.chartData); if (d.currency) setBaseCurrency({ id: '', code: d.currency.code, symbol: d.currency.symbol }); }
+        } catch {} finally { setChartLoading(false); }
     };
-
-    // Set default department when user data is loaded
-    useEffect(() => {
-        if (userDepartmentId && !selectedDepartment) {
-            setSelectedDepartment(userDepartmentId);
-        }
-    }, [userDepartmentId]);
 
     const fetchBaseCurrency = async () => {
         try {
-            const response = await fetch('/api/users/me');
-            if (response.ok) {
-                const data = await response.json();
-                setBaseCurrency(data.baseCurrency);
-                
-                // Get active role info - prefer activeUserRole, fallback to first userRole or user's direct values
-                const activeUserRole = data.activeUserRole || data.userRoles?.[0];
-                const activeRole = activeUserRole?.role || data.role;
-                const activeDepartmentId = activeUserRole?.departmentId || data.departmentId;
-                const activeDepartmentName = activeUserRole?.department?.name || data.department?.name;
-                
-                // Set user's department as default
-                if (activeDepartmentId) {
-                    setUserDepartmentId(activeDepartmentId);
-                }
-                // Set department name
-                if (activeDepartmentName) {
-                    setUserDepartmentName(activeDepartmentName);
-                }
-                // Check if user is a leader
-                if (activeRole && leaderRoles.includes(activeRole)) {
-                    setIsLeader(true);
-                }
+            const r = await fetch('/api/users/me');
+            if (r.ok) {
+                const d = await r.json(); setBaseCurrency(d.baseCurrency);
+                const activeUserRole = d.activeUserRole || d.userRoles?.[0];
+                const activeRole = activeUserRole?.role || d.role;
+                const activeDeptId = activeUserRole?.departmentId || d.departmentId;
+                const activeDeptName = activeUserRole?.department?.name || d.department?.name;
+                if (activeDeptId) setUserDepartmentId(activeDeptId);
+                if (activeDeptName) setUserDepartmentName(activeDeptName);
+                if (activeRole && leaderRoles.includes(activeRole)) setIsLeader(true);
             }
-        } catch (error) {
-            console.error('Failed to fetch user profile:', error);
-        }
+        } catch {}
     };
 
     const fetchDepartments = async () => {
-        const response = await fetch('/api/departments');
-        if (response.ok) {
-            const data = await response.json();
-            setDepartments(data);
-            // Check if there are sub-departments (more than one department means user has access to sub-depts)
-            if (data.length > 1) {
-                setHasSubDepartments(true);
-            }
-        }
+        const r = await fetch('/api/departments');
+        if (r.ok) { const d = await r.json(); setDepartments(d); if (d.length > 1) setHasSubDepartments(true); }
     };
 
     const fetchChartData = async () => {
         setChartLoading(true);
-        try {
-            const response = await fetch('/api/dashboard/stats', { cache: 'no-store' });
-            if (response.ok) {
-                const data = await response.json();
-                if (data.chartData) {
-                    setChartData(data.chartData);
-                }
-            }
-        } catch (error) {
-            console.error('Error fetching chart data:', error);
-        } finally {
-            setChartLoading(false);
-        }
+        try { const r = await fetch('/api/dashboard/stats', { cache: 'no-store' }); if (r.ok) { const d = await r.json(); if (d.chartData) setChartData(d.chartData); } }
+        catch {} finally { setChartLoading(false); }
     };
 
     const generateReport = async () => {
         setLoading(true);
         try {
-            // Fetch opening balance (transactions before start date) - only APPROVED transactions
             let opening = 0;
             if (startDate) {
-                let openingUrl = '/api/transactions?status=APPROVED&';
-                if (selectedDepartment) {
-                    openingUrl += `departmentId=${selectedDepartment}&`;
-                    if (!includeSubDepartments) {
-                        openingUrl += `exactDepartment=true&`;
-                    }
-                }
-                openingUrl += `endDate=${new Date(new Date(startDate).getTime() - 86400000).toISOString().split('T')[0]}`;
-                
-                const openingResponse = await fetch(openingUrl);
-                if (openingResponse.ok) {
-                    const openingData = await openingResponse.json();
-                    opening = roundMoney(
-                        sumMoney(openingData.filter((t: any) => t.type === 'INCOME').map((t: any) => t.amountInBase || t.amount)) -
-                        sumMoney(openingData.filter((t: any) => t.type === 'EXPENSE').map((t: any) => t.amountInBase || t.amount))
-                    );
-                }
+                let openUrl = '/api/transactions?status=APPROVED&';
+                if (selectedDepartment) { openUrl += `departmentId=${selectedDepartment}&`; if (!includeSubDepartments) openUrl += `exactDepartment=true&`; }
+                openUrl += `endDate=${new Date(new Date(startDate).getTime() - 86400000).toISOString().split('T')[0]}`;
+                const or = await fetch(openUrl);
+                if (or.ok) { const od = await or.json(); opening = roundMoney(sumMoney(od.filter((t: any) => t.type === 'INCOME').map((t: any) => t.amountInBase || t.amount)) - sumMoney(od.filter((t: any) => t.type === 'EXPENSE').map((t: any) => t.amountInBase || t.amount))); }
             }
             setOpeningBalance(opening);
 
-            // Fetch transactions for the period - only APPROVED transactions
             let url = '/api/transactions?status=APPROVED&';
-            if (selectedDepartment) {
-                url += `departmentId=${selectedDepartment}&`;
-                if (!includeSubDepartments) {
-                    url += `exactDepartment=true&`;
-                }
-            }
-            if (startDate) {
-                url += `startDate=${startDate}&`;
-            }
-            if (endDate) {
-                url += `endDate=${endDate}&`;
-            }
+            if (selectedDepartment) { url += `departmentId=${selectedDepartment}&`; if (!includeSubDepartments) url += `exactDepartment=true&`; }
+            if (startDate) url += `startDate=${startDate}&`;
+            if (endDate) url += `endDate=${endDate}&`;
 
-            const response = await fetch(url);
-            if (response.ok) {
-                const data = await response.json();
-                
-                // Sort by date for statement view
-                const sortedData = [...data].sort((a: any, b: any) => 
-                    new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-                );
-                
-                setTransactions(sortedData);
-
-                // Calculate stats using converted amounts
+            const r = await fetch(url);
+            if (r.ok) {
+                const data = await r.json();
+                const sorted = [...data].sort((a: any, b: any) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+                setTransactions(sorted);
                 const income = sumMoney(data.filter((t: any) => t.type === 'INCOME').map((t: any) => t.amountInBase || t.amount));
                 const expense = sumMoney(data.filter((t: any) => t.type === 'EXPENSE').map((t: any) => t.amountInBase || t.amount));
-
-                const closing = roundMoney(opening + income - expense);
-                setClosingBalance(closing);
+                setClosingBalance(roundMoney(opening + income - expense));
                 setStats({ income, expense, balance: roundMoney(income - expense) });
             }
-        } catch (error) {
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const handlePrint = () => {
-        window.print();
-    };
-
-    const handleDownloadPDF = async () => {
-        // Check if we have necessary data for leaders
-        if (isLeader && !userDepartmentId) {
-            showError('Please wait for user data to load, then try again.');
-            return;
-        }
-        
-        const departmentToUse = isLeader ? userDepartmentId : selectedDepartment;
-        
-        try {
-            const response = await fetch('/api/reports/pdf', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    departmentId: departmentToUse,
-                    startDate,
-                    endDate,
-                    reportType: 'statement',
-                    includeSubDepartments: isLeader ? true : includeSubDepartments,
-                }),
-            });
-
-            if (!response.ok) {
-                let errorMessage = 'Unknown error';
-                try {
-                    const errorData = await response.json();
-                    errorMessage = errorData.error || errorData.details || 'Unknown error';
-                } catch (parseError) {
-                    errorMessage = `Server error: ${response.status} ${response.statusText}`;
-                }
-                showError(`Failed to generate PDF: ${errorMessage}`);
-                return;
-            }
-
-            const blob = await response.blob();
-            
-            // Check if the blob is actually a PDF
-            if (blob.type !== 'application/pdf') {
-                showError('Failed to generate PDF: Invalid response format');
-                return;
-            }
-
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `statement-report-${new Date().toISOString().split('T')[0]}.pdf`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            window.URL.revokeObjectURL(url);
-        } catch (error) {
-            showError(`Failed to download PDF: ${error instanceof Error ? error.message : 'Please try again.'}`);
-        }
+        } catch {} finally { setLoading(false); }
     };
 
     const handleDownload = () => {
-        const csvContent = generateCSV();
-        const blob = new Blob([csvContent], { type: 'text/csv' });
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `full-report-${new Date().toISOString().split('T')[0]}.csv`;
-        a.click();
-        window.URL.revokeObjectURL(url);
-    };
-
-    const generateCSV = () => {
-        const currencyCode = baseCurrency?.code || 'GHS';
-        const headers = `Date,Description,Department,Debit (${currencyCode}),Credit (${currencyCode}),Balance (${currencyCode})\n`;
-        let balance = openingBalance;
+        const sym = baseCurrency?.code || 'GHS';
+        let bal = openingBalance;
+        const headers = `Date,Description,Department,Debit (${sym}),Credit (${sym}),Balance (${sym})\n`;
         const rows = transactions.map(tx => {
             const debit = tx.type === 'EXPENSE' ? Number(tx.amountInBase || tx.amount) : 0;
             const credit = tx.type === 'INCOME' ? Number(tx.amountInBase || tx.amount) : 0;
-            balance = roundMoney(balance + credit - debit);
-            return `${new Date(tx.createdAt).toLocaleDateString()},${tx.description},${tx.department.name},${debit || ''},${credit || ''},${balance}`;
+            bal = roundMoney(bal + credit - debit);
+            return `${new Date(tx.createdAt).toLocaleDateString()},${tx.description},${tx.department.name},${debit || ''},${credit || ''},${bal}`;
         }).join('\n');
-        return headers + rows;
+        const blob = new Blob([headers + rows], { type: 'text/csv' });
+        const url = URL.createObjectURL(blob); const a = document.createElement('a');
+        a.href = url; a.download = `full-report-${new Date().toISOString().split('T')[0]}.csv`; a.click(); URL.revokeObjectURL(url);
     };
 
-    const renderStatementView = () => {
-        let runningBalance = openingBalance;
-        
-        return (
-            <GlassCard sx={{ mt: 3, overflow: 'hidden' }} className="print-content">
-                <TableContainer>
-                <Box sx={{ p: 3, '@media print': { p: 2 } }}>
-                    <Typography variant="h5" gutterBottom align="center">
-                        Full Report
-                    </Typography>
-                    <Typography variant="subtitle2" color="text.secondary" align="center" gutterBottom>
-                        {fixedDepartment
-                            ? `${fixedDepartment.name} (${formatDepartmentLevel(fixedDepartment.level)})`
-                            : isLeader 
-                                ? userDepartmentName || 'My Department'
-                                : selectedDepartment 
-                                    ? departments.find(d => d.id === selectedDepartment)?.name || 'All Departments'
-                                    : 'All Departments'}
-                    </Typography>
-                    {baseCurrency && (
-                        <Typography variant="body2" color="text.secondary" align="center" gutterBottom>
-                            Currency: {baseCurrency.code} ({baseCurrency.symbol})
-                        </Typography>
-                    )}
-                    {(startDate || endDate) && (
-                        <Typography variant="body2" color="text.secondary" align="center" gutterBottom>
-                            Period: {startDate ? new Date(startDate).toLocaleDateString() : 'Start'} - {endDate ? new Date(endDate).toLocaleDateString() : 'End'}
-                        </Typography>
-                    )}
-                    <Divider sx={{ my: 2 }} />
-                    
-                    {/* Opening Balance */}
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2, px: 2 }}>
-                        <Typography variant="subtitle1" fontWeight="bold">
-                            Opening Balance:
-                        </Typography>
-                        <Typography 
-                            variant="subtitle1" 
-                            fontWeight="bold"
-                            color={openingBalance >= 0 ? 'success.main' : 'error.main'}
-                        >
-                            {baseCurrency ? formatCurrency(openingBalance, baseCurrency.code, baseCurrency.symbol) : formatCurrency(openingBalance)}
-                        </Typography>
-                    </Box>
-                </Box>
-                
-                {isMobile ? (
-                    <Box sx={{ p: 2 }}>
-                        {transactions.map((tx, index) => {
-                            const amount = Number(tx.amountInBase || tx.amount);
-                            const debit = tx.type === 'EXPENSE' ? amount : 0;
-                            const credit = tx.type === 'INCOME' ? amount : 0;
-                            runningBalance = roundMoney(runningBalance + credit - debit);
-                            
-                            return (
-                                <Box key={tx.id} sx={{ mb: 2, p: 2, bgcolor: (index % 2 === 0) ? 'action.hover' : 'background.paper', borderRadius: 2, border: 1, borderColor: 'divider' }}>
-                                    <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                                        <Typography variant="body2" fontWeight="bold">{new Date(tx.createdAt).toLocaleDateString()}</Typography>
-                                        <Typography variant="caption" color="text.secondary">{tx.department.name}</Typography>
-                                    </Box>
-                                    <Typography variant="body2" sx={{ mb: 1 }}>{tx.description}</Typography>
-                                    {tx.currency && baseCurrency && tx.currency.code !== baseCurrency.code && (
-                                         <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 1 }}>
-                                             (Original: {tx.currency.symbol}{Number(tx.amount).toLocaleString()} {tx.currency.code})
-                                         </Typography>
-                                    )}
-                                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                        <Box>
-                                            {debit > 0 && <Typography variant="body2" color="error.main">-{baseCurrency ? formatCurrency(debit, baseCurrency.code, baseCurrency.symbol) : formatCurrency(debit)}</Typography>}
-                                            {credit > 0 && <Typography variant="body2" color="success.main">+{baseCurrency ? formatCurrency(credit, baseCurrency.code, baseCurrency.symbol) : formatCurrency(credit)}</Typography>}
-                                        </Box>
-                                        <Box sx={{ textAlign: 'right' }}>
-                                            <Typography variant="caption" color="text.secondary">Balance</Typography>
-                                            <Typography variant="body2" fontWeight="bold" color={runningBalance >= 0 ? 'success.main' : 'error.main'}>
-                                                {baseCurrency ? formatCurrency(runningBalance, baseCurrency.code, baseCurrency.symbol) : formatCurrency(runningBalance)}
-                                            </Typography>
-                                        </Box>
-                                    </Box>
-                                </Box>
-                            );
-                        })}
-                        
-                        <Box sx={{ mt: 3, p: 2, bgcolor: 'action.selected', borderRadius: 2 }}>
-                             <Typography variant="subtitle1" fontWeight="bold" gutterBottom>Totals</Typography>
-                             <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                                 <Typography variant="body2">Expense</Typography>
-                                 <Typography variant="body2" color="error.main" fontWeight="bold">
-                                     {baseCurrency ? formatCurrency(stats.expense, baseCurrency.code, baseCurrency.symbol) : formatCurrency(stats.expense)}
-                                 </Typography>
-                             </Box>
-                             <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                                 <Typography variant="body2">Income</Typography>
-                                 <Typography variant="body2" color="success.main" fontWeight="bold">
-                                     {baseCurrency ? formatCurrency(stats.income, baseCurrency.code, baseCurrency.symbol) : formatCurrency(stats.income)}
-                                 </Typography>
-                             </Box>
-                             <Divider sx={{ my: 1 }} />
-                             <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                                 <Typography variant="body2" fontWeight="bold">Net</Typography>
-                                 <Typography variant="body2" fontWeight="bold">
-                                     {baseCurrency ? formatCurrency(stats.balance, baseCurrency.code, baseCurrency.symbol) : formatCurrency(stats.balance)}
-                                 </Typography>
-                             </Box>
-                        </Box>
-                    </Box>
-                ) : (
-                <Table size="small">
-                    <TableHead>
-                        <TableRow sx={{ bgcolor: 'primary.main' }}>
-                            <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>Date</TableCell>
-                            <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>Description</TableCell>
-                            <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>Department</TableCell>
-                            <TableCell align="right" sx={{ color: 'white', fontWeight: 'bold' }}>Debit</TableCell>
-                            <TableCell align="right" sx={{ color: 'white', fontWeight: 'bold' }}>Credit</TableCell>
-                            <TableCell align="right" sx={{ color: 'white', fontWeight: 'bold' }}>Balance</TableCell>
-                        </TableRow>
-                    </TableHead>
-                    <TableBody>
-                        {transactions.map((tx, index) => {
-                            const amount = Number(tx.amountInBase || tx.amount);
-                            const debit = tx.type === 'EXPENSE' ? amount : 0;
-                            const credit = tx.type === 'INCOME' ? amount : 0;
-                            runningBalance = roundMoney(runningBalance + credit - debit);
-                            
-                            return (
-                                <TableRow 
-                                    key={tx.id}
-                                    sx={{ 
-                                        '&:nth-of-type(even)': { bgcolor: 'action.hover' },
-                                        '@media print': { 
-                                            '&:nth-of-type(even)': { bgcolor: '#f5f5f5' }
-                                        }
-                                    }}
-                                >
-                                    <TableCell>{new Date(tx.createdAt).toLocaleDateString()}</TableCell>
-                                    <TableCell>
-                                        {tx.description}
-                                        {tx.currency && baseCurrency && tx.currency.code !== baseCurrency.code && (
-                                            <Typography variant="caption" color="text.secondary" display="block">
-                                                (Original: {tx.currency.symbol}{Number(tx.amount).toLocaleString()} {tx.currency.code})
-                                            </Typography>
-                                        )}
-                                    </TableCell>
-                                    <TableCell>{tx.department.name}</TableCell>
-                                    <TableCell align="right" sx={{ color: debit ? 'error.main' : 'inherit' }}>
-                                        {debit ? (baseCurrency ? formatCurrency(debit, baseCurrency.code, baseCurrency.symbol) : formatCurrency(debit)) : '-'}
-                                    </TableCell>
-                                    <TableCell align="right" sx={{ color: credit ? 'success.main' : 'inherit' }}>
-                                        {credit ? (baseCurrency ? formatCurrency(credit, baseCurrency.code, baseCurrency.symbol) : formatCurrency(credit)) : '-'}
-                                    </TableCell>
-                                    <TableCell 
-                                        align="right" 
-                                        sx={{ 
-                                            fontWeight: 'bold',
-                                            color: runningBalance >= 0 ? 'success.main' : 'error.main'
-                                        }}
-                                    >
-                                        {baseCurrency ? formatCurrency(runningBalance, baseCurrency.code, baseCurrency.symbol) : formatCurrency(runningBalance)}
-                                    </TableCell>
-                                </TableRow>
-                            );
-                        })}
-                        <TableRow sx={{ bgcolor: 'action.selected' }}>
-                            <TableCell colSpan={3} sx={{ fontWeight: 'bold' }}>Totals</TableCell>
-                            <TableCell align="right" sx={{ fontWeight: 'bold', color: 'error.main' }}>
-                                {baseCurrency ? formatCurrency(stats.expense, baseCurrency.code, baseCurrency.symbol) : formatCurrency(stats.expense)}
-                            </TableCell>
-                            <TableCell align="right" sx={{ fontWeight: 'bold', color: 'success.main' }}>
-                                {baseCurrency ? formatCurrency(stats.income, baseCurrency.code, baseCurrency.symbol) : formatCurrency(stats.income)}
-                            </TableCell>
-                            <TableCell align="right" sx={{ fontWeight: 'bold' }}>
-                                {baseCurrency ? formatCurrency(stats.balance, baseCurrency.code, baseCurrency.symbol) : formatCurrency(stats.balance)}
-                            </TableCell>
-                        </TableRow>
-                    </TableBody>
-                </Table>
-                )}
-                
-                {/* Closing Balance */}
-                <Box sx={{ p: 3, display: 'flex', justifyContent: 'space-between', borderTop: 2, borderColor: 'divider' }}>
-                    <Typography variant="h6" fontWeight="bold">
-                        Closing Balance:
-                    </Typography>
-                    <Typography 
-                        variant="h6" 
-                        fontWeight="bold"
-                        color={closingBalance >= 0 ? 'success.main' : 'error.main'}
-                    >
-                        {baseCurrency ? formatCurrency(closingBalance, baseCurrency.code, baseCurrency.symbol) : formatCurrency(closingBalance)}
-                    </Typography>
-                </Box>
-                </TableContainer>
-            </GlassCard>
-        );
+    const handleDownloadPDF = async () => {
+        if (isLeader && !userDepartmentId) { showError('Please wait for user data to load, then try again.'); return; }
+        const deptToUse = isLeader ? userDepartmentId : selectedDepartment;
+        try {
+            const r = await fetch('/api/reports/pdf', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ departmentId: deptToUse, startDate, endDate, reportType: 'statement', includeSubDepartments: isLeader ? true : includeSubDepartments }) });
+            if (!r.ok) { let msg = 'Unknown error'; try { const d = await r.json(); msg = d.error || d.details || msg; } catch { msg = `Server error: ${r.status} ${r.statusText}`; } showError(`Failed to generate PDF: ${msg}`); return; }
+            const blob = await r.blob();
+            if (blob.type !== 'application/pdf') { showError('Failed to generate PDF: Invalid response format'); return; }
+            const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `statement-report-${new Date().toISOString().split('T')[0]}.pdf`; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+        } catch (e) { showError(`Failed to download PDF: ${e instanceof Error ? e.message : 'Please try again.'}`); }
     };
 
-    const handleRefresh = () => {
-        if (deptParam) {
-            fetchFixedDepartment();
-            fetchChartDataForDept(deptParam);
-        } else {
-            fetchChartData();
-        }
-    };
+    const fmtCurr = (v: number) => baseCurrency ? formatCurrency(v, baseCurrency.code, baseCurrency.symbol) : formatCurrency(v);
+
+    const deptName = fixedDepartment ? `${fixedDepartment.name} (${formatDepartmentLevel(fixedDepartment.level)})`
+        : isLeader ? userDepartmentName || 'My Department'
+        : selectedDepartment ? departments.find(d => d.id === selectedDepartment)?.name || 'All Departments'
+        : 'All Departments';
+
+    const chartColors = { income: '#22C55E', expense: '#EF4444', grid: isDark ? '#1E293B' : '#E2E8F0', text: isDark ? '#94A3B8' : '#64748B', tooltipBg: isDark ? '#1E293B' : '#FFFFFF', tooltipBorder: isDark ? '#334155' : '#E2E8F0' };
 
     return (
-        <Box>
-            {/* Back and Refresh Buttons - show when viewing specific department */}
+        <div>
+            {/* Header */}
+            <div className="flex items-start gap-4 flex-wrap mb-8 pb-6 border-b border-border print:hidden">
+                <div className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0 bg-secondary text-muted-foreground">
+                    <BarChart2 className="h-5 w-5" />
+                </div>
+                <div>
+                    <p className="text-[0.6875rem] font-medium uppercase tracking-[0.10em] text-muted-foreground mb-0.5">Analytics</p>
+                    <h1 className="text-[1.625rem] sm:text-[1.875rem] font-semibold tracking-[-0.025em] text-foreground">
+                        {fixedDepartment ? `${fixedDepartment.name} trends` : 'Trends'}
+                    </h1>
+                    <p className="text-sm text-muted-foreground mt-0.5">
+                        {fixedDepartment ? 'Financial trends for this church and its sub-churches.' : 'Income and expense movements over time.'}
+                    </p>
+                </div>
+            </div>
 
-            <Box
-                sx={(theme) => ({
-                    display: 'flex',
-                    alignItems: { xs: 'flex-start', sm: 'flex-end' },
-                    justifyContent: 'space-between',
-                    gap: 2,
-                    flexWrap: 'wrap',
-                    mb: { xs: 3, md: 4 },
-                    pb: { xs: 2.5, md: 3 },
-                    borderBottom: `1px solid ${theme.palette.divider}`,
-                    '@media print': { display: 'none' },
-                })}
-            >
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2.5, minWidth: 0, flex: 1 }}>
-                    <Box
-                        sx={(theme) => ({
-                            width: 48,
-                            height: 48,
-                            borderRadius: 1.5,
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            bgcolor: alpha(theme.palette.secondary.main, 0.10),
-                            color: theme.palette.secondary.main,
-                            flexShrink: 0,
-                        })}
-                    >
-                        <AssessmentIcon sx={{ fontSize: 22 }} />
-                    </Box>
-                    <Box sx={{ minWidth: 0 }}>
-                        <Typography variant="overline" sx={{ display: 'block', mb: 0.5 }}>
-                            Analytics
-                        </Typography>
-                        <Typography
-                            component="h1"
-                            sx={(theme) => ({
-                                fontFamily: theme.typography.h2.fontFamily,
-                                fontSize: { xs: '1.625rem', sm: '1.875rem', md: '2.125rem' },
-                                fontWeight: 600,
-                                letterSpacing: '-0.025em',
-                                lineHeight: 1.15,
-                            })}
-                        >
-                            {fixedDepartment
-                                ? `${fixedDepartment.name} ${formatDepartmentLevel(fixedDepartment.level)} trends`
-                                : 'Trends'}
-                        </Typography>
-                        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75 }}>
-                            {fixedDepartment
-                                ? 'Financial trends for this church and its sub-churches.'
-                                : 'Income and expense movements over time.'}
-                        </Typography>
-                    </Box>
-                </Box>
-            </Box>
+            {/* Chart card */}
+            <div className="rounded-xl border border-border bg-card p-5 mb-5">
+                <p className="font-semibold text-foreground mb-4">Income vs Expense Trends</p>
+                {chartLoading ? <div className="flex justify-center items-center h-64"><Loader2 className="h-7 w-7 animate-spin text-muted-foreground" /></div> : (
+                    <ResponsiveContainer width="100%" height={300}>
+                        <BarChart data={chartData} margin={{ top: 10, right: 16, left: 10, bottom: 5 }}>
+                            <XAxis dataKey="week" tick={{ fill: chartColors.text, fontSize: 12 }} axisLine={{ stroke: chartColors.grid }} tickLine={false} />
+                            <Tooltip formatter={(v: any, name: string) => [fmtCurr(v), name === 'income' ? 'Income' : 'Expense']} contentStyle={{ backgroundColor: chartColors.tooltipBg, border: `1px solid ${chartColors.tooltipBorder}`, borderRadius: 10, fontSize: '0.8125rem' }} />
+                            <Bar dataKey="income" name="Income" fill={chartColors.income} radius={[4, 4, 0, 0]} />
+                            <Bar dataKey="expense" name="Expense" fill={chartColors.expense} radius={[4, 4, 0, 0]} />
+                        </BarChart>
+                    </ResponsiveContainer>
+                )}
+            </div>
 
-            <GlassCard
-                sx={{
-                    p: { xs: 2, sm: 3 },
-                    mb: 4,
-                    borderRadius: 3,
-                    bgcolor: (theme) => alpha(theme.palette.background.paper, 0.4),
-                }}
-            >
-                <Grid container spacing={3}>
-                    <Grid size={{ xs: 12, md: 8 }}>
-                        <Typography variant="h6" gutterBottom fontWeight="700">
-                            Income vs Expense Trends
-                        </Typography>
-                        <Box sx={{ width: '100%', height: 350 }}>
-                            {chartLoading ? (
-                                <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
-                                    <CircularProgress />
-                                </Box>
-                            ) : (
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <BarChart
-                                        data={chartData}
-                                        margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
-                                    >
-                                        <XAxis dataKey="week" />
-                                        <Tooltip 
-                                            formatter={(value: any, name: string) => [
-                                                baseCurrency ? formatCurrency(value, baseCurrency.code, baseCurrency.symbol) : formatCurrency(value),
-                                                name === 'income' ? 'Income' : 'Expense'
-                                            ]}
-                                            contentStyle={{
-                                                backgroundColor: theme.palette.background.paper,
-                                                border: `1px solid ${theme.palette.divider}`,
-                                                borderRadius: 10,
-                                                boxShadow: theme.palette.mode === 'dark'
-                                                    ? '0 16px 40px rgba(0,0,0,0.55)'
-                                                    : '0 16px 40px rgba(11,19,32,0.08)',
-                                                fontSize: '0.8125rem',
-                                            }}
-                                        />
-                                        <Bar dataKey="income" name="Income" fill={theme.palette.success.main} radius={[4, 4, 0, 0]} />
-                                        <Bar dataKey="expense" name="Expense" fill={theme.palette.error.main} radius={[4, 4, 0, 0]} />
-                                    </BarChart>
-                                </ResponsiveContainer>
+            {/* Filters / generate */}
+            <div className="rounded-xl border border-border bg-card p-5 mb-5 print:hidden">
+                <p className="font-semibold text-foreground mb-4">Generate Full Report</p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                    <div className="space-y-1.5"><Label>Start Date</Label><Input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} /></div>
+                    <div className="space-y-1.5"><Label>End Date</Label><Input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} /></div>
+                </div>
+                <div className="flex flex-wrap gap-3 items-end">
+                    {!fixedDepartment && !isLeader && hasSubDepartments && (
+                        <>
+                            <div className="space-y-1.5">
+                                <Label>Department (Optional)</Label>
+                                <Select value={selectedDepartment} onValueChange={setSelectedDepartment}>
+                                    <SelectTrigger className="w-64"><SelectValue placeholder="All Departments" /></SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="">All Departments</SelectItem>
+                                        {departments.map(d => <SelectItem key={d.id} value={d.id}>{d.name} ({formatDepartmentLevel(d.level)})</SelectItem>)}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            {selectedDepartment && (
+                                <div className="space-y-1.5">
+                                    <Label>Scope</Label>
+                                    <Select value={includeSubDepartments ? 'include' : 'exact'} onValueChange={v => setIncludeSubDepartments(v === 'include')}>
+                                        <SelectTrigger className="w-56"><SelectValue /></SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="include">Include Lower Departments</SelectItem>
+                                            <SelectItem value="exact">Selected Department Only</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
                             )}
-                        </Box>
-                    </Grid>
-                    <Grid size={{ xs: 12, md: 4 }}>
-                         {/* Stats summary - already styled? Need to check */}
-                    </Grid>
-                </Grid>
-            </GlassCard>
-            <GlassCard sx={{ p: 3, mb: 4, borderRadius: 3 }}>
+                        </>
+                    )}
+                    <Button onClick={generateReport} disabled={loading} size="lg">
+                        {loading ? <><Loader2 className="mr-1.5 h-4 w-4 animate-spin" />Generating…</> : 'Generate Report'}
+                    </Button>
+                </div>
 
-                    <Typography variant="h6" gutterBottom>
-                        Generate Full Report
-                    </Typography>
-                            
-                            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 2, mb: 2 }}>
-                                <TextField
-                                    label="Start Date"
-                                    type="date"
-                                    value={startDate}
-                                    onChange={(e) => setStartDate(e.target.value)}
-                                    InputLabelProps={{ shrink: true }}
-                                    fullWidth
-                                />
-                                <TextField
-                                    label="End Date"
-                                    type="date"
-                                    value={endDate}
-                                    onChange={(e) => setEndDate(e.target.value)}
-                                    InputLabelProps={{ shrink: true }}
-                                    fullWidth
-                                />
-                            </Box>
+                {transactions.length > 0 && (
+                    <div className="flex flex-wrap gap-3 mt-5 pt-5 border-t border-border">
+                        <Button variant="outline" onClick={() => window.print()}><Printer className="mr-2 h-4 w-4" />Print</Button>
+                        <Button variant="outline" onClick={handleDownload}><Download className="mr-2 h-4 w-4" />Download CSV</Button>
+                        <Button onClick={handleDownloadPDF}><Download className="mr-2 h-4 w-4" />Download PDF</Button>
+                    </div>
+                )}
+            </div>
 
-                            <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start', flexWrap: 'wrap' }}>
-                                {/* Only show department selection when not coming from a specific church and for non-leaders with sub-departments */}
-                                {!fixedDepartment && !isLeader && hasSubDepartments && (
-                                    <>
-                                        <FormControl sx={{ minWidth: 300 }}>
-                                            <InputLabel>Department (Optional)</InputLabel>
-                                            <Select
-                                                value={selectedDepartment}
-                                                label="Department (Optional)"
-                                                onChange={(e) => setSelectedDepartment(e.target.value)}
-                                            >
-                                                <MenuItem value="">All Departments</MenuItem>
-                                                {departments.map((dept) => (
-                                                    <MenuItem key={dept.id} value={dept.id}>
-                                                        {dept.name} ({formatDepartmentLevel(dept.level)})
-                                                    </MenuItem>
-                                                ))}
-                                            </Select>
-                                        </FormControl>
-                                        {selectedDepartment && (
-                                            <FormControl sx={{ minWidth: 250 }}>
-                                                <InputLabel>Scope</InputLabel>
-                                                <Select
-                                                    value={includeSubDepartments ? 'include' : 'exact'}
-                                                    label="Scope"
-                                                    onChange={(e) => setIncludeSubDepartments(e.target.value === 'include')}
-                                                >
-                                                    <MenuItem value="include">Include Lower Departments</MenuItem>
-                                                    <MenuItem value="exact">Selected Department Only</MenuItem>
-                                                </Select>
-                                            </FormControl>
-                                        )}
-                                    </>
-                                )}
-                                <Button
-                                    variant="contained"
-                                    onClick={generateReport}
-                                    disabled={loading}
-                                    size="large"
-                                >
-                                    {loading ? 'Generating...' : 'Generate Report'}
-                                </Button>
-                            </Box>
-
-                            {/* Download options - shown after report is generated */}
-                            {transactions.length > 0 && (
-                                <Box sx={{ display: 'flex', gap: 2, mt: 3, flexWrap: 'wrap' }}>
-                                    <Button
-                                        variant="outlined"
-                                        startIcon={<PrintIcon />}
-                                        onClick={handlePrint}
-                                    >
-                                        Print
-                                    </Button>
-                                    <Button
-                                        variant="outlined"
-                                        startIcon={<DownloadIcon />}
-                                        onClick={handleDownload}
-                                    >
-                                        Download CSV
-                                    </Button>
-                                    <Button
-                                        variant="contained"
-                                        startIcon={<DownloadIcon />}
-                                        onClick={handleDownloadPDF}
-                                    >
-                                        Download PDF
-                                    </Button>
-                                </Box>
-                            )}
-            </GlassCard>
-
+            {/* Stats summary */}
             {transactions.length > 0 && (
                 <>
-                    <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr 1fr' }, gap: 2, mb: 3, '@media print': { display: 'none' } }}>
-                        <GlassCard 
-                            variant="highlight"
-                            sx={{ 
-                                p: 2, 
-                                border: '2px solid', 
-                                borderColor: stats.balance >= 0 ? 'success.main' : 'error.main', 
-                                bgcolor: stats.balance >= 0 ? 'success.main' : 'error.main',
-                                color: 'white',
-                                '@keyframes blink': {
-                                    '0%, 100%': { opacity: 1 },
-                                    '50%': { opacity: 0.3 }
-                                },
-                                animation: stats.balance < 5000 ? 'blink 1s ease-in-out infinite' : 'none'
-                            }}
-                        >
-                            <Typography variant="subtitle2" color="white" sx={{ opacity: 0.9 }}>
-                                Account Balance
-                            </Typography>
-                            <Typography variant="h5" color="white" fontWeight="700">
-                                {formatCurrency(stats.balance)}
-                            </Typography>
-                        </GlassCard>
-                        <GlassCard 
-                            variant="highlight"
-                            sx={{ 
-                                p: 2, 
-                                border: '2px solid', 
-                                borderColor: 'success.main', 
-                                bgcolor: 'success.main',
-                                color: 'white'
-                            }}
-                        >
-                            <Typography variant="subtitle2" color="white" sx={{ opacity: 0.9 }}>
-                                Total Inflows
-                            </Typography>
-                            <Typography variant="h5" color="white" fontWeight="700">
-                                {formatCurrency(stats.income)}
-                            </Typography>
-                        </GlassCard>
-                        <GlassCard 
-                            variant="highlight"
-                            sx={{ 
-                                p: 2, 
-                                border: '2px solid', 
-                                borderColor: 'error.main', 
-                                bgcolor: 'error.main',
-                                color: 'white'
-                            }}
-                        >
-                            <Typography variant="subtitle2" color="white" sx={{ opacity: 0.9 }}>
-                                Total Expenses
-                            </Typography>
-                            <Typography variant="h5" color="white" fontWeight="700">
-                                {formatCurrency(stats.expense)}
-                            </Typography>
-                        </GlassCard>
-                    </Box>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-5 print:hidden">
+                        <div className={cn('rounded-xl p-5 text-white', stats.balance < 5000 ? 'bg-destructive animate-pulse' : stats.balance >= 0 ? 'bg-success' : 'bg-destructive')}>
+                            <p className="text-sm opacity-90 font-semibold mb-1">Account Balance</p>
+                            <p className="text-[1.5rem] font-bold">{fmtCurr(stats.balance)}</p>
+                        </div>
+                        <div className="rounded-xl p-5 text-white bg-success">
+                            <p className="text-sm opacity-90 font-semibold mb-1">Total Inflows</p>
+                            <p className="text-[1.5rem] font-bold">{fmtCurr(stats.income)}</p>
+                        </div>
+                        <div className="rounded-xl p-5 text-white bg-destructive">
+                            <p className="text-sm opacity-90 font-semibold mb-1">Total Expenses</p>
+                            <p className="text-[1.5rem] font-bold">{fmtCurr(stats.expense)}</p>
+                        </div>
+                    </div>
 
-                    {renderStatementView()}
+                    {/* Statement */}
+                    <div className="rounded-xl border border-border bg-card overflow-hidden print-content">
+                        {/* Statement header */}
+                        <div className="p-5 border-b border-border text-center">
+                            <h2 className="text-xl font-bold text-foreground mb-1">Full Report</h2>
+                            <p className="text-sm text-muted-foreground">{deptName}</p>
+                            {baseCurrency && <p className="text-sm text-muted-foreground">Currency: {baseCurrency.code} ({baseCurrency.symbol})</p>}
+                            {(startDate || endDate) && <p className="text-sm text-muted-foreground">Period: {startDate ? new Date(startDate).toLocaleDateString() : 'Start'} — {endDate ? new Date(endDate).toLocaleDateString() : 'End'}</p>}
+                        </div>
+
+                        <div className="flex justify-between items-center px-5 py-3 border-b border-border bg-muted/30">
+                            <span className="font-bold text-foreground">Opening Balance:</span>
+                            <span className={cn('font-bold', openingBalance >= 0 ? 'text-success' : 'text-destructive')}>{fmtCurr(openingBalance)}</span>
+                        </div>
+
+                        {/* Mobile statement */}
+                        <div className="flex flex-col gap-3 p-4 md:hidden">
+                            {(() => { let bal = openingBalance; return transactions.map((tx, i) => {
+                                const amt = Number(tx.amountInBase || tx.amount);
+                                const debit = tx.type === 'EXPENSE' ? amt : 0;
+                                const credit = tx.type === 'INCOME' ? amt : 0;
+                                bal = roundMoney(bal + credit - debit);
+                                return (
+                                    <div key={tx.id} className={cn('rounded-xl border border-border p-3', i % 2 === 0 ? 'bg-muted/20' : 'bg-card')}>
+                                        <div className="flex justify-between items-center mb-1">
+                                            <p className="text-sm font-bold text-foreground">{new Date(tx.createdAt).toLocaleDateString()}</p>
+                                            <p className="text-xs text-muted-foreground">{tx.department.name}</p>
+                                        </div>
+                                        <p className="text-sm text-foreground mb-2">{tx.description}</p>
+                                        {tx.currency && baseCurrency && tx.currency.code !== baseCurrency.code && <p className="text-xs text-muted-foreground mb-2">(Original: {tx.currency.symbol}{Number(tx.amount).toLocaleString()} {tx.currency.code})</p>}
+                                        <div className="flex justify-between items-center">
+                                            <div>{debit > 0 && <p className="text-sm font-semibold text-destructive">−{fmtCurr(debit)}</p>}{credit > 0 && <p className="text-sm font-semibold text-success">+{fmtCurr(credit)}</p>}</div>
+                                            <div className="text-right"><p className="text-xs text-muted-foreground">Balance</p><p className={cn('text-sm font-bold', bal >= 0 ? 'text-success' : 'text-destructive')}>{fmtCurr(bal)}</p></div>
+                                        </div>
+                                    </div>
+                                );
+                            }); })()}
+                            <div className="rounded-xl border border-border bg-muted/40 p-4 mt-2">
+                                <p className="font-bold text-foreground mb-2">Totals</p>
+                                <div className="flex justify-between mb-1"><span className="text-sm text-muted-foreground">Expense</span><span className="text-sm font-bold text-destructive">{fmtCurr(stats.expense)}</span></div>
+                                <div className="flex justify-between mb-2"><span className="text-sm text-muted-foreground">Income</span><span className="text-sm font-bold text-success">{fmtCurr(stats.income)}</span></div>
+                                <div className="border-t border-border pt-2 flex justify-between"><span className="text-sm font-bold text-foreground">Net</span><span className="text-sm font-bold text-foreground">{fmtCurr(stats.balance)}</span></div>
+                            </div>
+                        </div>
+
+                        {/* Desktop statement table */}
+                        <div className="hidden md:block overflow-x-auto">
+                            <table className="w-full text-sm">
+                                <thead className="bg-primary text-white">
+                                    <tr>{['Date', 'Description', 'Department', 'Debit', 'Credit', 'Balance'].map((h, i) => <th key={h} className={cn('py-3 px-4 font-bold', i >= 3 ? 'text-right' : 'text-left')}>{h}</th>)}</tr>
+                                </thead>
+                                <tbody>
+                                    {(() => { let bal = openingBalance; return transactions.map((tx, i) => {
+                                        const amt = Number(tx.amountInBase || tx.amount);
+                                        const debit = tx.type === 'EXPENSE' ? amt : 0;
+                                        const credit = tx.type === 'INCOME' ? amt : 0;
+                                        bal = roundMoney(bal + credit - debit);
+                                        return (
+                                            <tr key={tx.id} className={cn('border-b border-border', i % 2 === 0 ? 'bg-muted/15' : 'bg-card')}>
+                                                <td className="py-2.5 px-4 text-muted-foreground">{new Date(tx.createdAt).toLocaleDateString()}</td>
+                                                <td className="py-2.5 px-4"><span className="text-foreground">{tx.description}</span>{tx.currency && baseCurrency && tx.currency.code !== baseCurrency.code && <span className="block text-xs text-muted-foreground">(Original: {tx.currency.symbol}{Number(tx.amount).toLocaleString()} {tx.currency.code})</span>}</td>
+                                                <td className="py-2.5 px-4 text-foreground">{tx.department.name}</td>
+                                                <td className={cn('py-2.5 px-4 text-right font-medium', debit ? 'text-destructive' : 'text-muted-foreground')}>{debit ? fmtCurr(debit) : '—'}</td>
+                                                <td className={cn('py-2.5 px-4 text-right font-medium', credit ? 'text-success' : 'text-muted-foreground')}>{credit ? fmtCurr(credit) : '—'}</td>
+                                                <td className={cn('py-2.5 px-4 text-right font-bold', bal >= 0 ? 'text-success' : 'text-destructive')}>{fmtCurr(bal)}</td>
+                                            </tr>
+                                        );
+                                    }); })()}
+                                    <tr className="bg-muted/40 border-t-2 border-border">
+                                        <td colSpan={3} className="py-3 px-4 font-bold text-foreground">Totals</td>
+                                        <td className="py-3 px-4 text-right font-bold text-destructive">{fmtCurr(stats.expense)}</td>
+                                        <td className="py-3 px-4 text-right font-bold text-success">{fmtCurr(stats.income)}</td>
+                                        <td className="py-3 px-4 text-right font-bold text-foreground">{fmtCurr(stats.balance)}</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <div className="flex justify-between items-center px-5 py-4 border-t-2 border-border">
+                            <span className="text-lg font-bold text-foreground">Closing Balance:</span>
+                            <span className={cn('text-lg font-bold', closingBalance >= 0 ? 'text-success' : 'text-destructive')}>{fmtCurr(closingBalance)}</span>
+                        </div>
+                    </div>
                 </>
             )}
 
             {!loading && transactions.length === 0 && (selectedDepartment || startDate || endDate) && (
-                <GlassCard sx={{ p: 4, textAlign: 'center', borderRadius: 3 }}>
-                    <Typography variant="h6" color="text.secondary" gutterBottom>
-                        No Transactions Found
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                        There are no transactions for the selected criteria. Try adjusting your filters or date range.
-                    </Typography>
-                </GlassCard>
+                <div className="rounded-xl border border-border bg-card p-8 text-center">
+                    <p className="text-lg font-semibold text-foreground mb-1">No Transactions Found</p>
+                    <p className="text-sm text-muted-foreground">There are no transactions for the selected criteria. Try adjusting your filters or date range.</p>
+                </div>
             )}
-
-            {loading && (
-                <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
-                    <CircularProgress />
-                </Box>
-            )}
-        </Box>
+        </div>
     );
 }
 
 export default function ReportsPage() {
     return (
-        <Suspense fallback={<Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}><CircularProgress /></Box>}>
+        <Suspense fallback={<div className="flex justify-center items-center min-h-[60vh]"><Loader2 className="h-7 w-7 animate-spin text-muted-foreground" /></div>}>
             <ReportsPageContent />
         </Suspense>
     );

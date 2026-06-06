@@ -1,151 +1,129 @@
 'use client';
 
 import { useEffect, useState, useMemo, useCallback, useRef } from 'react';
-import { Typography, Box, CircularProgress, Grid, Stack, useTheme, Card, CardActionArea, Skeleton, alpha, Avatar, IconButton, Chip } from '@mui/material';
-import { formatCurrency } from '@/lib/utils';
 import { formatMoney } from '@/lib/format-money';
 import { getDisplayRole } from '@/lib/roleDisplay';
-import TrendingUpIcon from '@mui/icons-material/TrendingUp';
-import TrendingDownIcon from '@mui/icons-material/TrendingDown';
-import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
-import AddCircleIcon from '@mui/icons-material/AddCircle';
-import ReceiptIcon from '@mui/icons-material/Receipt';
-import BusinessIcon from '@mui/icons-material/Business';
-import AssessmentIcon from '@mui/icons-material/Assessment';
-import PeopleIcon from '@mui/icons-material/People';
-import MonetizationOnIcon from '@mui/icons-material/MonetizationOn';
-import PendingActionsIcon from '@mui/icons-material/PendingActions';
-import SmsIcon from '@mui/icons-material/Sms';
-import ArrowForwardIosIcon from '@mui/icons-material/ArrowForwardIos';
-import ArrowBackIosNewIcon from '@mui/icons-material/ArrowBackIosNew';
-import SecurityIcon from '@mui/icons-material/Security';
-import VerifiedUserIcon from '@mui/icons-material/VerifiedUser';
-import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline';
+import {
+    TrendingUp, TrendingDown, Wallet, PlusCircle, Receipt, Building2,
+    Users, Coins, Clock, ChevronRight, ChevronLeft,
+    ShieldCheck, AlertCircle,
+} from 'lucide-react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { Role } from '@prisma/client';
-import { BarChart, Bar, XAxis, Tooltip, ResponsiveContainer, Cell, LabelList } from 'recharts';
-import { AnimatedCounter, StatCardSkeleton, ChartSkeleton, GlassCard, SimpleStatCard } from '@/components/ui';
+import { BarChart, Bar, XAxis, Tooltip, ResponsiveContainer, LabelList } from 'recharts';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
+import { cn } from '@/lib/utils';
+import { useColorMode } from '@/app/providers';
 
+// ── Animated counter ──────────────────────────────────────────────────────────
 
-// Minimalistic Dashboard Stat Card (SuperAdmin only)
-const MinimalStatCard = ({ 
-    title, 
-    amount, 
-    icon: Icon, 
-    color, 
-    currencySymbol,
-    isBlinking = false,
-    onClick
-}: {
+function useAnimatedValue(target: number, duration = 800) {
+    const [value, setValue] = useState(0);
+    useEffect(() => {
+        let startTime: number;
+        let id: number;
+        const animate = (ts: number) => {
+            if (!startTime) startTime = ts;
+            const p = Math.min((ts - startTime) / duration, 1);
+            setValue((1 - Math.pow(1 - p, 3)) * target);
+            if (p < 1) id = requestAnimationFrame(animate);
+        };
+        id = requestAnimationFrame(animate);
+        return () => cancelAnimationFrame(id);
+    }, [target, duration]);
+    return value;
+}
+
+// ── Stat cards ────────────────────────────────────────────────────────────────
+
+function MinimalStatCard({ title, amount, icon: Icon, color, isBlinking, onClick }: {
     title: string;
     amount: number | string;
     icon: React.ElementType;
-    gradient?: string;
     color?: string;
-    currencySymbol?: string;
     isBlinking?: boolean;
     onClick?: () => void;
-}) => {
-    const theme = useTheme();
-    
+}) {
+    const animated = useAnimatedValue(Number(amount) || 0);
     return (
-        <Card
-            elevation={0}
+        <div
             onClick={onClick}
-            sx={{
-                p: 3,
-                height: '100%',
-                borderRadius: 4,
-                bgcolor: 'background.paper',
-                border: '1px solid',
-                borderColor: 'divider',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 2.5,
-                cursor: onClick ? 'pointer' : 'default',
-                transition: 'all 0.2s ease-in-out',
-                '&:hover': {
-                    borderColor: color || theme.palette.primary.main,
-                    transform: 'translateY(-2px)',
-                    boxShadow: `0 8px 24px ${alpha(color || theme.palette.primary.main, 0.1)}`,
-                },
-                ...(isBlinking && {
-                    '@keyframes pulse': {
-                        '0%': { boxShadow: `0 0 0 0 ${alpha(theme.palette.error.main, 0.4)}` },
-                        '70%': { boxShadow: `0 0 0 10px ${alpha(theme.palette.error.main, 0)}` },
-                        '100%': { boxShadow: `0 0 0 0 ${alpha(theme.palette.error.main, 0)}` }
-                    },
-                    animation: 'pulse 2s infinite'
-                })
-            }}
+            className={cn(
+                'p-4 h-full rounded-2xl bg-card border border-border flex items-center gap-4 transition-all duration-200',
+                onClick && 'cursor-pointer hover:-translate-y-0.5 hover:shadow-md',
+                isBlinking && 'ring-2 ring-destructive/25',
+            )}
         >
-            <ActionAreaWrapper hasAction={!!onClick}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2.5, width: '100%' }}>
-            <Box
-                sx={{
-                    width: 56,
-                    height: 56,
-                    borderRadius: 3,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    bgcolor: alpha(color || theme.palette.primary.main, 0.1),
-                    color: color || theme.palette.primary.main,
-                }}
+            <div
+                className="w-14 h-14 rounded-xl flex items-center justify-center shrink-0"
+                style={{ backgroundColor: color ? `${color}1A` : 'rgba(107,114,128,0.1)', color: color || 'var(--muted-foreground)' }}
             >
-                <Icon sx={{ fontSize: 28 }} />
-            </Box>
-
-            <Box>
-                <Typography 
-                    variant="body2" 
-                    color="text.secondary" 
-                    fontWeight={600}
-                    sx={{ mb: 0.5, letterSpacing: '0.5px', textTransform: 'uppercase', fontSize: '0.75rem' }}
-                >
+                <Icon className="h-7 w-7" />
+            </div>
+            <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.06em] text-muted-foreground mb-1">
                     {title}
-                </Typography>
-                
-                <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.5 }}>
-                    {currencySymbol && (
-                        <Typography 
-                            component="span" 
-                            variant="h5"
-                            color="text.secondary"
-                            fontWeight={500}
-                        >
-                            {currencySymbol}
-                        </Typography>
-                    )}
-                    <AnimatedCounter
-                        value={amount}
-                        duration={1000}
-                        decimals={currencySymbol ? 2 : 0}
-                        formatter={currencySymbol ? undefined : (val) => Math.round(Number(val)).toLocaleString('en-US')}
-                        sx={{
-                            fontSize: '1.75rem',
-                            fontWeight: 700,
-                            color: 'text.primary',
-                            lineHeight: 1.2
-                        }}
-                    />
-                </Box>
-            </Box>
-            </Box>
-            </ActionAreaWrapper>
-        </Card>
+                </p>
+                <p className="text-[1.75rem] font-bold text-foreground leading-none tabular-nums">
+                    {Math.round(animated).toLocaleString('en-US')}
+                </p>
+            </div>
+        </div>
     );
-};
+}
 
-const ActionAreaWrapper = ({ hasAction, children }: { hasAction: boolean, children: React.ReactNode }) => {
-    return hasAction ? <CardActionArea sx={{ p: 0, height: '100%' }}>{children}</CardActionArea> : <>{children}</>;
-};
+function RegularStatCard({ title, amount, icon: Icon, color, currencySymbol, isBlinking }: {
+    title: string;
+    amount: number | string;
+    icon: React.ElementType;
+    color: string;
+    currencySymbol?: string;
+    isBlinking?: boolean;
+}) {
+    const animated = useAnimatedValue(Number(amount) || 0);
+    const display = currencySymbol
+        ? animated.toFixed(2)
+        : Math.round(animated).toLocaleString('en-US');
+    return (
+        <div className={cn(
+            'relative p-5 sm:p-6 h-full rounded-[14px] bg-card border border-border',
+            'flex items-center justify-between gap-4 transition-all duration-200 hover:-translate-y-0.5',
+            isBlinking && 'ring-2 ring-destructive/25',
+        )}>
+            <div
+                className="absolute top-4 bottom-4 left-0 w-0.5 rounded-full"
+                style={{ backgroundColor: color, opacity: isBlinking ? 0.8 : 0.35 }}
+            />
+            <div className="min-w-0 flex-1 pl-2">
+                <p className="text-[0.6875rem] font-medium uppercase tracking-[0.08em] text-muted-foreground mb-2">
+                    {title}
+                </p>
+                <div className="flex items-baseline gap-1 flex-wrap">
+                    {currencySymbol && (
+                        <span className="text-[0.95rem] font-medium text-muted-foreground">{currencySymbol}</span>
+                    )}
+                    <span className="text-[1.625rem] sm:text-[1.875rem] font-medium tracking-[-0.02em] text-foreground tabular-nums leading-none">
+                        {display}
+                    </span>
+                </div>
+            </div>
+            <div
+                className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+                style={{ backgroundColor: `${color}1A`, color }}
+            >
+                <Icon className="h-5 w-5" />
+            </div>
+        </div>
+    );
+}
 
-// Simple stat card moved to components/ui/SimpleStatCard.tsx
+// ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
-    // Money values stored as exact decimal strings from the server.
     const [stats, setStats] = useState<{
         income: string;
         expense: string;
@@ -162,65 +140,46 @@ export default function DashboardPage() {
             todaysLogins: number;
             criticalErrors: number;
         };
-    }>({
-        income: '0',
-        expense: '0',
-        balance: '0',
-        weeklyIncome: '0',
-        chartData: [],
-        superAdminStats: undefined,
-    });
+    }>({ income: '0', expense: '0', balance: '0', weeklyIncome: '0', chartData: [], superAdminStats: undefined });
+
     const [baseCurrency, setBaseCurrency] = useState<{ code: string; symbol: string } | null>(null);
-    const [departmentName, setDepartmentName] = useState<string | null>(null);
     const [departmentLeader, setDepartmentLeader] = useState<{ name: string; image: string | null } | null>(null);
     const [loading, setLoading] = useState(true);
     const [chartOffset, setChartOffset] = useState(0);
     const [chartLoading, setChartLoading] = useState(false);
     const chartCache = useRef<Map<number, { week: string; income: string; expense: string }[]>>(new Map());
     const { data: session } = useSession();
-    const theme = useTheme();
     const router = useRouter();
-    
+    const { resolvedMode } = useColorMode();
+    const isDark = resolvedMode === 'dark';
+
     const isSuperAdmin = session?.user?.role === 'SUPERADMIN';
 
     const fetchBaseCurrency = useCallback(async () => {
         try {
-            // Use the /api/users/me endpoint which handles base currency logic
-            const response = await fetch('/api/users/me');
-            if (response.ok) {
-                const userData = await response.json();
-                if (userData.baseCurrency) {
-                    setBaseCurrency({ code: userData.baseCurrency.code, symbol: userData.baseCurrency.symbol });
-                }
-                // Set department name if available
-                if (userData.department) {
-                    setDepartmentName(userData.department.name);
-                    
-                    // Fetch department leader
-                    try {
-                        const deptResponse = await fetch(`/api/departments/${userData.department.id}`);
-                        if (deptResponse.ok) {
-                            const deptData = await deptResponse.json();
-                            const leaderRole = deptData.userRoles?.find((ur: any) => 
-                                ['COUNCIL_LEADER', 'STREAM_LEADER', 'CAMPUS_LEADER', 'OVERSIGHT_LEADER', 'DENOMINATION_LEADER'].includes(ur.role)
-                            );
-                            if (leaderRole && leaderRole.user) {
-                                setDepartmentLeader(leaderRole.user);
-                            }
-                        }
-                    } catch (e) {
-                        // ignore
-                    }
-                }
+            const res = await fetch('/api/users/me');
+            if (!res.ok) return;
+            const userData = await res.json();
+            if (userData.baseCurrency) {
+                setBaseCurrency({ code: userData.baseCurrency.code, symbol: userData.baseCurrency.symbol });
             }
-        } catch (error) {
-            // Silent error handling
-        }
+            if (userData.department) {
+                try {
+                    const deptRes = await fetch(`/api/departments/${userData.department.id}`);
+                    if (deptRes.ok) {
+                        const deptData = await deptRes.json();
+                        const leaderRole = deptData.userRoles?.find((ur: any) =>
+                            ['COUNCIL_LEADER', 'STREAM_LEADER', 'CAMPUS_LEADER', 'OVERSIGHT_LEADER', 'DENOMINATION_LEADER'].includes(ur.role)
+                        );
+                        if (leaderRole?.user) setDepartmentLeader(leaderRole.user);
+                    }
+                } catch { /* ignore */ }
+            }
+        } catch { /* ignore */ }
     }, []);
 
     const fetchStats = useCallback(async (offset?: number) => {
         const currentOffset = offset ?? chartOffset;
-        // Show cached chart data instantly if available
         const cached = chartCache.current.get(currentOffset);
         if (cached) {
             setStats(prev => ({ ...prev, chartData: cached }));
@@ -228,18 +187,14 @@ export default function DashboardPage() {
             setChartLoading(true);
         }
         try {
-            const response = await fetch(`/api/dashboard/stats?chartOffset=${currentOffset}`, { cache: 'no-store' });
-            if (response.ok) {
-                const data = await response.json();
-                // Cache the chart data for this offset
-                if (data.chartData) {
-                    chartCache.current.set(currentOffset, data.chartData);
-                }
+            const res = await fetch(`/api/dashboard/stats?chartOffset=${currentOffset}`, { cache: 'no-store' });
+            if (res.ok) {
+                const data = await res.json();
+                if (data.chartData) chartCache.current.set(currentOffset, data.chartData);
                 setStats(data);
             }
-        } catch (error) {
-            // Silent error handling
-        } finally {
+        } catch { /* ignore */ }
+        finally {
             setLoading(false);
             setChartLoading(false);
         }
@@ -248,608 +203,377 @@ export default function DashboardPage() {
     useEffect(() => {
         fetchBaseCurrency();
         fetchStats();
-
-        // Refresh data when page becomes visible
-        const handleVisibilityChange = () => {
+        const handleVisibility = () => {
             if (document.visibilityState === 'visible') {
                 fetchBaseCurrency();
                 fetchStats();
             }
         };
-
-        document.addEventListener('visibilitychange', handleVisibilityChange);
-        return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+        document.addEventListener('visibilitychange', handleVisibility);
+        return () => document.removeEventListener('visibilitychange', handleVisibility);
     }, [fetchBaseCurrency, fetchStats]);
 
-    // Refetch chart data when offset changes
-    useEffect(() => {
-        fetchStats(chartOffset);
-    }, [chartOffset]);
+    useEffect(() => { fetchStats(chartOffset); }, [chartOffset]);
 
-    // Memoize quick links to avoid recalculating on every render
+    // ── Quick links ──────────────────────────────────────────────────────────
     const quickLinks = useMemo(() => {
         const userRole = session?.user?.role as Role;
         const leaderRoles = [Role.DENOMINATION_LEADER, Role.OVERSIGHT_LEADER, Role.CAMPUS_LEADER, Role.STREAM_LEADER, Role.COUNCIL_LEADER] as Role[];
         const isLeader = userRole && leaderRoles.includes(userRole);
-        
-        const allLinks = [
+
+        const all = [
             {
-                title: 'Request Expense',
-                icon: PendingActionsIcon,
-                href: '/transactions/new?type=EXPENSE',
-                color: theme.palette.error.main,
-                bgColor: theme.palette.error.main + '15',
-                roles: [Role.DENOMINATION_LEADER, Role.OVERSIGHT_LEADER, Role.CAMPUS_LEADER, Role.STREAM_LEADER, Role.COUNCIL_LEADER] as Role[]
+                title: 'Request Expense', icon: Clock, href: '/transactions/new?type=EXPENSE',
+                color: '#EF4444',
+                roles: [Role.DENOMINATION_LEADER, Role.OVERSIGHT_LEADER, Role.CAMPUS_LEADER, Role.STREAM_LEADER, Role.COUNCIL_LEADER] as Role[],
             },
             {
-                title: 'New Transaction',
-                icon: AddCircleIcon,
-                href: '/transactions/new',
-                color: theme.palette.success.main,
-                bgColor: theme.palette.success.main + '15',
-                roles: null as Role[] | null, // Available to all
-                excludeForLeaders: true // Hide from leaders
+                title: 'New Transaction', icon: PlusCircle, href: '/transactions/new',
+                color: '#22C55E', roles: null as Role[] | null, excludeForLeaders: true,
             },
             {
-                title: 'Transactions History',
-                icon: ReceiptIcon,
-                href: '/transactions',
-                color: theme.palette.info.main,
-                bgColor: theme.palette.info.main + '15',
-                roles: null as Role[] | null, // Available to all
-                excludeForLeaders: true // Hide from leaders — available in nav
+                title: 'Transactions History', icon: Receipt, href: '/transactions',
+                color: '#3B82F6', roles: null as Role[] | null,
             },
             {
-                title: 'Churches',
-                icon: BusinessIcon,
-                href: '/departments',
-                color: theme.palette.warning.main,
-                bgColor: theme.palette.warning.main + '15',
-                roles: null as Role[] | null, // Available to all
-                excludeForLeaders: true // Hide from leaders
-            }
+                title: 'Churches', icon: Building2, href: '/departments',
+                color: '#F59E0B', roles: null as Role[] | null, excludeForLeaders: true,
+            },
         ];
 
-        return allLinks.filter(link => {
-            // Check role permissions
-            if (link.roles && !link.roles.includes(userRole)) {
-                return false;
-            }
-            // Exclude items marked for leaders
-            if (isLeader && link.excludeForLeaders) {
-                return false;
-            }
+        return all.filter(link => {
+            if (link.roles && !link.roles.includes(userRole)) return false;
+            if (isLeader && (link as any).excludeForLeaders) return false;
             return true;
         });
-    }, [session?.user?.role, theme.palette]);
+    }, [session?.user?.role]);
 
+    // ── Loading skeleton ─────────────────────────────────────────────────────
     if (loading) {
         return (
-            <Box sx={{ px: { xs: 1.5, sm: 3, md: 6, lg: 8 }, py: { xs: 1.5, sm: 2, md: 1.5 }, maxWidth: '1600px', mx: 'auto' }}>
-                {/* Header Skeleton */}
-                <Box sx={{ mb: { xs: 2, md: 2 } }}>
-                    <Skeleton variant="text" width={200} height={40} sx={{ mb: 0.5 }} />
-                    <Skeleton variant="text" width={300} height={24} />
-                </Box>
-                
-                {/* Stats Skeleton */}
-                <Grid container spacing={{ xs: 1.5, sm: 3 }} sx={{ mb: { xs: 2, md: 4 } }}>
-                    {[1, 2, 3].map((i) => (
-                        <Grid size={{ xs: 6, sm: 6, lg: 4 }} key={i}>
-                            <StatCardSkeleton />
-                        </Grid>
+            <div className="px-4 sm:px-6 md:px-12 lg:px-16 py-4 max-w-[1600px] mx-auto">
+                <div className="mb-6">
+                    <Skeleton className="h-8 w-48 mb-2" />
+                    <Skeleton className="h-5 w-72" />
+                </div>
+                <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
+                    {[1, 2, 3].map(i => (
+                        <div key={i} className="rounded-2xl bg-card border border-border p-6">
+                            <Skeleton className="h-4 w-24 mb-3" />
+                            <Skeleton className="h-8 w-32" />
+                        </div>
                     ))}
-                </Grid>
-                
-                {/* Chart Skeleton */}
-                <Box sx={{ p: { xs: 1.5, sm: 2 } }}>
-                    <Skeleton variant="text" width={200} height={28} sx={{ mb: 1.5 }} />
-                    <ChartSkeleton />
-                </Box>
-            </Box>
+                </div>
+                <div className="rounded-2xl bg-card border border-border p-6">
+                    <Skeleton className="h-5 w-48 mb-4" />
+                    <Skeleton className="h-[280px] w-full rounded-lg" />
+                </div>
+            </div>
         );
     }
 
-    // Check if user is a leader
+    // ── Computed values ──────────────────────────────────────────────────────
     const userRole = session?.user?.role as Role;
     const leaderRoles = [Role.DENOMINATION_LEADER, Role.OVERSIGHT_LEADER, Role.CAMPUS_LEADER, Role.STREAM_LEADER, Role.COUNCIL_LEADER] as Role[];
     const isLeader = userRole && leaderRoles.includes(userRole);
 
-    // Calculate color for Account Balance based on value
-    const getBalanceColor = (balance: number) => {
-        if (balance < 0) return theme.palette.error.main;
-        if (balance === 0) return theme.palette.warning.main;
-        if (balance < 5000) {
-            // Transition from green to yellow as balance approaches 0
-            const ratio = balance / 5000; // 0 to 1
-            // Mix success.main with warning.main based on ratio
-            return `rgba(76, 175, 80, ${ratio})`; // Green with decreasing opacity
-        }
-        return theme.palette.success.main;
-    };
-
-    const getStatColor = (type: string, balance?: number | string) => {
+    const getStatColor = (type: string, balance?: number | string): string => {
         const b = balance !== undefined ? Number(balance) : undefined;
         if (type === 'balance') {
-            if (b !== undefined && b < 0) return theme.palette.error.main;
-            if (b !== undefined && b === 0) return theme.palette.warning.main;
-            if (b !== undefined && b < 5000) return theme.palette.warning.dark;
-            return theme.palette.success.main;
+            if (b !== undefined && b < 0) return '#EF4444';
+            if (b !== undefined && b === 0) return '#F59E0B';
+            if (b !== undefined && b < 5000) return '#D97706';
+            return '#22C55E';
         }
-        if (type === 'income') return theme.palette.success.main;
-        if (type === 'expense') return theme.palette.error.main;
-        if (type === 'weeklyIncome') return theme.palette.info.main;
-        return theme.palette.text.primary;
+        if (type === 'income') return '#22C55E';
+        if (type === 'expense') return '#EF4444';
+        if (type === 'weeklyIncome') return '#3B82F6';
+        return '#6B7280';
     };
 
     const statCards = isSuperAdmin && stats.superAdminStats ? [
-        { title: 'Total Users', amount: stats.superAdminStats.users, icon: PeopleIcon, color: theme.palette.text.primary, isBlinking: false },
-        { title: 'Total Departments', amount: stats.superAdminStats.departments, icon: BusinessIcon, color: theme.palette.warning.main, isBlinking: false },
-        { title: 'Total Transactions', amount: stats.superAdminStats.transactions, icon: ReceiptIcon, color: theme.palette.info.main, isBlinking: false },
-        { title: 'Pending Approvals', amount: stats.superAdminStats.pendingApprovals, icon: PendingActionsIcon, color: theme.palette.error.main, isBlinking: stats.superAdminStats.pendingApprovals > 0 },
-        { title: "Today's Logins", amount: stats.superAdminStats.todaysLogins, icon: VerifiedUserIcon, color: theme.palette.success.main, isBlinking: false },
-        { title: 'Active Currencies', amount: stats.superAdminStats.activeCurrencies, icon: MonetizationOnIcon, color: theme.palette.text.primary, isBlinking: false },
-        { title: 'Critical Errors (Today)', amount: stats.superAdminStats.criticalErrors, icon: ErrorOutlineIcon, color: theme.palette.error.dark, isBlinking: stats.superAdminStats.criticalErrors > 0 },
-        { title: 'Active Departments', amount: stats.superAdminStats.activeDepartments, icon: BusinessIcon, color: theme.palette.text.primary, isBlinking: false },
+        { title: 'Total Users', amount: stats.superAdminStats.users, icon: Users, color: '#6B7280', isBlinking: false },
+        { title: 'Total Departments', amount: stats.superAdminStats.departments, icon: Building2, color: '#F59E0B', isBlinking: false },
+        { title: 'Total Transactions', amount: stats.superAdminStats.transactions, icon: Receipt, color: '#3B82F6', isBlinking: false },
+        { title: 'Pending Approvals', amount: stats.superAdminStats.pendingApprovals, icon: Clock, color: '#EF4444', isBlinking: stats.superAdminStats.pendingApprovals > 0 },
+        { title: "Today's Logins", amount: stats.superAdminStats.todaysLogins, icon: ShieldCheck, color: '#22C55E', isBlinking: false },
+        { title: 'Active Currencies', amount: stats.superAdminStats.activeCurrencies, icon: Coins, color: '#6B7280', isBlinking: false },
+        { title: 'Critical Errors (Today)', amount: stats.superAdminStats.criticalErrors, icon: AlertCircle, color: '#DC2626', isBlinking: stats.superAdminStats.criticalErrors > 0 },
+        { title: 'Active Departments', amount: stats.superAdminStats.activeDepartments, icon: Building2, color: '#6B7280', isBlinking: false },
     ] : isLeader ? [
-        { title: 'Account Balance', amount: stats.balance || 0, icon: AccountBalanceWalletIcon, color: getStatColor('balance', stats.balance), isBlinking: Number(stats.balance || 0) < 5000 },
-        { title: "This Week's Income", amount: stats.weeklyIncome || 0, icon: TrendingUpIcon, color: getStatColor('weeklyIncome'), isBlinking: false },
+        { title: 'Account Balance', amount: stats.balance || 0, icon: Wallet, color: getStatColor('balance', stats.balance), isBlinking: Number(stats.balance || 0) < 5000 },
+        { title: "This Week's Income", amount: stats.weeklyIncome || 0, icon: TrendingUp, color: getStatColor('weeklyIncome'), isBlinking: false },
     ] : [
-        { title: 'Account Balance', amount: stats.balance || 0, icon: AccountBalanceWalletIcon, color: getStatColor('balance', stats.balance), isBlinking: Number(stats.balance || 0) < 5000 },
-        { title: 'Total Inflows', amount: stats.income || 0, icon: TrendingUpIcon, color: getStatColor('income'), isBlinking: false },
-        { title: 'Total Expenses', amount: stats.expense || 0, icon: TrendingDownIcon, color: getStatColor('expense'), isBlinking: false },
-        { title: "This Week's Income", amount: stats.weeklyIncome || 0, icon: TrendingUpIcon, color: getStatColor('weeklyIncome'), isBlinking: false },
+        { title: 'Account Balance', amount: stats.balance || 0, icon: Wallet, color: getStatColor('balance', stats.balance), isBlinking: Number(stats.balance || 0) < 5000 },
+        { title: 'Total Inflows', amount: stats.income || 0, icon: TrendingUp, color: getStatColor('income'), isBlinking: false },
+        { title: 'Total Expenses', amount: stats.expense || 0, icon: TrendingDown, color: getStatColor('expense'), isBlinking: false },
+        { title: "This Week's Income", amount: stats.weeklyIncome || 0, icon: TrendingUp, color: getStatColor('weeklyIncome'), isBlinking: false },
     ];
 
-    const renderChartContent = () => (
-        <>
-            <Box sx={{ mb: { xs: 1.5, sm: 2.5 } }}>
-                <Typography variant="overline" sx={{ display: 'block', mb: 0.5 }}>
-                    Cash flow
-                </Typography>
-                <Typography
-                    component="h2"
-                    sx={{
-                        fontFamily: theme.typography.h3.fontFamily,
-                        fontSize: { xs: '1.0625rem', sm: '1.25rem' },
-                        fontWeight: 500,
-                        letterSpacing: '-0.015em',
-                        color: 'text.primary',
-                    }}
-                >
-                    {chartOffset === 0 ? 'Weekly income & expense, last 4 weeks' : 'Weekly income & expense'}
-                </Typography>
-            </Box>
-            <Box sx={{ width: '100%', height: { xs: 280, sm: 320, md: 350 }, position: 'relative', opacity: chartLoading ? 0.5 : 1, transition: 'opacity 0.2s' }}>
-                <ResponsiveContainer width="100%" height="100%">
-                    <BarChart
-                        data={stats.chartData}
-                        margin={{
-                            top: 25,
-                            right: 10,
-                            left: 10,
-                            bottom: 5,
-                        }}
-                        style={{ backgroundColor: 'transparent' }}
-                    >
-                        <XAxis
-                            dataKey="week"
-                            tick={{ fill: theme.palette.text.secondary, fontSize: 12 }}
-                            axisLine={{ stroke: theme.palette.divider }}
-                            tickLine={false}
-                        />
-                        <Tooltip
-                            formatter={(value: any, name: any) => {
-                                const label = name === 'income' ? 'Income' : name === 'expense' ? 'Expense' : name;
-                                const formatted = baseCurrency
-                                    ? `${baseCurrency.symbol}${formatMoney(value)}`
-                                    : formatMoney(value);
-                                return [formatted, label];
-                            }}
-                            contentStyle={{
-                                backgroundColor: theme.palette.background.paper,
-                                border: `1px solid ${theme.palette.divider}`,
-                                borderRadius: 10,
-                                boxShadow: theme.palette.mode === 'dark'
-                                    ? '0 16px 40px rgba(0,0,0,0.55)'
-                                    : '0 16px 40px rgba(20,17,15,0.08)',
-                                fontSize: '0.8125rem',
-                            }}
-                            labelStyle={{
-                                color: theme.palette.text.primary,
-                                fontWeight: 600,
-                                fontSize: '0.75rem',
-                                textTransform: 'uppercase',
-                                letterSpacing: '0.06em',
-                                marginBottom: 4,
-                            }}
-                            cursor={{ fill: alpha(theme.palette.text.primary, 0.04), radius: 4 }}
-                        />
-                        <Bar
-                            dataKey="income"
-                            radius={[6, 6, 0, 0]}
-                            barSize={35}
-                            fill={theme.palette.success.main}
-                        >
-                            <LabelList
-                                dataKey="income"
-                                position="top"
-                                fill={theme.palette.text.primary}
-                                fontSize={11}
-                                formatter={(value: any) => baseCurrency ? `${baseCurrency.symbol}${Number(value).toLocaleString()}` : Number(value).toLocaleString()}
-                            />
-                        </Bar>
-                        <Bar
-                            dataKey="expense"
-                            radius={[6, 6, 0, 0]}
-                            barSize={35}
-                            fill={theme.palette.error.main}
-                        >
-                            <LabelList
-                                dataKey="expense"
-                                position="top"
-                                fill={theme.palette.text.primary}
-                                fontSize={11}
-                                formatter={(value: any) => baseCurrency ? `${baseCurrency.symbol}${Number(value).toLocaleString()}` : Number(value).toLocaleString()}
-                            />
-                        </Bar>
-                    </BarChart>
-                </ResponsiveContainer>
-            </Box>
-            {/* Navigation */}
-            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 1.5, mt: 2 }}>
-                <IconButton
-                    size="small"
-                    onClick={() => setChartOffset(prev => prev + 1)}
-                    disabled={chartLoading}
-                    sx={{
-                        border: `1px solid ${theme.palette.divider}`,
-                        borderRadius: 1,
-                        color: 'text.secondary',
-                        '&:hover': { color: 'text.primary', borderColor: alpha(theme.palette.text.primary, 0.3) },
-                    }}
-                >
-                    <ArrowBackIosNewIcon sx={{ fontSize: 14 }} />
-                </IconButton>
-                <Typography
-                    sx={{
-                        fontSize: '0.6875rem',
-                        fontWeight: 500,
-                        letterSpacing: '0.10em',
-                        textTransform: 'uppercase',
-                        color: 'text.secondary',
-                        minWidth: 100,
-                        textAlign: 'center',
-                    }}
-                >
-                    {chartOffset === 0 ? 'Current' : `${chartOffset * 4} weeks ago`}
-                </Typography>
-                <IconButton
-                    size="small"
-                    onClick={() => setChartOffset(prev => Math.max(0, prev - 1))}
-                    disabled={chartOffset === 0 || chartLoading}
-                    sx={{
-                        border: `1px solid ${theme.palette.divider}`,
-                        borderRadius: 1,
-                        color: 'text.secondary',
-                        '&:hover': { color: 'text.primary', borderColor: alpha(theme.palette.text.primary, 0.3) },
-                    }}
-                >
-                    <ArrowForwardIosIcon sx={{ fontSize: 14 }} />
-                </IconButton>
-            </Box>
-        </>
-    );
+    // Recharts colors based on resolved mode
+    const chartColors = {
+        tickFill: isDark ? '#9AA3B1' : '#6B7280',
+        axisStroke: isDark ? '#2A2D31' : '#E2E6EB',
+        tooltipBg: isDark ? '#16181C' : '#FCFDFE',
+        tooltipBorder: isDark ? '#2A2D31' : '#E2E6EB',
+        labelFill: isDark ? '#F1F4F7' : '#161A1F',
+        cursorFill: isDark ? 'rgba(241,244,247,0.04)' : 'rgba(22,26,31,0.04)',
+    };
+
+    const getAdminRoute = (title: string) => {
+        switch (title) {
+            case 'Total Users': return '/users';
+            case 'Total Departments': return '/departments';
+            case 'Total Transactions': return '/transactions';
+            case 'Pending Approvals': return '/approvals';
+            case "Today's Logins": return '/audit';
+            case 'Active Currencies': return '/currencies';
+            case 'Critical Errors (Today)': return '/audit';
+            case 'Active Departments': return '/departments';
+            default: return undefined;
+        }
+    };
 
     return (
-        <Box sx={{ px: { xs: 1.5, sm: 3, md: 6, lg: 8 }, py: { xs: 1.5, sm: 2, md: 1.5 }, maxWidth: '1600px', mx: 'auto' }}>
-            {/* Header — editorial hero */}
-            <Box
-                sx={{
-                    mb: { xs: 3, md: 4 },
-                    pb: { xs: 2.5, md: 3 },
-                    borderBottom: `1px solid ${theme.palette.divider}`,
-                    display: 'flex',
-                    alignItems: { xs: 'flex-start', sm: 'flex-end' },
-                    justifyContent: 'space-between',
-                    gap: 2,
-                    flexWrap: 'wrap',
-                }}
-            >
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2.5, minWidth: 0, flex: 1 }}>
+        <div className="px-4 sm:px-6 md:px-12 lg:px-16 py-4 max-w-[1600px] mx-auto">
+
+            {/* Header */}
+            <div className="mb-8 pb-6 border-b border-border flex items-start sm:items-end justify-between gap-4 flex-wrap">
+                <div className="flex items-center gap-5 min-w-0 flex-1">
                     {isSuperAdmin ? (
-                        <Box
-                            sx={{
-                                width: 48,
-                                height: 48,
-                                borderRadius: 1.5,
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                bgcolor: alpha(theme.palette.secondary.main, 0.10),
-                                color: theme.palette.secondary.main,
-                                flexShrink: 0,
-                            }}
-                        >
-                            <BusinessIcon sx={{ fontSize: 24 }} />
-                        </Box>
+                        <div className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0 bg-secondary text-muted-foreground">
+                            <Building2 className="h-6 w-6" />
+                        </div>
                     ) : departmentLeader ? (
-                        <Avatar
-                            src={departmentLeader.image || undefined}
-                            alt={departmentLeader.name}
-                            sx={{
-                                width: { xs: 52, sm: 60 },
-                                height: { xs: 52, sm: 60 },
-                                fontFamily: theme.typography.h3.fontFamily,
-                                fontSize: '1.25rem',
-                                border: `1px solid ${theme.palette.divider}`,
-                            }}
-                        >
-                            {departmentLeader.name.charAt(0)}
+                        <Avatar className="w-14 h-14 sm:w-16 sm:h-16 border border-border shrink-0">
+                            {departmentLeader.image && <AvatarImage src={departmentLeader.image} alt={departmentLeader.name} />}
+                            <AvatarFallback className="text-xl">{departmentLeader.name.charAt(0)}</AvatarFallback>
                         </Avatar>
                     ) : (
-                        <Box
-                            sx={{
-                                width: 48,
-                                height: 48,
-                                borderRadius: 1.5,
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                bgcolor: alpha(theme.palette.text.primary, 0.06),
-                                color: theme.palette.text.primary,
-                                flexShrink: 0,
-                            }}
-                        >
-                            <AccountBalanceWalletIcon sx={{ fontSize: 22 }} />
-                        </Box>
+                        <div className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0 bg-foreground/5 text-foreground">
+                            <Wallet className="h-5 w-5" />
+                        </div>
                     )}
-                    <Box sx={{ minWidth: 0 }}>
-                        <Typography variant="overline" sx={{ display: 'block', mb: 0.5 }}>
-                            {isSuperAdmin
-                                ? 'Administration'
-                                : isLeader
-                                    ? 'Leader overview'
-                                    : 'Account overview'}
-                        </Typography>
-                        <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1.5, flexWrap: 'wrap' }}>
-                            <Typography
-                                component="h1"
-                                sx={{
-                                    fontFamily: theme.typography.h2.fontFamily,
-                                    fontSize: { xs: '1.625rem', sm: '1.875rem', md: '2.25rem' },
-                                    fontWeight: 500,
-                                    letterSpacing: '-0.02em',
-                                    lineHeight: 1.15,
-                                    color: theme.palette.text.primary,
-                                }}
-                            >
+                    <div className="min-w-0">
+                        <p className="text-[0.6875rem] font-medium uppercase tracking-[0.10em] text-muted-foreground mb-1">
+                            {isSuperAdmin ? 'Administration' : isLeader ? 'Leader overview' : 'Account overview'}
+                        </p>
+                        <div className="flex items-baseline gap-3 flex-wrap">
+                            <h1 className="text-[1.625rem] sm:text-[1.875rem] md:text-[2.25rem] font-medium tracking-[-0.02em] leading-[1.15] text-foreground">
                                 {isSuperAdmin
                                     ? 'System management'
                                     : session?.user?.departmentName && session?.user?.departmentLevel
                                         ? `${session.user.departmentName} ${session.user.departmentLevel}`
                                         : session?.user?.departmentName || 'Dashboard'}
-                            </Typography>
+                            </h1>
                             {session?.user?.role && (
-                                <Chip
-                                    label={getDisplayRole(session.user.role)}
-                                    size="small"
-                                    variant="outlined"
-                                    sx={{
-                                        fontWeight: 500,
-                                        fontSize: '0.625rem',
-                                        letterSpacing: '0.10em',
-                                        textTransform: 'uppercase',
-                                        height: 22,
-                                    }}
-                                />
+                                <Badge variant="outline" className="text-[0.625rem] uppercase tracking-[0.10em] font-medium h-[22px]">
+                                    {getDisplayRole(session.user.role)}
+                                </Badge>
                             )}
-                        </Box>
-                        <Typography
-                            variant="body2"
-                            color="text.secondary"
-                            sx={{ mt: 0.75, maxWidth: 580 }}
-                        >
+                        </div>
+                        <p className="text-sm text-muted-foreground mt-1.5 max-w-[580px]">
                             {isSuperAdmin
                                 ? 'Manage every part of the system from one place.'
                                 : departmentLeader
                                     ? `Led by ${departmentLeader.name}`
                                     : "Here's what's happening with your finances today."}
-                        </Typography>
-                    </Box>
-                </Box>
-            </Box>
+                        </p>
+                    </div>
+                </div>
+            </div>
 
-            {/* Dashboard Stats */}
-            <Grid container spacing={{ xs: 1.5, sm: 3 }} sx={{ mb: { xs: 2, md: 4 } }}>
-                {statCards
-                    .filter(card => card !== undefined)
-                    .map((card, index) => {
-                        const getRoute = (title: string) => {
-                            switch(title) {
-                                case 'Total Users': return '/users';
-                                case 'Total Departments': return '/departments';
-                                case 'Total Transactions': return '/transactions';
-                                case 'Pending Approvals': return '/approvals';
-                                case "Today's Logins": return '/audit';
-                                case 'Active Currencies': return '/currencies';
-                                case 'Critical Errors (Today)': return '/audit';
-                                case 'Active Departments': return '/departments';
-                                default: return undefined;
-                            }
-                        };
-                        const route = getRoute(card.title);
-
-                        return (
-                        <Grid size={{ xs: 6, sm: 6, lg: isSuperAdmin ? 3 : 6 }} key={index}>
+            {/* Stats grid */}
+            <div className={cn(
+                'grid gap-4 mb-8',
+                isSuperAdmin ? 'grid-cols-2 lg:grid-cols-4' : 'grid-cols-2',
+            )}>
+                {statCards.map((card, i) => {
+                    const route = isSuperAdmin ? getAdminRoute(card.title) : undefined;
+                    return (
+                        <div key={i}>
                             {isSuperAdmin ? (
                                 <MinimalStatCard
                                     title={card.title}
                                     amount={card.amount}
                                     icon={card.icon}
                                     color={card.color}
-                                    currencySymbol={''}
                                     isBlinking={card.isBlinking}
                                     onClick={route ? () => router.push(route) : undefined}
                                 />
                             ) : (
-                                <SimpleStatCard
+                                <RegularStatCard
                                     title={card.title}
                                     amount={card.amount}
                                     icon={card.icon}
-                                    color={card.color || ''}
+                                    color={card.color}
                                     currencySymbol={baseCurrency?.symbol}
                                     isBlinking={card.isBlinking}
                                 />
                             )}
-                        </Grid>
-                    )})}
-            </Grid>
-
-            {/* Weekly Income Chart */}
-            {stats.chartData && stats.chartData.length > 0 && (
-                <Card
-                    elevation={0}
-                    sx={{
-                        p: { xs: 2.5, sm: 3.5 },
-                        mt: { xs: 2, md: 0 },
-                        bgcolor: 'background.paper',
-                        borderRadius: 3.5,
-                        boxShadow: 'none',
-                        border: '1px solid',
-                        borderColor: 'divider',
-                    }}
-                >
-                    {renderChartContent()}
-                </Card>
-            )}
-
-            {/* Quick Links - Hidden for SuperAdmin */}
-            {!isSuperAdmin && (
-            <Box
-                sx={{
-                    mt: { xs: 3, md: 4 },
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 1.5
-                }}
-            >
-                {/* Time window banner for leaders */}
-                {isLeader && (() => {
-                    const now = new Date();
-                    const hour = now.getHours();
-                    const isSaturday = now.getDay() === 6;
-                    const maxHour = isSaturday ? 19 : 15;
-                    const isWindowOpen = hour >= 6 && hour < maxHour;
-                    const closeTime = `${maxHour > 12 ? maxHour - 12 : maxHour}:00 ${maxHour >= 12 ? 'PM' : 'AM'}`;
-                    const openTime = '6:00 AM';
-                    const hoursUntilOpen = hour < 6 ? 6 - hour : 24 - hour + 6;
-                    return (
-                        <Box
-                            sx={{
-                                px: 2,
-                                py: 1.25,
-                                borderRadius: 2,
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: 1,
-                                bgcolor: isWindowOpen
-                                    ? alpha(theme.palette.success.main, 0.08)
-                                    : alpha(theme.palette.warning.main, 0.08),
-                                border: `1px solid ${isWindowOpen
-                                    ? alpha(theme.palette.success.main, 0.25)
-                                    : alpha(theme.palette.warning.main, 0.25)}`,
-                            }}
-                        >
-                            <Box
-                                sx={{
-                                    width: 8,
-                                    height: 8,
-                                    borderRadius: '50%',
-                                    bgcolor: isWindowOpen ? 'success.main' : 'warning.main',
-                                    flexShrink: 0,
-                                    ...(isWindowOpen && {
-                                        '@keyframes statusPulse': {
-                                            '0%, 100%': { opacity: 1 },
-                                            '50%': { opacity: 0.4 },
-                                        },
-                                        animation: 'statusPulse 2s ease-in-out infinite',
-                                    }),
-                                }}
-                            />
-                            <Typography
-                                variant="caption"
-                                sx={{ fontWeight: 600, color: isWindowOpen ? 'success.main' : 'warning.main' }}
-                            >
-                                {isWindowOpen
-                                    ? `Expense submissions open · Closes at ${closeTime}`
-                                    : `Submissions closed · Opens at ${openTime} (in ~${hoursUntilOpen}h)`}
-                            </Typography>
-                        </Box>
+                        </div>
                     );
-                })()}
+                })}
+            </div>
 
-                {quickLinks.map((link) => (
-                    <Card
-                        key={link.title}
-                        elevation={0}
-                        onClick={() => router.push(link.href)}
-                        sx={{
-                            borderRadius: 3,
-                            border: `1px solid ${theme.palette.divider}`,
-                            bgcolor: 'background.paper',
-                            cursor: 'pointer',
-                            transition: 'border-color 160ms ease, background-color 160ms ease',
-                            '&:hover': {
-                                bgcolor: alpha(theme.palette.text.primary, 0.02),
-                                borderColor: alpha(link.color || theme.palette.text.primary, 0.4),
-                                '& .arrow': {
-                                    transform: 'translateX(4px)',
-                                    color: theme.palette.text.primary,
-                                },
-                            },
-                        }}
+            {/* Cash flow chart */}
+            {stats.chartData && stats.chartData.length > 0 && (
+                <div className="rounded-[14px] bg-card border border-border p-5 sm:p-8 mt-4 md:mt-0">
+                    <div className="mb-5">
+                        <p className="text-[0.6875rem] font-medium uppercase tracking-[0.10em] text-muted-foreground mb-1">
+                            Cash flow
+                        </p>
+                        <h2 className="text-[1.0625rem] sm:text-[1.25rem] font-medium tracking-[-0.015em] text-foreground">
+                            {chartOffset === 0 ? 'Weekly income & expense, last 4 weeks' : 'Weekly income & expense'}
+                        </h2>
+                    </div>
+
+                    <div
+                        className="w-full transition-opacity duration-200"
+                        style={{ height: 'clamp(280px, 35vw, 350px)', opacity: chartLoading ? 0.5 : 1 }}
                     >
-                        <Box sx={{ px: 2.25, py: 1.75, display: 'flex', alignItems: 'center', gap: 2 }}>
-                            <Box
-                                sx={{
-                                    width: 36,
-                                    height: 36,
-                                    borderRadius: 1.25,
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    bgcolor: alpha(link.color || theme.palette.text.primary, 0.08),
-                                    color: link.color,
-                                }}
+                        <ResponsiveContainer width="100%" height="100%">
+                            <BarChart
+                                data={stats.chartData}
+                                margin={{ top: 25, right: 10, left: 10, bottom: 5 }}
+                                style={{ backgroundColor: 'transparent' }}
                             >
-                                <link.icon sx={{ fontSize: 18 }} />
-                            </Box>
-                            <Typography
-                                sx={{
-                                    fontSize: '0.9375rem',
-                                    fontWeight: 500,
-                                    color: 'text.primary',
-                                    letterSpacing: '-0.005em',
-                                }}
-                            >
-                                {link.title}
-                            </Typography>
-                            <Box sx={{ ml: 'auto' }}>
-                                <ArrowForwardIosIcon
-                                    className="arrow"
-                                    sx={{
-                                        fontSize: 12,
-                                        color: 'text.disabled',
-                                        transition: 'transform 160ms ease, color 160ms ease',
-                                    }}
+                                <XAxis
+                                    dataKey="week"
+                                    tick={{ fill: chartColors.tickFill, fontSize: 12 }}
+                                    axisLine={{ stroke: chartColors.axisStroke }}
+                                    tickLine={false}
                                 />
-                            </Box>
-                        </Box>
-                    </Card>
-                ))}
-            </Box>
+                                <Tooltip
+                                    formatter={(value: any, name: any) => {
+                                        const label = name === 'income' ? 'Income' : name === 'expense' ? 'Expense' : name;
+                                        const formatted = baseCurrency
+                                            ? `${baseCurrency.symbol}${formatMoney(value)}`
+                                            : formatMoney(value);
+                                        return [formatted, label];
+                                    }}
+                                    contentStyle={{
+                                        backgroundColor: chartColors.tooltipBg,
+                                        border: `1px solid ${chartColors.tooltipBorder}`,
+                                        borderRadius: 10,
+                                        boxShadow: isDark ? '0 16px 40px rgba(0,0,0,0.55)' : '0 16px 40px rgba(20,17,15,0.08)',
+                                        fontSize: '0.8125rem',
+                                    }}
+                                    labelStyle={{
+                                        color: chartColors.labelFill,
+                                        fontWeight: 600,
+                                        fontSize: '0.75rem',
+                                        textTransform: 'uppercase',
+                                        letterSpacing: '0.06em',
+                                        marginBottom: 4,
+                                    }}
+                                    cursor={{ fill: chartColors.cursorFill, radius: 4 } as any}
+                                />
+                                <Bar dataKey="income" radius={[6, 6, 0, 0] as any} barSize={35} fill="#22C55E">
+                                    <LabelList
+                                        dataKey="income"
+                                        position="top"
+                                        fill={chartColors.labelFill}
+                                        fontSize={11}
+                                        formatter={(v: any) => baseCurrency ? `${baseCurrency.symbol}${Number(v).toLocaleString()}` : Number(v).toLocaleString()}
+                                    />
+                                </Bar>
+                                <Bar dataKey="expense" radius={[6, 6, 0, 0] as any} barSize={35} fill="#EF4444">
+                                    <LabelList
+                                        dataKey="expense"
+                                        position="top"
+                                        fill={chartColors.labelFill}
+                                        fontSize={11}
+                                        formatter={(v: any) => baseCurrency ? `${baseCurrency.symbol}${Number(v).toLocaleString()}` : Number(v).toLocaleString()}
+                                    />
+                                </Bar>
+                            </BarChart>
+                        </ResponsiveContainer>
+                    </div>
+
+                    {/* Chart navigation */}
+                    <div className="flex items-center justify-center gap-4 mt-4">
+                        <Button
+                            variant="outline"
+                            size="icon-sm"
+                            onClick={() => setChartOffset(p => p + 1)}
+                            disabled={chartLoading}
+                        >
+                            <ChevronLeft className="h-3.5 w-3.5" />
+                        </Button>
+                        <span className="text-[0.6875rem] font-medium uppercase tracking-[0.10em] text-muted-foreground min-w-[100px] text-center">
+                            {chartOffset === 0 ? 'Current' : `${chartOffset * 4} weeks ago`}
+                        </span>
+                        <Button
+                            variant="outline"
+                            size="icon-sm"
+                            onClick={() => setChartOffset(p => Math.max(0, p - 1))}
+                            disabled={chartOffset === 0 || chartLoading}
+                        >
+                            <ChevronRight className="h-3.5 w-3.5" />
+                        </Button>
+                    </div>
+                </div>
             )}
-        </Box>
+
+            {/* Quick links — hidden for SuperAdmin */}
+            {!isSuperAdmin && (
+                <div className="mt-8 flex flex-col gap-3">
+                    {/* Time window banner for leaders */}
+                    {isLeader && (() => {
+                        const now = new Date();
+                        const hour = now.getHours();
+                        const isSaturday = now.getDay() === 6;
+                        const maxHour = isSaturday ? 19 : 15;
+                        const isOpen = hour >= 6 && hour < maxHour;
+                        const closeTime = `${maxHour > 12 ? maxHour - 12 : maxHour}:00 ${maxHour >= 12 ? 'PM' : 'AM'}`;
+                        const hoursUntilOpen = hour < 6 ? 6 - hour : 24 - hour + 6;
+                        return (
+                            <div className={cn(
+                                'px-3 py-2.5 rounded-xl flex items-center gap-2',
+                                isOpen
+                                    ? 'bg-success/8 border border-success/25'
+                                    : 'bg-warning/8 border border-warning/25',
+                            )}>
+                                <div className={cn(
+                                    'w-2 h-2 rounded-full shrink-0',
+                                    isOpen ? 'bg-success animate-pulse' : 'bg-warning',
+                                )} />
+                                <span className={cn(
+                                    'text-xs font-semibold',
+                                    isOpen ? 'text-success' : 'text-warning',
+                                )}>
+                                    {isOpen
+                                        ? `Expense submissions open · Closes at ${closeTime}`
+                                        : `Submissions closed · Opens at 6:00 AM (in ~${hoursUntilOpen}h)`}
+                                </span>
+                            </div>
+                        );
+                    })()}
+
+                    {quickLinks.map(link => (
+                        <div
+                            key={link.title}
+                            onClick={() => router.push(link.href)}
+                            className="group rounded-xl border border-border bg-card cursor-pointer transition-colors duration-150 hover:bg-foreground/[0.02]"
+                            style={{ '--hover-border': link.color } as React.CSSProperties}
+                        >
+                            <div className="px-4 py-3.5 flex items-center gap-3">
+                                <div
+                                    className="w-9 h-9 rounded-[7px] flex items-center justify-center shrink-0"
+                                    style={{ backgroundColor: `${link.color}14`, color: link.color }}
+                                >
+                                    <link.icon className="h-[18px] w-[18px]" />
+                                </div>
+                                <span className="text-[0.9375rem] font-medium text-foreground tracking-[-0.005em]">
+                                    {link.title}
+                                </span>
+                                <ChevronRight className="ml-auto h-3 w-3 text-muted-foreground transition-transform duration-150 group-hover:translate-x-1 group-hover:text-foreground" />
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            )}
+        </div>
     );
 }

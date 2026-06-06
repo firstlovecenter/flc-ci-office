@@ -1,48 +1,20 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import {
-    Box,
-    Typography,
-    Paper,
-    Table,
-    TableBody,
-    TableCell,
-    TableContainer,
-    TableHead,
-    TableRow,
-    Chip,
-    TextField,
-    InputAdornment,
-    FormControl,
-    InputLabel,
-    Select,
-    MenuItem,
-    TablePagination,
-    useTheme,
-    useMediaQuery,
-    Dialog,
-    DialogTitle,
-    DialogContent,
-    DialogActions,
-    Button,
-    Stack,
-    Grid,
-    alpha,
-} from '@mui/material';
-import SearchIcon from '@mui/icons-material/Search';
-import HistoryIcon from '@mui/icons-material/History';
+import { Search, History, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
-import { GlassCard } from '@/components/ui';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { cn } from '@/lib/utils';
 
 type AuditLog = {
     id: string;
     userId: string;
-    user: {
-        name: string | null;
-        email: string;
-    };
+    user: { name: string | null; email: string };
     actionType: string;
     entityType: string;
     entityId: string;
@@ -52,11 +24,17 @@ type AuditLog = {
     ipAddress: string | null;
 };
 
+const actionBadgeVariant = (action: string): 'default' | 'destructive' | 'success' | 'warning' | 'secondary' => {
+    if (action === 'CREATE') return 'success';
+    if (action === 'DELETE') return 'destructive';
+    if (action === 'UPDATE') return 'default';
+    if (action === 'LOGIN') return 'secondary';
+    return 'warning';
+};
+
 export default function AuditPage() {
     const { data: session } = useSession();
     const router = useRouter();
-    const theme = useTheme();
-    const isMobile = useMediaQuery(theme.breakpoints.down('md'));
     const [logs, setLogs] = useState<AuditLog[]>([]);
     const [filteredLogs, setFilteredLogs] = useState<AuditLog[]>([]);
     const [loading, setLoading] = useState(true);
@@ -64,414 +42,247 @@ export default function AuditPage() {
     const [actionFilter, setActionFilter] = useState('ALL');
     const [entityFilter, setEntityFilter] = useState('ALL');
     const [page, setPage] = useState(0);
-    const [rowsPerPage, setRowsPerPage] = useState(25);
+    const [rowsPerPage] = useState(25);
     const [selectedLog, setSelectedLog] = useState<AuditLog | null>(null);
     const [detailsOpen, setDetailsOpen] = useState(false);
 
-    // Redirect non-superadmins
     useEffect(() => {
-        if (session?.user?.role && session.user.role !== 'SUPERADMIN') {
-            router.push('/dashboard');
-        }
+        if (session?.user?.role && session.user.role !== 'SUPERADMIN') router.push('/dashboard');
     }, [session, router]);
 
-    useEffect(() => {
-        fetchLogs();
-    }, []);
+    useEffect(() => { fetchLogs(); }, []);
 
     useEffect(() => {
-        filterLogs();
+        let filtered = [...logs];
+        if (searchTerm) {
+            const q = searchTerm.toLowerCase();
+            filtered = filtered.filter(l =>
+                l.user?.name?.toLowerCase().includes(q) ||
+                l.user?.email?.toLowerCase().includes(q) ||
+                l.entityType.toLowerCase().includes(q) ||
+                l.entityId.toLowerCase().includes(q)
+            );
+        }
+        if (actionFilter !== 'ALL') filtered = filtered.filter(l => l.actionType === actionFilter);
+        if (entityFilter !== 'ALL') filtered = filtered.filter(l => l.entityType === entityFilter);
+        setFilteredLogs(filtered);
+        setPage(0);
     }, [logs, searchTerm, actionFilter, entityFilter]);
 
     const fetchLogs = async () => {
         try {
-            const response = await fetch('/api/audit');
-            if (response.ok) {
-                const data = await response.json();
-                setLogs(data);
-            }
-        } catch (error) {
-        } finally {
-            setLoading(false);
-        }
+            const res = await fetch('/api/audit');
+            if (res.ok) setLogs(await res.json());
+        } catch { /* ignore */ }
+        finally { setLoading(false); }
     };
 
-    const filterLogs = () => {
-        let filtered = [...logs];
+    if (!session || session.user.role !== 'SUPERADMIN') return null;
 
-        if (searchTerm) {
-            filtered = filtered.filter(
-                (log) =>
-                    log.user?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                    log.user?.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                    log.entityType.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                    log.entityId.toLowerCase().includes(searchTerm.toLowerCase())
-            );
-        }
-
-        if (actionFilter !== 'ALL') {
-            filtered = filtered.filter((log) => log.actionType === actionFilter);
-        }
-
-        if (entityFilter !== 'ALL') {
-            filtered = filtered.filter((log) => log.entityType === entityFilter);
-        }
-
-        setFilteredLogs(filtered);
-        setPage(0);
-    };
-
-    const handleChangePage = (event: unknown, newPage: number) => {
-        setPage(newPage);
-    };
-
-    const handleChangeRowsPerPage = (event: React.ChangeEvent<HTMLInputElement>) => {
-        setRowsPerPage(parseInt(event.target.value, 10));
-        setPage(0);
-    };
-
-    const getActionColor = (action: string) => {
-        switch (action) {
-            case 'CREATE':
-                return 'success';
-            case 'UPDATE':
-                return 'info';
-            case 'DELETE':
-                return 'error';
-            case 'LOGIN':
-                return 'default';
-            default:
-                return 'warning';
-        }
-    };
-
-    if (!session || session.user.role !== 'SUPERADMIN') {
-        return null;
-    }
+    const paged = filteredLogs.slice(page * rowsPerPage, (page + 1) * rowsPerPage);
+    const totalPages = Math.ceil(filteredLogs.length / rowsPerPage);
 
     return (
-        <Box>
-            {/* Page Header */}
-            <Box
-                sx={(theme) => ({
-                    display: 'flex',
-                    alignItems: { xs: 'flex-start', sm: 'flex-end' },
-                    justifyContent: 'space-between',
-                    gap: 2,
-                    flexWrap: 'wrap',
-                    mb: { xs: 3, md: 4 },
-                    pb: { xs: 2.5, md: 3 },
-                    borderBottom: `1px solid ${theme.palette.divider}`,
-                })}
-            >
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2.5, minWidth: 0, flex: 1 }}>
-                    <Box
-                        sx={(theme) => ({
-                            width: 48,
-                            height: 48,
-                            borderRadius: 1.5,
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            bgcolor: alpha(theme.palette.secondary.main, 0.10),
-                            color: theme.palette.secondary.main,
-                            flexShrink: 0,
-                        })}
-                    >
-                        <HistoryIcon sx={{ fontSize: 22 }} />
-                    </Box>
-                    <Box sx={{ minWidth: 0 }}>
-                        <Typography variant="overline" sx={{ display: 'block', mb: 0.5 }}>
-                            System
-                        </Typography>
-                        <Typography
-                            component="h1"
-                            sx={(theme) => ({
-                                fontFamily: theme.typography.h2.fontFamily,
-                                fontSize: { xs: '1.625rem', sm: '1.875rem', md: '2.125rem' },
-                                fontWeight: 600,
-                                letterSpacing: '-0.025em',
-                                lineHeight: 1.15,
-                            })}
-                        >
-                            Audit trail
-                        </Typography>
-                        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75 }}>
-                            Every system action and change, with full attribution.
-                        </Typography>
-                    </Box>
-                </Box>
-            </Box>
+        <div className="px-4 sm:px-6 md:px-8 py-6">
+            {/* Header */}
+            <div className="flex items-start gap-4 mb-8 pb-6 border-b border-border flex-wrap">
+                <div className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0 bg-secondary text-muted-foreground">
+                    <History className="h-5 w-5" />
+                </div>
+                <div>
+                    <p className="text-[0.6875rem] font-medium uppercase tracking-[0.10em] text-muted-foreground mb-0.5">System</p>
+                    <h1 className="text-[1.625rem] sm:text-[1.875rem] font-semibold tracking-[-0.025em] text-foreground">Audit trail</h1>
+                    <p className="text-sm text-muted-foreground mt-1">Every system action and change, with full attribution.</p>
+                </div>
+            </div>
 
             {/* Filters */}
-            <GlassCard sx={{ p: 3, mb: 3 }}>
-                <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center' }}>
-                    <TextField
+            <div className="rounded-xl border border-border bg-card p-4 mb-4 flex flex-wrap gap-3 items-center">
+                <div className="relative flex-1 min-w-[200px]">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+                    <Input
                         placeholder="Search logs..."
                         value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        sx={{ flexGrow: 1, minWidth: 250 }}
-                        InputProps={{
-                            startAdornment: (
-                                <InputAdornment position="start">
-                                    <SearchIcon />
-                                </InputAdornment>
-                            ),
-                        }}
+                        onChange={e => setSearchTerm(e.target.value)}
+                        className="pl-9"
                     />
-                    <FormControl sx={{ minWidth: 150 }}>
-                        <InputLabel>Action</InputLabel>
-                        <Select
-                            value={actionFilter}
-                            label="Action"
-                            onChange={(e) => setActionFilter(e.target.value)}
-                        >
-                            <MenuItem value="ALL">All Actions</MenuItem>
-                            <MenuItem value="CREATE">Create</MenuItem>
-                            <MenuItem value="UPDATE">Update</MenuItem>
-                            <MenuItem value="DELETE">Delete</MenuItem>
-                            <MenuItem value="LOGIN">Login</MenuItem>
-                            <MenuItem value="ROLE_CHANGE">Role Change</MenuItem>
-                            <MenuItem value="LOCK_OVERRIDE">Lock Override</MenuItem>
-                            <MenuItem value="FILE_UPLOAD">File Upload</MenuItem>
-                        </Select>
-                    </FormControl>
-                    <FormControl sx={{ minWidth: 150 }}>
-                        <InputLabel>Entity</InputLabel>
-                        <Select
-                            value={entityFilter}
-                            label="Entity"
-                            onChange={(e) => setEntityFilter(e.target.value)}
-                        >
-                            <MenuItem value="ALL">All Entities</MenuItem>
-                            <MenuItem value="Transaction">Transaction</MenuItem>
-                            <MenuItem value="User">User</MenuItem>
-                            <MenuItem value="Department">Department</MenuItem>
-                        </Select>
-                    </FormControl>
-                </Box>
-            </GlassCard>
+                </div>
+                <Select value={actionFilter} onValueChange={setActionFilter}>
+                    <SelectTrigger className="w-[150px]"><SelectValue placeholder="Action" /></SelectTrigger>
+                    <SelectContent>
+                        {['ALL', 'CREATE', 'UPDATE', 'DELETE', 'LOGIN', 'ROLE_CHANGE', 'LOCK_OVERRIDE', 'FILE_UPLOAD'].map(v => (
+                            <SelectItem key={v} value={v}>{v === 'ALL' ? 'All Actions' : v.replace('_', ' ')}</SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+                <Select value={entityFilter} onValueChange={setEntityFilter}>
+                    <SelectTrigger className="w-[150px]"><SelectValue placeholder="Entity" /></SelectTrigger>
+                    <SelectContent>
+                        {[['ALL', 'All Entities'], ['Transaction', 'Transaction'], ['User', 'User'], ['Department', 'Department']].map(([v, l]) => (
+                            <SelectItem key={v} value={v}>{l}</SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+            </div>
 
-            {/* Audit Logs Table */}
-            {isMobile ? (
-                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                    {loading ? (
-                        <Typography variant="body1" color="text.secondary" align="center" sx={{ py: 4 }}>
-                             Loading audit logs...
-                        </Typography>
-                    ) : filteredLogs.length === 0 ? (
-                        <GlassCard sx={{ p: 4, textAlign: 'center' }}>
-                             <Typography variant="body1" color="text.secondary">
-                                 No audit logs found
-                             </Typography>
-                        </GlassCard>
-                    ) : (
-                        <>
-                        {filteredLogs
-                            .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
-                            .map((log) => (
-                                <GlassCard 
-                                    key={log.id} 
-                                    sx={{ 
-                                        p: 2,
-                                        position: 'relative', 
-                                        overflow: 'hidden',
-                                        '&:active': { bgcolor: 'action.hover' }
-                                    }}
-                                    onClick={() => {
-                                        setSelectedLog(log);
-                                        setDetailsOpen(true);
-                                    }}
-                                >
-                                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                        <Box sx={{ minWidth: 0, flex: 1, mr: 2 }}>
-                                            <Typography variant="subtitle2" fontWeight={600} noWrap>
-                                                {log.user?.name || 'Unknown'}
-                                            </Typography>
-                                            <Typography variant="caption" color="text.secondary">
-                                                {new Date(log.timestamp).toLocaleString()} • {log.entityType}
-                                            </Typography>
-                                        </Box>
-                                        <Chip
-                                            label={log.actionType}
-                                            color={getActionColor(log.actionType) as any}
-                                            size="small"
-                                        />
-                                    </Box>
-                                </GlassCard>
-                            ))
-                        }
-                         <TablePagination
-                            rowsPerPageOptions={[25, 50, 100]}
-                            component="div"
-                            count={filteredLogs.length}
-                            rowsPerPage={rowsPerPage}
-                            page={page}
-                            onPageChange={handleChangePage}
-                            onRowsPerPageChange={handleChangeRowsPerPage}
-                            labelRowsPerPage="Rows:"
-                        />
-                        </>
-                    )}
-                 </Box>
-            ) : (
-            <TableContainer component={GlassCard}>
-                <Table>
-                    <TableHead>
-                        <TableRow sx={{ bgcolor: 'action.hover' }}>
-                            <TableCell sx={{ fontWeight: 700 }}>Timestamp</TableCell>
-                            <TableCell sx={{ fontWeight: 700 }}>User</TableCell>
-                            <TableCell sx={{ fontWeight: 700 }}>Action</TableCell>
-                            <TableCell sx={{ fontWeight: 700 }}>Entity Type</TableCell>
-                            <TableCell sx={{ fontWeight: 700 }}>Entity ID</TableCell>
-                            <TableCell sx={{ fontWeight: 700 }}>IP Address</TableCell>
-                        </TableRow>
-                    </TableHead>
-                    <TableBody>
-                        {loading ? (
-                            <TableRow>
-                                <TableCell colSpan={6} align="center" sx={{ py: 8 }}>
-                                    <Typography variant="body1" color="text.secondary">
-                                        Loading audit logs...
-                                    </Typography>
-                                </TableCell>
-                            </TableRow>
-                        ) : (
-                            filteredLogs
-                                .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
-                                .map((log) => (
-                                    <TableRow key={log.id} hover>
-                                        <TableCell>
-                                            {new Date(log.timestamp).toLocaleString()}
-                                        </TableCell>
-                                        <TableCell>
-                                            <Typography variant="body2" fontWeight={600}>
-                                                {log.user?.name || 'Unknown'}
-                                            </Typography>
-                                            <Typography variant="caption" color="text.secondary">
-                                                {log.user?.email}
-                                            </Typography>
-                                        </TableCell>
-                                        <TableCell>
-                                            <Chip
-                                                label={log.actionType}
-                                                color={getActionColor(log.actionType) as any}
-                                                size="small"
-                                            />
-                                        </TableCell>
-                                        <TableCell>{log.entityType}</TableCell>
-                                        <TableCell>
-                                            <Typography
-                                                variant="caption"
-                                                sx={{
-                                                    fontFamily: 'monospace',
-                                                    bgcolor: 'action.hover',
-                                                    px: 1,
-                                                    py: 0.5,
-                                                    borderRadius: 1,
-                                                }}
-                                            >
-                                                {log.entityId.substring(0, 8)}...
-                                            </Typography>
-                                        </TableCell>
-                                        <TableCell>
-                                            <Typography variant="caption" color="text.secondary">
-                                                {log.ipAddress || '-'}
-                                            </Typography>
-                                        </TableCell>
-                                    </TableRow>
-                                ))
-                        )}
-                        {!loading && filteredLogs.length === 0 && (
-                            <TableRow>
-                                <TableCell colSpan={6} align="center" sx={{ py: 8 }}>
-                                    <Typography variant="body1" color="text.secondary">
+            {/* Mobile cards */}
+            <div className="md:hidden flex flex-col gap-3">
+                {loading ? (
+                    <div className="flex justify-center py-10">
+                        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                    </div>
+                ) : paged.length === 0 ? (
+                    <div className="rounded-xl border border-border bg-card p-8 text-center text-sm text-muted-foreground">
+                        No audit logs found
+                    </div>
+                ) : paged.map(log => (
+                    <button
+                        key={log.id}
+                        onClick={() => { setSelectedLog(log); setDetailsOpen(true); }}
+                        className="rounded-xl border border-border bg-card p-4 text-left hover:bg-muted/20 transition-colors w-full"
+                    >
+                        <div className="flex justify-between items-center gap-2">
+                            <div className="min-w-0 flex-1">
+                                <p className="font-semibold text-foreground truncate">{log.user?.name || 'Unknown'}</p>
+                                <p className="text-xs text-muted-foreground mt-0.5">
+                                    {new Date(log.timestamp).toLocaleString()} · {log.entityType}
+                                </p>
+                            </div>
+                            <Badge variant={actionBadgeVariant(log.actionType)}>{log.actionType}</Badge>
+                        </div>
+                    </button>
+                ))}
+            </div>
+
+            {/* Desktop table */}
+            <div className="hidden md:block rounded-xl border border-border bg-card overflow-hidden">
+                <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                        <thead>
+                            <tr className="bg-muted/30">
+                                {['Timestamp', 'User', 'Action', 'Entity Type', 'Entity ID', 'IP Address'].map(h => (
+                                    <th key={h} className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-[0.06em] text-muted-foreground whitespace-nowrap">
+                                        {h}
+                                    </th>
+                                ))}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {loading ? (
+                                <tr>
+                                    <td colSpan={6} className="text-center py-10 text-muted-foreground">
+                                        <Loader2 className="h-5 w-5 animate-spin inline" />
+                                    </td>
+                                </tr>
+                            ) : paged.length === 0 ? (
+                                <tr>
+                                    <td colSpan={6} className="text-center py-10 text-sm text-muted-foreground">
                                         No audit logs found
-                                    </Typography>
-                                </TableCell>
-                            </TableRow>
-                        )}
-                    </TableBody>
-                </Table>
-                <TablePagination
-                    rowsPerPageOptions={[25, 50, 100]}
-                    component="div"
-                    count={filteredLogs.length}
-                    rowsPerPage={rowsPerPage}
-                    page={page}
-                    onPageChange={handleChangePage}
-                    onRowsPerPageChange={handleChangeRowsPerPage}
-                />
-            </TableContainer>
+                                    </td>
+                                </tr>
+                            ) : paged.map(log => (
+                                <tr
+                                    key={log.id}
+                                    className="border-t border-border hover:bg-muted/20 cursor-pointer transition-colors"
+                                    onClick={() => { setSelectedLog(log); setDetailsOpen(true); }}
+                                >
+                                    <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
+                                        {new Date(log.timestamp).toLocaleString()}
+                                    </td>
+                                    <td className="px-4 py-3">
+                                        <p className="font-semibold text-foreground">{log.user?.name || 'Unknown'}</p>
+                                        <p className="text-xs text-muted-foreground">{log.user?.email}</p>
+                                    </td>
+                                    <td className="px-4 py-3">
+                                        <Badge variant={actionBadgeVariant(log.actionType)}>{log.actionType}</Badge>
+                                    </td>
+                                    <td className="px-4 py-3 text-foreground">{log.entityType}</td>
+                                    <td className="px-4 py-3">
+                                        <code className="text-xs bg-muted px-1.5 py-0.5 rounded font-mono">
+                                            {log.entityId.substring(0, 8)}…
+                                        </code>
+                                    </td>
+                                    <td className="px-4 py-3 text-sm text-muted-foreground">{log.ipAddress || '—'}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            {/* Pagination */}
+            {!loading && filteredLogs.length > rowsPerPage && (
+                <div className="flex items-center justify-between mt-4 px-1">
+                    <p className="text-xs text-muted-foreground">
+                        Showing {page * rowsPerPage + 1}–{Math.min((page + 1) * rowsPerPage, filteredLogs.length)} of {filteredLogs.length}
+                    </p>
+                    <div className="flex items-center gap-2">
+                        <Button variant="outline" size="icon-sm" onClick={() => setPage(p => p - 1)} disabled={page === 0}>
+                            <ChevronLeft className="h-3.5 w-3.5" />
+                        </Button>
+                        <span className="text-xs text-muted-foreground">{page + 1} / {totalPages}</span>
+                        <Button variant="outline" size="icon-sm" onClick={() => setPage(p => p + 1)} disabled={page >= totalPages - 1}>
+                            <ChevronRight className="h-3.5 w-3.5" />
+                        </Button>
+                    </div>
+                </div>
             )}
 
-            <Dialog open={detailsOpen} onClose={() => setDetailsOpen(false)} maxWidth="sm" fullWidth>
-                <DialogTitle>Audit Log Details</DialogTitle>
-                <DialogContent>
+            {/* Detail dialog */}
+            <Dialog open={detailsOpen} onOpenChange={setDetailsOpen}>
+                <DialogContent className="max-w-lg">
+                    <DialogHeader><DialogTitle>Audit Log Details</DialogTitle></DialogHeader>
                     {selectedLog && (
-                        <Box sx={{ pt: 2 }}>
-                            <Stack spacing={2}>
-                                <Box>
-                                    <Typography variant="caption" color="text.secondary">Action</Typography>
-                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                        <Typography variant="body1" fontWeight={600}>{selectedLog.actionType}</Typography>
-                                        <Chip
-                                            label={selectedLog.actionType}
-                                            color={getActionColor(selectedLog.actionType) as any}
-                                            size="small"
-                                        />
-                                    </Box>
-                                </Box>
-                                <Box>
-                                    <Typography variant="caption" color="text.secondary">User</Typography>
-                                    <Typography variant="body1">{selectedLog.user?.name || 'Unknown'}</Typography>
-                                    <Typography variant="caption">{selectedLog.user?.email}</Typography>
-                                </Box>
-                                <Box>
-                                    <Typography variant="caption" color="text.secondary">Date & Time</Typography>
-                                    <Typography variant="body1">
-                                        {new Date(selectedLog.timestamp).toLocaleString()}
-                                    </Typography>
-                                </Box>
-                                <Grid container spacing={2}>
-                                    <Grid size={6}>
-                                        <Typography variant="caption" color="text.secondary">Entity Type</Typography>
-                                        <Typography variant="body1">{selectedLog.entityType}</Typography>
-                                    </Grid>
-                                    <Grid size={6}>
-                                        <Typography variant="caption" color="text.secondary">Entity ID</Typography>
-                                        <Typography variant="body2" sx={{ fontFamily: 'monospace', wordBreak: 'break-all' }}>
-                                            {selectedLog.entityId}
-                                        </Typography>
-                                    </Grid>
-                                </Grid>
-                                {selectedLog.ipAddress && (
-                                    <Box>
-                                        <Typography variant="caption" color="text.secondary">IP Address</Typography>
-                                        <Typography variant="body1">{selectedLog.ipAddress}</Typography>
-                                    </Box>
-                                )}
-                                {(selectedLog.beforeData || selectedLog.afterData) && (
-                                    <Box>
-                                        <Typography variant="caption" color="text.secondary">Changes</Typography>
-                                        <Paper variant="outlined" sx={{ p: 2, bgcolor: 'background.default', mt: 1, maxHeight: 200, overflow: 'auto' }}>
-                                            <pre style={{ margin: 0, fontSize: '0.75rem' }}>
-                                                {JSON.stringify({ 
-                                                    before: selectedLog.beforeData, 
-                                                    after: selectedLog.afterData 
-                                                }, null, 2)}
-                                            </pre>
-                                        </Paper>
-                                    </Box>
-                                )}
-                            </Stack>
-                        </Box>
+                        <div className="space-y-4 pt-2">
+                            <div>
+                                <p className="text-xs text-muted-foreground mb-1">Action</p>
+                                <div className="flex items-center gap-2">
+                                    <p className="font-semibold text-foreground">{selectedLog.actionType}</p>
+                                    <Badge variant={actionBadgeVariant(selectedLog.actionType)}>{selectedLog.actionType}</Badge>
+                                </div>
+                            </div>
+                            <div>
+                                <p className="text-xs text-muted-foreground mb-1">User</p>
+                                <p className="text-foreground">{selectedLog.user?.name || 'Unknown'}</p>
+                                <p className="text-xs text-muted-foreground">{selectedLog.user?.email}</p>
+                            </div>
+                            <div>
+                                <p className="text-xs text-muted-foreground mb-1">Date & Time</p>
+                                <p className="text-foreground">{new Date(selectedLog.timestamp).toLocaleString()}</p>
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <p className="text-xs text-muted-foreground mb-1">Entity Type</p>
+                                    <p className="text-foreground">{selectedLog.entityType}</p>
+                                </div>
+                                <div>
+                                    <p className="text-xs text-muted-foreground mb-1">Entity ID</p>
+                                    <p className="text-xs font-mono text-foreground break-all">{selectedLog.entityId}</p>
+                                </div>
+                            </div>
+                            {selectedLog.ipAddress && (
+                                <div>
+                                    <p className="text-xs text-muted-foreground mb-1">IP Address</p>
+                                    <p className="text-foreground">{selectedLog.ipAddress}</p>
+                                </div>
+                            )}
+                            {(selectedLog.beforeData || selectedLog.afterData) && (
+                                <div>
+                                    <p className="text-xs text-muted-foreground mb-2">Changes</p>
+                                    <div className="rounded-lg border border-border bg-background p-3 max-h-[180px] overflow-auto">
+                                        <pre className="text-xs font-mono text-foreground whitespace-pre-wrap">
+                                            {JSON.stringify({ before: selectedLog.beforeData, after: selectedLog.afterData }, null, 2)}
+                                        </pre>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
                     )}
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setDetailsOpen(false)}>Close</Button>
+                    </DialogFooter>
                 </DialogContent>
-                <DialogActions>
-                    <Button onClick={() => setDetailsOpen(false)}>Close</Button>
-                </DialogActions>
             </Dialog>
-        </Box>
+        </div>
     );
 }

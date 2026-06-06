@@ -2,29 +2,23 @@
 
 import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import {
-    Box,
-    Typography,
-    Paper,
-    TextField,
-    Button,
-    MenuItem,
-    FormControl,
-    InputLabel,
-    Select,
-    Alert,
-    InputAdornment,
-    CircularProgress,
-    alpha,
-    Chip,
-} from '@mui/material';
+import { Loader2 } from 'lucide-react';
 import { useSession } from 'next-auth/react';
-import { formatNumber, formatDepartmentLevel } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
+import { Badge } from '@/components/ui/badge';
+import { cn, formatNumber, formatDepartmentLevel } from '@/lib/utils';
 import { roundMoney } from '@/lib/format-money';
 import { useToast } from '@/components/ToastProvider';
-import { GlassCard } from '@/components/ui';
 
 type TransactionType = 'INCOME' | 'EXPENSE';
+
+const EXPENSE_PRESETS = ['HR', 'Ministry expense', 'Bussing', 'Construction'];
+const INCOME_PRESETS = ['Tithe', 'Offering', 'Donation', 'Pledge', 'Seed', 'Special Offering'];
 
 function NewTransactionForm() {
     const router = useRouter();
@@ -34,18 +28,14 @@ function NewTransactionForm() {
     const exactDepartment = searchParams?.get('exact') === 'true';
     const { data: session, status: sessionStatus } = useSession();
     const { showSuccess, showError } = useToast();
-    
-    // Check if user is a leader
+
     const leaderRoles = ['DENOMINATION_LEADER', 'OVERSIGHT_LEADER', 'CAMPUS_LEADER', 'STREAM_LEADER', 'COUNCIL_LEADER'];
     const isLeader = session?.user?.role && leaderRoles.includes(session.user.role);
     const isSuperAdmin = session?.user?.role === 'SUPERADMIN';
-    
-    // Initialize type - will be set properly by useEffect once session loads
+
     const [type, setType] = useState<TransactionType>(() => {
-        if (typeParam && (typeParam === 'INCOME' || typeParam === 'EXPENSE')) {
-            return typeParam as TransactionType;
-        }
-        return 'EXPENSE'; // Default to EXPENSE - leaders can only do expenses, and admins can change
+        if (typeParam === 'INCOME' || typeParam === 'EXPENSE') return typeParam as TransactionType;
+        return 'EXPENSE';
     });
     const [amount, setAmount] = useState('');
     const [description, setDescription] = useState('');
@@ -55,672 +45,269 @@ function NewTransactionForm() {
     const [departments, setDepartments] = useState<any[]>([]);
     const [currencies, setCurrencies] = useState<any[]>([]);
     const [baseCurrency, setBaseCurrency] = useState<any>(null);
-    const [userProfile, setUserProfile] = useState<any>(null);
     const [exchangeRate, setExchangeRate] = useState<number | null>(null);
     const [transactionDate, setTransactionDate] = useState(new Date().toISOString().split('T')[0]);
     const [error, setError] = useState('');
     const [profileLoading, setProfileLoading] = useState(true);
     const [loading, setLoading] = useState(false);
-    // Stored as the exact decimal string from the server (e.g. "999.9999998") — never coerced to Number for display.
     const [departmentBalance, setDepartmentBalance] = useState<string | null>(null);
     const [balanceCurrency, setBalanceCurrency] = useState<{ code: string; symbol: string } | null>(null);
     const [balanceLoading, setBalanceLoading] = useState(false);
 
-    // Income transactions are always auto-approved, expense needs approval (unless superadmin)
     const needsApproval = !isSuperAdmin && type !== 'INCOME';
 
     useEffect(() => {
-        // Only set type once session has loaded
         if (sessionStatus === 'loading') return;
-        
-        // Check time restriction for leaders making expense requests
-        if (isLeader) {
-            const now = new Date();
-            const hour = now.getHours();
-            if (hour < 6 || hour >= 15) {
-                // Don't set error yet, just note the restriction
-            }
-        }
-
-        // Set transaction type from URL parameter if present
-        if (typeParam && (typeParam === 'INCOME' || typeParam === 'EXPENSE')) {
-            setType(typeParam as TransactionType);
-        } else if (isLeader) {
-            // Leaders can only make expense requests
-            setType('EXPENSE');
-        } else if (!isLeader && !typeParam) {
-            // Admins default to INCOME when no URL param
-            setType('INCOME');
-        }
+        if (typeParam === 'INCOME' || typeParam === 'EXPENSE') setType(typeParam as TransactionType);
+        else if (isLeader) setType('EXPENSE');
+        else if (!isLeader && !typeParam) setType('INCOME');
     }, [typeParam, isLeader, sessionStatus]);
 
-    useEffect(() => {
-        fetchDepartments();
-        fetchCurrencies();
-        fetchUserProfile();
-    }, []);
+    useEffect(() => { fetchDepartments(); fetchCurrencies(); fetchUserProfile(); }, []);
 
     useEffect(() => {
-        // Set department from URL parameter if present, otherwise use user's department
-        if (deptParam) {
-            setDepartmentId(deptParam);
-        } else if (session?.user?.departmentId) {
-            setDepartmentId(session.user.departmentId);
-        }
+        if (deptParam) setDepartmentId(deptParam);
+        else if (session?.user?.departmentId) setDepartmentId(session.user.departmentId);
     }, [session, deptParam]);
 
-    // Fetch department balance when departmentId changes (for expense requests)
-    useEffect(() => {
-        if (departmentId) {
-            fetchDepartmentBalance(departmentId);
-        }
-    }, [departmentId]);
+    useEffect(() => { if (departmentId) fetchDepartmentBalance(departmentId); }, [departmentId]);
 
     useEffect(() => {
-        // Fetch exchange rate when currency changes
-        if (currencyId && baseCurrency && currencyId !== baseCurrency.id) {
-            fetchExchangeRate(currencyId, baseCurrency.id);
-        } else {
-            setExchangeRate(null);
-        }
+        if (currencyId && baseCurrency && currencyId !== baseCurrency.id) fetchExchangeRate(currencyId, baseCurrency.id);
+        else setExchangeRate(null);
     }, [currencyId, baseCurrency]);
 
-    const fetchDepartments = async () => {
-        const response = await fetch('/api/departments?all=true');
-        if (response.ok) {
-            const data = await response.json();
-            setDepartments(data);
-        }
-    };
+    const fetchDepartments = async () => { const r = await fetch('/api/departments?all=true'); if (r.ok) setDepartments(await r.json()); };
+    const fetchCurrencies = async () => { const r = await fetch('/api/currencies?active=true'); if (r.ok) setCurrencies(await r.json()); };
 
     const fetchDepartmentBalance = async (deptId: string) => {
         setBalanceLoading(true);
-        try {
-            // Use exactLevel=true to get balance only for this department's level,
-            // not including income accumulated from child departments
-            const response = await fetch(`/api/departments/${deptId}/stats?exactLevel=true`, { cache: 'no-store' });
-            if (response.ok) {
-                const data = await response.json();
-                setDepartmentBalance(data.balance);
-                setBalanceCurrency(data.currency);
-            }
-        } catch (error) {
-        } finally {
-            setBalanceLoading(false);
-        }
-    };
-
-    const fetchCurrencies = async () => {
-        const response = await fetch('/api/currencies?active=true');
-        if (response.ok) {
-            const data = await response.json();
-            setCurrencies(data);
-            // Base currency will be set after fetching user profile
-        }
+        try { const r = await fetch(`/api/departments/${deptId}/stats?exactLevel=true`, { cache: 'no-store' }); if (r.ok) { const d = await r.json(); setDepartmentBalance(d.balance); setBalanceCurrency(d.currency); } }
+        catch {} finally { setBalanceLoading(false); }
     };
 
     const fetchUserProfile = async () => {
         setProfileLoading(true);
         try {
-            // Use the /api/users/me endpoint which handles base currency logic
-            const response = await fetch('/api/users/me');
-            if (!response.ok) {
-                const errorText = await response.text();
-                setError(errorText || 'Unable to load your profile. Please refresh and try again.');
-                return;
+            const r = await fetch('/api/users/me');
+            if (!r.ok) { setError((await r.text()) || 'Unable to load your profile.'); return; }
+            const p = await r.json();
+            if (p.baseCurrency) { setBaseCurrency(p.baseCurrency); setCurrencyId(p.baseCurrency.id); }
+            else {
+                const oversightAndBelow = ['OVERSIGHT_ADMIN', 'OVERSIGHT_LEADER', 'CAMPUS_ADMIN', 'CAMPUS_LEADER', 'STREAM_LEADER', 'COUNCIL_LEADER'];
+                if (session?.user?.role && oversightAndBelow.includes(session.user.role))
+                    setError('Base currency must be set for your oversight department before you can record transactions. Please contact your Oversight Admin.');
+                else setError('Unable to determine base currency. Please refresh and try again.');
             }
-
-            const profile = await response.json();
-            setUserProfile(profile);
-
-            // Set the base currency from the profile (already computed by the API)
-            if (profile.baseCurrency) {
-                setBaseCurrency(profile.baseCurrency);
-                setCurrencyId(profile.baseCurrency.id);
-            } else {
-                // Check if user is oversight level or below
-                const oversightAndBelowRoles = ['OVERSIGHT_ADMIN', 'OVERSIGHT_LEADER', 'CAMPUS_ADMIN', 'CAMPUS_LEADER', 'STREAM_LEADER', 'COUNCIL_LEADER', 'STREAM_ADMIN', 'COUNCIL_ADMIN'];
-                if (session?.user?.role && oversightAndBelowRoles.includes(session.user.role)) {
-                    setError('Base currency must be set for your oversight department before you can record transactions. Please contact your Oversight Admin to set the base currency.');
-                } else {
-                    setError('Unable to determine base currency. Please refresh and try again.');
-                }
-            }
-        } catch (error) {
-            setError('Unable to load your profile. Please refresh and try again.');
-        } finally {
-            setProfileLoading(false);
-        }
+        } catch { setError('Unable to load your profile. Please refresh and try again.'); }
+        finally { setProfileLoading(false); }
     };
 
     const fetchExchangeRate = async (fromId: string, toId: string) => {
         try {
-            // Add timestamp to prevent caching
-            const response = await fetch(`/api/exchange-rates?t=${Date.now()}`, {
-                cache: 'no-store'
-            });
-            if (response.ok) {
-                const rates = await response.json();
-                
-                // Search for exact match: fromId → toId
-                let rate = rates.find((r: any) => 
-                    r.fromCurrency.id === fromId && r.toCurrency.id === toId
-                );
-                
-                if (rate) {
-                    setExchangeRate(parseFloat(rate.rate));
-                    return;
-                }
-                
-                // If not found, try reverse direction and invert the rate
-                rate = rates.find((r: any) => 
-                    r.fromCurrency.id === toId && r.toCurrency.id === fromId
-                );
-                
-                if (rate) {
-                    const invertedRate = 1 / parseFloat(rate.rate);
-                    setExchangeRate(invertedRate);
-                    return;
-                }
-                
+            const r = await fetch(`/api/exchange-rates?t=${Date.now()}`, { cache: 'no-store' });
+            if (r.ok) {
+                const rates = await r.json();
+                let rate = rates.find((r: any) => r.fromCurrency.id === fromId && r.toCurrency.id === toId);
+                if (rate) { setExchangeRate(parseFloat(rate.rate)); return; }
+                rate = rates.find((r: any) => r.fromCurrency.id === toId && r.toCurrency.id === fromId);
+                if (rate) { setExchangeRate(1 / parseFloat(rate.rate)); return; }
                 setExchangeRate(null);
             }
-        } catch (error) {
-            console.error('Failed to fetch exchange rate:', error);
-        }
+        } catch {}
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-        setError('');
-
-        if (profileLoading) {
-            setError('Loading your profile. Please wait a moment and try again.');
-            return;
-        }
-
-        if (!baseCurrency) {
-            setError('Base currency is not set. Please contact your administrator.');
-            return;
-        }
-
+        e.preventDefault(); setError('');
+        if (profileLoading) { setError('Loading your profile. Please wait.'); return; }
+        if (!baseCurrency) { setError('Base currency is not set.'); return; }
         setLoading(true);
-
-        // Check time restriction for expense requests - only for leaders
-        // Admins can make requests anytime
         if (type === 'EXPENSE' && isLeader) {
-            const now = new Date();
-            const hour = now.getHours();
-            const day = now.getDay();
-            const isSaturday = day === 6;
-            const maxHour = isSaturday ? 19 : 15;
-            if (hour < 6 || hour >= maxHour) {
-                const timeRange = isSaturday ? '6:00 AM and 7:00 PM' : '6:00 AM and 3:00 PM';
-                setError(`Expense requests can only be made between ${timeRange}`);
-                setLoading(false);
-                return;
-            }
+            const now = new Date(); const hour = now.getHours(); const isSat = now.getDay() === 6; const maxH = isSat ? 19 : 15;
+            if (hour < 6 || hour >= maxH) { setError(`Expense requests can only be made between ${isSat ? '6:00 AM and 7:00 PM' : '6:00 AM and 3:00 PM'}`); setLoading(false); return; }
         }
-
-        // Check balance for expense requests (all roles).
-        // Compare as numbers for the client-side guard (server is the authoritative
-        // check); display shows the exact stored balance via formatNumber.
         if (type === 'EXPENSE' && departmentBalance !== null) {
-            const balanceNum = Number(departmentBalance);
-            if (balanceNum <= 0) {
-                setError('This church does not have a positive balance. Expense requests cannot be made for churches without a positive balance.');
-                setLoading(false);
-                return;
-            }
-            const requestAmount = parseFloat(amount);
-            if (requestAmount > balanceNum) {
-                setError(`Insufficient balance. The available balance is ${balanceCurrency?.symbol || '₵'}${formatNumber(departmentBalance)}. You cannot request more than this amount.`);
-                setLoading(false);
-                return;
-            }
+            const bal = Number(departmentBalance);
+            if (bal <= 0) { setError('This church does not have a positive balance.'); setLoading(false); return; }
+            if (parseFloat(amount) > bal) { setError(`Insufficient balance. Available: ${balanceCurrency?.symbol || '₵'}${formatNumber(departmentBalance)}`); setLoading(false); return; }
         }
-
         try {
-            // Combine preset and custom description
-            const finalDescription = descriptionPreset
-                ? (description ? `${descriptionPreset} - ${description}` : descriptionPreset)
-                : description;
-
-            const payload = {
-                type,
-                amount: parseFloat(amount),
-                description: finalDescription,
-                departmentId,
-                currencyId: currencyId || null,
-                exchangeRate: exchangeRate || null,
-                date: transactionDate ? new Date(transactionDate).toISOString() : undefined,
-            };
-
-            const response = await fetch('/api/transactions', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(payload),
-            });
-
-            if (!response.ok) {
-                let errorMessage = 'Failed to create transaction';
-                try {
-                    const errorData = await response.json();
-                    errorMessage = errorData.error || errorMessage;
-                } catch {
-                    // If response is not JSON, use default message
-                }
-                throw new Error(errorMessage);
-            }
-
-            const result = await response.json();
-            
-            // Show success toast with balance update if available
-            if (result.newBalance !== undefined) {
-                const symbol = result.currency?.symbol || balanceCurrency?.symbol || '₵';
-                showSuccess(`Transaction created! New balance: ${symbol}${formatNumber(result.newBalance)}`);
-            } else if (needsApproval) {
-                showSuccess(type === 'EXPENSE' ? 'Expense request submitted for approval' : 'Transaction submitted for approval');
-            } else {
-                showSuccess('Transaction created successfully');
-            }
-
-            // Redirect back to department context if it exists
-            if (deptParam) {
-                router.push(`/transactions?dept=${deptParam}${exactDepartment ? '&exact=true' : ''}`);
-            } else {
-                router.push('/transactions');
-            }
+            const finalDescription = descriptionPreset ? (description ? `${descriptionPreset} - ${description}` : descriptionPreset) : description;
+            const r = await fetch('/api/transactions', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type, amount: parseFloat(amount), description: finalDescription, departmentId, currencyId: currencyId || null, exchangeRate: exchangeRate || null, date: transactionDate ? new Date(transactionDate).toISOString() : undefined }) });
+            if (!r.ok) { let msg = 'Failed to create transaction'; try { const d = await r.json(); msg = d.error || msg; } catch {} throw new Error(msg); }
+            const result = await r.json();
+            if (result.newBalance !== undefined) { const sym = result.currency?.symbol || balanceCurrency?.symbol || '₵'; showSuccess(`Transaction created! New balance: ${sym}${formatNumber(result.newBalance)}`); }
+            else if (needsApproval) showSuccess(type === 'EXPENSE' ? 'Expense request submitted for approval' : 'Transaction submitted for approval');
+            else showSuccess('Transaction created successfully');
+            router.push(deptParam ? `/transactions?dept=${deptParam}${exactDepartment ? '&exact=true' : ''}` : '/transactions');
             router.refresh();
-        } catch (err) {
-            const errorMsg = err instanceof Error ? err.message : 'Error creating transaction';
-            setError(errorMsg);
-            showError(errorMsg);
-        } finally {
-            setLoading(false);
-        }
+        } catch (err) { const msg = err instanceof Error ? err.message : 'Error creating transaction'; setError(msg); showError(msg); }
+        finally { setLoading(false); }
     };
 
-    // Check time restriction for leaders
-    if (isLeader) {
-        const now = new Date();
-        const hour = now.getHours();
-        const isSaturday = now.getDay() === 6;
-        const maxHour = isSaturday ? 19 : 15;
-        if (hour < 6 || hour >= maxHour) {
-            const timeRange = isSaturday ? '6:00 AM and 7:00 PM' : '6:00 AM and 3:00 PM';
+    // Time restriction for leaders
+    if (sessionStatus !== 'loading' && isLeader) {
+        const now = new Date(); const hour = now.getHours(); const isSat = now.getDay() === 6; const maxH = isSat ? 19 : 15;
+        if (hour < 6 || hour >= maxH) {
+            const timeRange = isSat ? '6:00 AM and 7:00 PM' : '6:00 AM and 3:00 PM';
             return (
-                <Box maxWidth="sm" sx={{ mx: 'auto', mt: 8 }}>
-                    <GlassCard sx={{ p: 4, borderRadius: 3 }}>
-                        <Alert severity="warning" sx={{ mb: 3 }}>
-                            <Typography variant="h6" gutterBottom>
-                                Outside Operating Hours
-                            </Typography>
-                            <Typography variant="body2">
-                                Expense requests can only be made between <strong>{timeRange}</strong>.
-                            </Typography>
-                            <Typography variant="body2" sx={{ mt: 2 }}>
-                                Current time: {now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}
-                            </Typography>
-                            <Typography variant="body2" sx={{ mt: 2 }}>
-                                Please return during operating hours to submit your expense request.
-                            </Typography>
-                        </Alert>
-                        <Button 
-                            variant="outlined" 
-                            fullWidth
-                            onClick={() => router.push('/transactions')}
-                        >
-                            Back to Transactions
-                        </Button>
-                    </GlassCard>
-                </Box>
+                <div className="max-w-sm mx-auto mt-16">
+                    <div className="rounded-xl border border-border bg-card p-6">
+                        <Alert variant="warning"><AlertDescription>
+                            <strong>Outside Operating Hours</strong><br />
+                            Expense requests can only be made between <strong>{timeRange}</strong>.<br />
+                            Current time: {now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}
+                        </AlertDescription></Alert>
+                        <Button variant="outline" className="w-full mt-4" onClick={() => router.push('/transactions')}>Back to Transactions</Button>
+                    </div>
+                </div>
             );
         }
     }
 
-    // Show loading spinner while session is loading to prevent showing wrong form options
-    if (sessionStatus === 'loading') {
-        return (
-            <Box maxWidth="sm" sx={{ mx: 'auto', mt: 8, display: 'flex', justifyContent: 'center' }}>
-                <CircularProgress />
-            </Box>
-        );
-    }
+    if (sessionStatus === 'loading') return <div className="flex justify-center items-center min-h-[60vh]"><Loader2 className="h-7 w-7 animate-spin text-muted-foreground" /></div>;
 
-    // Time window status for leaders (shown when window is open — proactive info)
-    const leaderTimeWindowBanner = isLeader && (() => {
-        const now = new Date();
-        const hour = now.getHours();
-        const isSaturday = now.getDay() === 6;
-        const maxHour = isSaturday ? 19 : 15;
-        const closeTime = `${maxHour > 12 ? maxHour - 12 : maxHour}:00 ${maxHour >= 12 ? 'PM' : 'AM'}`;
-        const minutesLeft = (maxHour - hour) * 60 - now.getMinutes();
-        const isClosingSoon = minutesLeft <= 60;
+    // Leader time window banner
+    const leaderBanner = isLeader && (() => {
+        const now = new Date(); const hour = now.getHours(); const isSat = now.getDay() === 6; const maxH = isSat ? 19 : 15;
+        const closeTime = `${maxH > 12 ? maxH - 12 : maxH}:00 ${maxH >= 12 ? 'PM' : 'AM'}`;
+        const minutesLeft = (maxH - hour) * 60 - now.getMinutes();
+        const closingSoon = minutesLeft <= 60;
         return (
-            <Box
-                sx={{
-                    mb: 2,
-                    px: 2,
-                    py: 1,
-                    borderRadius: 2,
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 1,
-                    bgcolor: (theme) => isClosingSoon
-                        ? alpha(theme.palette.warning.main, 0.08)
-                        : alpha(theme.palette.success.main, 0.08),
-                    border: (theme) => `1px solid ${isClosingSoon
-                        ? alpha(theme.palette.warning.main, 0.3)
-                        : alpha(theme.palette.success.main, 0.3)}`,
-                }}
-            >
-                <Box
-                    sx={{
-                        width: 8, height: 8, borderRadius: '50%',
-                        bgcolor: isClosingSoon ? 'warning.main' : 'success.main',
-                        flexShrink: 0,
-                        '@keyframes dot': { '0%,100%': { opacity: 1 }, '50%': { opacity: 0.3 } },
-                        animation: 'dot 2s ease-in-out infinite',
-                    }}
-                />
-                <Typography
-                    variant="caption"
-                    fontWeight={600}
-                    sx={{ color: isClosingSoon ? 'warning.main' : 'success.main' }}
-                >
-                    {isClosingSoon
-                        ? `Submissions close at ${closeTime} · ${minutesLeft} min remaining`
-                        : `Submissions open · Closes at ${closeTime}`}
-                </Typography>
-            </Box>
+            <div className={cn('flex items-center gap-2 px-3 py-2 rounded-xl border mb-4', closingSoon ? 'border-warning/30 bg-warning/8' : 'border-success/30 bg-success/8')}>
+                <div className={cn('w-2 h-2 rounded-full shrink-0 animate-pulse', closingSoon ? 'bg-warning' : 'bg-success')} />
+                <p className={cn('text-xs font-semibold', closingSoon ? 'text-warning' : 'text-success')}>
+                    {closingSoon ? `Submissions close at ${closeTime} · ${minutesLeft} min remaining` : `Submissions open · Closes at ${closeTime}`}
+                </p>
+            </div>
         );
     })();
 
-    return (
-        <Box maxWidth="sm" sx={{ mx: 'auto' }}>
-            {/* Page Header */}
-            <Box
-                sx={(theme) => ({
-                    mb: { xs: 3, md: 4 },
-                    pb: { xs: 2.5, md: 3 },
-                    borderBottom: `1px solid ${theme.palette.divider}`,
-                })}
-            >
-                <Typography variant="overline" sx={{ display: 'block', mb: 0.5 }}>
-                    {isLeader ? 'Expense request' : 'New entry'}
-                </Typography>
-                <Typography
-                    component="h1"
-                    sx={(theme) => ({
-                        fontFamily: theme.typography.h2.fontFamily,
-                        fontSize: { xs: '1.625rem', sm: '1.875rem' },
-                        fontWeight: 600,
-                        letterSpacing: '-0.025em',
-                        lineHeight: 1.15,
-                    })}
-                >
-                    {isLeader
-                        ? 'New expense request'
-                        : needsApproval
-                            ? 'New transaction request'
-                            : 'New transaction'}
-                </Typography>
-                <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75 }}>
-                    {isLeader
-                        ? 'Submit for approval by your admin.'
-                        : 'Record an income or expense entry.'}
-                </Typography>
-            </Box>
-            {leaderTimeWindowBanner}
+    const selectedCurrency = currencies.find(c => c.id === currencyId);
 
-            {/* Available balance card — for expense requests */}
+    return (
+        <div className="max-w-lg mx-auto">
+            <div className="mb-8 pb-6 border-b border-border">
+                <p className="text-[0.6875rem] font-medium uppercase tracking-[0.10em] text-muted-foreground mb-0.5">{isLeader ? 'Expense request' : 'New entry'}</p>
+                <h1 className="text-[1.625rem] sm:text-[1.875rem] font-semibold tracking-[-0.025em] text-foreground">
+                    {isLeader ? 'New expense request' : needsApproval ? 'New transaction request' : 'New transaction'}
+                </h1>
+                <p className="text-sm text-muted-foreground mt-0.5">{isLeader ? 'Submit for approval by your admin.' : 'Record an income or expense entry.'}</p>
+            </div>
+
+            {leaderBanner}
+
+            {/* Available balance for expense */}
             {type === 'EXPENSE' && (
-                <Box
-                    sx={(theme) => ({
-                        p: 2.75,
-                        mb: 3,
-                        borderRadius: 3.5,
-                        bgcolor: 'background.paper',
-                        border: `1px solid ${theme.palette.divider}`,
-                        position: 'relative',
-                        overflow: 'hidden',
-                        '&::before': {
-                            content: '""',
-                            position: 'absolute',
-                            top: 0,
-                            left: 0,
-                            right: 0,
-                            height: 2,
-                            background: `linear-gradient(90deg, transparent, ${theme.palette.success.main}, transparent)`,
-                            opacity: 0.8,
-                        },
-                    })}
-                >
-                    <Typography variant="overline" sx={{ display: 'block', mb: 1 }}>
-                        Available balance
-                    </Typography>
-                    {balanceLoading ? (
-                        <CircularProgress size={20} thickness={4} />
-                    ) : departmentBalance !== null ? (
+                <div className="relative rounded-xl border border-border bg-card p-5 mb-5 overflow-hidden">
+                    <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-success to-transparent opacity-70" />
+                    <p className="text-[0.6875rem] font-semibold uppercase tracking-[0.10em] text-muted-foreground mb-1.5">Available balance</p>
+                    {balanceLoading ? <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /> : departmentBalance !== null ? (
                         <>
-                            <Typography
-                                className="tabular"
-                                sx={(theme) => ({
-                                    fontFamily: theme.typography.h2.fontFamily,
-                                    fontSize: { xs: '1.875rem', sm: '2.125rem' },
-                                    fontWeight: 600,
-                                    letterSpacing: '-0.02em',
-                                    lineHeight: 1.1,
-                                    color: 'success.main',
-                                })}
-                            >
+                            <p className="text-[1.875rem] sm:text-[2.125rem] font-semibold tracking-[-0.02em] tabular-nums text-success">
                                 {balanceCurrency?.symbol || '₵'}{formatNumber(departmentBalance)}
-                            </Typography>
-                            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                                You cannot request more than this amount.
-                            </Typography>
+                            </p>
+                            <p className="text-xs text-muted-foreground mt-0.5">You cannot request more than this amount.</p>
                         </>
-                    ) : (
-                        <Typography variant="body2" color="text.secondary">
-                            Unable to load balance
-                        </Typography>
-                    )}
-                </Box>
+                    ) : <p className="text-sm text-muted-foreground">Unable to load balance</p>}
+                </div>
             )}
 
-            <GlassCard sx={{ p: 4, borderRadius: 3 }}>
-                <form onSubmit={handleSubmit}>
-                    {error && (
-                        <Alert severity="error" sx={{ mb: 3 }}>
-                            {error}
-                        </Alert>
-                    )}
+            <div className="rounded-xl border border-border bg-card p-6">
+                <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+                    {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
+                    {!profileLoading && !baseCurrency && !error && <Alert variant="warning"><AlertDescription>Base currency is required before you can submit a transaction.</AlertDescription></Alert>}
 
-                    {!profileLoading && !baseCurrency && !error && (
-                        <Alert severity="warning" sx={{ mb: 3 }}>
-                            Base currency is required before you can submit a transaction.
-                        </Alert>
+                    {!isLeader && (
+                        <div className="space-y-1.5">
+                            <Label>Church <span className="text-destructive">*</span></Label>
+                            <Select value={departmentId} onValueChange={setDepartmentId} required>
+                                <SelectTrigger><SelectValue placeholder="Select a church" /></SelectTrigger>
+                                <SelectContent>{departments.map(d => <SelectItem key={d.id} value={d.id}>{d.name} {formatDepartmentLevel(d.level)}</SelectItem>)}</SelectContent>
+                            </Select>
+                        </div>
                     )}
 
                     {!isLeader && (
-                        <FormControl fullWidth sx={{ mb: 3 }}>
-                            <InputLabel>Church</InputLabel>
-                            <Select
-                                value={departmentId}
-                                label="Church"
-                                onChange={(e) => setDepartmentId(e.target.value)}
-                                required
-                            >
-                                {departments
-                                    .map((dept) => (
-                                    <MenuItem key={dept.id} value={dept.id}>
-                                        {dept.name} {formatDepartmentLevel(dept.level)}
-                                    </MenuItem>
-                                ))}
+                        <div className="space-y-1.5">
+                            <Label>Type</Label>
+                            <Select value={type} onValueChange={v => { setType(v as TransactionType); setDescriptionPreset(''); }}>
+                                <SelectTrigger><SelectValue /></SelectTrigger>
+                                <SelectContent><SelectItem value="INCOME">Income</SelectItem><SelectItem value="EXPENSE">Expense</SelectItem></SelectContent>
                             </Select>
-                        </FormControl>
+                        </div>
                     )}
 
                     {!isLeader && (
-                        <FormControl fullWidth sx={{ mb: 3 }}>
-                            <InputLabel>Type</InputLabel>
-                            <Select
-                                value={type}
-                                label="Type"
-                                onChange={(e) => {
-                                    setType(e.target.value as TransactionType);
-                                    setDescriptionPreset(''); // Clear preset when type changes
-                                }}
-                            >
-                                <MenuItem value="INCOME">Income</MenuItem>
-                                <MenuItem value="EXPENSE">Expense</MenuItem>
+                        <div className="space-y-1.5">
+                            <Label>Currency <span className="text-destructive">*</span></Label>
+                            <Select value={currencyId} onValueChange={setCurrencyId} required>
+                                <SelectTrigger><SelectValue placeholder="Select currency" /></SelectTrigger>
+                                <SelectContent>{currencies.map(c => <SelectItem key={c.id} value={c.id}>{c.code} — {c.name} ({c.symbol}){c.isBase ? ' [Base]' : ''}</SelectItem>)}</SelectContent>
                             </Select>
-                        </FormControl>
+                        </div>
                     )}
 
-                    {!isLeader && (
-                        <FormControl fullWidth sx={{ mb: 3 }}>
-                            <InputLabel>Currency</InputLabel>
-                            <Select
-                                value={currencyId}
-                                label="Currency"
-                                onChange={(e) => setCurrencyId(e.target.value)}
-                                required
-                            >
-                                {currencies.map((currency) => (
-                                    <MenuItem key={currency.id} value={currency.id}>
-                                        {currency.code} - {currency.name} ({currency.symbol})
-                                        {currency.isBase && ' [Base]'}
-                                    </MenuItem>
-                                ))}
-                            </Select>
-                        </FormControl>
-                    )}
+                    <div className="space-y-1.5">
+                        <Label>Amount <span className="text-destructive">*</span></Label>
+                        <div className="relative">
+                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-medium text-muted-foreground">{selectedCurrency?.symbol || '₵'}</span>
+                            <Input type="number" required value={amount} onChange={e => setAmount(e.target.value)} placeholder="0.00" className="pl-8" />
+                        </div>
+                    </div>
 
-                    <TextField
-                        fullWidth
-                        label="Amount"
-                        type="number"
-                        value={amount}
-                        onChange={(e) => setAmount(e.target.value)}
-                        required
-                        sx={{ mb: exchangeRate && amount ? 1 : 3 }}
-                        InputProps={{
-                            startAdornment: (
-                                <InputAdornment position="start">
-                                    {currencies.find(c => c.id === currencyId)?.symbol || '₵'}
-                                </InputAdornment>
-                            ),
-                        }}
-                    />
-                    {/* Exchange rate live preview card */}
                     {exchangeRate && amount && parseFloat(amount) > 0 && (
-                        <Box
-                            sx={{
-                                mb: 3,
-                                px: 2,
-                                py: 1.25,
-                                borderRadius: 2,
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'space-between',
-                                bgcolor: (theme) => alpha(theme.palette.info.main, 0.07),
-                                border: (theme) => `1px solid ${alpha(theme.palette.info.main, 0.25)}`,
-                            }}
-                        >
-                            <Typography variant="caption" color="text.secondary">
-                                Converted amount
-                            </Typography>
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                <Typography variant="body2" fontWeight={700} color="info.main">
-                                    {baseCurrency?.symbol}{formatNumber(roundMoney(parseFloat(amount) * exchangeRate))}
-                                </Typography>
-                                <Chip
-                                    label={`${currencies.find(c => c.id === currencyId)?.code} → ${baseCurrency?.code} @ ${exchangeRate.toFixed(4)}`}
-                                    size="small"
-                                    variant="outlined"
-                                    color="info"
-                                    sx={{ fontSize: '0.65rem', height: 20 }}
-                                />
-                            </Box>
-                        </Box>
+                        <div className="flex items-center justify-between px-3 py-2 rounded-xl border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950/30">
+                            <p className="text-xs text-muted-foreground">Converted amount</p>
+                            <div className="flex items-center gap-2">
+                                <p className="text-sm font-bold text-blue-600 dark:text-blue-400">{baseCurrency?.symbol}{formatNumber(roundMoney(parseFloat(amount) * exchangeRate))}</p>
+                                <Badge variant="outline" className="text-[0.65rem] h-4 border-blue-200 text-blue-600 dark:border-blue-800 dark:text-blue-400">{selectedCurrency?.code} → {baseCurrency?.code} @ {exchangeRate.toFixed(4)}</Badge>
+                            </div>
+                        </div>
                     )}
 
-                    <TextField
-                        fullWidth
-                        label="Transaction Date"
-                        type="date"
-                        value={transactionDate}
-                        onChange={(e) => setTransactionDate(e.target.value)}
-                        required
-                        sx={{ mb: 3 }}
-                        InputLabelProps={{ shrink: true }}
-                    />
+                    <div className="space-y-1.5">
+                        <Label>Transaction Date <span className="text-destructive">*</span></Label>
+                        <Input type="date" required value={transactionDate} onChange={e => setTransactionDate(e.target.value)} />
+                    </div>
 
-                    <FormControl fullWidth sx={{ mb: 3 }}>
-                        <InputLabel id="description-type-label">Description Type</InputLabel>
-                        <Select
-                            labelId="description-type-label"
-                            id="description-type-select"
-                            value={descriptionPreset}
-                            label="Description Type"
-                            onChange={(e) => setDescriptionPreset(e.target.value)}
-                            disabled={loading}
-                        >
-                            <MenuItem value="">Custom</MenuItem>
-                            {type === 'EXPENSE' && <MenuItem value="HR">HR</MenuItem>}
-                            {type === 'EXPENSE' && <MenuItem value="Ministry expense">Ministry expense</MenuItem>}
-                            {type === 'EXPENSE' && <MenuItem value="Bussing">Bussing</MenuItem>}
-                            {type === 'EXPENSE' && <MenuItem value="Construction">Construction</MenuItem>}
-                            {type === 'INCOME' && <MenuItem value="Tithe">Tithe</MenuItem>}
-                            {type === 'INCOME' && <MenuItem value="Offering">Offering</MenuItem>}
-                            {type === 'INCOME' && <MenuItem value="Donation">Donation</MenuItem>}
-                            {type === 'INCOME' && <MenuItem value="Pledge">Pledge</MenuItem>}
-                            {type === 'INCOME' && <MenuItem value="Seed">Seed</MenuItem>}
-                            {type === 'INCOME' && <MenuItem value="Special Offering">Special Offering</MenuItem>}
+                    <div className="space-y-1.5">
+                        <Label>Description Type</Label>
+                        <Select value={descriptionPreset} onValueChange={setDescriptionPreset} disabled={loading}>
+                            <SelectTrigger><SelectValue placeholder="Custom" /></SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="">Custom</SelectItem>
+                                {(type === 'EXPENSE' ? EXPENSE_PRESETS : INCOME_PRESETS).map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}
+                            </SelectContent>
                         </Select>
-                    </FormControl>
+                    </div>
 
-                    <TextField
-                        fullWidth
-                        label={descriptionPreset ? "Additional Details (Optional)" : (type === 'INCOME' ? "Description (Optional)" : "Description")}
-                        value={description}
-                        onChange={(e) => setDescription(e.target.value)}
-                        required={type === 'EXPENSE' && !descriptionPreset}
-                        multiline
-                        rows={3}
-                        sx={{ mb: 3 }}
-                        placeholder={type === 'EXPENSE' ? "What is this expense for?" : "Additional details about this income (optional)"}
-                    />
+                    <div className="space-y-1.5">
+                        <Label>{descriptionPreset ? 'Additional Details (Optional)' : type === 'INCOME' ? 'Description (Optional)' : 'Description'}{type === 'EXPENSE' && !descriptionPreset && <span className="text-destructive"> *</span>}</Label>
+                        <Textarea
+                            value={description}
+                            onChange={e => setDescription(e.target.value)}
+                            required={type === 'EXPENSE' && !descriptionPreset}
+                            rows={3}
+                            placeholder={type === 'EXPENSE' ? 'What is this expense for?' : 'Additional details about this income (optional)'}
+                        />
+                    </div>
 
-                    <Box sx={{ display: 'flex', gap: 2, justifyContent: 'flex-end' }}>
-                        <Button onClick={() => router.back()} disabled={loading}>
-                            Cancel
+                    <div className="flex gap-3 justify-end pt-1">
+                        <Button type="button" variant="outline" onClick={() => router.back()} disabled={loading}>Cancel</Button>
+                        <Button type="submit" disabled={loading || profileLoading}>
+                            {loading ? <><Loader2 className="mr-1.5 h-4 w-4 animate-spin" />Submitting...</> : isLeader ? 'Submit Expense Request' : needsApproval ? 'Submit for Approval' : 'Save Transaction'}
                         </Button>
-                        <Button 
-                            type="submit" 
-                            variant="contained" 
-                            disabled={loading || profileLoading}
-                        >
-                            {loading ? 'Submitting...' : isLeader ? 'Submit Expense Request' : needsApproval ? 'Submit for Approval' : 'Save Transaction'}
-                        </Button>
-                    </Box>
+                    </div>
                 </form>
-            </GlassCard>
-        </Box>
+            </div>
+        </div>
     );
 }
 
 export default function NewTransactionPage() {
     return (
-        <Suspense fallback={
-            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '60vh' }}>
-                <CircularProgress />
-            </Box>
-        }>
+        <Suspense fallback={<div className="flex justify-center items-center min-h-[60vh]"><Loader2 className="h-7 w-7 animate-spin text-muted-foreground" /></div>}>
             <NewTransactionForm />
         </Suspense>
     );

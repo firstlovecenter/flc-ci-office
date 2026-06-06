@@ -3,94 +3,58 @@
 import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
-import {
-    Box,
-    Typography,
-    Paper,
-    Table,
-    TableBody,
-    TableCell,
-    TableContainer,
-    TableHead,
-    TableRow,
-    Button,
-    Chip,
-    Dialog,
-    DialogTitle,
-    DialogContent,
-    DialogActions,
-    TextField,
-    Alert,
-    IconButton,
-    Tooltip,
-    Stack,
-    Card,
-    CardContent,
-    Grid,
-    CircularProgress,
-    CardActionArea,
-    alpha,
-    Skeleton,
-    useTheme,
-    useMediaQuery,
-    Checkbox,
-    Collapse,
-} from '@mui/material';
-import CheckCircleIcon from '@mui/icons-material/CheckCircle';
-import CancelIcon from '@mui/icons-material/Cancel';
-import VisibilityIcon from '@mui/icons-material/Visibility';
-import PendingActionsIcon from '@mui/icons-material/PendingActions';
-import BusinessIcon from '@mui/icons-material/Business';
-import { formatDepartmentLevel, formatNumber } from '@/lib/utils';
+import { CheckCircle, XCircle, Eye, Clock, Building2, ReceiptText, Loader2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
+import { Textarea } from '@/components/ui/textarea';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { cn, formatDepartmentLevel, formatNumber } from '@/lib/utils';
 import { sumMoney } from '@/lib/format-money';
 import { useToast } from '@/components/ToastProvider';
-import { GlassCard, StatusChip, AnimatedCounter, TableRowSkeleton, EmptyState } from '@/components/ui';
-import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
 
 interface ReceiptFile {
-    id: string;
-    fileName: string;
-    fileUrl: string;
-    fileMime: string;
-    fileSize: number | null;
-    uploadedAt: string;
-    uploader?: { id: string; name: string | null; email: string };
+    id: string; fileName: string; fileUrl: string; fileMime: string; fileSize: number | null;
+    uploadedAt: string; uploader?: { id: string; name: string | null; email: string };
 }
 
 interface Transaction {
-    id: string;
-    description: string;
-    amount: string;
-    type: 'INCOME' | 'EXPENSE';
-    status: 'PENDING' | 'APPROVED' | 'REJECTED';
-    createdAt: string;
-    user: {
-        name: string;
-        email: string;
-    };
-    department: {
-        name: string;
-        level: string;
-    };
-    currency: {
-        code: string;
-        symbol: string;
-    } | null;
+    id: string; description: string; amount: string; type: 'INCOME' | 'EXPENSE';
+    status: 'PENDING' | 'APPROVED' | 'REJECTED'; createdAt: string;
+    user: { name: string; email: string };
+    department: { name: string; level: string };
+    currency: { code: string; symbol: string } | null;
     files?: ReceiptFile[];
+}
+
+function statusBadgeClass(status: string) {
+    if (status === 'APPROVED') return 'bg-success/10 text-success border-success/25';
+    if (status === 'REJECTED') return 'bg-destructive/10 text-destructive border-destructive/25';
+    return 'bg-warning/10 text-warning border-warning/25';
+}
+
+function fmtDate(d: string) {
+    if (!d) return 'N/A';
+    const dt = new Date(d); if (isNaN(dt.getTime())) return 'Invalid';
+    return dt.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+}
+
+function fmtAmt(amount: string, symbol?: string | null) {
+    return `${symbol ?? ''}${parseFloat(amount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 export default function ApprovalsPage() {
     const { data: session } = useSession();
     const router = useRouter();
     const { showSuccess, showError: showErrorToast } = useToast();
-    const theme = useTheme();
-    const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+
     const [transactions, setTransactions] = useState<Transaction[]>([]);
     const [historicalTransactions, setHistoricalTransactions] = useState<Transaction[]>([]);
     const [loading, setLoading] = useState(true);
     const [historyLoading, setHistoryLoading] = useState(true);
     const [error, setError] = useState('');
-    const [success, setSuccess] = useState('');
     const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
     const [detailsOpen, setDetailsOpen] = useState(false);
     const [approvalDialogOpen, setApprovalDialogOpen] = useState(false);
@@ -105,991 +69,353 @@ export default function ApprovalsPage() {
     useEffect(() => {
         if (session?.user?.role) {
             const adminRoles = ['CAMPUS_ADMIN', 'OVERSIGHT_ADMIN', 'DENOMINATION_ADMIN', 'SUPERADMIN'];
-            if (!adminRoles.includes(session.user.role)) {
-                router.push('/dashboard');
-            }
+            if (!adminRoles.includes(session.user.role)) router.push('/dashboard');
         }
     }, [session, router]);
 
-    useEffect(() => {
-        fetchPendingTransactions();
-        fetchHistoricalTransactions();
-    }, []);
+    useEffect(() => { fetchPendingTransactions(); fetchHistoricalTransactions(); }, []);
 
     const fetchPendingTransactions = async () => {
+        setLoading(true);
         try {
-            setLoading(true);
-            const response = await fetch('/api/transactions?status=PENDING');
-            if (response.ok) {
-                const data = await response.json();
-                // Exclude correction transactions
-                const nonCorrectionTransactions = data.filter((t: Transaction) => 
-                    !t.description.startsWith('CORRECTION:')
-                );
-                setTransactions(nonCorrectionTransactions);
-            } else {
-                setError('Failed to fetch pending transactions');
-            }
-        } catch (error) {
-            setError('Failed to fetch pending transactions');
-        } finally {
-            setLoading(false);
-        }
+            const r = await fetch('/api/transactions?status=PENDING');
+            if (r.ok) { const d = await r.json(); setTransactions(d.filter((t: Transaction) => !t.description.startsWith('CORRECTION:'))); }
+            else setError('Failed to fetch pending transactions');
+        } catch { setError('Failed to fetch pending transactions'); }
+        finally { setLoading(false); }
     };
 
     const fetchHistoricalTransactions = async () => {
+        setHistoryLoading(true);
         try {
-            setHistoryLoading(true);
-            const response = await fetch('/api/transactions');
-            if (response.ok) {
-                const data = await response.json();
-                // Filter for approved or rejected EXPENSE transactions only, excluding corrections
-                const history = data.filter((t: Transaction) => 
-                    t.type === 'EXPENSE' && 
-                    (t.status === 'APPROVED' || t.status === 'REJECTED') &&
-                    !t.description.startsWith('CORRECTION:')
-                );
-                setHistoricalTransactions(history);
-            }
-        } catch (error) {
-        } finally {
-            setHistoryLoading(false);
-        }
+            const r = await fetch('/api/transactions');
+            if (r.ok) { const d = await r.json(); setHistoricalTransactions(d.filter((t: Transaction) => t.type === 'EXPENSE' && (t.status === 'APPROVED' || t.status === 'REJECTED') && !t.description.startsWith('CORRECTION:'))); }
+        } catch {} finally { setHistoryLoading(false); }
     };
 
-    const handleViewDetails = (transaction: Transaction) => {
-        setSelectedTransaction(transaction);
-        setDetailsOpen(true);
-    };
-
-    const handleOpenApprovalDialog = (transaction: Transaction, action: 'approve' | 'reject') => {
-        setSelectedTransaction(transaction);
-        setActionType(action);
-        setRejectionReason('');
-        setApprovedAmount(transaction.amount);
-        setCharges('0');
-        setApprovalDialogOpen(true);
+    const handleOpenApprovalDialog = (t: Transaction, action: 'approve' | 'reject') => {
+        setSelectedTransaction(t); setActionType(action); setRejectionReason('');
+        setApprovedAmount(t.amount); setCharges('0'); setApprovalDialogOpen(true);
     };
 
     const handleApproveReject = async () => {
         if (!selectedTransaction) return;
-
-        if (actionType === 'reject' && !rejectionReason.trim()) {
-            setError('Please provide a reason for rejection');
-            return;
-        }
-
-        setProcessing(true);
-        setError('');
-
+        if (actionType === 'reject' && !rejectionReason.trim()) { setError('Please provide a reason for rejection'); return; }
+        setProcessing(true); setError('');
         try {
-            const response = await fetch(`/api/transactions/${selectedTransaction.id}`, {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    status: actionType === 'approve' ? 'APPROVED' : 'REJECTED',
-                    rejectionReason: actionType === 'reject' ? rejectionReason : undefined,
-                    approvedAmount: actionType === 'approve' ? parseFloat(approvedAmount) : undefined,
-                    charges: actionType === 'approve' ? parseFloat(charges || '0') : undefined,
-                }),
+            const r = await fetch(`/api/transactions/${selectedTransaction.id}`, {
+                method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ status: actionType === 'approve' ? 'APPROVED' : 'REJECTED', rejectionReason: actionType === 'reject' ? rejectionReason : undefined, approvedAmount: actionType === 'approve' ? parseFloat(approvedAmount) : undefined, charges: actionType === 'approve' ? parseFloat(charges || '0') : undefined }),
             });
-
-            if (response.ok) {
-                const result = await response.json();
-                const message = actionType === 'approve' 
-                    ? `Transaction approved! New balance: ${result.currency?.symbol || '₵'}${formatNumber(result.newBalance ?? 0)}`
-                    : 'Transaction declined';
-                setSuccess(message);
-                showSuccess(message);
-                setApprovalDialogOpen(false);
-                fetchPendingTransactions();
-                fetchHistoricalTransactions();
-            } else {
-                const errorText = await response.text();
-                const errorMsg = errorText || `Failed to ${actionType} transaction`;
-                setError(errorMsg);
-                showErrorToast(errorMsg);
-            }
-        } catch (error) {
-            const errorMsg = `Failed to ${actionType} transaction`;
-            setError(errorMsg);
-            showErrorToast(errorMsg);
-        } finally {
-            setProcessing(false);
-        }
+            if (r.ok) {
+                const result = await r.json();
+                const msg = actionType === 'approve' ? `Transaction approved! New balance: ${result.currency?.symbol || '₵'}${formatNumber(result.newBalance ?? 0)}` : 'Transaction declined';
+                showSuccess(msg); setApprovalDialogOpen(false); fetchPendingTransactions(); fetchHistoricalTransactions();
+            } else { const msg = (await r.text()) || `Failed to ${actionType} transaction`; setError(msg); showErrorToast(msg); }
+        } catch { const msg = `Failed to ${actionType} transaction`; setError(msg); showErrorToast(msg); }
+        finally { setProcessing(false); }
     };
 
     const handleBulkApprove = async () => {
         if (selectedIds.size === 0) return;
-        setBulkProcessing(true);
-        setError('');
+        setBulkProcessing(true); setError('');
         try {
-            await Promise.all(
-                Array.from(selectedIds).map(id =>
-                    fetch(`/api/transactions/${id}`, {
-                        method: 'PATCH',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ status: 'APPROVED' }),
-                    })
-                )
-            );
+            await Promise.all(Array.from(selectedIds).map(id => fetch(`/api/transactions/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'APPROVED' }) })));
             showSuccess(`${selectedIds.size} transaction${selectedIds.size > 1 ? 's' : ''} approved`);
-            setSelectedIds(new Set());
-            fetchPendingTransactions();
-            fetchHistoricalTransactions();
-        } catch {
-            showErrorToast('Failed to bulk approve some transactions');
-        } finally {
-            setBulkProcessing(false);
-        }
+            setSelectedIds(new Set()); fetchPendingTransactions(); fetchHistoricalTransactions();
+        } catch { showErrorToast('Failed to bulk approve some transactions'); }
+        finally { setBulkProcessing(false); }
     };
 
-    const toggleSelect = (id: string) => {
-        setSelectedIds(prev => {
-            const next = new Set(prev);
-            next.has(id) ? next.delete(id) : next.add(id);
-            return next;
-        });
-    };
+    const toggleSelect = (id: string) => setSelectedIds(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
+    const toggleSelectAll = () => selectedIds.size === transactions.length ? setSelectedIds(new Set()) : setSelectedIds(new Set(transactions.map(t => t.id)));
 
-    const toggleSelectAll = () => {
-        if (selectedIds.size === transactions.length) {
-            setSelectedIds(new Set());
-        } else {
-            setSelectedIds(new Set(transactions.map(t => t.id)));
-        }
-    };
-
-    const formatDate = (dateString: string | null | undefined) => {
-        if (!dateString) return 'N/A';
-        const date = new Date(dateString);
-        if (isNaN(date.getTime())) return 'Invalid Date';
-        return date.toLocaleDateString('en-US', {
-            year: 'numeric',
-            month: 'short',
-            day: 'numeric',
-        });
-    };
-
-    const formatCurrency = (amount: string, symbol: string | null | undefined) => {
-        return `${symbol ?? ''}${parseFloat(amount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-    };
-
-    const getStatusColor = (status: string) => {
-        switch (status) {
-            case 'PENDING': return 'warning';
-            case 'APPROVED': return 'success';
-            case 'REJECTED': return 'error';
-            default: return 'default';
-        }
-    };
-
-    const getTypeColor = (type: string) => {
-        return type === 'INCOME' ? 'success' : 'error';
-    };
+    const totalPending = sumMoney(transactions.map(t => t.amount));
 
     return (
-        <Box>
-            {/* Page Header */}
-            <Box
-                sx={(theme) => ({
-                    display: 'flex',
-                    alignItems: { xs: 'flex-start', sm: 'flex-end' },
-                    justifyContent: 'space-between',
-                    gap: 2,
-                    flexWrap: 'wrap',
-                    mb: { xs: 3, md: 4 },
-                    pb: { xs: 2.5, md: 3 },
-                    borderBottom: `1px solid ${theme.palette.divider}`,
-                })}
-            >
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2.5, minWidth: 0, flex: 1 }}>
-                    <Box
-                        sx={(theme) => ({
-                            width: 48,
-                            height: 48,
-                            borderRadius: 1.5,
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            bgcolor: alpha(theme.palette.warning.main, 0.10),
-                            color: theme.palette.warning.main,
-                            flexShrink: 0,
-                        })}
-                    >
-                        <PendingActionsIcon sx={{ fontSize: 22 }} />
-                    </Box>
-                    <Box sx={{ minWidth: 0 }}>
-                        <Typography variant="overline" sx={{ display: 'block', mb: 0.5 }}>
-                            Review queue
-                        </Typography>
-                        <Typography
-                            component="h1"
-                            sx={(theme) => ({
-                                fontFamily: theme.typography.h2.fontFamily,
-                                fontSize: { xs: '1.625rem', sm: '1.875rem', md: '2.125rem' },
-                                fontWeight: 500,
-                                letterSpacing: '-0.02em',
-                                lineHeight: 1.15,
-                                color: theme.palette.text.primary,
-                            })}
-                        >
-                            Expense approvals
-                        </Typography>
-                        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75 }}>
-                            Review and decide on pending transactions.
-                        </Typography>
-                    </Box>
-                </Box>
-            </Box>
+        <div>
+            {/* Header */}
+            <div className="flex items-start gap-4 flex-wrap mb-8 pb-6 border-b border-border">
+                <div className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0 bg-warning/10 text-warning">
+                    <Clock className="h-5 w-5" />
+                </div>
+                <div>
+                    <p className="text-[0.6875rem] font-medium uppercase tracking-[0.10em] text-muted-foreground mb-0.5">Review queue</p>
+                    <h1 className="text-[1.625rem] sm:text-[1.875rem] font-semibold tracking-[-0.025em] text-foreground">Expense approvals</h1>
+                    <p className="text-sm text-muted-foreground mt-0.5">Review and decide on pending transactions.</p>
+                </div>
+            </div>
 
-            {error && (
-                <Alert severity="error" sx={{ mb: 3, borderRadius: 2 }} onClose={() => setError('')}>
-                    {error}
-                </Alert>
-            )}
+            {error && <Alert variant="destructive" className="mb-4"><AlertDescription>{error}</AlertDescription></Alert>}
 
-            {success && (
-                <Alert severity="success" sx={{ mb: 3, borderRadius: 2 }} onClose={() => setSuccess('')}>
-                    {success}
-                </Alert>
-            )}
+            {/* Summary cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+                <div className="relative rounded-xl border border-warning/20 bg-gradient-to-br from-warning/10 to-orange-500/15 p-5 overflow-hidden">
+                    <p className="text-sm font-semibold text-muted-foreground mb-1.5">Pending Approvals</p>
+                    <p className="text-[2rem] font-bold text-warning tabular-nums">{transactions.length}</p>
+                    <Clock className="absolute right-4 top-4 h-16 w-16 text-warning opacity-10" />
+                </div>
+                <div className="relative rounded-xl border border-destructive/20 bg-gradient-to-br from-destructive/10 to-red-700/15 p-5 overflow-hidden">
+                    <p className="text-sm font-semibold text-muted-foreground mb-1.5">Total Pending Amount</p>
+                    <p className="text-[2rem] font-bold text-destructive tabular-nums">₵{formatNumber(totalPending)}</p>
+                    <XCircle className="absolute right-4 top-4 h-16 w-16 text-destructive opacity-10" />
+                </div>
+            </div>
 
-            {/* Summary Cards */}
-            <Grid container spacing={3} sx={{ mb: 4 }}>
-                <Grid size={{ xs: 12, sm: 6 }}>
-                    <GlassCard 
-                        variant="highlight"
-                        sx={{
-                            p: 3,
-                            background: 'linear-gradient(135deg, rgba(255, 152, 0, 0.1) 0%, rgba(245, 124, 0, 0.2) 100%)',
-                            position: 'relative',
-                            overflow: 'hidden',
-                        }}
-                    >
-                        <Box sx={{ position: 'relative', zIndex: 1, pr: 8 }}>
-                            <Typography variant="body2" color="text.secondary" sx={{ mb: 1, fontWeight: 600 }}>
-                                Pending Approvals
-                            </Typography>
-                            <AnimatedCounter
-                                value={transactions.length}
-                                duration={800}
-                                decimals={0}
-                                formatter={(val) => Math.round(Number(val)).toLocaleString()}
-                                sx={{
-                                    fontSize: '2rem',
-                                    fontWeight: 700,
-                                    color: 'warning.main'
-                                }}
-                            />
-                        </Box>
-                        <Box
-                            sx={{
-                                position: 'absolute',
-                                right: -20,
-                                top: -20,
-                                opacity: 0.1,
-                                transform: 'rotate(-15deg)',
-                            }}
-                        >
-                            <PendingActionsIcon sx={{ fontSize: 100, color: 'warning.main' }} />
-                        </Box>
-                    </GlassCard>
-                </Grid>
-                <Grid size={{ xs: 12, sm: 6 }}>
-                    <GlassCard 
-                        variant="highlight"
-                        sx={{
-                            p: 3,
-                            background: 'linear-gradient(135deg, rgba(239, 83, 80, 0.1) 0%, rgba(198, 40, 40, 0.2) 100%)',
-                            position: 'relative',
-                            overflow: 'hidden',
-                        }}
-                    >
-                        <Box sx={{ position: 'relative', zIndex: 1, pr: 8 }}>
-                            <Typography variant="body2" color="text.secondary" sx={{ mb: 1, fontWeight: 600 }}>
-                                Total Amount
-                            </Typography>
-                            <AnimatedCounter
-                                value={sumMoney(transactions.map(t => t.amount))}
-                                duration={1000}
-                                sx={{
-                                    fontSize: '2rem',
-                                    fontWeight: 700,
-                                    color: 'error.main'
-                                }}
-                            />
-                        </Box>
-                        <Box
-                            sx={{
-                                position: 'absolute',
-                                right: -20,
-                                top: -20,
-                                opacity: 0.1,
-                                transform: 'rotate(-15deg)',
-                            }}
-                        >
-                            <CancelIcon sx={{ fontSize: 100, color: 'error.main' }} />
-                        </Box>
-                    </GlassCard>
-                </Grid>
-            </Grid>
+            {/* Section title */}
+            <div className="flex items-center gap-2 mb-3">
+                <span className="w-1 h-6 rounded-full bg-warning" />
+                <h2 className="text-lg font-semibold text-foreground">Pending Approvals</h2>
+            </div>
 
-            {/* Pending Approvals Section */}
-            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, mb: 2 }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <Box component="span" sx={{ width: 4, height: 24, bgcolor: 'warning.main', borderRadius: 1 }} />
-                    <Typography variant="h5" fontWeight={600}>Pending Approvals</Typography>
-                </Box>
-            </Box>
-
-            {/* Bulk actions toolbar */}
-            <Collapse in={selectedIds.size > 0}>
-                <Box
-                    sx={{
-                        mb: 2,
-                        px: 2,
-                        py: 1.25,
-                        borderRadius: 2,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        bgcolor: (theme) => alpha(theme.palette.primary.main, 0.08),
-                        border: (theme) => `1px solid ${alpha(theme.palette.primary.main, 0.25)}`,
-                    }}
-                >
-                    <Typography variant="body2" fontWeight={600} color="primary">
-                        {selectedIds.size} selected
-                    </Typography>
-                    <Stack direction="row" spacing={1}>
-                        <Button
-                            size="small"
-                            variant="outlined"
-                            color="inherit"
-                            onClick={() => setSelectedIds(new Set())}
-                        >
-                            Deselect All
+            {/* Bulk actions */}
+            {selectedIds.size > 0 && (
+                <div className="flex items-center justify-between gap-3 mb-3 px-4 py-2.5 rounded-xl border border-primary/25 bg-primary/8">
+                    <p className="text-sm font-semibold text-primary">{selectedIds.size} selected</p>
+                    <div className="flex gap-2">
+                        <Button size="sm" variant="outline" onClick={() => setSelectedIds(new Set())}>Deselect All</Button>
+                        <Button size="sm" className="bg-success text-success-foreground hover:bg-success/90" disabled={bulkProcessing} onClick={handleBulkApprove}>
+                            {bulkProcessing ? <><Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />Approving…</> : `Approve ${selectedIds.size}`}
                         </Button>
-                        <Button
-                            size="small"
-                            variant="contained"
-                            color="success"
-                            disabled={bulkProcessing}
-                            startIcon={bulkProcessing ? <CircularProgress size={14} color="inherit" /> : null}
-                            onClick={handleBulkApprove}
-                        >
-                            {bulkProcessing ? 'Approving…' : `Approve ${selectedIds.size}`}
-                        </Button>
-                    </Stack>
-                </Box>
-            </Collapse>
-            {isMobile ? (
-                <Stack spacing={2} sx={{ mb: 6 }}>
-                    {loading ? (
-                         // Skeleton loading for mobile
-                         [1, 2, 3].map((i) => (
-                             <GlassCard key={i} sx={{ p: 2 }}>
-                                 <Skeleton variant="text" width="60%" />
-                                 <Skeleton variant="rectangular" height={100} sx={{ mt: 1 }} />
-                             </GlassCard>
-                         ))
-                    ) : transactions.length === 0 ? (
-                        <GlassCard>
-                            <EmptyState
-                                icon={ReceiptLongIcon}
-                                title="No pending approvals"
-                                description="All caught up! There are no transactions waiting for your review."
-                            />
-                        </GlassCard>
-                    ) : (
-                        transactions.map((transaction) => (
-                            <GlassCard
-                                key={transaction.id}
-                                sx={{ p: 0, overflow: 'hidden', transition: 'all 0.1s' }}
-                            >
-                                <CardActionArea
-                                    onClick={() => handleViewDetails(transaction)}
-                                    sx={{ p: 2, width: '100%' }}
-                                >
-                                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                        <Box sx={{ minWidth: 0, flex: 1, mr: 2 }}>
-                                            <Typography variant="subtitle2" fontWeight={600} noWrap>
-                                                {transaction.description}
-                                            </Typography>
-                                            <Typography variant="caption" color="primary.main" fontWeight={600} display="block">
-                                                {transaction.department.name}
-                                            </Typography>
-                                            <Typography variant="caption" color="text.secondary">
-                                                {formatDate(transaction.createdAt)} · {transaction.user.name}
-                                            </Typography>
-                                        </Box>
-                                        <Box sx={{ textAlign: 'right', flexShrink: 0 }}>
-                                            <Typography
-                                                variant="body2"
-                                                fontWeight={700}
-                                                color={transaction.type === 'INCOME' ? 'success.main' : 'error.main'}
-                                                sx={{ display: 'block', mb: 0.5 }}
-                                            >
-                                                {formatCurrency(transaction.amount, transaction.currency?.symbol)}
-                                            </Typography>
-                                            <StatusChip
-                                                label={transaction.type}
-                                                status={transaction.type === 'INCOME' ? 'success' : 'error'}
-                                                size="small"
-                                            />
-                                        </Box>
-                                    </Box>
-                                </CardActionArea>
-                                {/* Quick action row — mobile only */}
-                                <Box
-                                    sx={{
-                                        px: 2,
-                                        pb: 1.5,
-                                        display: 'flex',
-                                        gap: 1,
-                                        borderTop: (theme) => `1px solid ${theme.palette.divider}`,
-                                        pt: 1,
-                                    }}
-                                >
-                                    <Button
-                                        size="small"
-                                        variant="contained"
-                                        color="success"
-                                        fullWidth
-                                        startIcon={<CheckCircleIcon sx={{ fontSize: 16 }} />}
-                                        onClick={(e) => { e.stopPropagation(); handleOpenApprovalDialog(transaction, 'approve'); }}
-                                        sx={{ fontWeight: 700, fontSize: '0.75rem' }}
-                                    >
-                                        Approve
-                                    </Button>
-                                    <Button
-                                        size="small"
-                                        variant="outlined"
-                                        color="error"
-                                        fullWidth
-                                        startIcon={<CancelIcon sx={{ fontSize: 16 }} />}
-                                        onClick={(e) => { e.stopPropagation(); handleOpenApprovalDialog(transaction, 'reject'); }}
-                                        sx={{ fontWeight: 700, fontSize: '0.75rem' }}
-                                    >
-                                        Reject
-                                    </Button>
-                                </Box>
-                            </GlassCard>
-                        ))
-                    )}
-                </Stack>
-            ) : (
-            <GlassCard sx={{ mb: 6, overflow: 'hidden' }}>
-                <TableContainer>
-                    <Table>
-                        <TableHead>
-                            <TableRow sx={{ bgcolor: 'action.hover' }}>
-                                <TableCell padding="checkbox">
-                                    <Checkbox
-                                        size="small"
-                                        indeterminate={selectedIds.size > 0 && selectedIds.size < transactions.length}
-                                        checked={transactions.length > 0 && selectedIds.size === transactions.length}
-                                        onChange={toggleSelectAll}
-                                    />
-                                </TableCell>
-                                <TableCell sx={{ fontWeight: 700 }}>Date</TableCell>
-                                <TableCell sx={{ fontWeight: 700 }}>Description</TableCell>
-                                <TableCell sx={{ fontWeight: 700 }}>Department</TableCell>
-                                <TableCell sx={{ fontWeight: 700 }}>Submitted By</TableCell>
-                                <TableCell sx={{ fontWeight: 700 }}>Type</TableCell>
-                                <TableCell align="right" sx={{ fontWeight: 700 }}>Amount</TableCell>
-                                <TableCell sx={{ fontWeight: 700 }}>Status</TableCell>
-                                <TableCell align="center" sx={{ fontWeight: 700 }}>Actions</TableCell>
-                            </TableRow>
-                        </TableHead>
-                        <TableBody>
-                            {loading ? (
-                                [1, 2, 3].map((i) => (
-                                    <TableRow key={i}>
-                                        <TableCell padding="checkbox"><Skeleton variant="rectangular" width={18} height={18} /></TableCell>
-                                        <TableCell><Skeleton width={80} /></TableCell>
-                                        <TableCell><Skeleton width={150} /></TableCell>
-                                        <TableCell><Skeleton width={100} /></TableCell>
-                                        <TableCell><Skeleton width={100} /></TableCell>
-                                        <TableCell><Skeleton width={60} /></TableCell>
-                                        <TableCell><Skeleton width={80} /></TableCell>
-                                        <TableCell><Skeleton width={70} /></TableCell>
-                                        <TableCell><Skeleton width={100} /></TableCell>
-                                    </TableRow>
-                                ))
-                            ) : transactions.length === 0 ? (
-                                <TableRow>
-                                    <TableCell colSpan={9} sx={{ p: 0, border: 0 }}>
-                                        <EmptyState
-                                            icon={ReceiptLongIcon}
-                                            title="No pending approvals"
-                                            description="All caught up! There are no transactions waiting for your review."
-                                        />
-                                    </TableCell>
-                                </TableRow>
-                            ) : (
-                                transactions.map((transaction) => (
-                                    <TableRow
-                                        key={transaction.id}
-                                        selected={selectedIds.has(transaction.id)}
-                                        sx={{
-                                            transition: 'all 0.2s ease',
-                                            '&:hover': { bgcolor: 'action.hover' },
-                                            '&.Mui-selected': { bgcolor: (theme) => alpha(theme.palette.primary.main, 0.06) },
-                                        }}
-                                    >
-                                        <TableCell padding="checkbox">
-                                            <Checkbox
-                                                size="small"
-                                                checked={selectedIds.has(transaction.id)}
-                                                onChange={() => toggleSelect(transaction.id)}
-                                            />
-                                        </TableCell>
-                                        <TableCell>{formatDate(transaction.createdAt)}</TableCell>
-                                        <TableCell>
-                                            <Typography variant="body2" fontWeight={500}>
-                                                {transaction.description}
-                                            </Typography>
-                                        </TableCell>
-                                        <TableCell>
-                                            <Typography variant="body2">{transaction.department.name}</Typography>
-                                            <Typography variant="caption" color="text.secondary">
-                                                {formatDepartmentLevel(transaction.department.level)}
-                                            </Typography>
-                                        </TableCell>
-                                        <TableCell>
-                                            <Typography variant="body2">{transaction.user.name}</Typography>
-                                        </TableCell>
-                                        <TableCell>
-                                            <StatusChip 
-                                                label={transaction.type} 
-                                                status={transaction.type === 'INCOME' ? 'success' : 'error'}
-                                            />
-                                        </TableCell>
-                                        <TableCell align="right">
-                                            <Typography fontWeight={600}>
-                                                {formatCurrency(transaction.amount, transaction.currency?.symbol)}
-                                            </Typography>
-                                        </TableCell>
-                                        <TableCell>
-                                            <StatusChip 
-                                                label={transaction.status} 
-                                                status={getStatusColor(transaction.status) as any}
-                                            />
-                                        </TableCell>
-                                    <TableCell align="center">
-                                        <Stack direction="row" spacing={1} justifyContent="center">
-                                            <Tooltip title="View Details">
-                                                <IconButton 
-                                                    size="small"
-                                                    onClick={() => handleViewDetails(transaction)}
-                                                >
-                                                    <VisibilityIcon fontSize="small" />
-                                                </IconButton>
-                                            </Tooltip>
-                                            <Tooltip title="Approve">
-                                                <IconButton 
-                                                    size="small"
-                                                    color="success"
-                                                    onClick={() => handleOpenApprovalDialog(transaction, 'approve')}
-                                                >
-                                                    <CheckCircleIcon fontSize="small" />
-                                                </IconButton>
-                                            </Tooltip>
-                                            <Tooltip title="Reject">
-                                                <IconButton 
-                                                    size="small"
-                                                    color="error"
-                                                    onClick={() => handleOpenApprovalDialog(transaction, 'reject')}
-                                                >
-                                                    <CancelIcon fontSize="small" />
-                                                </IconButton>
-                                            </Tooltip>
-                                        </Stack>
-                                    </TableCell>
-                                </TableRow>
-                            ))
-                        )}
-                    </TableBody>
-                </Table>
-            </TableContainer>
-            </GlassCard>
+                    </div>
+                </div>
             )}
 
-            {/* Transaction Details Dialog */}
-            <Dialog open={detailsOpen} onClose={() => setDetailsOpen(false)} maxWidth="sm" fullWidth>
-                <DialogTitle>Transaction Details</DialogTitle>
-                <DialogContent>
+            {/* Mobile cards */}
+            <div className="flex flex-col gap-3 mb-6 md:hidden">
+                {loading ? [1, 2, 3].map(i => <div key={i} className="h-28 rounded-xl border border-border bg-card animate-pulse" />) :
+                transactions.length === 0 ? (
+                    <div className="rounded-xl border border-border bg-card p-8 text-center">
+                        <ReceiptText className="h-10 w-10 mx-auto text-muted-foreground/40 mb-3" />
+                        <p className="font-semibold text-foreground">No pending approvals</p>
+                        <p className="text-sm text-muted-foreground mt-1">All caught up! No transactions waiting for review.</p>
+                    </div>
+                ) : transactions.map(t => (
+                    <div key={t.id} className="rounded-xl border border-border bg-card overflow-hidden">
+                        <button className="w-full text-left p-4" onClick={() => { setSelectedTransaction(t); setDetailsOpen(true); }}>
+                            <div className="flex justify-between items-start gap-3">
+                                <div className="min-w-0 flex-1">
+                                    <p className="font-semibold text-foreground text-sm truncate">{t.description}</p>
+                                    <p className="text-xs font-semibold text-primary mt-0.5">{t.department.name}</p>
+                                    <p className="text-xs text-muted-foreground mt-0.5">{fmtDate(t.createdAt)} · {t.user.name}</p>
+                                </div>
+                                <div className="text-right shrink-0">
+                                    <p className={cn('text-sm font-bold', t.type === 'INCOME' ? 'text-success' : 'text-destructive')}>{fmtAmt(t.amount, t.currency?.symbol)}</p>
+                                    <Badge variant="outline" className={cn('mt-1 text-[0.65rem]', t.type === 'INCOME' ? 'bg-success/10 text-success border-success/25' : 'bg-destructive/10 text-destructive border-destructive/25')}>{t.type}</Badge>
+                                </div>
+                            </div>
+                        </button>
+                        <div className="flex gap-2 px-4 pb-3 pt-2 border-t border-border">
+                            <Button size="sm" className="flex-1 bg-success text-success-foreground hover:bg-success/90 text-xs" onClick={() => handleOpenApprovalDialog(t, 'approve')}><CheckCircle className="mr-1 h-3.5 w-3.5" />Approve</Button>
+                            <Button size="sm" variant="outline" className="flex-1 text-destructive border-destructive/30 hover:bg-destructive/8 text-xs" onClick={() => handleOpenApprovalDialog(t, 'reject')}><XCircle className="mr-1 h-3.5 w-3.5" />Reject</Button>
+                        </div>
+                    </div>
+                ))}
+            </div>
+
+            {/* Desktop table */}
+            <div className="hidden md:block rounded-xl border border-border bg-card overflow-hidden mb-6">
+                <table className="w-full text-sm">
+                    <thead className="bg-muted/40 border-b border-border">
+                        <tr>
+                            <th className="py-3 px-4 text-left">
+                                <input type="checkbox" className="rounded" ref={el => { if (el) el.indeterminate = selectedIds.size > 0 && selectedIds.size < transactions.length; }} checked={transactions.length > 0 && selectedIds.size === transactions.length} onChange={toggleSelectAll} />
+                            </th>
+                            {['Date', 'Description', 'Department', 'Submitted By', 'Type', 'Amount', 'Status', 'Actions'].map(h => <th key={h} className="py-3 px-4 text-left font-semibold text-foreground">{h}</th>)}
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border">
+                        {loading ? [1, 2, 3].map(i => (
+                            <tr key={i}><td colSpan={9} className="py-4 px-4"><div className="h-5 rounded bg-muted animate-pulse" /></td></tr>
+                        )) : transactions.length === 0 ? (
+                            <tr><td colSpan={9} className="py-12 text-center">
+                                <ReceiptText className="h-10 w-10 mx-auto text-muted-foreground/40 mb-3" />
+                                <p className="font-semibold text-foreground">No pending approvals</p>
+                                <p className="text-sm text-muted-foreground mt-1">All caught up!</p>
+                            </td></tr>
+                        ) : transactions.map(t => (
+                            <tr key={t.id} className={cn('hover:bg-muted/30 transition-colors', selectedIds.has(t.id) && 'bg-primary/5')}>
+                                <td className="py-3 px-4"><input type="checkbox" className="rounded" checked={selectedIds.has(t.id)} onChange={() => toggleSelect(t.id)} /></td>
+                                <td className="py-3 px-4 text-muted-foreground">{fmtDate(t.createdAt)}</td>
+                                <td className="py-3 px-4 font-medium text-foreground max-w-[200px] truncate">{t.description}</td>
+                                <td className="py-3 px-4"><p className="font-medium text-foreground">{t.department.name}</p><p className="text-xs text-muted-foreground">{formatDepartmentLevel(t.department.level)}</p></td>
+                                <td className="py-3 px-4 text-foreground">{t.user.name}</td>
+                                <td className="py-3 px-4"><Badge variant="outline" className={t.type === 'INCOME' ? 'bg-success/10 text-success border-success/25' : 'bg-destructive/10 text-destructive border-destructive/25'}>{t.type}</Badge></td>
+                                <td className="py-3 px-4 font-semibold text-foreground text-right">{fmtAmt(t.amount, t.currency?.symbol)}</td>
+                                <td className="py-3 px-4"><Badge variant="outline" className={statusBadgeClass(t.status)}>{t.status}</Badge></td>
+                                <td className="py-3 px-4">
+                                    <div className="flex gap-1 justify-center">
+                                        <button title="View Details" className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground" onClick={() => { setSelectedTransaction(t); setDetailsOpen(true); }}><Eye className="h-4 w-4" /></button>
+                                        <button title="Approve" className="p-1.5 rounded-lg hover:bg-success/10 text-success" onClick={() => handleOpenApprovalDialog(t, 'approve')}><CheckCircle className="h-4 w-4" /></button>
+                                        <button title="Reject" className="p-1.5 rounded-lg hover:bg-destructive/10 text-destructive" onClick={() => handleOpenApprovalDialog(t, 'reject')}><XCircle className="h-4 w-4" /></button>
+                                    </div>
+                                </td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+
+            {/* Request History */}
+            <div className="mt-8">
+                <div className="flex items-center gap-2 mb-3">
+                    <span className="w-1 h-6 rounded-full bg-success" />
+                    <h2 className="text-lg font-semibold text-foreground">Request History</h2>
+                </div>
+
+                {/* History mobile */}
+                <div className="flex flex-col gap-3 md:hidden">
+                    {historyLoading ? [1, 2, 3].map(i => <div key={i} className="h-24 rounded-xl border border-border bg-card animate-pulse" />) :
+                    historicalTransactions.length === 0 ? <p className="text-sm text-muted-foreground px-1">No historical requests found.</p> :
+                    historicalTransactions.map(t => (
+                        <button key={t.id} className="text-left rounded-xl border border-border bg-card p-4 w-full hover:bg-muted/30 transition-colors" onClick={() => { setSelectedTransaction(t); setDetailsOpen(true); }}>
+                            <div className="flex justify-between items-start gap-3">
+                                <div className="min-w-0 flex-1">
+                                    <p className="font-semibold text-foreground text-sm truncate">{t.description}</p>
+                                    <p className="text-xs text-muted-foreground mt-0.5">{t.department.name}</p>
+                                    <p className="text-xs text-muted-foreground">{fmtDate(t.createdAt)} · {t.user.name}</p>
+                                </div>
+                                <div className="text-right shrink-0">
+                                    <p className="text-sm font-bold text-foreground">{fmtAmt(t.amount, t.currency?.symbol)}</p>
+                                    <Badge variant="outline" className={cn('mt-1 text-[0.65rem]', statusBadgeClass(t.status))}>{t.status}</Badge>
+                                </div>
+                            </div>
+                        </button>
+                    ))}
+                </div>
+
+                {/* History desktop */}
+                <div className="hidden md:block rounded-xl border border-border bg-card overflow-hidden">
+                    <table className="w-full text-sm">
+                        <thead className="bg-muted/40 border-b border-border">
+                            <tr>
+                                {['Date', 'Description', 'Submitted By', 'Status', 'Amount', 'Action'].map(h => <th key={h} className="py-3 px-4 text-left font-semibold text-foreground">{h}</th>)}
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-border">
+                            {historyLoading ? [1, 2, 3].map(i => (
+                                <tr key={i}><td colSpan={6} className="py-4 px-4"><div className="h-5 rounded bg-muted animate-pulse" /></td></tr>
+                            )) : historicalTransactions.length === 0 ? (
+                                <tr><td colSpan={6} className="py-8 text-center text-sm text-muted-foreground">No historical requests found.</td></tr>
+                            ) : historicalTransactions.map(t => (
+                                <tr key={t.id} className="hover:bg-muted/30 transition-colors">
+                                    <td className="py-3 px-4 text-muted-foreground">{fmtDate(t.createdAt)}</td>
+                                    <td className="py-3 px-4 font-medium text-foreground max-w-[200px] truncate">{t.description}</td>
+                                    <td className="py-3 px-4">
+                                        <p className="font-semibold text-foreground">{t.user.name}</p>
+                                        <p className="text-xs text-muted-foreground flex items-center gap-1"><Building2 className="h-3 w-3" />{t.department.name}</p>
+                                    </td>
+                                    <td className="py-3 px-4"><Badge variant="outline" className={statusBadgeClass(t.status)}>{t.status}</Badge></td>
+                                    <td className="py-3 px-4 font-semibold text-foreground">{fmtAmt(t.amount, t.currency?.symbol)}</td>
+                                    <td className="py-3 px-4">
+                                        <Button size="sm" variant="outline" onClick={() => { setSelectedTransaction(t); setDetailsOpen(true); }}>View Details</Button>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            {/* Details Dialog */}
+            <Dialog open={detailsOpen} onOpenChange={setDetailsOpen}>
+                <DialogContent className="max-w-md">
+                    <DialogHeader><DialogTitle>Transaction Details</DialogTitle></DialogHeader>
                     {selectedTransaction && (
-                        <Box sx={{ pt: 2 }}>
-                            <Stack spacing={2}>
-                                <Box>
-                                    <Typography variant="caption" color="text.secondary">Description</Typography>
-                                    <Typography variant="body1">{selectedTransaction.description}</Typography>
-                                </Box>
-                                <Box>
-                                    <Typography variant="caption" color="text.secondary">Amount</Typography>
-                                    <Typography variant="h6">
-                                        {formatCurrency(selectedTransaction.amount, selectedTransaction.currency?.symbol)}
-                                    </Typography>
-                                </Box>
-                                <Box>
-                                    <Typography variant="caption" color="text.secondary">Type</Typography>
-                                    <Typography variant="body1">{selectedTransaction.type}</Typography>
-                                </Box>
-                                <Box>
-                                    <Typography variant="caption" color="text.secondary">Department</Typography>
-                                    <Typography variant="body1">{selectedTransaction.department.name}</Typography>
-                                </Box>
-                                <Box>
-                                    <Typography variant="caption" color="text.secondary">Submitted By</Typography>
-                                    <Typography variant="body1">{selectedTransaction.user.name}</Typography>
-                                    <Typography variant="caption">{selectedTransaction.user.email}</Typography>
-                                </Box>
-                                <Box>
-                                    <Typography variant="caption" color="text.secondary">Transaction Date</Typography>
-                                    <Typography variant="body1">
-                                        {formatDate(selectedTransaction.createdAt)}
-                                    </Typography>
-                                </Box>
-                                <Box>
-                                    <Typography variant="caption" color="text.secondary">Submitted On</Typography>
-                                    <Typography variant="body1">{formatDate(selectedTransaction.createdAt)}</Typography>
-                                </Box>
-                                {selectedTransaction.type === 'EXPENSE' && selectedTransaction.files && selectedTransaction.files.length > 0 && (() => {
-                                    const receipt = selectedTransaction.files[0];
-                                    return (
-                                        <Box>
-                                            <Typography variant="caption" color="text.secondary">Receipt</Typography>
-                                            {receipt.fileMime?.startsWith('image/') ? (
-                                                <a href={receipt.fileUrl} target="_blank" rel="noopener noreferrer">
-                                                    <img
-                                                        src={receipt.fileUrl}
-                                                        alt={receipt.fileName}
-                                                        style={{
-                                                            display: 'block',
-                                                            marginTop: 6,
-                                                            maxWidth: '100%',
-                                                            maxHeight: 220,
-                                                            borderRadius: 8,
-                                                            border: '1px solid rgba(0,0,0,0.12)',
-                                                            cursor: 'zoom-in',
-                                                        }}
-                                                    />
-                                                </a>
-                                            ) : (
-                                                <Box sx={{ mt: 0.5 }}>
-                                                    <Button
-                                                        variant="outlined"
-                                                        size="small"
-                                                        href={receipt.fileUrl}
-                                                        target="_blank"
-                                                        rel="noopener noreferrer"
-                                                    >
-                                                        {receipt.fileName}
-                                                    </Button>
-                                                </Box>
-                                            )}
-                                            <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.5 }}>
-                                                Uploaded by {receipt.uploader?.name || receipt.uploader?.email || 'unknown'}
-                                                {' · '}
-                                                {new Date(receipt.uploadedAt).toLocaleString()}
-                                            </Typography>
-                                        </Box>
-                                    );
-                                })()}
-                            </Stack>
-                        </Box>
+                        <div className="flex flex-col gap-4 py-2">
+                            {[
+                                { label: 'Description', value: selectedTransaction.description },
+                                { label: 'Amount', value: fmtAmt(selectedTransaction.amount, selectedTransaction.currency?.symbol) },
+                                { label: 'Type', value: selectedTransaction.type },
+                                { label: 'Department', value: selectedTransaction.department.name },
+                                { label: 'Submitted By', value: `${selectedTransaction.user.name} · ${selectedTransaction.user.email}` },
+                                { label: 'Date', value: fmtDate(selectedTransaction.createdAt) },
+                            ].map(({ label, value }) => (
+                                <div key={label}>
+                                    <p className="text-[0.7rem] font-semibold uppercase tracking-[0.06em] text-muted-foreground mb-0.5">{label}</p>
+                                    <p className="text-sm text-foreground">{value}</p>
+                                </div>
+                            ))}
+                            {selectedTransaction.type === 'EXPENSE' && selectedTransaction.files && selectedTransaction.files.length > 0 && (() => {
+                                const receipt = selectedTransaction.files![0];
+                                return (
+                                    <div>
+                                        <p className="text-[0.7rem] font-semibold uppercase tracking-[0.06em] text-muted-foreground mb-1.5">Receipt</p>
+                                        {receipt.fileMime?.startsWith('image/') ? (
+                                            <a href={receipt.fileUrl} target="_blank" rel="noopener noreferrer">
+                                                <img src={receipt.fileUrl} alt={receipt.fileName} className="max-h-52 rounded-xl border border-border cursor-zoom-in" />
+                                            </a>
+                                        ) : (
+                                            <a href={receipt.fileUrl} target="_blank" rel="noopener noreferrer">
+                                                <Button variant="outline" size="sm">{receipt.fileName}</Button>
+                                            </a>
+                                        )}
+                                        <p className="text-xs text-muted-foreground mt-1.5">Uploaded by {receipt.uploader?.name || receipt.uploader?.email || 'unknown'} · {new Date(receipt.uploadedAt).toLocaleString()}</p>
+                                    </div>
+                                );
+                            })()}
+                        </div>
                     )}
+                    <DialogFooter className="gap-2">
+                        <Button variant="outline" onClick={() => setDetailsOpen(false)}>Close</Button>
+                        {selectedTransaction?.status === 'PENDING' && (
+                            <>
+                                <Button variant="outline" className="text-destructive border-destructive/30" onClick={() => { setDetailsOpen(false); handleOpenApprovalDialog(selectedTransaction, 'reject'); }}>Reject</Button>
+                                <Button className="bg-success text-success-foreground hover:bg-success/90" onClick={() => { setDetailsOpen(false); handleOpenApprovalDialog(selectedTransaction, 'approve'); }}>Approve</Button>
+                            </>
+                        )}
+                    </DialogFooter>
                 </DialogContent>
-                <DialogActions sx={{ p: 2, gap: 1 }}>
-                    <Button onClick={() => setDetailsOpen(false)} color="inherit">Close</Button>
-                    {selectedTransaction?.status === 'PENDING' && (
-                        <>
-                            <Button 
-                                onClick={() => {
-                                    setDetailsOpen(false);
-                                    handleOpenApprovalDialog(selectedTransaction, 'reject');
-                                }} 
-                                variant="outlined" 
-                                color="error"
-                            >
-                                Reject
-                            </Button>
-                            <Button 
-                                onClick={() => {
-                                    setDetailsOpen(false);
-                                    handleOpenApprovalDialog(selectedTransaction, 'approve');
-                                }} 
-                                variant="contained" 
-                                color="success"
-                                autoFocus
-                            >
-                                Approve
-                            </Button>
-                        </>
-                    )}
-                </DialogActions>
             </Dialog>
 
-            {/* Approval/Rejection Dialog */}
-            <Dialog open={approvalDialogOpen} onClose={() => setApprovalDialogOpen(false)} maxWidth="sm" fullWidth>
-                <DialogTitle>
-                    {actionType === 'approve' ? 'Approve Transaction' : 'Reject Transaction'}
-                </DialogTitle>
-                <DialogContent>
+            {/* Approve/Reject Dialog */}
+            <Dialog open={approvalDialogOpen} onOpenChange={setApprovalDialogOpen}>
+                <DialogContent className="max-w-md">
+                    <DialogHeader><DialogTitle>{actionType === 'approve' ? 'Approve Transaction' : 'Reject Transaction'}</DialogTitle></DialogHeader>
                     {selectedTransaction && (
-                        <Box sx={{ pt: 2 }}>
-                            <Typography variant="body2" gutterBottom>
-                                <strong>Description:</strong> {selectedTransaction.description}
-                            </Typography>
-                            <Typography variant="body2" gutterBottom>
-                                <strong>Amount:</strong> {formatCurrency(selectedTransaction.amount, selectedTransaction.currency?.symbol)}
-                            </Typography>
-                            <Typography variant="body2" gutterBottom>
-                                <strong>Submitted By:</strong> {selectedTransaction.user.name}
-                            </Typography>
+                        <div className="flex flex-col gap-4 py-2">
+                            {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
+                            <div className="space-y-0.5 text-sm">
+                                <p><span className="font-semibold">Description: </span>{selectedTransaction.description}</p>
+                                <p><span className="font-semibold">Amount: </span>{fmtAmt(selectedTransaction.amount, selectedTransaction.currency?.symbol)}</p>
+                                <p><span className="font-semibold">Submitted By: </span>{selectedTransaction.user.name}</p>
+                            </div>
 
                             {actionType === 'approve' && (
                                 <>
-                                    <TextField
-                                        fullWidth
-                                        type="number"
-                                        label="Approved Amount"
-                                        value={approvedAmount}
-                                        onChange={(e) => setApprovedAmount(e.target.value)}
-                                        required
-                                        sx={{ mt: 2 }}
-                                        helperText="You can modify the requested amount if needed"
-                                    />
-                                    <TextField
-                                        fullWidth
-                                        type="number"
-                                        label="Charges (Optional)"
-                                        value={charges}
-                                        onChange={(e) => setCharges(e.target.value)}
-                                        sx={{ mt: 2 }}
-                                        helperText="Any additional charges to be deducted"
-                                    />
+                                    <div className="space-y-1.5">
+                                        <Label>Approved Amount <span className="text-destructive">*</span></Label>
+                                        <Input type="number" value={approvedAmount} onChange={e => setApprovedAmount(e.target.value)} />
+                                        <p className="text-xs text-muted-foreground">You can modify the requested amount if needed</p>
+                                    </div>
+                                    <div className="space-y-1.5">
+                                        <Label>Charges (Optional)</Label>
+                                        <Input type="number" value={charges} onChange={e => setCharges(e.target.value)} />
+                                        <p className="text-xs text-muted-foreground">Any additional charges to be deducted</p>
+                                    </div>
                                 </>
                             )}
 
                             {actionType === 'reject' && (
-                                <TextField
-                                    fullWidth
-                                    multiline
-                                    rows={3}
-                                    label="Reason for Rejection"
-                                    value={rejectionReason}
-                                    onChange={(e) => setRejectionReason(e.target.value)}
-                                    required
-                                    sx={{ mt: 2 }}
-                                />
+                                <div className="space-y-1.5">
+                                    <Label>Reason for Rejection <span className="text-destructive">*</span></Label>
+                                    <Textarea rows={3} value={rejectionReason} onChange={e => setRejectionReason(e.target.value)} />
+                                </div>
                             )}
 
-                            <Alert severity={actionType === 'approve' ? 'info' : 'warning'} sx={{ mt: 2 }}>
-                                {actionType === 'approve' 
-                                    ? 'Are you sure you want to approve this transaction?'
-                                    : 'Are you sure you want to reject this transaction? This action cannot be undone.'
-                                }
+                            <Alert variant={actionType === 'approve' ? 'default' : 'warning'}>
+                                <AlertDescription>{actionType === 'approve' ? 'Are you sure you want to approve this transaction?' : 'Are you sure you want to reject this transaction? This action cannot be undone.'}</AlertDescription>
                             </Alert>
-                        </Box>
+                        </div>
                     )}
+                    <DialogFooter className="gap-2">
+                        <Button variant="outline" onClick={() => setApprovalDialogOpen(false)} disabled={processing}>Cancel</Button>
+                        <Button disabled={processing} onClick={handleApproveReject} className={actionType === 'approve' ? 'bg-success text-success-foreground hover:bg-success/90' : 'bg-destructive text-destructive-foreground hover:bg-destructive/90'}>
+                            {processing ? <><Loader2 className="mr-1.5 h-4 w-4 animate-spin" />Processing…</> : actionType === 'approve' ? 'Approve' : 'Reject'}
+                        </Button>
+                    </DialogFooter>
                 </DialogContent>
-                <DialogActions>
-                    <Button onClick={() => setApprovalDialogOpen(false)} disabled={processing}>
-                        Cancel
-                    </Button>
-                    <Button 
-                        onClick={handleApproveReject}
-                        variant="contained"
-                        color={actionType === 'approve' ? 'success' : 'error'}
-                        disabled={processing}
-                    >
-                        {processing ? 'Processing...' : actionType === 'approve' ? 'Approve' : 'Reject'}
-                    </Button>
-                </DialogActions>
             </Dialog>
-
-            {/* Request History Section */}
-            <Box sx={{ mt: 6 }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
-                    <Box 
-                        component="span" 
-                        sx={{ 
-                            width: 4, 
-                            height: 24, 
-                            bgcolor: 'success.main', 
-                            borderRadius: 1,
-                        }} 
-                    />
-                    <Typography variant="h5" fontWeight={600}>
-                        Request History
-                    </Typography>
-                </Box>
-
-                {isMobile ? (
-                    <Stack spacing={2}>
-                        {historyLoading ? (
-                            [1, 2, 3].map((i) => (
-                                <GlassCard key={i} sx={{ p: 2 }}>
-                                    <Skeleton variant="text" width="60%" />
-                                    <Skeleton variant="rectangular" height={80} sx={{ mt: 1 }} />
-                                </GlassCard>
-                            ))
-                        ) : historicalTransactions.length === 0 ? (
-                            <Alert severity="info" sx={{ borderRadius: 2 }}>
-                                No historical requests found.
-                            </Alert>
-                        ) : (
-                            historicalTransactions.map((transaction) => (
-                                <GlassCard 
-                                    key={transaction.id} 
-                                    sx={{ 
-                                        p: 2, 
-                                        position: 'relative', 
-                                        overflow: 'hidden',
-                                        '&:active': { bgcolor: 'action.hover' }
-                                    }}
-                                    onClick={() => {
-                                        setSelectedTransaction(transaction);
-                                        setDetailsOpen(true);
-                                    }}
-                                >
-                                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                        <Box sx={{ minWidth: 0, flex: 1, mr: 2 }}>
-                                            <Typography variant="subtitle2" fontWeight={600} noWrap>
-                                                {transaction.description}
-                                            </Typography>
-                                            <Typography variant="caption" color="text.secondary" display="block">
-                                                {transaction.department.name}
-                                            </Typography>
-                                            <Typography variant="caption" color="text.secondary">
-                                                {formatDate(transaction.createdAt)} • {transaction.user.name}
-                                            </Typography>
-                                        </Box>
-                                        <Box sx={{ textAlign: 'right' }}>
-                                            <Typography variant="body2" fontWeight={700}>
-                                                {formatCurrency(transaction.amount, transaction.currency?.symbol)}
-                                            </Typography>
-                                            <StatusChip 
-                                                label={transaction.status}
-                                                status={transaction.status === 'APPROVED' ? 'success' : 'error'}
-                                                size="small"
-                                            />
-                                        </Box>
-                                    </Box>
-                                </GlassCard>
-                            ))
-                        )}
-                    </Stack>
-                ) : (historyLoading ? (
-                    <GlassCard sx={{ overflow: 'hidden' }}>
-                        <TableContainer>
-                            <Table>
-                                <TableHead>
-                                    <TableRow sx={{ bgcolor: 'action.hover' }}>
-                                        <TableCell sx={{ fontWeight: 700 }}>Date</TableCell>
-                                        <TableCell sx={{ fontWeight: 700 }}>Description</TableCell>
-                                        <TableCell sx={{ fontWeight: 700 }}>Submitted By</TableCell>
-                                        <TableCell sx={{ fontWeight: 700 }}>Status</TableCell>
-                                        <TableCell align="right" sx={{ fontWeight: 700 }}>Amount</TableCell>
-                                        <TableCell sx={{ fontWeight: 700 }}>Action</TableCell>
-                                    </TableRow>
-                                </TableHead>
-                                <TableBody>
-                                    {[1, 2, 3].map((i) => (
-                                        <TableRow key={i}>
-                                            <TableCell><Skeleton width={80} /></TableCell>
-                                            <TableCell><Skeleton width={150} /></TableCell>
-                                            <TableCell><Skeleton width={100} /></TableCell>
-                                            <TableCell><Skeleton width={70} /></TableCell>
-                                            <TableCell><Skeleton width={80} /></TableCell>
-                                            <TableCell><Skeleton width={80} /></TableCell>
-                                        </TableRow>
-                                    ))}
-                                </TableBody>
-                            </Table>
-                        </TableContainer>
-                    </GlassCard>
-                ) : historicalTransactions.length === 0 ? (
-                    <Alert severity="info" sx={{ borderRadius: 2 }}>
-                        No historical requests found.
-                    </Alert>
-                ) : (
-                    <GlassCard sx={{ overflow: 'hidden' }}>
-                        <TableContainer>
-                            <Table>
-                                <TableHead>
-                                    <TableRow sx={{ bgcolor: 'action.hover' }}>
-                                        <TableCell sx={{ fontWeight: 700 }}>Date</TableCell>
-                                        <TableCell sx={{ fontWeight: 700 }}>Description</TableCell>
-                                        <TableCell sx={{ fontWeight: 700 }}>Submitted By</TableCell>
-                                        <TableCell sx={{ fontWeight: 700 }}>Status</TableCell>
-                                        <TableCell align="right" sx={{ fontWeight: 700 }}>Amount</TableCell>
-                                        <TableCell sx={{ fontWeight: 700 }}>Action</TableCell>
-                                    </TableRow>
-                                </TableHead>
-                                <TableBody>
-                                    {historicalTransactions.map((transaction) => (
-                                        <TableRow 
-                                            key={transaction.id}
-                                            sx={{
-                                                transition: 'all 0.2s ease',
-                                                '&:hover': {
-                                                    bgcolor: 'action.hover',
-                                                },
-                                            }}
-                                        >
-                                            <TableCell>{formatDate(transaction.createdAt)}</TableCell>
-                                            <TableCell>
-                                                <Typography variant="body2" fontWeight={500}>
-                                                    {transaction.description}
-                                                </Typography>
-                                            </TableCell>
-                                            <TableCell>
-                                                <Box>
-                                                    <Typography variant="body2" fontWeight={600}>{transaction.user.name}</Typography>
-                                                    <Typography variant="caption" color="text.secondary" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                                                        <BusinessIcon sx={{ fontSize: 14 }} /> {transaction.department.name}
-                                                    </Typography>
-                                                </Box>
-                                            </TableCell>
-                                            <TableCell>
-                                                <StatusChip 
-                                                    label={transaction.status}
-                                                    status={transaction.status === 'APPROVED' ? 'success' : 'error'}
-                                                />
-                                            </TableCell>
-                                            <TableCell align="right">
-                                                <Typography fontWeight={600}>
-                                                    {formatCurrency(transaction.amount, transaction.currency?.symbol)}
-                                                </Typography>
-                                            </TableCell>
-                                            <TableCell>
-                                                <Button
-                                                    size="small"
-                                                    variant="outlined"
-                                                    sx={{ 
-                                                        borderRadius: 2,
-                                                        textTransform: 'none',
-                                                    }}
-                                                    onClick={() => {
-                                                        setSelectedTransaction(transaction);
-                                                        setDetailsOpen(true);
-                                                    }}
-                                                >
-                                                    View Details
-                                                </Button>
-                                            </TableCell>
-                                        </TableRow>
-                                    ))}
-                                </TableBody>
-                            </Table>
-                        </TableContainer>
-                    </GlassCard>
-                ))}
-            </Box>
-        </Box>
+        </div>
     );
 }

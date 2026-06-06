@@ -2,39 +2,29 @@
 
 import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import {
-    Box,
-    Typography,
-    Paper,
-    TextField,
-    Button,
-    MenuItem,
-    FormControl,
-    InputLabel,
-    Select,
-    Alert,
-    CircularProgress,
-} from '@mui/material';
+import { Loader2 } from 'lucide-react';
 import { useSession } from 'next-auth/react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { formatDepartmentLevel } from '@/lib/utils';
 
 type DepartmentLevel = 'DENOMINATION' | 'OVERSIGHT' | 'CAMPUS' | 'STREAM' | 'COUNCIL';
 
 const DEPARTMENT_LEVELS: DepartmentLevel[] = ['DENOMINATION', 'OVERSIGHT', 'CAMPUS', 'STREAM', 'COUNCIL'];
-
 const DEPARTMENT_HIERARCHY: Record<DepartmentLevel, number> = {
-    DENOMINATION: 1,
-    OVERSIGHT: 2,
-    CAMPUS: 3,
-    STREAM: 4,
-    COUNCIL: 5,
+    DENOMINATION: 1, OVERSIGHT: 2, CAMPUS: 3, STREAM: 4, COUNCIL: 5,
 };
+const ADMIN_SUPPORTED_LEVELS: DepartmentLevel[] = ['DENOMINATION', 'OVERSIGHT', 'CAMPUS'];
 
 function NewDepartmentForm() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const parentParam = searchParams?.get('parent');
     const { data: session } = useSession();
+
     const [name, setName] = useState('');
     const [level, setLevel] = useState<DepartmentLevel>('COUNCIL');
     const [parentId, setParentId] = useState('');
@@ -51,9 +41,6 @@ function NewDepartmentForm() {
     const [adminId, setAdminId] = useState('');
     const [usersLoading, setUsersLoading] = useState(false);
 
-    // Levels that support admin roles
-    const ADMIN_SUPPORTED_LEVELS: DepartmentLevel[] = ['DENOMINATION', 'OVERSIGHT', 'CAMPUS'];
-
     useEffect(() => {
         fetchDepartments();
         fetchCurrencies();
@@ -62,185 +49,104 @@ function NewDepartmentForm() {
 
     useEffect(() => {
         if (parentParam && departments.length > 0) {
-            const parent = departments.find(d => d.id === parentParam);
+            const parent = departments.find((d: any) => d.id === parentParam);
             if (parent) {
                 setParentDepartment(parent);
                 setParentId(parent.id);
-                // Set level to one below parent's level
                 const parentRank = DEPARTMENT_HIERARCHY[parent.level as DepartmentLevel];
                 const childLevel = Object.entries(DEPARTMENT_HIERARCHY).find(([_, rank]) => rank === parentRank + 1)?.[0] as DepartmentLevel;
-                if (childLevel) {
-                    setLevel(childLevel);
-                }
+                if (childLevel) setLevel(childLevel);
             }
         }
     }, [parentParam, departments]);
 
     useEffect(() => {
-        if (session && departments.length > 0) {
-            calculateAllowedLevels();
-        }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
+        if (session && departments.length > 0) calculateAllowedLevels();
     }, [session, departments, parentParam]);
 
     useEffect(() => {
-        if (level && departments.length > 0) {
-            filterAvailableParents();
-        }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
+        if (level && departments.length > 0) filterAvailableParents();
     }, [level, departments, session]);
 
     const calculateAllowedLevels = () => {
         if (!session?.user) return;
-
-        const userRole = session.user.role;
-        
-        // If creating from a parent department context, only allow the next level
         if (parentDepartment) {
             const parentRank = DEPARTMENT_HIERARCHY[parentDepartment.level as DepartmentLevel];
             const childLevel = Object.entries(DEPARTMENT_HIERARCHY).find(([_, rank]) => rank === parentRank + 1)?.[0] as DepartmentLevel;
-            if (childLevel) {
-                setAllowedLevels([childLevel]);
-            } else {
-                setAllowedLevels([]);
-            }
+            setAllowedLevels(childLevel ? [childLevel] : []);
             return;
         }
-        
-        // Superadmin can create any level
-        if (userRole === 'SUPERADMIN') {
+        if (session.user.role === 'SUPERADMIN') {
             setAllowedLevels(Object.keys(DEPARTMENT_HIERARCHY) as DepartmentLevel[]);
             return;
         }
-
-        // Get user's department level from session
-        const userDepartmentLevel = session.user.departmentLevel;
-
-        if (!userDepartmentLevel) {
-            setAllowedLevels([]);
-            return;
-        }
-
-        const currentLevelRank = DEPARTMENT_HIERARCHY[userDepartmentLevel as DepartmentLevel];
+        const userDeptLevel = session.user.departmentLevel;
+        if (!userDeptLevel) { setAllowedLevels([]); return; }
+        const currentRank = DEPARTMENT_HIERARCHY[userDeptLevel as DepartmentLevel];
         const allowed: DepartmentLevel[] = [];
-
-        // Admins can create departments BELOW their own level (not at their own level)
-        if (userRole.endsWith('_ADMIN')) {
+        if (session.user.role.endsWith('_ADMIN')) {
             for (const [lvl, rank] of Object.entries(DEPARTMENT_HIERARCHY)) {
-                if (rank > currentLevelRank) {
-                    allowed.push(lvl as DepartmentLevel);
-                }
+                if (rank > currentRank) allowed.push(lvl as DepartmentLevel);
             }
         }
-
         setAllowedLevels(allowed);
     };
 
     const filterAvailableParents = () => {
-        if (!level) {
-            setAvailableParents([]);
-            return;
-        }
-
-        const selectedLevelRank = DEPARTMENT_HIERARCHY[level];
-        
-        // Filter departments that are one level above the selected level
-        const validParents = departments.filter(dept => {
+        if (!level) { setAvailableParents([]); return; }
+        const selectedRank = DEPARTMENT_HIERARCHY[level];
+        const valid = departments.filter((dept: any) => {
             const deptRank = DEPARTMENT_HIERARCHY[dept.level as DepartmentLevel];
-            
-            // Parent must be exactly one level above (lower rank number)
-            if (deptRank !== selectedLevelRank - 1) {
-                return false;
-            }
-
-            // For non-superadmins, ensure they have access to this department
+            if (deptRank !== selectedRank - 1) return false;
             if (session?.user?.role !== 'SUPERADMIN') {
                 if (!session?.user?.departmentId) return false;
-                
-                // User can only select their own department or departments under their management
                 return dept.id === session.user.departmentId;
             }
-
             return true;
         });
-
-        setAvailableParents(validParents);
-        
-        // Reset parent selection if current parent is not in the valid list
-        if (parentId && !validParents.find(p => p.id === parentId)) {
-            setParentId('');
-        }
+        setAvailableParents(valid);
+        if (parentId && !valid.find((p: any) => p.id === parentId)) setParentId('');
     };
 
     const fetchDepartments = async () => {
-        const response = await fetch('/api/departments?all=true');
-        if (response.ok) {
-            const data = await response.json();
-            setDepartments(data);
-        }
+        const res = await fetch('/api/departments?all=true');
+        if (res.ok) setDepartments(await res.json());
     };
 
     const fetchCurrencies = async () => {
-        const response = await fetch('/api/currencies?active=true');
-        if (response.ok) {
-            const data = await response.json();
-            setCurrencies(data);
-        }
+        const res = await fetch('/api/currencies?active=true');
+        if (res.ok) setCurrencies(await res.json());
     };
 
     const fetchUsers = async () => {
         setUsersLoading(true);
         try {
-            const response = await fetch('/api/users?available=true');
-            if (response.ok) {
-                const data = await response.json();
-                setUsers(data);
-            }
-        } catch (err) {
-        } finally {
-            setUsersLoading(false);
-        }
+            const res = await fetch('/api/users?available=true');
+            if (res.ok) setUsers(await res.json());
+        } finally { setUsersLoading(false); }
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setLoading(true);
         setError('');
-
-        // Validate leader selection
-        if (!leaderId) {
-            setError('A leader must be selected for the department');
-            setLoading(false);
-            return;
-        }
-
+        if (!leaderId) { setError('A leader must be selected for the department'); setLoading(false); return; }
         try {
-            const response = await fetch('/api/departments', {
+            const res = await fetch('/api/departments', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    name,
-                    level,
-                    parentId: parentId || null,
+                    name, level, parentId: parentId || null,
                     currencyId: level === 'OVERSIGHT' && currencyId ? currencyId : undefined,
                     leaderId,
                     adminId: ADMIN_SUPPORTED_LEVELS.includes(level) && adminId ? adminId : undefined,
                 }),
             });
-
-            if (!response.ok) {
-                const data = await response.json();
+            if (!res.ok) {
+                const data = await res.json();
                 throw new Error(data.error || 'Failed to create department');
             }
-
-            // Redirect back to parent context if it exists
-            if (parentParam) {
-                router.push(`/departments?parent=${parentParam}`);
-            } else {
-                router.push('/departments');
-            }
+            router.push(parentParam ? `/departments?parent=${parentParam}` : '/departments');
             router.refresh();
         } catch (err: any) {
             setError(err.message || 'Error creating department');
@@ -249,194 +155,133 @@ function NewDepartmentForm() {
         }
     };
 
-    // Show message if no permissions
     if (session && !session.user.role.endsWith('_ADMIN') && session.user.role !== 'SUPERADMIN') {
         return (
-            <Box maxWidth="sm" sx={{ mx: 'auto' }}>
-                <Alert severity="warning">
+            <div className="max-w-lg mx-auto">
+                <Alert variant="warning"><AlertDescription>
                     You do not have permission to create departments. Only admins can create departments.
-                </Alert>
-            </Box>
+                </AlertDescription></Alert>
+            </div>
         );
     }
 
+    const levelsToShow = session?.user?.role === 'SUPERADMIN' ? DEPARTMENT_LEVELS : allowedLevels;
+
     return (
-        <Box maxWidth="sm" sx={{ mx: 'auto' }}>
-            <Box
-                sx={(theme) => ({
-                    mb: { xs: 3, md: 4 },
-                    pb: { xs: 2.5, md: 3 },
-                    borderBottom: `1px solid ${theme.palette.divider}`,
-                })}
-            >
-                <Typography variant="overline" sx={{ display: 'block', mb: 0.5 }}>
-                    Hierarchy
-                </Typography>
-                <Typography
-                    component="h1"
-                    sx={(theme) => ({
-                        fontFamily: theme.typography.h2.fontFamily,
-                        fontSize: { xs: '1.625rem', sm: '1.875rem' },
-                        fontWeight: 600,
-                        letterSpacing: '-0.025em',
-                        lineHeight: 1.15,
-                    })}
-                >
-                    New department
-                </Typography>
-                <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75 }}>
-                    Add a department under the selected parent.
-                </Typography>
-            </Box>
-            <Paper elevation={0} sx={{ p: 4, border: '1px solid', borderColor: 'divider' }}>
-                <form onSubmit={handleSubmit}>
+        <div className="max-w-lg mx-auto">
+            <div className="mb-8 pb-6 border-b border-border">
+                <p className="text-[0.6875rem] font-medium uppercase tracking-[0.10em] text-muted-foreground mb-1">Hierarchy</p>
+                <h1 className="text-[1.625rem] sm:text-[1.875rem] font-semibold tracking-[-0.025em] text-foreground">New department</h1>
+                <p className="text-sm text-muted-foreground mt-1">Add a department under the selected parent.</p>
+            </div>
+
+            <div className="rounded-xl border border-border bg-card p-6">
+                <form onSubmit={handleSubmit} className="flex flex-col gap-5">
                     {error && (
-                        <Alert severity="error" sx={{ mb: 3 }}>
-                            {error}
-                        </Alert>
+                        <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>
+                    )}
+                    {allowedLevels.length === 0 && session?.user?.role !== 'SUPERADMIN' && (
+                        <Alert><AlertDescription>You need to be assigned to a department to create sub-departments.</AlertDescription></Alert>
                     )}
 
-                    {allowedLevels.length === 0 && session?.user.role !== 'SUPERADMIN' && (
-                        <Alert severity="info" sx={{ mb: 3 }}>
-                            You need to be assigned to a department to create sub-departments.
-                        </Alert>
-                    )}
+                    <div className="space-y-1.5">
+                        <Label htmlFor="name">Department Name</Label>
+                        <Input id="name" required value={name} onChange={e => setName(e.target.value)} />
+                    </div>
 
-                    <TextField
-                        fullWidth
-                        label="Department Name"
-                        value={name}
-                        onChange={(e) => setName(e.target.value)}
-                        required
-                        sx={{ mb: 3 }}
-                    />
-
-                    <FormControl fullWidth sx={{ mb: 3 }}>
-                        <InputLabel>Level</InputLabel>
-                        <Select
-                            value={level}
-                            label="Level"
-                            onChange={(e) => setLevel(e.target.value as DepartmentLevel)}
-                            disabled={allowedLevels.length === 0}
-                        >
-                            {(session?.user.role === 'SUPERADMIN' 
-                                ? DEPARTMENT_LEVELS 
-                                : allowedLevels
-                            ).map((lvl) => (
-                                <MenuItem key={lvl} value={lvl}>
-                                    {formatDepartmentLevel(lvl)}
-                                </MenuItem>
-                            ))}
+                    <div className="space-y-1.5">
+                        <Label>Level</Label>
+                        <Select value={level} onValueChange={v => setLevel(v as DepartmentLevel)} disabled={allowedLevels.length === 0}>
+                            <SelectTrigger><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                                {levelsToShow.map(lvl => (
+                                    <SelectItem key={lvl} value={lvl}>{formatDepartmentLevel(lvl)}</SelectItem>
+                                ))}
+                            </SelectContent>
                         </Select>
-                    </FormControl>
+                    </div>
 
-                    <FormControl fullWidth sx={{ mb: 3 }}>
-                        <InputLabel>Parent Department</InputLabel>
-                        <Select
-                            value={parentId}
-                            label="Parent Department"
-                            onChange={(e) => setParentId(e.target.value)}
-                            disabled={!level || availableParents.length === 0}
-                        >
-                            <MenuItem value="">None</MenuItem>
-                            {availableParents.map((dept) => (
-                                <MenuItem key={dept.id} value={dept.id}>
-                                    {dept.name} ({formatDepartmentLevel(dept.level)})
-                                </MenuItem>
-                            ))}
+                    <div className="space-y-1.5">
+                        <Label>Parent Department</Label>
+                        <Select value={parentId} onValueChange={setParentId} disabled={!level || availableParents.length === 0}>
+                            <SelectTrigger><SelectValue placeholder="None" /></SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="">None</SelectItem>
+                                {availableParents.map((dept: any) => (
+                                    <SelectItem key={dept.id} value={dept.id}>
+                                        {dept.name} ({formatDepartmentLevel(dept.level)})
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
                         </Select>
-                    </FormControl>
+                    </div>
 
-                    <FormControl fullWidth sx={{ mb: 3 }} required>
-                        <InputLabel>Department Leader *</InputLabel>
-                        <Select
-                            value={leaderId}
-                            label="Department Leader *"
-                            onChange={(e) => setLeaderId(e.target.value)}
-                            disabled={usersLoading || users.length === 0}
-                        >
-                            <MenuItem value="">Select a leader</MenuItem>
-                            {users.map((user) => (
-                                <MenuItem key={user.id} value={user.id}>
-                                    {user.name || user.email} {user.title ? `(${user.title})` : ''} - {user.phone}
-                                </MenuItem>
-                            ))}
+                    <div className="space-y-1.5">
+                        <Label>Department Leader <span className="text-destructive">*</span></Label>
+                        <Select value={leaderId} onValueChange={setLeaderId} disabled={usersLoading || users.length === 0} required>
+                            <SelectTrigger><SelectValue placeholder={usersLoading ? 'Loading...' : 'Select a leader'} /></SelectTrigger>
+                            <SelectContent>
+                                {users.map((user: any) => (
+                                    <SelectItem key={user.id} value={user.id}>
+                                        {user.name || user.email}{user.title ? ` (${user.title})` : ''} — {user.phone}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
                         </Select>
                         {users.length === 0 && !usersLoading && (
-                            <Typography variant="caption" color="text.secondary" sx={{ mt: 1 }}>
-                                No users available. Create users first before creating departments.
-                            </Typography>
+                            <p className="text-xs text-muted-foreground">No users available. Create users first before creating departments.</p>
                         )}
-                    </FormControl>
+                    </div>
 
                     {ADMIN_SUPPORTED_LEVELS.includes(level) && (
-                        <FormControl fullWidth sx={{ mb: 3 }}>
-                            <InputLabel>Department Admin (Optional)</InputLabel>
-                            <Select
-                                value={adminId}
-                                label="Department Admin (Optional)"
-                                onChange={(e) => setAdminId(e.target.value)}
-                                disabled={usersLoading || users.length === 0}
-                            >
-                                <MenuItem value="">No admin</MenuItem>
-                                {users
-                                    .filter(user => user.id !== leaderId)
-                                    .map((user) => (
-                                        <MenuItem key={user.id} value={user.id}>
-                                            {user.name || user.email} {user.title ? `(${user.title})` : ''} - {user.phone}
-                                        </MenuItem>
+                        <div className="space-y-1.5">
+                            <Label>Department Admin (Optional)</Label>
+                            <Select value={adminId} onValueChange={setAdminId} disabled={usersLoading || users.length === 0}>
+                                <SelectTrigger><SelectValue placeholder="No admin" /></SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="">No admin</SelectItem>
+                                    {users.filter((u: any) => u.id !== leaderId).map((user: any) => (
+                                        <SelectItem key={user.id} value={user.id}>
+                                            {user.name || user.email}{user.title ? ` (${user.title})` : ''} — {user.phone}
+                                        </SelectItem>
                                     ))}
+                                </SelectContent>
                             </Select>
-                            <Typography variant="caption" color="text.secondary" sx={{ mt: 1 }}>
-                                Admin can manage users and approve transactions in this department.
-                            </Typography>
-                        </FormControl>
+                            <p className="text-xs text-muted-foreground">Admin can manage users and approve transactions in this department.</p>
+                        </div>
                     )}
 
                     {level === 'OVERSIGHT' && (
-                        <FormControl fullWidth sx={{ mb: 3 }}>
-                            <InputLabel>Base Currency *</InputLabel>
-                            <Select
-                                value={currencyId}
-                                label="Base Currency *"
-                                onChange={(e) => setCurrencyId(e.target.value)}
-                                required
-                            >
-                                <MenuItem value="">Select a currency</MenuItem>
-                                {currencies.map((currency) => (
-                                    <MenuItem key={currency.id} value={currency.id}>
-                                        {currency.code} - {currency.name} ({currency.symbol})
-                                    </MenuItem>
-                                ))}
+                        <div className="space-y-1.5">
+                            <Label>Base Currency <span className="text-destructive">*</span></Label>
+                            <Select value={currencyId} onValueChange={setCurrencyId} required>
+                                <SelectTrigger><SelectValue placeholder="Select a currency" /></SelectTrigger>
+                                <SelectContent>
+                                    {currencies.map((c: any) => (
+                                        <SelectItem key={c.id} value={c.id}>{c.code} — {c.name} ({c.symbol})</SelectItem>
+                                    ))}
+                                </SelectContent>
                             </Select>
-                        </FormControl>
+                        </div>
                     )}
 
-                    <Box sx={{ display: 'flex', gap: 2, justifyContent: 'flex-end' }}>
-                        <Button onClick={() => router.back()} disabled={loading}>
+                    <div className="flex gap-3 justify-end pt-2">
+                        <Button type="button" variant="outline" onClick={() => router.back()} disabled={loading}>
                             Cancel
                         </Button>
-                        <Button 
-                            type="submit" 
-                            variant="contained" 
-                            disabled={loading || allowedLevels.length === 0 || !leaderId}
-                        >
-                            {loading ? 'Creating...' : 'Create Department'}
+                        <Button type="submit" disabled={loading || allowedLevels.length === 0 || !leaderId}>
+                            {loading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Creating...</> : 'Create Department'}
                         </Button>
-                    </Box>
+                    </div>
                 </form>
-            </Paper>
-        </Box>
+            </div>
+        </div>
     );
 }
 
 export default function NewDepartmentPage() {
     return (
-        <Suspense fallback={
-            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '60vh' }}>
-                <CircularProgress />
-            </Box>
-        }>
+        <Suspense fallback={<div className="flex justify-center items-center min-h-[60vh]"><Loader2 className="h-7 w-7 animate-spin text-muted-foreground" /></div>}>
             <NewDepartmentForm />
         </Suspense>
     );

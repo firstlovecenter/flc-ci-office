@@ -3,752 +3,316 @@
 import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
-import {
-    Box,
-    Typography,
-    Paper,
-    Tabs,
-    Tab,
-    Table,
-    TableBody,
-    TableCell,
-    TableContainer,
-    TableHead,
-    TableRow,
-    Button,
-    Dialog,
-    DialogTitle,
-    DialogContent,
-    DialogActions,
-    TextField,
-    Alert,
-    IconButton,
-    Switch,
-    FormControlLabel,
-    Chip,
-    useTheme,
-    useMediaQuery,
-    alpha,
-} from '@mui/material';
-import { GlassCard } from '@/components/ui';
-import AddIcon from '@mui/icons-material/Add';
-import EditIcon from '@mui/icons-material/Edit';
-import DeleteIcon from '@mui/icons-material/Delete';
-import MonetizationOnIcon from '@mui/icons-material/MonetizationOn';
+import { Plus, Pencil, Trash2, Coins, Loader2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { cn } from '@/lib/utils';
 
-interface Currency {
-    id: string;
-    code: string;
-    name: string;
-    symbol: string;
-    isBase: boolean;
-    isActive: boolean;
-}
+interface Currency { id: string; code: string; name: string; symbol: string; isBase: boolean; isActive: boolean; }
+interface ExchangeRate { id: string; fromCurrency: Currency; toCurrency: Currency; rate: string; effectiveDate: string; createdBy: string; }
 
-interface ExchangeRate {
-    id: string;
-    fromCurrency: Currency;
-    toCurrency: Currency;
-    rate: string;
-    effectiveDate: string;
-    createdBy: string;
-}
+const TABS = ['Currencies', 'Exchange Rates', 'Base Currencies'];
 
 export default function CurrenciesPage() {
     const { data: session } = useSession();
     const router = useRouter();
-    const theme = useTheme();
-    const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+
     const [tab, setTab] = useState(0);
     const [currencies, setCurrencies] = useState<Currency[]>([]);
     const [exchangeRates, setExchangeRates] = useState<ExchangeRate[]>([]);
+    const [baseCurrencies, setBaseCurrencies] = useState<any[]>([]);
+    const [systemBase, setSystemBase] = useState<any>(null);
     const [currencyDialogOpen, setCurrencyDialogOpen] = useState(false);
     const [rateDialogOpen, setRateDialogOpen] = useState(false);
-    const [editingRate, setEditingRate] = useState<ExchangeRate | null>(null);
     const [editingCurrency, setEditingCurrency] = useState<Currency | null>(null);
+    const [editingRate, setEditingRate] = useState<ExchangeRate | null>(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
 
-    const [currencyForm, setCurrencyForm] = useState({
-        id: '',
-        code: '',
-        name: '',
-        symbol: '',
-        isBase: false,
-    });
+    const [currencyForm, setCurrencyForm] = useState({ code: '', name: '', symbol: '', isBase: false });
+    const [rateForm, setRateForm] = useState({ fromCurrencyId: '', toCurrencyId: '', rate: '', effectiveDate: new Date().toISOString().split('T')[0] });
 
-    const [rateForm, setRateForm] = useState({
-        id: '',
-        fromCurrencyId: '',
-        toCurrencyId: '',
-        rate: '',
-        effectiveDate: new Date().toISOString().split('T')[0],
-    });
-
-    const [baseCurrencies, setBaseCurrencies] = useState<any[]>([]);
-    const [systemBase, setSystemBase] = useState<any>(null);
-
-    // Only SUPERADMIN and DENOMINATION_ADMIN can access this page
     useEffect(() => {
-        if (session?.user?.role) {
-            if (!['SUPERADMIN', 'DENOMINATION_ADMIN'].includes(session.user.role)) {
-                router.push('/dashboard');
-            }
-        }
+        if (session?.user?.role && !['SUPERADMIN', 'DENOMINATION_ADMIN'].includes(session.user.role)) router.push('/dashboard');
     }, [session, router]);
 
-    useEffect(() => {
-        fetchCurrencies();
-        fetchExchangeRates();
-        fetchBaseCurrencies();
-    }, []);
+    useEffect(() => { fetchCurrencies(); fetchExchangeRates(); fetchBaseCurrencies(); }, []);
 
-    const fetchCurrencies = async () => {
-        try {
-            const response = await fetch('/api/currencies');
-            if (response.ok) {
-                const data = await response.json();
-                setCurrencies(data);
-            }
-        } catch (error) {
-            console.error('Failed to fetch currencies:', error);
-        }
-    };
-
-    const fetchExchangeRates = async () => {
-        try {
-            const response = await fetch('/api/exchange-rates');
-            if (response.ok) {
-                const data = await response.json();
-                setExchangeRates(data);
-            }
-        } catch (error) {
-            console.error('Failed to fetch exchange rates:', error);
-        }
-    };
-
+    const fetchCurrencies = async () => { const r = await fetch('/api/currencies'); if (r.ok) setCurrencies(await r.json()); };
+    const fetchExchangeRates = async () => { const r = await fetch('/api/exchange-rates'); if (r.ok) setExchangeRates(await r.json()); };
     const fetchBaseCurrencies = async () => {
-        try {
-            const response = await fetch('/api/admin/base-currencies');
-            if (response.ok) {
-                const data = await response.json();
-                setBaseCurrencies(data.oversightDepartments || []);
-                setSystemBase(data.systemBase);
-            }
-        } catch (error) {
-            console.error('Failed to fetch base currencies:', error);
-        }
+        const r = await fetch('/api/admin/base-currencies');
+        if (r.ok) { const d = await r.json(); setBaseCurrencies(d.oversightDepartments || []); setSystemBase(d.systemBase); }
     };
 
     const handleCreateCurrency = async () => {
-        setLoading(true);
-        setError('');
-
+        setLoading(true); setError('');
         try {
-            const method = editingCurrency ? 'PUT' : 'POST';
-            const url = editingCurrency ? `/api/currencies/${editingCurrency.id}` : '/api/currencies';
-            
-            const response = await fetch(url, {
-                method,
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(currencyForm),
-            });
-
-            if (!response.ok) {
-                const text = await response.text();
-                throw new Error(text);
-            }
-
+            const r = await fetch(editingCurrency ? `/api/currencies/${editingCurrency.id}` : '/api/currencies', { method: editingCurrency ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(currencyForm) });
+            if (!r.ok) throw new Error(await r.text());
             setSuccess(editingCurrency ? 'Currency updated successfully' : 'Currency created successfully');
-            setCurrencyDialogOpen(false);
-            setEditingCurrency(null);
-            setCurrencyForm({ id: '', code: '', name: '', symbol: '', isBase: false });
+            setCurrencyDialogOpen(false); setEditingCurrency(null); setCurrencyForm({ code: '', name: '', symbol: '', isBase: false });
             fetchCurrencies();
-        } catch (err: any) {
-            setError(err.message);
-        } finally {
-            setLoading(false);
-        }
+        } catch (e: any) { setError(e.message); }
+        finally { setLoading(false); }
     };
 
     const handleCreateExchangeRate = async () => {
-        setLoading(true);
-        setError('');
-
+        setLoading(true); setError('');
         try {
-            const method = editingRate ? 'PUT' : 'POST';
-            const url = editingRate ? `/api/exchange-rates/${editingRate.id}` : '/api/exchange-rates';
-            
-            const response = await fetch(url, {
-                method,
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(rateForm),
-            });
-
-            if (!response.ok) {
-                const text = await response.text();
-                throw new Error(text);
-            }
-
-            setSuccess(editingRate ? 'Exchange rate updated successfully' : 'Exchange rate created successfully');
-            setRateDialogOpen(false);
-            setEditingRate(null);
-            setRateForm({ 
-                id: '',
-                fromCurrencyId: '', 
-                toCurrencyId: '', 
-                rate: '',
-                effectiveDate: new Date().toISOString().split('T')[0],
-            });
+            const r = await fetch(editingRate ? `/api/exchange-rates/${editingRate.id}` : '/api/exchange-rates', { method: editingRate ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(rateForm) });
+            if (!r.ok) throw new Error(await r.text());
+            setSuccess(editingRate ? 'Exchange rate updated' : 'Exchange rate created');
+            setRateDialogOpen(false); setEditingRate(null); setRateForm({ fromCurrencyId: '', toCurrencyId: '', rate: '', effectiveDate: new Date().toISOString().split('T')[0] });
             fetchExchangeRates();
-        } catch (err: any) {
-            setError(err.message);
-        } finally {
-            setLoading(false);
-        }
+        } catch (e: any) { setError(e.message); }
+        finally { setLoading(false); }
     };
 
-    const handleEditRate = (rate: ExchangeRate) => {
-        setEditingRate(rate);
-        setRateForm({
-            id: rate.id,
-            fromCurrencyId: rate.fromCurrency.id,
-            toCurrencyId: rate.toCurrency.id,
-            rate: rate.rate,
-            effectiveDate: new Date(rate.effectiveDate).toISOString().split('T')[0],
-        });
-        setRateDialogOpen(true);
-    };
-
-    const handleCloseRateDialog = () => {
-        setRateDialogOpen(false);
-        setEditingRate(null);
-        setRateForm({
-            id: '',
-            fromCurrencyId: '',
-            toCurrencyId: '',
-            rate: '',
-            effectiveDate: new Date().toISOString().split('T')[0],
-        });
-    };
-
-    const handleEditCurrency = (currency: Currency) => {
-        setEditingCurrency(currency);
-        setCurrencyForm({
-            id: currency.id,
-            code: currency.code,
-            name: currency.name,
-            symbol: currency.symbol,
-            isBase: currency.isBase,
-        });
-        setCurrencyDialogOpen(true);
-    };
-
-    const handleCloseCurrencyDialog = () => {
-        setCurrencyDialogOpen(false);
-        setEditingCurrency(null);
-        setCurrencyForm({ id: '', code: '', name: '', symbol: '', isBase: false });
-    };
+    const handleEditCurrency = (c: Currency) => { setEditingCurrency(c); setCurrencyForm({ code: c.code, name: c.name, symbol: c.symbol, isBase: c.isBase }); setCurrencyDialogOpen(true); };
+    const handleEditRate = (r: ExchangeRate) => { setEditingRate(r); setRateForm({ fromCurrencyId: r.fromCurrency.id, toCurrencyId: r.toCurrency.id, rate: r.rate, effectiveDate: new Date(r.effectiveDate).toISOString().split('T')[0] }); setRateDialogOpen(true); };
 
     const handleToggleActive = async (id: string, isActive: boolean) => {
-        try {
-            const response = await fetch(`/api/currencies/${id}`, {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ isActive: !isActive }),
-            });
-
-            if (response.ok) {
-                fetchCurrencies();
-            }
-        } catch (error) {
-            console.error('Failed to toggle currency status:', error);
-        }
+        const r = await fetch(`/api/currencies/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ isActive: !isActive }) });
+        if (r.ok) fetchCurrencies();
     };
 
     const handleDeleteRate = async (id: string) => {
         if (!confirm('Are you sure you want to delete this exchange rate?')) return;
-
-        try {
-            const response = await fetch(`/api/exchange-rates/${id}`, {
-                method: 'DELETE',
-            });
-
-            if (response.ok) {
-                setSuccess('Exchange rate deleted');
-                fetchExchangeRates();
-            } else {
-                const text = await response.text();
-                setError(text);
-            }
-        } catch (error) {
-            setError('Failed to delete exchange rate');
-        }
+        const r = await fetch(`/api/exchange-rates/${id}`, { method: 'DELETE' });
+        if (r.ok) { setSuccess('Exchange rate deleted'); fetchExchangeRates(); } else setError(await r.text());
     };
 
     return (
-        <Box>
-            {/* Page Header */}
-            <Box
-                sx={(theme) => ({
-                    display: 'flex',
-                    alignItems: { xs: 'flex-start', sm: 'flex-end' },
-                    justifyContent: 'space-between',
-                    gap: 2,
-                    flexWrap: 'wrap',
-                    mb: { xs: 3, md: 4 },
-                    pb: { xs: 2.5, md: 3 },
-                    borderBottom: `1px solid ${theme.palette.divider}`,
-                })}
-            >
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2.5, minWidth: 0, flex: 1 }}>
-                    <Box
-                        sx={(theme) => ({
-                            width: 48,
-                            height: 48,
-                            borderRadius: 1.5,
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            bgcolor: alpha(theme.palette.secondary.main, 0.10),
-                            color: theme.palette.secondary.main,
-                            flexShrink: 0,
-                        })}
-                    >
-                        <MonetizationOnIcon sx={{ fontSize: 22 }} />
-                    </Box>
-                    <Box sx={{ minWidth: 0 }}>
-                        <Typography variant="overline" sx={{ display: 'block', mb: 0.5 }}>
-                            Configuration
-                        </Typography>
-                        <Typography
-                            component="h1"
-                            sx={(theme) => ({
-                                fontFamily: theme.typography.h2.fontFamily,
-                                fontSize: { xs: '1.625rem', sm: '1.875rem', md: '2.125rem' },
-                                fontWeight: 600,
-                                letterSpacing: '-0.025em',
-                                lineHeight: 1.15,
-                            })}
-                        >
-                            Currencies
-                        </Typography>
-                        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75 }}>
-                            Manage currencies, exchange rates, and department defaults.
-                        </Typography>
-                    </Box>
-                </Box>
-            </Box>
+        <div>
+            {/* Header */}
+            <div className="flex items-start gap-4 flex-wrap mb-8 pb-6 border-b border-border">
+                <div className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0 bg-secondary text-muted-foreground">
+                    <Coins className="h-5 w-5" />
+                </div>
+                <div>
+                    <p className="text-[0.6875rem] font-medium uppercase tracking-[0.10em] text-muted-foreground mb-0.5">Configuration</p>
+                    <h1 className="text-[1.625rem] sm:text-[1.875rem] font-semibold tracking-[-0.025em] text-foreground">Currencies</h1>
+                    <p className="text-sm text-muted-foreground mt-0.5">Manage currencies, exchange rates, and department defaults.</p>
+                </div>
+            </div>
 
-            {error && (
-                <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError('')}>
-                    {error}
-                </Alert>
-            )}
+            {error && <Alert variant="destructive" className="mb-4"><AlertDescription>{error}</AlertDescription></Alert>}
+            {success && <Alert className="mb-4 border-success/30 bg-success/8"><AlertDescription className="text-success">{success}</AlertDescription></Alert>}
 
-            {success && (
-                <Alert severity="success" sx={{ mb: 3 }} onClose={() => setSuccess('')}>
-                    {success}
-                </Alert>
-            )}
+            {/* Tabs */}
+            <div className="flex gap-1 rounded-xl border border-border bg-muted/40 p-1 mb-5 w-fit">
+                {TABS.map((t, i) => (
+                    <button key={t} onClick={() => setTab(i)} className={cn('px-4 py-2 rounded-lg text-sm font-medium transition-colors', tab === i ? 'bg-card text-foreground shadow-sm border border-border' : 'text-muted-foreground hover:text-foreground')}>{t}</button>
+                ))}
+            </div>
 
-            <GlassCard sx={{ mb: 3 }}>
-                <Tabs value={tab} onChange={(_, v) => setTab(v)}>
-                    <Tab label="Currencies" />
-                    <Tab label="Exchange Rates" />
-                    <Tab label="Base Currencies" />
-                </Tabs>
-            </GlassCard>
-
+            {/* --- Tab 0: Currencies --- */}
             {tab === 0 && (
-                <Box>
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
-                        <Typography variant="h6">Active Currencies</Typography>
-                        <Button
-                            variant="contained"
-                            startIcon={<AddIcon />}
-                            onClick={() => setCurrencyDialogOpen(true)}
-                        >
-                            Add Currency
-                        </Button>
-                    </Box>
+                <div>
+                    <div className="flex justify-between items-center mb-4">
+                        <h2 className="text-lg font-semibold text-foreground">Active Currencies</h2>
+                        <Button onClick={() => setCurrencyDialogOpen(true)} size="sm"><Plus className="mr-1.5 h-4 w-4" />Add Currency</Button>
+                    </div>
 
-                    {isMobile ? (
-                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                            {currencies.map((currency) => (
-                                <GlassCard 
-                                    key={currency.id} 
-                                    sx={{ 
-                                        p: 2,
-                                        '&:active': { bgcolor: 'action.hover' }
-                                    }}
-                                    onClick={() => handleEditCurrency(currency)}
-                                >
-                                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                            <Typography variant="subtitle1" fontWeight={700}>
-                                                {currency.code}
-                                            </Typography>
-                                            <Typography variant="body2" color="text.secondary">
-                                                {currency.name}
-                                            </Typography>
-                                        </Box>
-                                        <Typography variant="h6">
-                                            {currency.symbol}
-                                        </Typography>
-                                    </Box>
-                                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 1 }}>
-                                        <Box sx={{ display: 'flex', gap: 1 }}>
-                                            <Chip
-                                                label={currency.isActive ? 'Active' : 'Inactive'}
-                                                color={currency.isActive ? 'success' : 'default'}
-                                                size="small"
-                                            />
-                                            {currency.isBase && (
-                                                <Chip label="Base" color="primary" size="small" />
-                                            )}
-                                        </Box>
-                                        <Switch
-                                            checked={currency.isActive}
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                handleToggleActive(currency.id, currency.isActive);
-                                            }}
-                                            size="small"
-                                        />
-                                    </Box>
-                                </GlassCard>
-                            ))}
-                             {currencies.length === 0 && (
-                                <Typography variant="body1" color="text.secondary" align="center">
-                                    No currencies found
-                                </Typography>
-                            )}
-                        </Box>
-                    ) : (
-                    <TableContainer component={GlassCard}>
-                        <Table>
-                            <TableHead>
-                                <TableRow sx={{ bgcolor: 'action.hover' }}>
-                                    <TableCell sx={{ fontWeight: 700 }}>Code</TableCell>
-                                    <TableCell sx={{ fontWeight: 700 }}>Name</TableCell>
-                                    <TableCell sx={{ fontWeight: 700 }}>Symbol</TableCell>
-                                    <TableCell sx={{ fontWeight: 700 }}>Status</TableCell>
-                                    <TableCell sx={{ fontWeight: 700 }}>Base Currency</TableCell>
-                                    <TableCell align="right" sx={{ fontWeight: 700 }}>Actions</TableCell>
-                                </TableRow>
-                            </TableHead>
-                            <TableBody>
-                                {currencies.map((currency) => (
-                                    <TableRow key={currency.id} sx={{ '&:hover': { bgcolor: 'action.hover' } }}>
-                                        <TableCell>
-                                            <strong>{currency.code}</strong>
-                                        </TableCell>
-                                        <TableCell>{currency.name}</TableCell>
-                                        <TableCell>{currency.symbol}</TableCell>
-                                        <TableCell>
-                                            <Chip
-                                                label={currency.isActive ? 'Active' : 'Inactive'}
-                                                color={currency.isActive ? 'success' : 'default'}
-                                                size="small"
-                                            />
-                                        </TableCell>
-                                        <TableCell>
-                                            {currency.isBase && (
-                                                <Chip label="Base" color="primary" size="small" />
-                                            )}
-                                        </TableCell>
-                                        <TableCell align="right">
-                                            <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end', alignItems: 'center' }}>
-                                                <IconButton
-                                                    size="small"
-                                                    onClick={() => handleEditCurrency(currency)}
-                                                    color="primary"
-                                                >
-                                                    <EditIcon />
-                                                </IconButton>
-                                                <Switch
-                                                    checked={currency.isActive}
-                                                    onChange={() => handleToggleActive(currency.id, currency.isActive)}
-                                                    size="small"
-                                                />
-                                            </Box>
-                                        </TableCell>
-                                    </TableRow>
+                    {/* Mobile cards */}
+                    <div className="flex flex-col gap-3 md:hidden">
+                        {currencies.map(c => (
+                            <button key={c.id} className="text-left rounded-xl border border-border bg-card p-4 w-full" onClick={() => handleEditCurrency(c)}>
+                                <div className="flex justify-between items-center mb-2">
+                                    <div className="flex items-center gap-2">
+                                        <span className="font-bold text-foreground">{c.code}</span>
+                                        <span className="text-sm text-muted-foreground">{c.name}</span>
+                                    </div>
+                                    <span className="text-xl font-semibold text-foreground">{c.symbol}</span>
+                                </div>
+                                <div className="flex justify-between items-center">
+                                    <div className="flex gap-2">
+                                        <Badge variant="outline" className={c.isActive ? 'bg-success/10 text-success border-success/25' : 'bg-muted text-muted-foreground'}>{c.isActive ? 'Active' : 'Inactive'}</Badge>
+                                        {c.isBase && <Badge variant="outline" className="bg-primary/10 text-primary border-primary/25">Base</Badge>}
+                                    </div>
+                                    <button className={cn('relative inline-flex h-5 w-9 items-center rounded-full transition-colors', c.isActive ? 'bg-success' : 'bg-muted-foreground/30')} onClick={e => { e.stopPropagation(); handleToggleActive(c.id, c.isActive); }}>
+                                        <span className={cn('inline-block h-3.5 w-3.5 rounded-full bg-white shadow transition-transform', c.isActive ? 'translate-x-4' : 'translate-x-1')} />
+                                    </button>
+                                </div>
+                            </button>
+                        ))}
+                        {currencies.length === 0 && <p className="text-sm text-muted-foreground text-center py-6">No currencies found</p>}
+                    </div>
+
+                    {/* Desktop table */}
+                    <div className="hidden md:block rounded-xl border border-border bg-card overflow-hidden">
+                        <table className="w-full text-sm">
+                            <thead className="bg-muted/40 border-b border-border">
+                                <tr>{['Code', 'Name', 'Symbol', 'Status', 'Base Currency', 'Actions'].map(h => <th key={h} className="py-3 px-4 text-left font-semibold text-foreground">{h}</th>)}</tr>
+                            </thead>
+                            <tbody className="divide-y divide-border">
+                                {currencies.map(c => (
+                                    <tr key={c.id} className="hover:bg-muted/20 transition-colors">
+                                        <td className="py-3 px-4 font-bold text-foreground">{c.code}</td>
+                                        <td className="py-3 px-4 text-foreground">{c.name}</td>
+                                        <td className="py-3 px-4 text-foreground">{c.symbol}</td>
+                                        <td className="py-3 px-4"><Badge variant="outline" className={c.isActive ? 'bg-success/10 text-success border-success/25' : 'bg-muted text-muted-foreground'}>{c.isActive ? 'Active' : 'Inactive'}</Badge></td>
+                                        <td className="py-3 px-4">{c.isBase && <Badge variant="outline" className="bg-primary/10 text-primary border-primary/25">Base</Badge>}</td>
+                                        <td className="py-3 px-4">
+                                            <div className="flex gap-2 items-center justify-end">
+                                                <button className="p-1.5 rounded-lg hover:bg-muted text-primary" onClick={() => handleEditCurrency(c)}><Pencil className="h-4 w-4" /></button>
+                                                <button className={cn('relative inline-flex h-5 w-9 items-center rounded-full transition-colors', c.isActive ? 'bg-success' : 'bg-muted-foreground/30')} onClick={() => handleToggleActive(c.id, c.isActive)}>
+                                                    <span className={cn('inline-block h-3.5 w-3.5 rounded-full bg-white shadow transition-transform', c.isActive ? 'translate-x-4' : 'translate-x-1')} />
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
                                 ))}
-                                {currencies.length === 0 && (
-                                    <TableRow>
-                                        <TableCell colSpan={6} align="center">
-                                            No currencies found
-                                        </TableCell>
-                                    </TableRow>
-                                )}
-                            </TableBody>
-                        </Table>
-                    </TableContainer>
-                    )}
-                </Box>
+                                {currencies.length === 0 && <tr><td colSpan={6} className="py-8 text-center text-sm text-muted-foreground">No currencies found</td></tr>}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
             )}
 
+            {/* --- Tab 1: Exchange Rates --- */}
             {tab === 1 && (
-                <Box>
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
-                        <Typography variant="h6">Exchange Rates</Typography>
-                        <Button
-                            variant="contained"
-                            startIcon={<AddIcon />}
-                            onClick={() => setRateDialogOpen(true)}
-                        >
-                            Set Exchange Rate
-                        </Button>
-                    </Box>
-
-                    <TableContainer component={GlassCard}>
-                        <Table>
-                            <TableHead>
-                                <TableRow sx={{ bgcolor: 'action.hover' }}>
-                                    <TableCell sx={{ fontWeight: 700 }}>From Currency</TableCell>
-                                    <TableCell sx={{ fontWeight: 700 }}>To Currency</TableCell>
-                                    <TableCell sx={{ fontWeight: 700 }}>Exchange Rate</TableCell>
-                                    <TableCell sx={{ fontWeight: 700 }}>Effective Date</TableCell>
-                                    <TableCell align="right" sx={{ fontWeight: 700 }}>Actions</TableCell>
-                                </TableRow>
-                            </TableHead>
-                            <TableBody>
-                                {exchangeRates.map((rate) => (
-                                    <TableRow key={rate.id} sx={{ '&:hover': { bgcolor: 'action.hover' } }}>
-                                        <TableCell>
-                                            <strong>{rate.fromCurrency.code}</strong> - {rate.fromCurrency.name}
-                                        </TableCell>
-                                        <TableCell>
-                                            <strong>{rate.toCurrency.code}</strong> - {rate.toCurrency.name}
-                                        </TableCell>
-                                        <TableCell>
-                                            <Typography variant="body2" fontWeight={600}>
-                                                {rate.rate}
-                                            </Typography>
-                                        </TableCell>
-                                        <TableCell>
-                                            {new Date(rate.effectiveDate).toLocaleDateString()}
-                                        </TableCell>
-                                        <TableCell align="right">
-                                            {(session?.user?.id === rate.createdBy || session?.user?.role === 'SUPERADMIN') && (
-                                                <>
-                                                    <IconButton
-                                                        size="small"
-                                                        onClick={() => handleEditRate(rate)}
-                                                        color="primary"
-                                                    >
-                                                        <EditIcon />
-                                                    </IconButton>
-                                                    {session?.user?.role === 'SUPERADMIN' && (
-                                                        <IconButton
-                                                            size="small"
-                                                            onClick={() => handleDeleteRate(rate.id)}
-                                                            color="error"
-                                                        >
-                                                            <DeleteIcon />
-                                                        </IconButton>
-                                                    )}
-                                                </>
+                <div>
+                    <div className="flex justify-between items-center mb-4">
+                        <h2 className="text-lg font-semibold text-foreground">Exchange Rates</h2>
+                        <Button onClick={() => setRateDialogOpen(true)} size="sm"><Plus className="mr-1.5 h-4 w-4" />Set Exchange Rate</Button>
+                    </div>
+                    <div className="rounded-xl border border-border bg-card overflow-hidden">
+                        <table className="w-full text-sm">
+                            <thead className="bg-muted/40 border-b border-border">
+                                <tr>{['From Currency', 'To Currency', 'Exchange Rate', 'Effective Date', 'Actions'].map(h => <th key={h} className="py-3 px-4 text-left font-semibold text-foreground">{h}</th>)}</tr>
+                            </thead>
+                            <tbody className="divide-y divide-border">
+                                {exchangeRates.map(r => (
+                                    <tr key={r.id} className="hover:bg-muted/20 transition-colors">
+                                        <td className="py-3 px-4"><span className="font-bold text-foreground">{r.fromCurrency.code}</span> — {r.fromCurrency.name}</td>
+                                        <td className="py-3 px-4"><span className="font-bold text-foreground">{r.toCurrency.code}</span> — {r.toCurrency.name}</td>
+                                        <td className="py-3 px-4 font-semibold text-foreground">{r.rate}</td>
+                                        <td className="py-3 px-4 text-muted-foreground">{new Date(r.effectiveDate).toLocaleDateString()}</td>
+                                        <td className="py-3 px-4">
+                                            {(session?.user?.id === r.createdBy || session?.user?.role === 'SUPERADMIN') && (
+                                                <div className="flex gap-1">
+                                                    <button className="p-1.5 rounded-lg hover:bg-muted text-primary" onClick={() => handleEditRate(r)}><Pencil className="h-4 w-4" /></button>
+                                                    {session?.user?.role === 'SUPERADMIN' && <button className="p-1.5 rounded-lg hover:bg-destructive/10 text-destructive" onClick={() => handleDeleteRate(r.id)}><Trash2 className="h-4 w-4" /></button>}
+                                                </div>
                                             )}
-                                        </TableCell>
-                                    </TableRow>
+                                        </td>
+                                    </tr>
                                 ))}
-                                {exchangeRates.length === 0 && (
-                                    <TableRow>
-                                        <TableCell colSpan={5} align="center">
-                                            No exchange rates found
-                                        </TableCell>
-                                    </TableRow>
-                                )}
-                            </TableBody>
-                        </Table>
-                    </TableContainer>
-                </Box>
+                                {exchangeRates.length === 0 && <tr><td colSpan={5} className="py-8 text-center text-sm text-muted-foreground">No exchange rates found</td></tr>}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
             )}
 
+            {/* --- Tab 2: Base Currencies --- */}
             {tab === 2 && (
-                <Box>
-                    <Typography variant="h6" sx={{ mb: 2 }}>Oversight Base Currencies</Typography>
-                    
+                <div>
+                    <h2 className="text-lg font-semibold text-foreground mb-4">Oversight Base Currencies</h2>
                     {systemBase && (
-                        <Alert severity="info" sx={{ mb: 2 }}>
-                            System Default: <strong>{systemBase.code} ({systemBase.name})</strong>
+                        <Alert className="mb-4 border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950/30">
+                            <AlertDescription className="text-blue-700 dark:text-blue-300">System Default: <strong>{systemBase.code} ({systemBase.name})</strong></AlertDescription>
                         </Alert>
                     )}
-
-                    <TableContainer component={GlassCard}>
-                        <Table>
-                            <TableHead>
-                                <TableRow sx={{ bgcolor: 'action.hover' }}>
-                                    <TableCell sx={{ fontWeight: 700 }}>Oversight Department</TableCell>
-                                    <TableCell sx={{ fontWeight: 700 }}>Base Currency</TableCell>
-                                    <TableCell sx={{ fontWeight: 700 }}>Status</TableCell>
-                                    <TableCell sx={{ fontWeight: 700 }}>Set By</TableCell>
-                                    <TableCell sx={{ fontWeight: 700 }}>Date Set</TableCell>
-                                </TableRow>
-                            </TableHead>
-                            <TableBody>
-                                {baseCurrencies.map((dept: any) => (
-                                    <TableRow key={dept.departmentId} sx={{ '&:hover': { bgcolor: 'action.hover' } }}>
-                                        <TableCell>
-                                            <strong>{dept.departmentName}</strong>
-                                        </TableCell>
-                                        <TableCell>
-                                            {dept.baseCurrency ? (
-                                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                                    <Typography>
-                                                        {dept.baseCurrency.code} - {dept.baseCurrency.name}
-                                                    </Typography>
-                                                </Box>
-                                            ) : (
-                                                <Typography color="text.secondary">Using system default</Typography>
-                                            )}
-                                        </TableCell>
-                                        <TableCell>
-                                            <Chip
-                                                label={dept.isCustom ? 'Custom' : 'Default'}
-                                                color={dept.isCustom ? 'primary' : 'default'}
-                                                size="small"
-                                            />
-                                        </TableCell>
-                                        <TableCell>
-                                            {dept.setBy ? dept.setBy.name : '-'}
-                                        </TableCell>
-                                        <TableCell>
-                                            {dept.setAt ? new Date(dept.setAt).toLocaleDateString() : '-'}
-                                        </TableCell>
-                                    </TableRow>
+                    <div className="rounded-xl border border-border bg-card overflow-hidden">
+                        <table className="w-full text-sm">
+                            <thead className="bg-muted/40 border-b border-border">
+                                <tr>{['Oversight Department', 'Base Currency', 'Status', 'Set By', 'Date Set'].map(h => <th key={h} className="py-3 px-4 text-left font-semibold text-foreground">{h}</th>)}</tr>
+                            </thead>
+                            <tbody className="divide-y divide-border">
+                                {baseCurrencies.map((d: any) => (
+                                    <tr key={d.departmentId} className="hover:bg-muted/20 transition-colors">
+                                        <td className="py-3 px-4 font-bold text-foreground">{d.departmentName}</td>
+                                        <td className="py-3 px-4 text-foreground">{d.baseCurrency ? `${d.baseCurrency.code} — ${d.baseCurrency.name}` : <span className="text-muted-foreground">Using system default</span>}</td>
+                                        <td className="py-3 px-4"><Badge variant="outline" className={d.isCustom ? 'bg-primary/10 text-primary border-primary/25' : 'bg-muted text-muted-foreground'}>{d.isCustom ? 'Custom' : 'Default'}</Badge></td>
+                                        <td className="py-3 px-4 text-muted-foreground">{d.setBy?.name || '—'}</td>
+                                        <td className="py-3 px-4 text-muted-foreground">{d.setAt ? new Date(d.setAt).toLocaleDateString() : '—'}</td>
+                                    </tr>
                                 ))}
-                                {baseCurrencies.length === 0 && (
-                                    <TableRow>
-                                        <TableCell colSpan={5} align="center">
-                                            No oversight departments found
-                                        </TableCell>
-                                    </TableRow>
-                                )}
-                            </TableBody>
-                        </Table>
-                    </TableContainer>
-                </Box>
+                                {baseCurrencies.length === 0 && <tr><td colSpan={5} className="py-8 text-center text-sm text-muted-foreground">No oversight departments found</td></tr>}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
             )}
 
             {/* Add/Edit Currency Dialog */}
-            <Dialog open={currencyDialogOpen} onClose={handleCloseCurrencyDialog} maxWidth="sm" fullWidth>
-                <DialogTitle>{editingCurrency ? 'Edit Currency' : 'Add Currency'}</DialogTitle>
-                <DialogContent>
-                    <TextField
-                        fullWidth
-                        label="Currency Code"
-                        value={currencyForm.code}
-                        onChange={(e) => setCurrencyForm({ ...currencyForm, code: e.target.value.toUpperCase() })}
-                        placeholder="e.g., USD, EUR, GBP"
-                        sx={{ mt: 2, mb: 2 }}
-                        inputProps={{ maxLength: 3 }}
-                        disabled={editingCurrency !== null}
-                    />
-                    <TextField
-                        fullWidth
-                        label="Currency Name"
-                        value={currencyForm.name}
-                        onChange={(e) => setCurrencyForm({ ...currencyForm, name: e.target.value })}
-                        placeholder="e.g., US Dollar, Euro"
-                        sx={{ mb: 2 }}
-                    />
-                    <TextField
-                        fullWidth
-                        label="Symbol"
-                        value={currencyForm.symbol}
-                        onChange={(e) => setCurrencyForm({ ...currencyForm, symbol: e.target.value })}
-                        placeholder="e.g., $, €, £"
-                        sx={{ mb: 2 }}
-                    />
-                    <FormControlLabel
-                        control={
-                            <Switch
-                                checked={currencyForm.isBase}
-                                onChange={(e) => setCurrencyForm({ ...currencyForm, isBase: e.target.checked })}
-                            />
-                        }
-                        label="Set as base currency"
-                    />
+            <Dialog open={currencyDialogOpen} onOpenChange={v => { if (!v) { setCurrencyDialogOpen(false); setEditingCurrency(null); setCurrencyForm({ code: '', name: '', symbol: '', isBase: false }); } }}>
+                <DialogContent className="max-w-sm">
+                    <DialogHeader><DialogTitle>{editingCurrency ? 'Edit Currency' : 'Add Currency'}</DialogTitle></DialogHeader>
+                    <div className="flex flex-col gap-4 py-2">
+                        {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
+                        <div className="space-y-1.5">
+                            <Label>Currency Code <span className="text-destructive">*</span></Label>
+                            <Input maxLength={3} placeholder="e.g., USD, EUR, GHS" value={currencyForm.code} onChange={e => setCurrencyForm(f => ({ ...f, code: e.target.value.toUpperCase() }))} disabled={!!editingCurrency} />
+                        </div>
+                        <div className="space-y-1.5">
+                            <Label>Currency Name <span className="text-destructive">*</span></Label>
+                            <Input placeholder="e.g., US Dollar, Euro" value={currencyForm.name} onChange={e => setCurrencyForm(f => ({ ...f, name: e.target.value }))} />
+                        </div>
+                        <div className="space-y-1.5">
+                            <Label>Symbol <span className="text-destructive">*</span></Label>
+                            <Input placeholder="e.g., $, €, ₵" value={currencyForm.symbol} onChange={e => setCurrencyForm(f => ({ ...f, symbol: e.target.value }))} />
+                        </div>
+                        <label className="flex items-center gap-3 cursor-pointer">
+                            <button role="switch" aria-checked={currencyForm.isBase} onClick={() => setCurrencyForm(f => ({ ...f, isBase: !f.isBase }))} className={cn('relative inline-flex h-5 w-9 items-center rounded-full transition-colors', currencyForm.isBase ? 'bg-primary' : 'bg-muted-foreground/30')}>
+                                <span className={cn('inline-block h-3.5 w-3.5 rounded-full bg-white shadow transition-transform', currencyForm.isBase ? 'translate-x-4' : 'translate-x-1')} />
+                            </button>
+                            <span className="text-sm text-foreground">Set as base currency</span>
+                        </label>
+                    </div>
+                    <DialogFooter className="gap-2">
+                        <Button variant="outline" onClick={() => { setCurrencyDialogOpen(false); setEditingCurrency(null); setCurrencyForm({ code: '', name: '', symbol: '', isBase: false }); }}>Cancel</Button>
+                        <Button onClick={handleCreateCurrency} disabled={loading}>{loading ? <><Loader2 className="mr-1.5 h-4 w-4 animate-spin" />Saving…</> : editingCurrency ? 'Update' : 'Create'}</Button>
+                    </DialogFooter>
                 </DialogContent>
-                <DialogActions>
-                    <Button onClick={handleCloseCurrencyDialog}>Cancel</Button>
-                    <Button onClick={handleCreateCurrency} variant="contained" disabled={loading}>
-                        {loading ? 'Saving...' : (editingCurrency ? 'Update' : 'Create')}
-                    </Button>
-                </DialogActions>
             </Dialog>
 
             {/* Add/Edit Exchange Rate Dialog */}
-            <Dialog open={rateDialogOpen} onClose={handleCloseRateDialog} maxWidth="sm" fullWidth>
-                <DialogTitle>{editingRate ? 'Edit Exchange Rate' : 'Set Exchange Rate'}</DialogTitle>
-                <DialogContent>
-                    <TextField
-                        fullWidth
-                        select
-                        label="From Currency"
-                        value={rateForm.fromCurrencyId}
-                        onChange={(e) => setRateForm({ ...rateForm, fromCurrencyId: e.target.value })}
-                        sx={{ mt: 2, mb: 2 }}
-                        SelectProps={{ native: true }}
-                        disabled={editingRate !== null}
-                    >
-                        <option value="">Select currency</option>
-                        {currencies.filter(c => c.isActive).map((currency) => (
-                            <option key={currency.id} value={currency.id}>
-                                {currency.code} - {currency.name}
-                            </option>
-                        ))}
-                    </TextField>
-                    <TextField
-                        fullWidth
-                        select
-                        label="To Currency"
-                        value={rateForm.toCurrencyId}
-                        onChange={(e) => setRateForm({ ...rateForm, toCurrencyId: e.target.value })}
-                        sx={{ mb: 2 }}
-                        SelectProps={{ native: true }}
-                        disabled={editingRate !== null}
-                    >
-                        <option value="">Select currency</option>
-                        {currencies.filter(c => c.isActive).map((currency) => (
-                            <option key={currency.id} value={currency.id}>
-                                {currency.code} - {currency.name}
-                            </option>
-                        ))}
-                    </TextField>
-                    <TextField
-                        fullWidth
-                        label="Exchange Rate"
-                        type="number"
-                        value={rateForm.rate}
-                        onChange={(e) => setRateForm({ ...rateForm, rate: e.target.value })}
-                        placeholder="e.g., 1.25"
-                        inputProps={{ step: '0.0001', min: '0' }}
-                        helperText="How many units of 'To Currency' equals 1 unit of 'From Currency'"
-                        sx={{ mb: 2 }}
-                    />
-                    <TextField
-                        fullWidth
-                        label="Effective Date"
-                        type="date"
-                        value={rateForm.effectiveDate}
-                        onChange={(e) => setRateForm({ ...rateForm, effectiveDate: e.target.value })}
-                        InputLabelProps={{ shrink: true }}
-                        helperText="The date when this exchange rate becomes active"
-                    />
+            <Dialog open={rateDialogOpen} onOpenChange={v => { if (!v) { setRateDialogOpen(false); setEditingRate(null); setRateForm({ fromCurrencyId: '', toCurrencyId: '', rate: '', effectiveDate: new Date().toISOString().split('T')[0] }); } }}>
+                <DialogContent className="max-w-sm">
+                    <DialogHeader><DialogTitle>{editingRate ? 'Edit Exchange Rate' : 'Set Exchange Rate'}</DialogTitle></DialogHeader>
+                    <div className="flex flex-col gap-4 py-2">
+                        {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
+                        <div className="space-y-1.5">
+                            <Label>From Currency <span className="text-destructive">*</span></Label>
+                            <Select value={rateForm.fromCurrencyId} onValueChange={v => setRateForm(f => ({ ...f, fromCurrencyId: v }))} disabled={!!editingRate}>
+                                <SelectTrigger><SelectValue placeholder="Select currency" /></SelectTrigger>
+                                <SelectContent>{currencies.filter(c => c.isActive).map(c => <SelectItem key={c.id} value={c.id}>{c.code} — {c.name}</SelectItem>)}</SelectContent>
+                            </Select>
+                        </div>
+                        <div className="space-y-1.5">
+                            <Label>To Currency <span className="text-destructive">*</span></Label>
+                            <Select value={rateForm.toCurrencyId} onValueChange={v => setRateForm(f => ({ ...f, toCurrencyId: v }))} disabled={!!editingRate}>
+                                <SelectTrigger><SelectValue placeholder="Select currency" /></SelectTrigger>
+                                <SelectContent>{currencies.filter(c => c.isActive).map(c => <SelectItem key={c.id} value={c.id}>{c.code} — {c.name}</SelectItem>)}</SelectContent>
+                            </Select>
+                        </div>
+                        <div className="space-y-1.5">
+                            <Label>Exchange Rate <span className="text-destructive">*</span></Label>
+                            <Input type="number" step="0.0001" min="0" placeholder="e.g., 1.25" value={rateForm.rate} onChange={e => setRateForm(f => ({ ...f, rate: e.target.value }))} />
+                            <p className="text-xs text-muted-foreground">Units of 'To Currency' per 1 unit of 'From Currency'</p>
+                        </div>
+                        <div className="space-y-1.5">
+                            <Label>Effective Date</Label>
+                            <Input type="date" value={rateForm.effectiveDate} onChange={e => setRateForm(f => ({ ...f, effectiveDate: e.target.value }))} />
+                            <p className="text-xs text-muted-foreground">The date when this rate becomes active</p>
+                        </div>
+                    </div>
+                    <DialogFooter className="gap-2">
+                        <Button variant="outline" onClick={() => { setRateDialogOpen(false); setEditingRate(null); setRateForm({ fromCurrencyId: '', toCurrencyId: '', rate: '', effectiveDate: new Date().toISOString().split('T')[0] }); }}>Cancel</Button>
+                        <Button onClick={handleCreateExchangeRate} disabled={loading}>{loading ? <><Loader2 className="mr-1.5 h-4 w-4 animate-spin" />Saving…</> : editingRate ? 'Update' : 'Create'}</Button>
+                    </DialogFooter>
                 </DialogContent>
-                <DialogActions>
-                    <Button onClick={handleCloseRateDialog}>Cancel</Button>
-                    <Button onClick={handleCreateExchangeRate} variant="contained" disabled={loading}>
-                        {loading ? 'Saving...' : (editingRate ? 'Update' : 'Create')}
-                    </Button>
-                </DialogActions>
             </Dialog>
-        </Box>
+        </div>
     );
 }

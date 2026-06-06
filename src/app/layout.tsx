@@ -1,11 +1,18 @@
 import type { Metadata, Viewport } from "next";
+import { Outfit } from "next/font/google";
 import { Providers } from "./providers";
 import "./globals.css";
 
+const outfit = Outfit({
+  subsets: ["latin"],
+  display: "swap",
+  weight: ["300", "400", "500", "600", "700"],
+});
+
 export const viewport: Viewport = {
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#F5F6F4" },
-    { media: "(prefers-color-scheme: dark)", color: "#0B0E13" },
+    { media: "(prefers-color-scheme: light)", color: "#EEF1F5" },
+    { media: "(prefers-color-scheme: dark)", color: "#0F1114" },
   ],
   width: "device-width",
   initialScale: 1,
@@ -41,7 +48,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" className={outfit.className}>
       <body>
         <Providers>{children}</Providers>
       </body>

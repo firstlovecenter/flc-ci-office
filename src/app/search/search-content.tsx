@@ -1,13 +1,10 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { Box, Typography, Paper, CircularProgress, Chip, Divider, List, ListItem, ListItemText, ListItemIcon, Avatar } from '@mui/material';
-import { useTheme } from '@mui/material/styles';
-import PersonIcon from '@mui/icons-material/Person';
-import BusinessIcon from '@mui/icons-material/Business';
-import ReceiptIcon from '@mui/icons-material/Receipt';
-import ArrowForwardIosIcon from '@mui/icons-material/ArrowForwardIos';
+import { User, Building2, Receipt, ChevronRight, Loader2 } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 
 interface SearchResult {
@@ -20,136 +17,95 @@ interface SearchResult {
     url: string;
 }
 
+const typeIcon = (type: string) => {
+    if (type === 'user') return User;
+    if (type === 'department') return Building2;
+    return Receipt;
+};
+
+const typeBgColor = (type: string) => {
+    if (type === 'user') return 'bg-blue-500/10 text-blue-500';
+    if (type === 'department') return 'bg-primary/10 text-primary';
+    return 'bg-success/10 text-success';
+};
+
 export function SearchPageContent() {
     const searchParams = useSearchParams();
     const router = useRouter();
-    const theme = useTheme();
     const query = searchParams.get('q');
-    
     const [results, setResults] = useState<SearchResult[]>([]);
     const [loading, setLoading] = useState(false);
     const [searched, setSearched] = useState(false);
 
     useEffect(() => {
-        if (query) {
-            performSearch(query);
-        }
+        if (query) performSearch(query);
     }, [query]);
 
-    const performSearch = async (searchQuery: string) => {
+    const performSearch = async (q: string) => {
         setLoading(true);
         try {
-            const response = await fetch(`/api/search?q=${encodeURIComponent(searchQuery)}`);
-            if (response.ok) {
-                const data = await response.json();
+            const res = await fetch(`/api/search?q=${encodeURIComponent(q)}`);
+            if (res.ok) {
+                const data = await res.json();
                 setResults(data.results);
             }
-        } catch (error) {
-            console.error('Search error:', error);
-        } finally {
-            setLoading(false);
-            setSearched(true);
-        }
-    };
-
-    const getIcon = (type: string) => {
-        switch (type) {
-            case 'user': return <PersonIcon />;
-            case 'department': return <BusinessIcon />;
-            case 'transaction': return <ReceiptIcon />;
-            default: return <PersonIcon />;
-        }
-    };
-
-    const getColor = (type: string) => {
-        switch (type) {
-            case 'user': return theme.palette.info.main;
-            case 'department': return theme.palette.primary.main;
-            case 'transaction': return theme.palette.success.main;
-            default: return theme.palette.text.secondary;
-        }
+        } catch (e) { console.error(e); }
+        finally { setLoading(false); setSearched(true); }
     };
 
     return (
-        <Box sx={{ p: 2, maxWidth: 800, mx: 'auto' }}>
-            <Typography variant="h5" gutterBottom sx={{ mb: 3 }}>
-                Search Results for "{query}"
-            </Typography>
+        <div className="p-4 max-w-[800px] mx-auto">
+            <h1 className="text-[1.25rem] font-semibold tracking-tight text-foreground mb-6">
+                Search results for &ldquo;{query}&rdquo;
+            </h1>
 
             {loading ? (
-                <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}>
-                    <CircularProgress />
-                </Box>
-            ) : (
-                <>
-                    {results.length > 0 ? (
-                        <List sx={{ width: '100%', bgcolor: 'background.paper', borderRadius: 2, overflow: 'hidden' }}>
-                            {results.map((result, index) => (
-                                <React.Fragment key={`${result.type}-${result.id}`}>
-                                    <ListItem 
-                                        alignItems="flex-start"
-                                        component="div"
-                                        sx={{ 
-                                            cursor: 'pointer',
-                                            transition: 'background-color 0.2s',
-                                            '&:hover': { bgcolor: theme.palette.action.hover }
-                                        }}
-                                        onClick={() => router.push(result.url)}
-                                    >
-                                        <ListItemIcon sx={{ minWidth: 50 }}>
-                                            <Avatar sx={{ bgcolor: getColor(result.type) }}>
-                                                {getIcon(result.type)}
-                                            </Avatar>
-                                        </ListItemIcon>
-                                        <ListItemText
-                                            primary={
-                                                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                                    <Typography variant="subtitle1" fontWeight={600}>
-                                                        {result.title}
-                                                    </Typography>
-                                                    <Chip 
-                                                        label={result.type} 
-                                                        size="small" 
-                                                        sx={{ 
-                                                            height: 20, 
-                                                            fontSize: '0.7rem', 
-                                                            textTransform: 'capitalize',
-                                                            bgcolor: theme.palette.action.selected 
-                                                        }} 
-                                                    />
-                                                </Box>
-                                            }
-                                            secondary={
-                                                <Box component="span" sx={{ display: 'block', mt: 0.5 }}>
-                                                    <Typography variant="body2" color="text.primary" component="span">
-                                                        {result.subtitle}
-                                                    </Typography>
-                                                    {result.status && (
-                                                        <Typography variant="caption" display="block" color="text.secondary" sx={{ mt: 0.5 }}>
-                                                            Status: {result.status} • {result.date ? format(new Date(result.date), 'MMM d, yyyy') : ''}
-                                                        </Typography>
-                                                    )}
-                                                </Box>
-                                            }
-                                        />
-                                        <ArrowForwardIosIcon sx={{ fontSize: 16, color: 'text.disabled', alignSelf: 'center', ml: 1 }} />
-                                    </ListItem>
-                                    {index < results.length - 1 && <Divider component="li" />}
-                                </React.Fragment>
-                            ))}
-                        </List>
-                    ) : (
-                        <Paper sx={{ p: 4, textAlign: 'center' }}>
-                            <Typography variant="h6" color="text.secondary">
-                                No results found
-                            </Typography>
-                            <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                                Try adjusting your search or filter to find what you're looking for.
-                            </Typography>
-                        </Paper>
-                    )}
-                </>
-            )}
-        </Box>
+                <div className="flex justify-center py-10">
+                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                </div>
+            ) : results.length > 0 ? (
+                <div className="rounded-xl border border-border bg-card overflow-hidden">
+                    {results.map((result, i) => {
+                        const Icon = typeIcon(result.type);
+                        return (
+                            <button
+                                key={`${result.type}-${result.id}`}
+                                onClick={() => router.push(result.url)}
+                                className={cn(
+                                    'w-full text-left flex items-center gap-3 px-4 py-3.5',
+                                    'hover:bg-muted/20 transition-colors duration-100',
+                                    i > 0 && 'border-t border-border',
+                                )}
+                            >
+                                <div className={cn('w-9 h-9 rounded-xl flex items-center justify-center shrink-0', typeBgColor(result.type))}>
+                                    <Icon className="h-4 w-4" />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2 justify-between">
+                                        <p className="font-semibold text-foreground truncate">{result.title}</p>
+                                        <Badge variant="secondary" className="capitalize text-xs shrink-0">{result.type}</Badge>
+                                    </div>
+                                    <p className="text-sm text-foreground mt-0.5 truncate">{result.subtitle}</p>
+                                    {result.status && (
+                                        <p className="text-xs text-muted-foreground mt-0.5">
+                                            Status: {result.status}
+                                            {result.date ? ` · ${format(new Date(result.date), 'MMM d, yyyy')}` : ''}
+                                        </p>
+                                    )}
+                                </div>
+                                <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
+                            </button>
+                        );
+                    })}
+                </div>
+            ) : searched ? (
+                <div className="rounded-xl border border-border bg-card p-8 text-center">
+                    <p className="text-lg font-medium text-muted-foreground">No results found</p>
+                    <p className="text-sm text-muted-foreground mt-1">
+                        Try adjusting your search to find what you&apos;re looking for.
+                    </p>
+                </div>
+            ) : null}
+        </div>
     );
 }

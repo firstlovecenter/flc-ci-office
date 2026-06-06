@@ -1,15 +1,9 @@
 'use client';
 import { createTheme, PaletteMode, alpha, ThemeOptions } from '@mui/material/styles';
-import { Inter, Inter_Tight, Geist_Mono } from 'next/font/google';
+import { Outfit, Geist_Mono } from 'next/font/google';
 
-const interTight = Inter_Tight({
-    weight: ['500', '600', '700'],
-    subsets: ['latin'],
-    display: 'swap',
-});
-
-const inter = Inter({
-    weight: ['400', '500', '600', '700'],
+const outfit = Outfit({
+    weight: ['300', '400', '500', '600', '700'],
     subsets: ['latin'],
     display: 'swap',
 });
@@ -21,81 +15,80 @@ const mono = Geist_Mono({
 });
 
 export const fontFamilies = {
-    display: interTight.style.fontFamily,
-    body: inter.style.fontFamily,
+    display: outfit.style.fontFamily,
+    body: outfit.style.fontFamily,
     mono: mono.style.fontFamily,
 };
 
-// CI Office — vermilion brand identity
-// Deep navy ink + cool off-white neutrals; vermilion red as brand primary (accent-only).
+// FLC design system — pink-red brand (#FF4266) on cool neutral gray canvas
 const palette = {
     light: {
         primary: {
-            main: '#E63329',        // Vermilion — brand primary
-            light: '#FF5A4E',
-            dark: '#B82119',
+            main: '#FF4266',
+            light: '#FF6B88',
+            dark: '#CC2248',
             contrastText: '#FFFFFF',
         },
         secondary: {
-            main: '#0B1320',        // Deep navy ink — used for "neutral strong" UI
+            main: '#161A1F',
             light: '#2A3344',
-            dark: '#04070D',
+            dark: '#0A0C0F',
             contrastText: '#FFFFFF',
         },
         background: {
-            default: '#F5F6F4',     // Cool off-white canvas
-            paper: '#FFFFFF',
+            default: '#EEF1F5',
+            paper: '#FCFDFE',
         },
         text: {
-            primary: '#0B1320',
-            secondary: '#5C6573',
+            primary: '#161A1F',
+            secondary: '#6B7280',
             disabled: '#A0A6B0',
         },
         success: {
-            main: '#2F6E5C',        // Sage
+            main: '#2F6E5C',
             light: '#E5EFEA',
             dark: '#1F4D3F',
             contrastText: '#FFFFFF',
         },
         error: {
-            main: '#C04A3B',        // Warm rust — distinct from brand red
+            main: '#C04A3B',
             light: '#F6E4E1',
             dark: '#8E342A',
             contrastText: '#FFFFFF',
         },
         warning: {
-            main: '#B58435',        // Muted amber
+            main: '#B58435',
             light: '#F4ECDA',
             dark: '#8A6322',
             contrastText: '#FFFFFF',
         },
         info: {
-            main: '#3A6A8C',        // Steel blue
+            main: '#3A6A8C',
             light: '#E4ECF2',
             dark: '#264963',
             contrastText: '#FFFFFF',
         },
-        divider: '#E5E7E5',
+        divider: '#E2E6EB',
     },
     dark: {
         primary: {
-            main: '#FF5A4E',        // Brighter vermilion for dark mode contrast
-            light: '#FF7E73',
-            dark: '#E63329',
+            main: '#FF4266',
+            light: '#FF6B88',
+            dark: '#CC2248',
             contrastText: '#FFFFFF',
         },
         secondary: {
-            main: '#F1F3F5',        // Cool light = neutral strong on dark
+            main: '#F1F4F7',
             light: '#FFFFFF',
             dark: '#C8CDD3',
-            contrastText: '#0B1320',
+            contrastText: '#161A1F',
         },
         background: {
-            default: '#0B0E13',
-            paper: '#141921',
+            default: '#0F1114',
+            paper: '#16181C',
         },
         text: {
-            primary: '#F1F3F5',
+            primary: '#F1F4F7',
             secondary: '#9AA3B1',
             disabled: '#5C6573',
         },
@@ -123,7 +116,7 @@ const palette = {
             dark: '#4E7B9C',
             contrastText: '#0B141A',
         },
-        divider: 'rgba(241, 243, 245, 0.10)',
+        divider: 'rgba(241, 244, 247, 0.10)',
     },
 };
 
@@ -148,7 +141,6 @@ export const getDesignTokens = (mode: PaletteMode): ThemeOptions => {
     const isDark = mode === 'dark';
     const colors = isDark ? palette.dark : palette.light;
 
-    // Modern Trust shadows — soft, cool, contemporary
     const elevation = isDark
         ? {
               sm: '0 1px 2px rgba(0,0,0,0.4)',
@@ -157,10 +149,10 @@ export const getDesignTokens = (mode: PaletteMode): ThemeOptions => {
               xl: '0 24px 60px rgba(0,0,0,0.6)',
           }
         : {
-              sm: '0 1px 2px rgba(11, 19, 32, 0.04)',
-              md: '0 4px 16px rgba(11, 19, 32, 0.06)',
-              lg: '0 16px 40px rgba(11, 19, 32, 0.08)',
-              xl: '0 24px 60px rgba(11, 19, 32, 0.10)',
+              sm: '0 1px 2px rgba(22, 26, 31, 0.04)',
+              md: '0 4px 16px rgba(22, 26, 31, 0.06)',
+              lg: '0 16px 40px rgba(22, 26, 31, 0.08)',
+              xl: '0 24px 60px rgba(22, 26, 31, 0.10)',
           };
 
     return {
@@ -177,18 +169,17 @@ export const getDesignTokens = (mode: PaletteMode): ThemeOptions => {
             fontWeightRegular: 400,
             fontWeightMedium: 500,
             fontWeightBold: 600,
-            // Display headings use Inter Tight — geometric sans, tight letterspacing
             h1: {
                 fontFamily: fontFamilies.display,
                 fontSize: '2.5rem',
-                fontWeight: 600,
+                fontWeight: 700,
                 letterSpacing: '-0.03em',
                 lineHeight: 1.08,
             },
             h2: {
                 fontFamily: fontFamilies.display,
                 fontSize: '2rem',
-                fontWeight: 600,
+                fontWeight: 700,
                 letterSpacing: '-0.025em',
                 lineHeight: 1.12,
             },
@@ -200,20 +191,20 @@ export const getDesignTokens = (mode: PaletteMode): ThemeOptions => {
                 lineHeight: 1.2,
             },
             h4: {
-                fontFamily: fontFamilies.body,
+                fontFamily: fontFamilies.display,
                 fontSize: '1.25rem',
                 fontWeight: 600,
                 letterSpacing: '-0.01em',
                 lineHeight: 1.3,
             },
             h5: {
-                fontFamily: fontFamilies.body,
+                fontFamily: fontFamilies.display,
                 fontSize: '1.0625rem',
                 fontWeight: 600,
                 letterSpacing: '-0.005em',
             },
             h6: {
-                fontFamily: fontFamilies.body,
+                fontFamily: fontFamilies.display,
                 fontSize: '0.9375rem',
                 fontWeight: 600,
             },
@@ -262,24 +253,24 @@ export const getDesignTokens = (mode: PaletteMode): ThemeOptions => {
                 styleOverrides: {
                     body: {
                         scrollbarColor: isDark
-                            ? `${alpha('#F1F3F5', 0.2)} transparent`
-                            : `${alpha('#0B1320', 0.18)} transparent`,
+                            ? `${alpha('#F1F4F7', 0.2)} transparent`
+                            : `${alpha('#161A1F', 0.18)} transparent`,
                         '&::-webkit-scrollbar, & *::-webkit-scrollbar': {
                             width: '10px',
                             height: '10px',
                         },
                         '&::-webkit-scrollbar-thumb, & *::-webkit-scrollbar-thumb': {
                             backgroundColor: isDark
-                                ? alpha('#F1F3F5', 0.15)
-                                : alpha('#0B1320', 0.15),
+                                ? alpha('#F1F4F7', 0.15)
+                                : alpha('#161A1F', 0.15),
                             borderRadius: '8px',
                             border: '2px solid transparent',
                             backgroundClip: 'content-box',
                         },
                         '&::-webkit-scrollbar-thumb:hover, & *::-webkit-scrollbar-thumb:hover': {
                             backgroundColor: isDark
-                                ? alpha('#F1F3F5', 0.25)
-                                : alpha('#0B1320', 0.25),
+                                ? alpha('#F1F4F7', 0.25)
+                                : alpha('#161A1F', 0.25),
                         },
                         '&::-webkit-scrollbar-track, & *::-webkit-scrollbar-track': {
                             backgroundColor: 'transparent',
@@ -299,8 +290,8 @@ export const getDesignTokens = (mode: PaletteMode): ThemeOptions => {
                 styleOverrides: {
                     root: {
                         backgroundColor: isDark
-                            ? 'rgba(20, 17, 15, 0.55)'
-                            : 'rgba(247, 244, 238, 0.55)',
+                            ? 'rgba(15, 17, 20, 0.55)'
+                            : 'rgba(238, 241, 245, 0.55)',
                         backdropFilter: 'blur(6px)',
                     },
                 },
@@ -312,12 +303,12 @@ export const getDesignTokens = (mode: PaletteMode): ThemeOptions => {
                         padding: '6px 10px',
                         fontSize: '0.75rem',
                         fontWeight: 500,
-                        backgroundColor: isDark ? '#F1F3F5' : '#0B1320',
-                        color: isDark ? '#0B1320' : '#F5F6F4',
+                        backgroundColor: isDark ? '#F1F4F7' : '#161A1F',
+                        color: isDark ? '#161A1F' : '#EEF1F5',
                         boxShadow: elevation.md,
                     },
                     arrow: {
-                        color: isDark ? '#F1F3F5' : '#0B1320',
+                        color: isDark ? '#F1F4F7' : '#161A1F',
                     },
                 },
             },
@@ -393,7 +384,7 @@ export const getDesignTokens = (mode: PaletteMode): ThemeOptions => {
                         backgroundColor: colors.primary.main,
                         color: colors.primary.contrastText,
                         '&:hover': {
-                            backgroundColor: isDark ? colors.primary.light : '#000000',
+                            backgroundColor: isDark ? colors.primary.light : '#161A1F',
                         },
                     },
                     containedSecondary: {
@@ -436,8 +427,8 @@ export const getDesignTokens = (mode: PaletteMode): ThemeOptions => {
                         '& .MuiOutlinedInput-root': {
                             borderRadius: brand.radii.md,
                             backgroundColor: isDark
-                                ? alpha('#F1F3F5', 0.03)
-                                : alpha('#0B1320', 0.015),
+                                ? alpha('#F1F4F7', 0.03)
+                                : alpha('#161A1F', 0.015),
                             transition: `all ${brand.motion.fast}`,
                             '& fieldset': {
                                 borderColor: colors.divider,
@@ -560,7 +551,7 @@ export const getDesignTokens = (mode: PaletteMode): ThemeOptions => {
                     root: {
                         fontFamily: fontFamilies.display,
                         fontSize: '1.375rem',
-                        fontWeight: 500,
+                        fontWeight: 600,
                         letterSpacing: '-0.015em',
                         padding: '20px 24px 8px',
                     },
@@ -614,8 +605,8 @@ export const getDesignTokens = (mode: PaletteMode): ThemeOptions => {
                         transition: `background-color ${brand.motion.fast}`,
                         '&:hover': {
                             backgroundColor: isDark
-                                ? alpha('#F1F3F5', 0.02)
-                                : alpha('#0B1320', 0.02),
+                                ? alpha('#F1F4F7', 0.02)
+                                : alpha('#161A1F', 0.02),
                         },
                     },
                 },
@@ -629,7 +620,7 @@ export const getDesignTokens = (mode: PaletteMode): ThemeOptions => {
                 styleOverrides: {
                     root: {
                         fontFamily: fontFamilies.display,
-                        fontWeight: 500,
+                        fontWeight: 600,
                         backgroundColor: colors.secondary.main,
                         color: colors.secondary.contrastText,
                     },
@@ -664,7 +655,7 @@ export const getDesignTokens = (mode: PaletteMode): ThemeOptions => {
                 styleOverrides: {
                     indicator: {
                         height: 2,
-                        backgroundColor: colors.text.primary,
+                        backgroundColor: colors.primary.main,
                     },
                 },
             },
