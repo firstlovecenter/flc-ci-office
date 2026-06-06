@@ -325,6 +325,100 @@ export function generateTransactionDeclinedEmail(
   };
 }
 
+// ─── 6a. Approver Confirmation — Approved ────────────────────────────────────
+
+interface ApproverApprovedEmailParams {
+  approverName: string;
+  submitterName: string;
+  transactionType: string;
+  currency: string;
+  amount: string;
+  chargeAmount?: string;
+  departmentName: string;
+  balance: string;
+  description?: string;
+}
+
+export function generateApproverApprovedEmail(
+  params: ApproverApprovedEmailParams,
+): { subject: string; html: string } {
+  const { approverName, submitterName, transactionType, currency, amount, chargeAmount, departmentName, balance, description } = params;
+  const typeLabel = transactionType.charAt(0).toUpperCase() + transactionType.slice(1).toLowerCase();
+  const isCredit = transactionType.toUpperCase() === 'INCOME' || transactionType.toUpperCase() === 'CREDIT';
+  const cardColor: CardColor = isCredit ? 'credit' : 'debit';
+  const cardSign = isCredit ? '+' : '-';
+
+  const content = `
+    ${heading(
+      'Approval Confirmation',
+      'Transaction Approved',
+      `Hi ${approverName}, you have approved the following transaction.`,
+    )}
+    ${pill('Approved', 'green')}
+    ${amountCard(currency, amount, cardColor, `${typeLabel} Amount`, cardSign)}
+    ${dataTable([
+      ['Submitted by',     submitterName],
+      ['Department',       departmentName],
+      ['Description',      description || '—'],
+      ...(chargeAmount ? [['Transaction charge', `${currency}${chargeAmount}`] as [string, string]] : []),
+    ])}
+    ${balanceCallout(currency, balance)}
+    ${appCtaButton('View in CI-OFFICE')}`;
+
+  return {
+    subject: `Approval confirmation — ${currency}${amount} approved`,
+    html: emailLayout(content, {
+      preheader: `You approved a ${typeLabel.toLowerCase()} of ${currency}${amount} from ${submitterName}. New balance: ${currency}${balance}.`,
+    }),
+  };
+}
+
+// ─── 6b. Approver Confirmation — Declined ────────────────────────────────────
+
+interface ApproverDeclinedEmailParams {
+  approverName: string;
+  submitterName: string;
+  transactionType: string;
+  currency: string;
+  amount: string;
+  departmentName: string;
+  reason?: string;
+  description?: string;
+}
+
+export function generateApproverDeclinedEmail(
+  params: ApproverDeclinedEmailParams,
+): { subject: string; html: string } {
+  const { approverName, submitterName, transactionType, currency, amount, departmentName, reason, description } = params;
+  const typeLabel = transactionType.charAt(0).toUpperCase() + transactionType.slice(1).toLowerCase();
+
+  const content = `
+    ${heading(
+      'Decline Confirmation',
+      'Transaction Declined',
+      `Hi ${approverName}, you have declined the following transaction.`,
+    )}
+    ${pill('Declined', 'red')}
+    ${amountCard(currency, amount, 'neutral', `${typeLabel} Amount`)}
+    ${dataTable([
+      ['Submitted by', submitterName],
+      ['Department',   departmentName],
+      ['Description',  description || '—'],
+      ['Type',         typeLabel],
+    ])}
+    ${reason
+      ? infoBox(`<strong>Reason given:</strong> ${reason}`, 'red')
+      : infoBox('No reason was recorded for this decline.', 'amber')}
+    ${appCtaButton('View in CI-OFFICE')}`;
+
+  return {
+    subject: `Decline confirmation — ${currency}${amount} declined`,
+    html: emailLayout(content, {
+      preheader: `You declined a ${typeLabel.toLowerCase()} of ${currency}${amount} from ${submitterName}.${reason ? ' Reason: ' + reason : ''}`,
+    }),
+  };
+}
+
 // ─── 6. Transaction Charge Notification ──────────────────────────────────────
 
 interface TransactionChargeEmailParams {

@@ -5,9 +5,9 @@ import { authOptions } from '@/lib/auth';
 import crypto from 'crypto';
 import { hasDepartmentAccess } from '@/lib/departments';
 import { sendSms } from '@/lib/sms';
-import { generateTransactionApprovedSms, generateTransactionDeclinedSms, generateTransactionChargeSms, generateCreditAlertSms, generateDebitAlertSms, generateTransactionEditNotificationSms } from '@/lib/sms-templates';
+import { generateTransactionApprovedSms, generateTransactionDeclinedSms, generateTransactionChargeSms, generateCreditAlertSms, generateDebitAlertSms, generateTransactionEditNotificationSms, generateApproverApprovedSms, generateApproverDeclinedSms } from '@/lib/sms-templates';
 import { sendEmail } from '@/lib/email';
-import { generateTransactionApprovedEmail, generateTransactionDeclinedEmail, generateTransactionChargeEmail, generateCreditAlertEmail, generateDebitAlertEmail, generateTransactionEditEmail } from '@/lib/email-templates';
+import { generateTransactionApprovedEmail, generateTransactionDeclinedEmail, generateTransactionChargeEmail, generateCreditAlertEmail, generateDebitAlertEmail, generateTransactionEditEmail, generateApproverApprovedEmail, generateApproverDeclinedEmail } from '@/lib/email-templates';
 import { formatNumber, isWeekLocked, getWeekFromDate } from '@/lib/utils';
 import { toDecimal, eq, moneyToString, toMoney2dp } from '@/lib/money';
 import { getDepartmentApprovedBalance } from '@/lib/balance';
@@ -447,15 +447,19 @@ export async function PATCH(
             },
         });
 
+        // Fetch balance once for APPROVED — reused for both creator and approver notifications
+        const approvedBalance = status === 'APPROVED'
+            ? await getDepartmentApprovedBalance(updatedTransaction.department.id)
+            : null;
+
         // Send notification to the user who created the transaction
         if (updatedTransaction.user.phone || updatedTransaction.user.email) {
             try {
                 const currencySymbol = updatedTransaction.currency?.symbol || '$';
                 const transactionType = updatedTransaction.type === 'EXPENSE' ? 'expense' : 'income';
-                
+
                 let smsMessage = '';
                 if (status === 'APPROVED') {
-                    const balance = await getDepartmentApprovedBalance(updatedTransaction.department.id);
                     const chargeForText = chargeDec && chargeDec.gt(0) ? chargeDec : null;
                     const chargeText = chargeForText ? ` Charge: ${currencySymbol}${formatNumber(chargeForText.toString())}.` : '';
 
@@ -465,7 +469,7 @@ export async function PATCH(
                         amount: formatNumber(moneyToString(updatedTransaction.amount)),
                         chargeText,
                         departmentName: updatedTransaction.department.name,
-                        balance: formatNumber(moneyToString(balance)),
+                        balance: formatNumber(moneyToString(approvedBalance!)),
                     });
                 } else {
                     const reasonText = rejectionReason ? ` Reason: ${rejectionReason}` : '';
@@ -476,7 +480,7 @@ export async function PATCH(
                         reasonText,
                     });
                 }
-                
+
                 if (updatedTransaction.user.phone) {
                     console.log(`[SMS] Sending ${status} notification to transaction creator: ${updatedTransaction.user.phone}`);
                     const sent = await sendSms({
@@ -489,7 +493,6 @@ export async function PATCH(
                 // Send email in addition to SMS
                 if (updatedTransaction.user.email) {
                     if (status === 'APPROVED') {
-                        const bal = await getDepartmentApprovedBalance(updatedTransaction.department.id);
                         const { subject, html } = generateTransactionApprovedEmail({
                             userName: updatedTransaction.user.name || 'User',
                             transactionType,
@@ -497,7 +500,7 @@ export async function PATCH(
                             amount: formatNumber(moneyToString(updatedTransaction.amount)),
                             chargeAmount: chargeDec && chargeDec.gt(0) ? formatNumber(chargeDec.toString()) : undefined,
                             departmentName: updatedTransaction.department.name,
-                            balance: formatNumber(moneyToString(bal)),
+                            balance: formatNumber(moneyToString(approvedBalance!)),
                             description: updatedTransaction.description || undefined,
                         });
                         sendEmail({ to: updatedTransaction.user.email, subject, html }).catch(() => {});
@@ -517,6 +520,69 @@ export async function PATCH(
                 // Don't fail the request if SMS fails
                 console.error('[SMS] Error sending approval/decline notification:', smsError);
             }
+        }
+
+        // Send confirmation notification to the approver
+        try {
+            const approverUser = await prisma.user.findUnique({
+                where: { id: session.user.id },
+                select: { phone: true, email: true, name: true },
+            });
+
+            if (approverUser && (approverUser.phone || approverUser.email)) {
+                const currencySymbol = updatedTransaction.currency?.symbol || '$';
+                const transactionType = updatedTransaction.type === 'EXPENSE' ? 'expense' : 'income';
+                const submitterName = updatedTransaction.user.name || 'User';
+                const deptName = updatedTransaction.department.name;
+                const amountStr = formatNumber(moneyToString(updatedTransaction.amount));
+                const approverName = approverUser.name || session.user.name || 'Admin';
+
+                if (status === 'APPROVED') {
+                    const balStr = formatNumber(moneyToString(approvedBalance!));
+                    const chargeText = chargeDec && chargeDec.gt(0)
+                        ? ` Charge: ${currencySymbol}${formatNumber(chargeDec.toString())}.`
+                        : '';
+
+                    if (approverUser.phone) {
+                        const sms = generateApproverApprovedSms({
+                            transactionType, currency: currencySymbol, amount: amountStr,
+                            submitterName, departmentName: deptName, balance: balStr, chargeText,
+                        });
+                        await sendSms({ to: approverUser.phone, message: sms }).catch(() => false);
+                    }
+                    if (approverUser.email) {
+                        const { subject, html } = generateApproverApprovedEmail({
+                            approverName, submitterName, transactionType, currency: currencySymbol,
+                            amount: amountStr,
+                            chargeAmount: chargeDec && chargeDec.gt(0) ? formatNumber(chargeDec.toString()) : undefined,
+                            departmentName: deptName, balance: balStr,
+                            description: updatedTransaction.description || undefined,
+                        });
+                        sendEmail({ to: approverUser.email, subject, html }).catch(() => {});
+                    }
+                } else {
+                    const reasonText = rejectionReason ? ` Reason: ${rejectionReason}` : '';
+
+                    if (approverUser.phone) {
+                        const sms = generateApproverDeclinedSms({
+                            transactionType, currency: currencySymbol, amount: amountStr,
+                            submitterName, departmentName: deptName, reasonText,
+                        });
+                        await sendSms({ to: approverUser.phone, message: sms }).catch(() => false);
+                    }
+                    if (approverUser.email) {
+                        const { subject, html } = generateApproverDeclinedEmail({
+                            approverName, submitterName, transactionType, currency: currencySymbol,
+                            amount: amountStr, reason: rejectionReason || undefined,
+                            departmentName: deptName,
+                            description: updatedTransaction.description || undefined,
+                        });
+                        sendEmail({ to: approverUser.email, subject, html }).catch(() => {});
+                    }
+                }
+            }
+        } catch (err) {
+            console.error('[SMS] Error sending approver confirmation notification:', err);
         }
 
         // Send credit/debit alert SMS to the department leader when approved

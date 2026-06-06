@@ -117,6 +117,35 @@ export function generateTransactionDeclinedSms(params: TransactionDeclinedSmsPar
     return `Your ${transactionType} request of ${currency}${amount} has been declined.${reasonText} Contact the office for details`;
 }
 
+interface ApproverApprovedSmsParams {
+    transactionType: string;
+    currency: string;
+    amount: string;
+    submitterName: string;
+    departmentName: string;
+    balance: string;
+    chargeText: string;
+}
+
+export function generateApproverApprovedSms(params: ApproverApprovedSmsParams): string {
+    const { transactionType, currency, amount, submitterName, departmentName, balance, chargeText } = params;
+    return `You approved a ${transactionType} request of ${currency}${amount} from ${submitterName} (${departmentName}).${chargeText} New balance: ${currency}${balance}.`;
+}
+
+interface ApproverDeclinedSmsParams {
+    transactionType: string;
+    currency: string;
+    amount: string;
+    submitterName: string;
+    departmentName: string;
+    reasonText: string;
+}
+
+export function generateApproverDeclinedSms(params: ApproverDeclinedSmsParams): string {
+    const { transactionType, currency, amount, submitterName, departmentName, reasonText } = params;
+    return `You declined a ${transactionType} request of ${currency}${amount} from ${submitterName} (${departmentName}).${reasonText}`;
+}
+
 interface TransactionChargeSmsParams {
     currency: string;
     chargeAmount: string;
