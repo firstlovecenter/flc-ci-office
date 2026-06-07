@@ -127,10 +127,10 @@ export default function EditDepartmentDialog({ open, onClose, department, depart
 
                         <div className="space-y-1.5">
                             <Label>Parent Department</Label>
-                            <Select value={parentId} onValueChange={setParentId} disabled={!level || availableParents.length === 0}>
+                            <Select value={parentId || "none"} onValueChange={(v) => setParentId(v === "none" ? "" : v)} disabled={!level || availableParents.length === 0}>
                                 <SelectTrigger><SelectValue placeholder="None (Top Level)" /></SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="">None (Top Level)</SelectItem>
+                                    <SelectItem value="none">None (Top Level)</SelectItem>
                                     {availableParents.map((d: any) => <SelectItem key={d.id} value={d.id}>{d.name} ({formatDepartmentLevel(d.level)})</SelectItem>)}
                                 </SelectContent>
                             </Select>
@@ -151,10 +151,10 @@ export default function EditDepartmentDialog({ open, onClose, department, depart
                         {ADMIN_LEVELS.includes(level) && (
                             <div className="space-y-1.5">
                                 <Label>Department Admin (Optional)</Label>
-                                <Select value={adminId} onValueChange={setAdminId} disabled={usersLoading}>
+                                <Select value={adminId || "none"} onValueChange={(v) => setAdminId(v === "none" ? "" : v)} disabled={usersLoading}>
                                     <SelectTrigger><SelectValue placeholder="No admin" /></SelectTrigger>
                                     <SelectContent>
-                                        <SelectItem value="">No admin</SelectItem>
+                                        <SelectItem value="none">No admin</SelectItem>
                                         {currentAdmin && <SelectItem value={currentAdmin.id}>{currentAdmin.name || currentAdmin.email} (Current Admin)</SelectItem>}
                                         {users.filter(u => u.id !== currentAdmin?.id && u.id !== leaderId).map((u: any) => <SelectItem key={u.id} value={u.id}>{u.name || u.email} {u.title ? `(${u.title})` : ''} — {u.phone}</SelectItem>)}
                                     </SelectContent>

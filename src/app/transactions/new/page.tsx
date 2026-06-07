@@ -273,10 +273,10 @@ function NewTransactionForm() {
 
                     <div className="space-y-1.5">
                         <Label>Description Type</Label>
-                        <Select value={descriptionPreset} onValueChange={setDescriptionPreset} disabled={loading}>
+                        <Select value={descriptionPreset || "none"} onValueChange={(v) => setDescriptionPreset(v === "none" ? "" : v)} disabled={loading}>
                             <SelectTrigger><SelectValue placeholder="Custom" /></SelectTrigger>
                             <SelectContent>
-                                <SelectItem value="">Custom</SelectItem>
+                                <SelectItem value="none">Custom</SelectItem>
                                 {(type === 'EXPENSE' ? EXPENSE_PRESETS : INCOME_PRESETS).map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}
                             </SelectContent>
                         </Select>

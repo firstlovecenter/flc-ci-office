@@ -203,10 +203,10 @@ function NewDepartmentForm() {
 
                     <div className="space-y-1.5">
                         <Label>Parent Department</Label>
-                        <Select value={parentId} onValueChange={setParentId} disabled={!level || availableParents.length === 0}>
+                        <Select value={parentId || "none"} onValueChange={(v) => setParentId(v === "none" ? "" : v)} disabled={!level || availableParents.length === 0}>
                             <SelectTrigger><SelectValue placeholder="None" /></SelectTrigger>
                             <SelectContent>
-                                <SelectItem value="">None</SelectItem>
+                                <SelectItem value="none">None</SelectItem>
                                 {availableParents.map((dept: any) => (
                                     <SelectItem key={dept.id} value={dept.id}>
                                         {dept.name} ({formatDepartmentLevel(dept.level)})
@@ -236,10 +236,10 @@ function NewDepartmentForm() {
                     {ADMIN_SUPPORTED_LEVELS.includes(level) && (
                         <div className="space-y-1.5">
                             <Label>Department Admin (Optional)</Label>
-                            <Select value={adminId} onValueChange={setAdminId} disabled={usersLoading || users.length === 0}>
+                            <Select value={adminId || "none"} onValueChange={(v) => setAdminId(v === "none" ? "" : v)} disabled={usersLoading || users.length === 0}>
                                 <SelectTrigger><SelectValue placeholder="No admin" /></SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="">No admin</SelectItem>
+                                    <SelectItem value="none">No admin</SelectItem>
                                     {users.filter((u: any) => u.id !== leaderId).map((user: any) => (
                                         <SelectItem key={user.id} value={user.id}>
                                             {user.name || user.email}{user.title ? ` (${user.title})` : ''} — {user.phone}

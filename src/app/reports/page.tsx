@@ -207,10 +207,10 @@ function ReportsPageContent() {
                         <>
                             <div className="space-y-1.5 w-full sm:w-auto">
                                 <Label>Department (Optional)</Label>
-                                <Select value={selectedDepartment} onValueChange={setSelectedDepartment}>
+                                <Select value={selectedDepartment || "none"} onValueChange={(v) => setSelectedDepartment(v === "none" ? "" : v)}>
                                     <SelectTrigger className="w-full sm:w-64"><SelectValue placeholder="All Departments" /></SelectTrigger>
                                     <SelectContent>
-                                        <SelectItem value="">All Departments</SelectItem>
+                                        <SelectItem value="none">All Departments</SelectItem>
                                         {departments.map(d => <SelectItem key={d.id} value={d.id}>{d.name} ({formatDepartmentLevel(d.level)})</SelectItem>)}
                                     </SelectContent>
                                 </Select>

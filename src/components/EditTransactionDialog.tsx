@@ -151,10 +151,10 @@ export default function EditTransactionDialog({ open, transaction, onClose, onSa
 
                     <div className="space-y-1.5">
                         <Label>Description Type</Label>
-                        <Select value={descriptionPreset} onValueChange={setDescriptionPreset} disabled={locked}>
+                        <Select value={descriptionPreset || "none"} onValueChange={(v) => setDescriptionPreset(v === "none" ? "" : v)} disabled={locked}>
                             <SelectTrigger><SelectValue placeholder="Custom" /></SelectTrigger>
                             <SelectContent>
-                                <SelectItem value="">Custom</SelectItem>
+                                <SelectItem value="none">Custom</SelectItem>
                                 {(type === 'EXPENSE' ? EXPENSE_PRESETS : INCOME_PRESETS).map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}
                             </SelectContent>
                         </Select>
