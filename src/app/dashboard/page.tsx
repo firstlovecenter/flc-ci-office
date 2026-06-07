@@ -53,22 +53,22 @@ function MinimalStatCard({ title, amount, icon: Icon, color, isBlinking, onClick
         <div
             onClick={onClick}
             className={cn(
-                'p-4 h-full rounded-2xl bg-card border border-border flex items-center gap-4 transition-all duration-200',
+                'p-3 sm:p-4 h-full rounded-2xl bg-card border border-border flex items-center gap-2.5 sm:gap-4 transition-all duration-200 overflow-hidden',
                 onClick && 'cursor-pointer hover:-translate-y-0.5 hover:shadow-md',
                 isBlinking && 'ring-2 ring-destructive/25',
             )}
         >
             <div
-                className="w-14 h-14 rounded-xl flex items-center justify-center shrink-0"
+                className="w-9 h-9 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center shrink-0"
                 style={{ backgroundColor: color ? `${color}1A` : 'rgba(107,114,128,0.1)', color: color || 'var(--muted-foreground)' }}
             >
-                <Icon className="h-7 w-7" />
+                <Icon className="h-5 w-5 sm:h-6 sm:w-6" />
             </div>
-            <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.06em] text-muted-foreground mb-1">
+            <div className="min-w-0 flex-1">
+                <p className="text-[0.6rem] sm:text-xs font-semibold uppercase tracking-[0.05em] text-muted-foreground mb-0.5 leading-tight break-words">
                     {title}
                 </p>
-                <p className="text-[1.75rem] font-bold text-foreground leading-none tabular-nums">
+                <p className="text-[1.375rem] sm:text-[1.625rem] font-bold text-foreground leading-none tabular-nums">
                     {Math.round(animated).toLocaleString('en-US')}
                 </p>
             </div>
@@ -86,7 +86,7 @@ function RegularStatCard({ title, amount, icon: Icon, color, currencySymbol, isB
 }) {
     const animated = useAnimatedValue(Number(amount) || 0);
     const display = currencySymbol
-        ? animated.toFixed(2)
+        ? formatMoney(animated)
         : Math.round(animated).toLocaleString('en-US');
     return (
         <div className={cn(
