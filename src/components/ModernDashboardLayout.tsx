@@ -14,7 +14,7 @@ import { cn } from '@/lib/utils';
 import { useColorMode } from '@/app/providers';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import { Sheet, SheetContent } from '@/components/ui/sheet';
+import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet';
 import { Separator } from '@/components/ui/separator';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -353,8 +353,8 @@ export default function ModernDashboardLayout({ children }: { children: React.Re
           'fixed left-0 right-0 top-0 z-40 h-14 flex items-center justify-between px-3',
           'bg-background/80 backdrop-blur-xl backdrop-saturate-150 border-b border-border',
           'transition-[padding-left] duration-300 ease-in-out',
+          sidebarOpen ? 'md:pl-[268px]' : 'md:pl-[72px]',
         )}
-        style={{ paddingLeft: `calc(${sidebarWidth}px + 0.75rem)` } as React.CSSProperties}
       >
         <Button variant="ghost" size="icon-sm" className="md:hidden shrink-0" onClick={() => setMobileOpen(true)}>
           <Menu className="size-5" />
@@ -402,14 +402,17 @@ export default function ModernDashboardLayout({ children }: { children: React.Re
       {/* Mobile sidebar — sheet */}
       <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
         <SheetContent side="left" className="p-0 w-64 bg-sidebar-background border-r border-sidebar-border [&>button]:hidden">
+          <SheetTitle className="sr-only">Navigation menu</SheetTitle>
           <SidebarBody isMobile={true} {...sharedSidebarProps} />
         </SheetContent>
       </Sheet>
 
       {/* Main content */}
       <main
-        className={cn('min-h-screen bg-background pt-14 transition-[padding-left] duration-300 ease-in-out', 'md:pl-0')}
-        style={{ paddingLeft: `${sidebarWidth}px` } as React.CSSProperties}
+        className={cn(
+          'min-h-screen bg-background pt-14 transition-[padding-left] duration-300 ease-in-out',
+          sidebarOpen ? 'md:pl-[256px]' : 'md:pl-[60px]',
+        )}
       >
         <PullToRefresh>
           <div className="px-4 py-4 md:px-6 md:py-5 max-w-[1600px] mx-auto">

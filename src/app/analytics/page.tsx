@@ -131,22 +131,22 @@ export default function AnalyticsPage() {
 
             {/* Filters */}
             <div className="rounded-xl border border-border bg-card p-4 mb-5">
-                <div className="flex flex-wrap gap-3 items-end">
-                    <div className="space-y-1.5"><Label className="text-xs">Start Date</Label><Input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="w-40 h-9 text-sm" /></div>
-                    <div className="space-y-1.5"><Label className="text-xs">End Date</Label><Input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="w-40 h-9 text-sm" /></div>
+                <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-3 sm:items-end">
+                    <div className="space-y-1.5"><Label className="text-xs">Start Date</Label><Input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="w-full sm:w-40 h-9 text-sm" /></div>
+                    <div className="space-y-1.5"><Label className="text-xs">End Date</Label><Input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="w-full sm:w-40 h-9 text-sm" /></div>
                     <div className="space-y-1.5"><Label className="text-xs">Period</Label>
                         <Select value={period} onValueChange={setPeriod}>
-                            <SelectTrigger className="w-32 h-9 text-sm"><SelectValue /></SelectTrigger>
+                            <SelectTrigger className="w-full sm:w-32 h-9 text-sm"><SelectValue /></SelectTrigger>
                             <SelectContent><SelectItem value="daily">Daily</SelectItem><SelectItem value="weekly">Weekly</SelectItem><SelectItem value="monthly">Monthly</SelectItem></SelectContent>
                         </Select>
                     </div>
                     <div className="space-y-1.5"><Label className="text-xs">Top Depts</Label>
                         <Select value={String(departmentLimit)} onValueChange={v => setDepartmentLimit(Number(v))}>
-                            <SelectTrigger className="w-28 h-9 text-sm"><SelectValue /></SelectTrigger>
+                            <SelectTrigger className="w-full sm:w-28 h-9 text-sm"><SelectValue /></SelectTrigger>
                             <SelectContent><SelectItem value="5">Top 5</SelectItem><SelectItem value="10">Top 10</SelectItem><SelectItem value="20">Top 20</SelectItem></SelectContent>
                         </Select>
                     </div>
-                    <Button variant="outline" size="sm" onClick={() => { setStartDate(''); setEndDate(''); setSelectedDepartment(''); setPeriod('monthly'); setDepartmentLimit(10); }}>Reset</Button>
+                    <Button variant="outline" size="sm" className="col-span-2 sm:col-span-1" onClick={() => { setStartDate(''); setEndDate(''); setSelectedDepartment(''); setPeriod('monthly'); setDepartmentLimit(10); }}>Reset</Button>
                 </div>
             </div>
 

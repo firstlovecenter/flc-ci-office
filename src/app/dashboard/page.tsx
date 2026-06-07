@@ -251,7 +251,7 @@ export default function DashboardPage() {
     // ── Loading skeleton ─────────────────────────────────────────────────────
     if (loading) {
         return (
-            <div className="px-4 sm:px-6 md:px-12 lg:px-16 py-4 max-w-[1600px] mx-auto">
+            <div className="md:px-6 lg:px-10">
                 <div className="mb-6">
                     <Skeleton className="h-8 w-48 mb-2" />
                     <Skeleton className="h-5 w-72" />
@@ -335,7 +335,7 @@ export default function DashboardPage() {
     };
 
     return (
-        <div className="px-4 sm:px-6 md:px-12 lg:px-16 py-4 max-w-[1600px] mx-auto">
+        <div className="md:px-6 lg:px-10">
 
             {/* Header */}
             <div className="mb-8 pb-6 border-b border-border flex items-start sm:items-end justify-between gap-4 flex-wrap">

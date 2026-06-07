@@ -205,10 +205,10 @@ function ReportsPageContent() {
                 <div className="flex flex-wrap gap-3 items-end">
                     {!fixedDepartment && !isLeader && hasSubDepartments && (
                         <>
-                            <div className="space-y-1.5">
+                            <div className="space-y-1.5 w-full sm:w-auto">
                                 <Label>Department (Optional)</Label>
                                 <Select value={selectedDepartment} onValueChange={setSelectedDepartment}>
-                                    <SelectTrigger className="w-64"><SelectValue placeholder="All Departments" /></SelectTrigger>
+                                    <SelectTrigger className="w-full sm:w-64"><SelectValue placeholder="All Departments" /></SelectTrigger>
                                     <SelectContent>
                                         <SelectItem value="">All Departments</SelectItem>
                                         {departments.map(d => <SelectItem key={d.id} value={d.id}>{d.name} ({formatDepartmentLevel(d.level)})</SelectItem>)}
@@ -216,10 +216,10 @@ function ReportsPageContent() {
                                 </Select>
                             </div>
                             {selectedDepartment && (
-                                <div className="space-y-1.5">
+                                <div className="space-y-1.5 w-full sm:w-auto">
                                     <Label>Scope</Label>
                                     <Select value={includeSubDepartments ? 'include' : 'exact'} onValueChange={v => setIncludeSubDepartments(v === 'include')}>
-                                        <SelectTrigger className="w-56"><SelectValue /></SelectTrigger>
+                                        <SelectTrigger className="w-full sm:w-56"><SelectValue /></SelectTrigger>
                                         <SelectContent>
                                             <SelectItem value="include">Include Lower Departments</SelectItem>
                                             <SelectItem value="exact">Selected Department Only</SelectItem>

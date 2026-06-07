@@ -22,7 +22,7 @@ interface UserDetail {
 
 function InfoTile({ label, children, fullWidth = false }: { label: string; children: React.ReactNode; fullWidth?: boolean }) {
     return (
-        <div className={cn('p-3 rounded-xl border border-border bg-background/40', fullWidth && 'col-span-2')}>
+        <div className={cn('p-3 rounded-xl border border-border bg-background/40', fullWidth && 'sm:col-span-2')}>
             <p className="text-[0.7rem] font-medium text-muted-foreground mb-1.5 uppercase tracking-[0.06em]">{label}</p>
             {children}
         </div>
@@ -101,7 +101,7 @@ export default function UserDetailPage() {
                 )}
 
                 {/* Info grid */}
-                <div className="grid grid-cols-2 gap-3 mb-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
                     <InfoTile label="Full Name"><p className="font-semibold text-foreground">{user.name || '—'}</p></InfoTile>
                     <InfoTile label="Phone Number" fullWidth><p className="font-semibold text-foreground">{user.phone || '—'}</p></InfoTile>
                     <InfoTile label="Email Address" fullWidth><p className="font-semibold text-foreground">{user.email}</p></InfoTile>
@@ -114,7 +114,7 @@ export default function UserDetailPage() {
                     {user.auditLogs && user.auditLogs.length > 0 ? (
                         <div className="flex flex-col gap-2">
                             {user.auditLogs.slice(0, 3).map(log => (
-                                <div key={log.id} className="flex items-start gap-3 rounded-lg border-l-2 border-l-primary bg-primary/5 px-3 py-2">
+                                <div key={log.id} className="flex items-start gap-3 rounded-lg border border-border bg-card px-3 py-2">
                                     <div className="w-2 h-2 rounded-full bg-primary mt-1.5 shrink-0" />
                                     <div>
                                         <p className="text-sm font-semibold text-foreground">{log.description || formatRole(log.actionType)}</p>
