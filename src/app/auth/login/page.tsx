@@ -189,7 +189,7 @@ function LoginForm() {
                         Sign in to your account
                     </h2>
                     <p className="text-sm text-muted-foreground mb-8">
-                        Use your registered email or phone number.
+                        Use your registered email.
                     </p>
 
                     <div className="flex flex-col gap-3 mb-2">
@@ -208,7 +208,7 @@ function LoginForm() {
                     <form onSubmit={handleSubmit} className="flex flex-col gap-4">
                         <div className="space-y-1.5">
                             <Label htmlFor="email" className="text-xs text-muted-foreground tracking-[0.02em]">
-                                Email or phone
+                                Email
                             </Label>
                             <div className="relative">
                                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-[18px] w-[18px] text-muted-foreground pointer-events-none" />
@@ -228,17 +228,9 @@ function LoginForm() {
                         </div>
 
                         <div className="space-y-1.5">
-                            <div className="flex items-baseline justify-between">
-                                <Label htmlFor="password" className="text-xs text-muted-foreground tracking-[0.02em]">
-                                    Password
-                                </Label>
-                                <Link
-                                    href="/auth/forgot-password"
-                                    className="text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
-                                >
-                                    Forgot password?
-                                </Link>
-                            </div>
+                            <Label htmlFor="password" className="text-xs text-muted-foreground tracking-[0.02em]">
+                                Password
+                            </Label>
                             <div className="relative">
                                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-[18px] w-[18px] text-muted-foreground pointer-events-none" />
                                 <Input
@@ -262,6 +254,14 @@ function LoginForm() {
                                         : <Eye className="h-[18px] w-[18px]" />
                                     }
                                 </button>
+                            </div>
+                            <div className="flex justify-end">
+                                <Link
+                                    href="/auth/forgot-password"
+                                    className="text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+                                >
+                                    Forgot password?
+                                </Link>
                             </div>
                         </div>
 
