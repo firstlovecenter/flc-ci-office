@@ -394,6 +394,12 @@ export async function PATCH(
 
                     for (const leader of leaders) {
                         try {
+                            // The creator's approval SMS already states the charge, so skip
+                            // them here to avoid a separate, duplicate charge message.
+                            if (leader.phone && leader.phone === updatedTransaction.user.phone) {
+                                console.log(`[SMS] Skipping charge notification for ${leader.phone}; included in approval SMS`);
+                                continue;
+                            }
                             if (leader.phone) {
                                 await sendSms({ to: leader.phone, message: smsMessage }).catch(() => false);
                             }
@@ -430,6 +436,11 @@ export async function PATCH(
             ? await getDepartmentApprovedBalance(updatedTransaction.department.id)
             : null;
 
+        // Track the creator's phone if we notify them. The approval SMS already
+        // includes the new balance, so the credit/debit alert below skips this
+        // phone to avoid sending the same leader two messages for one approval.
+        let creatorNotifiedPhone: string | null = null;
+
         // Send notification to the user who created the transaction
         if (updatedTransaction.user.phone || updatedTransaction.user.email) {
             try {
@@ -441,6 +452,9 @@ export async function PATCH(
                     const chargeForText = chargeDec && chargeDec.gt(0) ? chargeDec : null;
                     const chargeText = chargeForText ? ` Charge: ${currencySymbol}${formatNumber(chargeForText.toString())}.` : '';
 
+                    const refText = updatedTransaction.description || (updatedTransaction.type === 'INCOME' ? 'Income' : 'Expense');
+                    const refShort = refText.substring(0, 30) + (refText.length > 30 ? '...' : '');
+
                     smsMessage = await generateTransactionApprovedSms({
                         transactionType,
                         currency: currencySymbol,
@@ -448,6 +462,7 @@ export async function PATCH(
                         chargeText,
                         departmentName: updatedTransaction.department.name,
                         balance: formatNumber(moneyToString(approvedBalance!)),
+                        description: refShort,
                     });
                 } else {
                     const reasonText = rejectionReason ? ` Reason: ${rejectionReason}` : '';
@@ -466,6 +481,7 @@ export async function PATCH(
                         message: smsMessage
                     }).catch(() => false);
                     console.log(`[SMS] Transaction ${status} notification: ${sent ? 'SUCCESS' : 'FAILED'}`);
+                    creatorNotifiedPhone = updatedTransaction.user.phone;
                 }
 
             } catch (smsError) {
@@ -573,9 +589,15 @@ export async function PATCH(
                         });
                     }
 
-                    // Send to all leaders
+                    // Send to all leaders, except the creator who already received the
+                    // approval SMS (which carries the same balance) — merges the two
+                    // messages a requesting leader would otherwise get into one.
                     for (const leader of leaders) {
                         try {
+                            if (leader.phone && leader.phone === creatorNotifiedPhone) {
+                                console.log(`[SMS] Skipping ${updatedTransaction.type === 'INCOME' ? 'credit' : 'debit'} alert for ${leader.phone}; already notified via approval SMS`);
+                                continue;
+                            }
                             if (leader.phone) {
                                 console.log(`[SMS] Sending ${updatedTransaction.type === 'INCOME' ? 'credit' : 'debit'} alert to leader: ${leader.phone}`);
                                 await sendSms({ to: leader.phone, message: alertMessage }).catch(() => false);

@@ -5,7 +5,7 @@ import { authOptions } from '@/lib/auth';
 import crypto from 'crypto';
 import { getCurrentWeek, getWeekFromDate, formatNumber } from '@/lib/utils';
 import { sendSms } from '@/lib/sms';
-import { generatePendingApprovalRequestSms, generateCreditAlertSms, generateDebitAlertSms } from '@/lib/sms-templates';
+import { generatePendingApprovalRequestSms, generateCreditAlertSms, generateDebitAlertSms, generateAdminTransactionAlertSms } from '@/lib/sms-templates';
 import { getDescendantDepartmentIds, hasDepartmentAccess } from '@/lib/departments';
 import { getUserBaseCurrency, convertToUserBaseCurrency } from '@/lib/currency-conversion';
 import { formatTimeInExpenseWindowTimeZone, getExpenseWindowStatus } from '@/lib/expense-window';
@@ -511,16 +511,22 @@ export async function POST(request: Request) {
 
                 console.log(`[SMS] Found ${leaders.length} leader(s) for ${alertType} alert`);
 
-                if (leaders.length > 0) {
-                    const balance = await getDepartmentApprovedBalance(transaction.departmentId);
+                // Compute shared balance + formatted values once, reused for both the
+                // account-owner alert and the acting-admin confirmation below.
+                const balance = await getDepartmentApprovedBalance(transaction.departmentId);
+                const currencySymbol = transaction.currency?.symbol || '₵';
+                const descText = description || (type === 'INCOME' ? 'Income' : 'Expense');
+                const descShort = descText.substring(0, 40) + (descText.length > 40 ? '...' : '');
+                const amtStr = formatNumber(moneyToString(amount));
+                const balStr = formatNumber(moneyToString(balance));
+                const deptName = transaction.department.name;
 
-                    const currencySymbol = transaction.currency?.symbol || '₵';
-                    const descText = description || (type === 'INCOME' ? 'Income' : 'Expense');
-                    const descShort = descText.substring(0, 40) + (descText.length > 40 ? '...' : '');
-                    const amtStr = formatNumber(moneyToString(amount));
-                    const balStr = formatNumber(moneyToString(balance));
-                    const deptName = transaction.department.name;
-                    
+                // Track phones already alerted so the admin doesn't get a duplicate
+                // message when they are also the department leader.
+                const notifiedPhones = new Set<string>();
+
+                // 1) Alert the account owner (department leader) being credited/debited
+                if (leaders.length > 0) {
                     // Generate appropriate alert message based on transaction type
                     let smsMessage: string;
                     if (type === 'INCOME') {
@@ -540,14 +546,15 @@ export async function POST(request: Request) {
                             balance: balStr,
                         });
                     }
-                    
+
                     console.log(`[SMS] Sending ${alertType} alert to ${leaders.length} leader(s): ${smsMessage}`);
-                    
+
                     for (const leader of leaders) {
                         try {
                             if (leader.phone) {
                                 const sent = await sendSms({ to: leader.phone, message: smsMessage }).catch(() => false);
                                 console.log(`[SMS] ${alertType} alert to ${leader.phone}: ${sent ? 'SUCCESS' : 'FAILED'}`);
+                                notifiedPhones.add(leader.phone);
                             }
                         } catch (err) {
                             console.error(`[SMS] Error sending ${alertType} alert to leader:`, err);
@@ -555,6 +562,33 @@ export async function POST(request: Request) {
                     }
                 } else {
                     console.log(`[SMS] No leaders with phone numbers found for ${alertType} alert`);
+                }
+
+                // 2) Alert the admin who performed the crediting/debiting (confirmation)
+                try {
+                    const actingAdmin = await prisma.user.findUnique({
+                        where: { id: session.user.id },
+                        select: { phone: true },
+                    });
+
+                    if (actingAdmin?.phone && !notifiedPhones.has(actingAdmin.phone)) {
+                        const adminMessage = await generateAdminTransactionAlertSms({
+                            transactionType: type,
+                            currency: currencySymbol,
+                            amount: amtStr,
+                            departmentName: deptName,
+                            description: descShort,
+                            balance: balStr,
+                        });
+                        const sent = await sendSms({ to: actingAdmin.phone, message: adminMessage }).catch(() => false);
+                        console.log(`[SMS] ${alertType} confirmation to admin ${actingAdmin.phone}: ${sent ? 'SUCCESS' : 'FAILED'}`);
+                    } else if (actingAdmin?.phone) {
+                        console.log(`[SMS] Admin ${actingAdmin.phone} already alerted as leader; skipping duplicate ${alertType} confirmation`);
+                    } else {
+                        console.log(`[SMS] Acting admin has no phone number; skipping ${alertType} confirmation`);
+                    }
+                } catch (adminSmsError) {
+                    console.error(`[SMS] Error sending ${alertType} confirmation to admin:`, adminSmsError);
                 }
             } catch (smsError) {
                 // Don't fail the request if SMS fails

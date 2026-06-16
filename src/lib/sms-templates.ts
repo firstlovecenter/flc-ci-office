@@ -98,11 +98,12 @@ interface TransactionApprovedSmsParams {
     chargeText: string;
     departmentName: string;
     balance: string;
+    description: string;
 }
 
 export function generateTransactionApprovedSms(params: TransactionApprovedSmsParams): string {
-    const { transactionType, currency, amount, chargeText, departmentName, balance } = params;
-    return `Your ${transactionType} request of ${currency}${amount} has been approved.${chargeText}. Your new  balance is ${currency}${balance}.`;
+    const { transactionType, currency, amount, chargeText, balance, description } = params;
+    return `Your ${transactionType} request of ${currency}${amount} has been approved.${chargeText} Ref: ${description}. Your new balance is ${currency}${balance}.`;
 }
 
 interface TransactionDeclinedSmsParams {
@@ -231,6 +232,24 @@ interface DebitAlertSmsParams {
 export function generateDebitAlertSms(params: DebitAlertSmsParams): string {
     const { currency, amount, departmentName, description, balance } = params;
     return `${currency}${amount} debited from your ${departmentName} account. Ref: ${description}. Your new balance is ${currency}${balance}.`;
+}
+
+interface AdminTransactionAlertSmsParams {
+    transactionType: 'INCOME' | 'EXPENSE';
+    currency: string;
+    amount: string;
+    departmentName: string;
+    description: string;
+    balance: string;
+}
+
+// Confirmation sent to the admin who recorded a credit/debit (the actor),
+// distinct from the credit/debit alert that goes to the account owner (leader).
+export function generateAdminTransactionAlertSms(params: AdminTransactionAlertSmsParams): string {
+    const { transactionType, currency, amount, departmentName, description, balance } = params;
+    const verb = transactionType === 'INCOME' ? 'credited' : 'debited';
+    const preposition = transactionType === 'INCOME' ? 'to' : 'from';
+    return `You ${verb} ${currency}${amount} ${preposition} the ${departmentName} account. Ref: ${description}. New balance is ${currency}${balance}.`;
 }
 
 interface PublicExpenseRequestSmsParams {

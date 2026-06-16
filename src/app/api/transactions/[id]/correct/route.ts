@@ -7,7 +7,7 @@ import { formatCurrency, formatNumber } from '@/lib/utils';
 import { toDecimal, moneyToString, toMoney2dp } from '@/lib/money';
 import { getDepartmentApprovedBalance } from '@/lib/balance';
 import { sendSms } from '@/lib/sms';
-import { generateCorrectionNotificationSms, generateDepartmentTransferSms } from '@/lib/sms-templates';
+import { generateCorrectionNotificationSms, generateDepartmentTransferSms, generateAdminTransactionAlertSms } from '@/lib/sms-templates';
 import crypto from 'crypto';
 
 export async function POST(
@@ -204,6 +204,10 @@ export async function POST(
                 severity: 'HIGH',
             });
 
+            // Track phones already notified so the acting admin doesn't receive a
+            // duplicate message when they are also one of the department leaders.
+            const notifiedPhones = new Set<string>();
+
             // Send SMS to old department leader
             try {
                 const oldLeaderRole = originalTransaction.department.level === 'DENOMINATION' ? 'DENOMINATION_LEADER' :
@@ -230,7 +234,10 @@ export async function POST(
                         reason: reason || 'Department correction',
                         balance: formatNumber(moneyToString(oldBalance)),
                     });
-                    if (lr.user.phone) await sendSms({ to: lr.user.phone!, message: sms }).catch(() => {});
+                    if (lr.user.phone) {
+                        await sendSms({ to: lr.user.phone!, message: sms }).catch(() => {});
+                        notifiedPhones.add(lr.user.phone);
+                    }
                 }
             } catch (e) { /* Don't fail on SMS */ }
 
@@ -260,7 +267,32 @@ export async function POST(
                         reason: reason || 'Department correction',
                         balance: formatNumber(moneyToString(newBalance)),
                     });
-                    if (lr.user.phone) await sendSms({ to: lr.user.phone!, message: sms }).catch(() => {});
+                    if (lr.user.phone) {
+                        await sendSms({ to: lr.user.phone!, message: sms }).catch(() => {});
+                        notifiedPhones.add(lr.user.phone);
+                    }
+                }
+            } catch (e) { /* Don't fail on SMS */ }
+
+            // Confirmation to the admin who performed the transfer
+            try {
+                const actingAdmin = await prisma.user.findUnique({
+                    where: { id: session.user.id },
+                    select: { phone: true },
+                });
+                if (actingAdmin?.phone && !notifiedPhones.has(actingAdmin.phone)) {
+                    const adminBalance = await getDepartmentApprovedBalance(targetDepartmentId);
+                    const currencySymbol = originalTransaction.currency?.symbol || '$';
+                    const sms = generateDepartmentTransferSms({
+                        transactionType: originalTransaction.type.toLowerCase(),
+                        currency: currencySymbol,
+                        amount: formatNumber(newAmountValue),
+                        fromDepartment: originalTransaction.department.name,
+                        toDepartment: targetDepartment.name,
+                        reason: reason || 'Department correction',
+                        balance: formatNumber(moneyToString(adminBalance)),
+                    });
+                    await sendSms({ to: actingAdmin.phone, message: sms }).catch(() => {});
                 }
             } catch (e) { /* Don't fail on SMS */ }
 
@@ -342,7 +374,8 @@ export async function POST(
             severity: 'HIGH',
         });
 
-        // Send SMS notification to the department leader
+        // Send SMS notification to the department leader (account owner) and a
+        // confirmation to the admin who performed the correction.
         try {
             // Find the department leader based on department level
             const leaderRole = originalTransaction.department.level === 'DENOMINATION' ? 'DENOMINATION_LEADER' :
@@ -365,10 +398,15 @@ export async function POST(
 
             const activeLeaders = departmentLeaders.filter(ur => !ur.user.archived);
 
-            if (activeLeaders.length > 0) {
-                const balance = await getDepartmentApprovedBalance(originalTransaction.departmentId);
+            // Compute balance + formatting once, reused for both the leader alert
+            // and the acting-admin confirmation below.
+            const balance = await getDepartmentApprovedBalance(originalTransaction.departmentId);
+            const currencySymbol = originalTransaction.currency?.symbol || '$';
+            const balStr = formatNumber(moneyToString(balance));
+            const notifiedPhones = new Set<string>();
 
-                const currencySymbol = originalTransaction.currency?.symbol || '$';
+            // Alert the account owner(s)
+            if (activeLeaders.length > 0) {
                 const correctionParams = {
                     transactionType: originalTransaction.type.toLowerCase(),
                     departmentName: originalTransaction.department.name,
@@ -378,13 +416,34 @@ export async function POST(
                     correctionType: correctionType === 'INCOME' ? 'Credit' : 'Debit',
                     adjustmentAmount: formatNumber(absoluteCorrectionAmount),
                     reason: reason || 'Amount adjustment',
-                    balance: formatNumber(moneyToString(balance)),
+                    balance: balStr,
                 };
                 const smsMessage = await generateCorrectionNotificationSms(correctionParams);
-                
+
                 for (const lr of activeLeaders) {
-                    if (lr.user.phone) await sendSms({ to: lr.user.phone, message: smsMessage }).catch(() => {});
+                    if (lr.user.phone) {
+                        await sendSms({ to: lr.user.phone, message: smsMessage }).catch(() => {});
+                        notifiedPhones.add(lr.user.phone);
+                    }
                 }
+            }
+
+            // Confirmation to the admin who performed the correction (credit/debit)
+            const actingAdmin = await prisma.user.findUnique({
+                where: { id: session.user.id },
+                select: { phone: true },
+            });
+            if (actingAdmin?.phone && !notifiedPhones.has(actingAdmin.phone)) {
+                const shortReason = (reason || 'Amount adjustment').substring(0, 30);
+                const adminMessage = generateAdminTransactionAlertSms({
+                    transactionType: correctionType,
+                    currency: currencySymbol,
+                    amount: formatNumber(absoluteCorrectionAmount),
+                    departmentName: originalTransaction.department.name,
+                    description: `Correction: ${shortReason}`,
+                    balance: balStr,
+                });
+                await sendSms({ to: actingAdmin.phone, message: adminMessage }).catch(() => {});
             }
         } catch (smsError) {
             // Don't fail the request if SMS fails
