@@ -21,6 +21,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
 import { getDisplayRole } from '@/lib/roleDisplay';
 import ImpersonationBanner from './ImpersonationBanner';
 import PullToRefresh from './PullToRefresh';
+import RoleSwitcher from './RoleSwitcher';
 
 const SIDEBAR_WIDTH = 256;
 const SIDEBAR_MINI_WIDTH = 60;
@@ -384,6 +385,7 @@ export default function ModernDashboardLayout({ children }: { children: React.Re
           <Button variant="ghost" size="icon-sm" className="md:hidden" onClick={() => router.push('/search')}>
             <Search className="size-4.5" />
           </Button>
+          <RoleSwitcher />
         </div>
       </header>
 

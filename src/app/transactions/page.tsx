@@ -72,6 +72,10 @@ function TransactionsPageContent() {
 
     const isSuperAdmin = session?.user?.role === 'SUPERADMIN';
     const isAdmin = session?.user?.role && ['SUPERADMIN', 'DENOMINATION_ADMIN', 'OVERSIGHT_ADMIN', 'CAMPUS_ADMIN'].includes(session.user.role);
+    // Any admin role may attach receipts within their departmental scope. The
+    // transaction list is already scoped server-side, so a visible approved
+    // expense is one this admin is allowed to act on (the API re-checks too).
+    const canUploadReceiptAsAdmin = session?.user?.role === 'SUPERADMIN' || session?.user?.role?.endsWith('_ADMIN') || false;
     const isLeader = session?.user?.role?.includes('LEADER') || false;
     const canSelectBaseCurrency = session?.user?.role === 'OVERSIGHT_ADMIN';
 
@@ -290,7 +294,7 @@ function TransactionsPageContent() {
                         const tx = detailsDialog.transaction;
                         const receipt = tx.files?.[0];
                         const isOwner = session?.user?.id === tx.userId;
-                        const canUpload = tx.status === 'APPROVED' && !receipt && (isOwner || isSuperAdmin);
+                        const canUpload = tx.status === 'APPROVED' && !receipt && (isOwner || canUploadReceiptAsAdmin);
                         return (
                             <div className="space-y-4 pt-2">
                                 <div><p className="text-xs text-muted-foreground mb-0.5">Description</p><p className="font-semibold text-foreground">{tx.description}</p></div>
