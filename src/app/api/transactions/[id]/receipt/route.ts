@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { uploadToCloudinary, destroyCloudinaryAsset, publicIdFromCloudinaryUrl } from '@/lib/cloudinary';
+import { hasDepartmentAccess } from '@/lib/departments';
 import { createAuditLog } from '@/lib/audit';
 import crypto from 'crypto';
 
@@ -25,7 +26,7 @@ export async function POST(
 
     const transaction = await prisma.transaction.findUnique({
         where: { id: transactionId },
-        select: { id: true, type: true, status: true, userId: true },
+        select: { id: true, type: true, status: true, userId: true, departmentId: true },
     });
 
     if (!transaction) {
@@ -40,10 +41,23 @@ export async function POST(
         return NextResponse.json({ error: 'Receipts can only be attached after the expense has been approved.' }, { status: 400 });
     }
 
+    // The owner may always attach their own receipt. Admins (and SuperAdmin) may
+    // attach receipts for any approved expense within their departmental scope.
     const isOwner = transaction.userId === session.user.id;
-    const isSuperAdmin = session.user.role === 'SUPERADMIN';
-    if (!isOwner && !isSuperAdmin) {
-        return NextResponse.json({ error: 'Only the transaction owner can attach a receipt.' }, { status: 403 });
+    const role = session.user.role;
+    const isAdmin = role === 'SUPERADMIN' || (typeof role === 'string' && role.endsWith('_ADMIN'));
+    const hasScopedAccess = isAdmin
+        ? await hasDepartmentAccess(
+              { role, departmentId: session.user.departmentId },
+              transaction.departmentId,
+          )
+        : false;
+
+    if (!isOwner && !hasScopedAccess) {
+        return NextResponse.json(
+            { error: 'You do not have permission to attach a receipt to this transaction.' },
+            { status: 403 },
+        );
     }
 
     let formData: FormData;
