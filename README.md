@@ -295,7 +295,7 @@ The system supports a 5-level hierarchy:
 ### Notifications
 - `POST /api/notifications/subscribe` - Subscribe to push notifications
 - `DELETE /api/notifications/subscribe` - Unsubscribe
-- `POST /api/notifications/send` - Send push notification (admin only)
+- `POST /api/notifications/send` - Send push notification
 
 ### Audit
 - `GET /api/audit` - Get audit logs (superadmin only)
