@@ -62,6 +62,7 @@ model Department {
   closedBy               String?
   closureReason          String?
   isActive               Boolean                 @default(true)
+  publicFormEnabled      Boolean                 @default(true)
     parent                 Department?             @relation("DepartmentHierarchy", fields: [parentId], references: [id])
     children               Department[]            @relation("DepartmentHierarchy")
     departmentBaseCurrency DepartmentBaseCurrency?

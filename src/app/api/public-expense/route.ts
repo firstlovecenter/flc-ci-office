@@ -98,9 +98,9 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'Amount must be a positive number.' }, { status: 400 });
         }
 
-        // Verify the oversight department exists and is active
+        // Verify the oversight department exists, is active, and has the public form enabled
         const oversightDept = await prisma.department.findUnique({
-            where: { id: oversightDeptId, level: 'OVERSIGHT', isActive: true },
+            where: { id: oversightDeptId, level: 'OVERSIGHT', isActive: true, publicFormEnabled: true },
             select: { id: true, name: true },
         });
 
