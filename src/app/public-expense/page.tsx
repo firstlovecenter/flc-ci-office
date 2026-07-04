@@ -10,16 +10,9 @@ import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import { getExpenseWindowStatus, formatTimeInExpenseWindowTimeZone, getMsUntilExpenseWindowOpens } from '@/lib/expense-window';
 
 interface OversightOption { id: string; name: string; }
-
-function getExpenseWindowStatus() {
-    const now = new Date();
-    const hour = now.getHours();
-    const isSaturday = now.getDay() === 6;
-    const maxHour = isSaturday ? 19 : 15;
-    return { now, timeRange: isSaturday ? '6:00 AM and 7:00 PM' : '6:00 AM and 3:00 PM', isOpen: hour >= 6 && hour < maxHour };
-}
 
 function PageShell({ children }: { children: React.ReactNode }) {
     return (
@@ -72,7 +65,7 @@ export default function PublicExpensePage() {
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault(); setError('');
         const win = getExpenseWindowStatus();
-        if (!win.isOpen) { setError(`Expense requests can only be made between ${win.timeRange}.`); return; }
+        if (!win.isOpen) { setError(win.isSunday ? 'Expense requests are not accepted on Sundays.' : `Expense requests can only be made between ${win.timeRange}.`); return; }
         const amount = parseFloat(form.amount);
         if (!form.oversightDeptId) return setError('Please select your oversight church.');
         if (!form.requesterName.trim()) return setError('Please enter your name.');
@@ -127,11 +120,8 @@ export default function PublicExpensePage() {
     const expenseWindow = getExpenseWindowStatus();
     if (!expenseWindow.isOpen) {
         const now = expenseWindow.now;
-        const hour = now.getHours();
-        const nextOpen = new Date(now);
-        if (hour < 6) nextOpen.setHours(6, 0, 0, 0);
-        else { nextOpen.setDate(nextOpen.getDate() + 1); nextOpen.setHours(6, 0, 0, 0); }
-        const ms = nextOpen.getTime() - now.getTime();
+        const ms = getMsUntilExpenseWindowOpens(now);
+        const nextOpen = new Date(now.getTime() + ms);
         const h = Math.floor(ms / (1000 * 60 * 60));
         const m = Math.floor((ms % (1000 * 60 * 60)) / (1000 * 60));
         return (
@@ -139,15 +129,19 @@ export default function PublicExpensePage() {
                 <div className="w-full max-w-[480px] rounded-2xl border border-border bg-card p-6 sm:p-10 text-center">
                     <p className="text-[0.6875rem] font-semibold uppercase tracking-[0.10em] text-muted-foreground mb-2">Expense requests</p>
                     <h1 className="text-[1.625rem] sm:text-[1.875rem] font-semibold tracking-[-0.025em] text-foreground mb-3">Submissions closed</h1>
-                    <p className="text-sm text-muted-foreground mb-6">Requests are accepted between <strong className="text-foreground">{expenseWindow.timeRange}</strong>.</p>
+                    <p className="text-sm text-muted-foreground mb-6">
+                        {expenseWindow.isSunday
+                            ? <>Requests are not accepted on <strong className="text-foreground">Sundays</strong>.</>
+                            : <>Requests are accepted <strong className="text-foreground">Monday to Saturday</strong>, between <strong className="text-foreground">{expenseWindow.timeRange}</strong>.</>}
+                    </p>
                     <div className="px-6 py-4 mb-3 rounded-xl border border-warning/30 bg-warning/8">
                         <p className="text-[0.6875rem] font-semibold uppercase tracking-[0.10em] text-muted-foreground mb-1">Current time</p>
-                        <p className="text-xl font-semibold tabular-nums text-warning">{now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}</p>
+                        <p className="text-xl font-semibold tabular-nums text-warning">{formatTimeInExpenseWindowTimeZone(now)}</p>
                     </div>
                     <div className="px-6 py-4 rounded-xl border border-success/30 bg-success/8">
                         <p className="text-[0.6875rem] font-semibold uppercase tracking-[0.10em] text-muted-foreground mb-1">Window opens in</p>
                         <p className="text-[1.75rem] sm:text-[2rem] font-semibold tabular-nums tracking-[-0.02em] text-success">{h}h {m}m</p>
-                        <p className="text-xs text-muted-foreground/60 mt-0.5">at {nextOpen.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}</p>
+                        <p className="text-xs text-muted-foreground/60 mt-0.5">at {formatTimeInExpenseWindowTimeZone(nextOpen)}</p>
                     </div>
                 </div>
             </PageShell>
@@ -162,6 +156,7 @@ export default function PublicExpensePage() {
                     <p className="text-[0.6875rem] font-semibold uppercase tracking-[0.10em] text-muted-foreground mb-1.5">Public form</p>
                     <h1 className="text-[1.625rem] sm:text-[1.875rem] font-semibold tracking-[-0.025em] text-foreground mb-1.5">Expense request</h1>
                     <p className="text-sm text-muted-foreground">Submit for review by your oversight leader. You&apos;ll be contacted via the Momo number you provide.</p>
+                    <p className="text-xs text-muted-foreground mt-2">Note: requests made on Monday or Tuesday are reviewed by close of day Wednesday.</p>
                 </div>
                 <div className="border-t border-border mb-5" />
                 {error && <Alert variant="destructive" className="mb-4 rounded-xl"><AlertDescription>{error}</AlertDescription></Alert>}

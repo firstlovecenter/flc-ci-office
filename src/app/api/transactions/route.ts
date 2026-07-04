@@ -255,7 +255,9 @@ export async function POST(request: Request) {
             if (!expenseWindow.isOpen) {
                 return NextResponse.json(
                     {
-                        error: `Expense requests can only be made between ${expenseWindow.timeRange}. Actual time is ${formatTimeInExpenseWindowTimeZone(expenseWindow.now)}`,
+                        error: expenseWindow.isSunday
+                            ? 'Expense requests are not accepted on Sundays. Please try again Monday from 6:00 AM.'
+                            : `Expense requests can only be made between ${expenseWindow.timeRange}. Actual time is ${formatTimeInExpenseWindowTimeZone(expenseWindow.now)}`,
                     },
                     { status: 400 }
                 );
