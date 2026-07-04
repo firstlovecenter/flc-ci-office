@@ -18,6 +18,7 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import { useColorMode } from '@/app/providers';
+import { getExpenseWindowStatus, getMsUntilExpenseWindowOpens } from '@/lib/expense-window';
 
 // ── Animated counter ──────────────────────────────────────────────────────────
 
@@ -521,31 +522,28 @@ export default function DashboardPage() {
                 <div className="mt-8 flex flex-col gap-3">
                     {/* Time window banner for leaders */}
                     {isLeader && (() => {
-                        const now = new Date();
-                        const hour = now.getHours();
-                        const isSaturday = now.getDay() === 6;
-                        const maxHour = isSaturday ? 19 : 15;
-                        const isOpen = hour >= 6 && hour < maxHour;
-                        const closeTime = `${maxHour > 12 ? maxHour - 12 : maxHour}:00 ${maxHour >= 12 ? 'PM' : 'AM'}`;
-                        const hoursUntilOpen = hour < 6 ? 6 - hour : 24 - hour + 6;
+                        const win = getExpenseWindowStatus();
+                        const hoursUntilOpen = win.isOpen ? 0 : Math.ceil(getMsUntilExpenseWindowOpens(win.now) / (1000 * 60 * 60));
                         return (
                             <div className={cn(
                                 'px-3 py-2.5 rounded-xl flex items-center gap-2',
-                                isOpen
+                                win.isOpen
                                     ? 'bg-success/8 border border-success/25'
                                     : 'bg-warning/8 border border-warning/25',
                             )}>
                                 <div className={cn(
                                     'w-2 h-2 rounded-full shrink-0',
-                                    isOpen ? 'bg-success animate-pulse' : 'bg-warning',
+                                    win.isOpen ? 'bg-success animate-pulse' : 'bg-warning',
                                 )} />
                                 <span className={cn(
                                     'text-xs font-semibold',
-                                    isOpen ? 'text-success' : 'text-warning',
+                                    win.isOpen ? 'text-success' : 'text-warning',
                                 )}>
-                                    {isOpen
-                                        ? `Expense submissions open · Closes at ${closeTime}`
-                                        : `Submissions closed · Opens at 6:00 AM (in ~${hoursUntilOpen}h)`}
+                                    {win.isOpen
+                                        ? 'Expense submissions open · Closes at 3:00 PM'
+                                        : win.isSunday
+                                            ? 'Submissions closed on Sundays · Opens Monday 6:00 AM'
+                                            : `Submissions closed · Opens at 6:00 AM (in ~${hoursUntilOpen}h)`}
                                 </span>
                             </div>
                         );

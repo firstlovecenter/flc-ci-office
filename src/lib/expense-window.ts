@@ -23,18 +23,24 @@ function getTimePartsInTimeZone(date: Date, timeZone: string) {
     return { weekday, hour, minute };
 }
 
+export const EXPENSE_WINDOW_OPEN_HOUR = 6;
+export const EXPENSE_WINDOW_CLOSE_HOUR = 15;
+export const EXPENSE_WINDOW_TIME_RANGE = '6:00 AM and 3:00 PM';
+
 export function getExpenseWindowStatus(now: Date = new Date()) {
     const timeZone = EXPENSE_WINDOW_TIMEZONE;
-    const { hour } = getTimePartsInTimeZone(now, timeZone);
+    const { weekday, hour, minute } = getTimePartsInTimeZone(now, timeZone);
 
-    const maxHour = 15;
-    const timeRange = '6:00 AM and 3:00 PM';
+    const isSunday = weekday === 'Sun';
 
     return {
         now,
         timeZone,
-        timeRange,
-        isOpen: hour >= 6 && hour < maxHour,
+        timeRange: EXPENSE_WINDOW_TIME_RANGE,
+        isSunday,
+        hour,
+        minute,
+        isOpen: !isSunday && hour >= EXPENSE_WINDOW_OPEN_HOUR && hour < EXPENSE_WINDOW_CLOSE_HOUR,
     };
 }
 
@@ -46,4 +52,16 @@ export function formatTimeInExpenseWindowTimeZone(date: Date) {
         minute: '2-digit',
         hour12: true,
     });
+}
+
+// Milliseconds until the window next opens, skipping Sunday. `now` is assumed
+// to already be in the expense window's timezone (UTC, i.e. no offset from Ghana time).
+export function getMsUntilExpenseWindowOpens(now: Date = new Date()): number {
+    const candidate = new Date(now.getTime());
+    candidate.setUTCHours(EXPENSE_WINDOW_OPEN_HOUR, 0, 0, 0);
+    if (candidate.getTime() <= now.getTime()) candidate.setUTCDate(candidate.getUTCDate() + 1);
+
+    while (candidate.getUTCDay() === 0) candidate.setUTCDate(candidate.getUTCDate() + 1);
+
+    return candidate.getTime() - now.getTime();
 }

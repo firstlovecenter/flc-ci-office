@@ -14,6 +14,7 @@ import { Badge } from '@/components/ui/badge';
 import { cn, formatNumber, formatDepartmentLevel } from '@/lib/utils';
 import { roundMoney } from '@/lib/format-money';
 import { useToast } from '@/components/ToastProvider';
+import { getExpenseWindowStatus, formatTimeInExpenseWindowTimeZone } from '@/lib/expense-window';
 
 type TransactionType = 'INCOME' | 'EXPENSE';
 
@@ -123,8 +124,8 @@ function NewTransactionForm() {
         if (!baseCurrency) { setError('Base currency is not set.'); return; }
         setLoading(true);
         if (type === 'EXPENSE' && isLeader) {
-            const now = new Date(); const hour = now.getHours(); const isSat = now.getDay() === 6; const maxH = isSat ? 19 : 15;
-            if (hour < 6 || hour >= maxH) { setError(`Expense requests can only be made between ${isSat ? '6:00 AM and 7:00 PM' : '6:00 AM and 3:00 PM'}`); setLoading(false); return; }
+            const win = getExpenseWindowStatus();
+            if (!win.isOpen) { setError(win.isSunday ? 'Expense requests are not accepted on Sundays.' : `Expense requests can only be made between ${win.timeRange}`); setLoading(false); return; }
         }
         if (type === 'EXPENSE' && departmentBalance !== null) {
             const bal = Number(departmentBalance);
@@ -147,16 +148,21 @@ function NewTransactionForm() {
 
     // Time restriction for leaders
     if (sessionStatus !== 'loading' && isLeader) {
-        const now = new Date(); const hour = now.getHours(); const isSat = now.getDay() === 6; const maxH = isSat ? 19 : 15;
-        if (hour < 6 || hour >= maxH) {
-            const timeRange = isSat ? '6:00 AM and 7:00 PM' : '6:00 AM and 3:00 PM';
+        const win = getExpenseWindowStatus();
+        if (!win.isOpen) {
             return (
                 <div className="max-w-sm mx-auto mt-16">
                     <div className="rounded-xl border border-border bg-card p-6">
                         <Alert variant="warning"><AlertDescription>
-                            <strong>Outside Operating Hours</strong><br />
-                            Expense requests can only be made between <strong>{timeRange}</strong>.<br />
-                            Current time: {now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}
+                            {win.isSunday ? (
+                                <><strong>Closed on Sundays</strong><br />Expense requests are not accepted on Sundays. Please try again Monday from 6:00 AM.</>
+                            ) : (
+                                <>
+                                    <strong>Outside Operating Hours</strong><br />
+                                    Expense requests can only be made between <strong>{win.timeRange}</strong>, Monday to Saturday.<br />
+                                    Current time: {formatTimeInExpenseWindowTimeZone(win.now)}
+                                </>
+                            )}
                         </AlertDescription></Alert>
                         <Button variant="outline" className="w-full mt-4" onClick={() => router.push('/transactions')}>Back to Transactions</Button>
                     </div>
@@ -169,15 +175,14 @@ function NewTransactionForm() {
 
     // Leader time window banner
     const leaderBanner = isLeader && (() => {
-        const now = new Date(); const hour = now.getHours(); const isSat = now.getDay() === 6; const maxH = isSat ? 19 : 15;
-        const closeTime = `${maxH > 12 ? maxH - 12 : maxH}:00 ${maxH >= 12 ? 'PM' : 'AM'}`;
-        const minutesLeft = (maxH - hour) * 60 - now.getMinutes();
+        const win = getExpenseWindowStatus();
+        const minutesLeft = (15 - win.hour) * 60 - win.minute;
         const closingSoon = minutesLeft <= 60;
         return (
             <div className={cn('flex items-center gap-2 px-3 py-2 rounded-xl border mb-4', closingSoon ? 'border-warning/30 bg-warning/8' : 'border-success/30 bg-success/8')}>
                 <div className={cn('w-2 h-2 rounded-full shrink-0 animate-pulse', closingSoon ? 'bg-warning' : 'bg-success')} />
                 <p className={cn('text-xs font-semibold', closingSoon ? 'text-warning' : 'text-success')}>
-                    {closingSoon ? `Submissions close at ${closeTime} · ${minutesLeft} min remaining` : `Submissions open · Closes at ${closeTime}`}
+                    {closingSoon ? `Submissions close at 3:00 PM · ${minutesLeft} min remaining` : 'Submissions open · Closes at 3:00 PM'}
                 </p>
             </div>
         );
@@ -196,6 +201,12 @@ function NewTransactionForm() {
             </div>
 
             {leaderBanner}
+
+            {isLeader && (
+                <p className="text-xs text-muted-foreground mb-5 -mt-1">
+                    Note: requests made on Monday or Tuesday are reviewed by close of day Wednesday.
+                </p>
+            )}
 
             {/* Available balance for expense */}
             {type === 'EXPENSE' && (
