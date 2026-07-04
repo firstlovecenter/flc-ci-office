@@ -9,6 +9,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import { Switch } from '@/components/ui/switch';
 import { formatDepartmentLevel, formatRole } from '@/lib/utils';
 
 type DepartmentLevel = 'DENOMINATION' | 'OVERSIGHT' | 'CAMPUS' | 'STREAM' | 'COUNCIL';
@@ -30,6 +31,7 @@ export default function EditDepartmentDialog({ open, onClose, department, depart
     const [saving, setSaving] = useState(false);
     const [currencies, setCurrencies] = useState<any[]>([]);
     const [currencyId, setCurrencyId] = useState('');
+    const [publicFormEnabled, setPublicFormEnabled] = useState(true);
     const [loading, setLoading] = useState(false);
     const [availableParents, setAvailableParents] = useState<any[]>([]);
     const [users, setUsers] = useState<any[]>([]);
@@ -49,6 +51,7 @@ export default function EditDepartmentDialog({ open, onClose, department, depart
     useEffect(() => {
         if (!department) return;
         setName(department.name); setLevel(department.level); setParentId(department.parentId || '');
+        setPublicFormEnabled(department.publicFormEnabled ?? true);
         const leaderRoles = ['DENOMINATION_LEADER', 'OVERSIGHT_LEADER', 'CAMPUS_LEADER', 'STREAM_LEADER', 'COUNCIL_LEADER'];
         const adminRoles = ['DENOMINATION_ADMIN', 'OVERSIGHT_ADMIN', 'CAMPUS_ADMIN'];
         const leaderRole = department.userRoles?.find((ur: any) => ur.role && leaderRoles.includes(ur.role));
@@ -100,7 +103,7 @@ export default function EditDepartmentDialog({ open, onClose, department, depart
         if (!name.trim()) { setError('Department name is required'); return; }
         setSaving(true); setError('');
         try {
-            const r = await fetch(`/api/departments/${department.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, level, parentId: parentId || null, currencyId: level === 'OVERSIGHT' && currencyId ? currencyId : undefined, leaderId: leaderId || undefined, adminId: ADMIN_LEVELS.includes(level) ? (adminId || null) : undefined }) });
+            const r = await fetch(`/api/departments/${department.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, level, parentId: parentId || null, currencyId: level === 'OVERSIGHT' && currencyId ? currencyId : undefined, leaderId: leaderId || undefined, adminId: ADMIN_LEVELS.includes(level) ? (adminId || null) : undefined, publicFormEnabled: level === 'OVERSIGHT' ? publicFormEnabled : undefined }) });
             if (!r.ok) { const d = await r.json(); throw new Error(d.error || 'Failed to update department'); }
             onSave(); onClose();
         } catch (e: any) { setError(e.message || 'Error updating department'); }
@@ -171,6 +174,16 @@ export default function EditDepartmentDialog({ open, onClose, department, depart
                                     <SelectTrigger><SelectValue placeholder="Select a currency" /></SelectTrigger>
                                     <SelectContent>{currencies.map(c => <SelectItem key={c.id} value={c.id}>{c.code} — {c.name} ({c.symbol})</SelectItem>)}</SelectContent>
                                 </Select>
+                            </div>
+                        )}
+
+                        {level === 'OVERSIGHT' && (
+                            <div className="flex items-center justify-between rounded-lg border p-3">
+                                <div className="space-y-0.5">
+                                    <Label>Public Expense Form</Label>
+                                    <p className="text-xs text-muted-foreground">Allow members of the public to submit expense requests to this oversight.</p>
+                                </div>
+                                <Switch checked={publicFormEnabled} onCheckedChange={setPublicFormEnabled} />
                             </div>
                         )}
 

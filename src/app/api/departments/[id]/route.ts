@@ -96,7 +96,7 @@ export async function PUT(
     try {
         const params = await context.params;
         const body = await request.json();
-        const { name, level, parentId, currencyId, leaderId, adminId } = body;
+        const { name, level, parentId, currencyId, leaderId, adminId, publicFormEnabled } = body;
         const departmentId = params.id;
 
         // Check if user has access to this department
@@ -164,6 +164,7 @@ export async function PUT(
                 name,
                 level,
                 parentId: parentId || null,
+                ...(typeof publicFormEnabled === 'boolean' ? { publicFormEnabled } : {}),
             },
         });
 

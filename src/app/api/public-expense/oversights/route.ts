@@ -10,6 +10,7 @@ export async function GET() {
             where: {
                 level: 'OVERSIGHT',
                 isActive: true,
+                publicFormEnabled: true,
             },
             select: {
                 id: true,
