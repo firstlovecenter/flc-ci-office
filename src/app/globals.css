@@ -125,19 +125,33 @@
     color: inherit;
     text-decoration: none;
   }
+}
 
+/*
+ * Force inputs to render at >=16px so iOS/Android don't auto-zoom the page
+ * on focus (and don't re-trigger that zoom on the next orientation change
+ * while the field is still focused). This must live outside `@layer base`
+ * because Tailwind's utility layer (e.g. `text-sm` on the Input/Textarea
+ * components) is applied after the base layer and would otherwise win
+ * regardless of selector specificity.
+ *
+ * The old rule only relaxed this at `min-width: 768px`, but that breakpoint
+ * is a viewport-width guess, not a device-capability check: many phones
+ * exceed 768px in landscape, so rotating would drop the font back under
+ * 16px and trigger the zoom. `hover: hover` + `pointer: fine` reliably
+ * identifies real mouse/trackpad input instead.
+ */
+input,
+textarea,
+select {
+  font-size: 16px;
+}
+
+@media (hover: hover) and (pointer: fine) {
   input,
   textarea,
   select {
-    font-size: 16px;
-  }
-
-  @media (min-width: 768px) {
-    input,
-    textarea,
-    select {
-      font-size: inherit;
-    }
+    font-size: inherit;
   }
 }
 
