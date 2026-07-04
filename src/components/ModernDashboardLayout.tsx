@@ -71,7 +71,10 @@ function SidebarBody({
   return (
     <div className="flex flex-col h-full overflow-hidden">
       {/* Logo row */}
-      <div className={cn('flex items-center gap-2.5 px-3 py-3 shrink-0', !showLabels && 'justify-center')}>
+      <div
+        className={cn('flex items-center gap-2.5 px-3 py-3 shrink-0', !showLabels && 'justify-center')}
+        style={isMobile ? { paddingTop: 'max(0.75rem, env(safe-area-inset-top))' } : undefined}
+      >
         <div className="relative flex items-center justify-center w-8 h-8 rounded-lg border border-border bg-card overflow-hidden shrink-0">
           <Image src="/flc-logo.webp" alt="CI Office" width={20} height={20} />
         </div>
@@ -351,11 +354,12 @@ export default function ModernDashboardLayout({ children }: { children: React.Re
       {/* Fixed top bar */}
       <header
         className={cn(
-          'fixed left-0 right-0 top-0 z-40 h-14 flex items-center justify-between px-3',
+          'fixed left-0 right-0 top-0 z-40 flex items-center justify-between px-3',
           'bg-background/80 backdrop-blur-xl backdrop-saturate-150 border-b border-border',
           'transition-[padding-left] duration-300 ease-in-out',
           sidebarOpen ? 'md:pl-[268px]' : 'md:pl-[72px]',
         )}
+        style={{ height: 'calc(3.5rem + env(safe-area-inset-top))', paddingTop: 'env(safe-area-inset-top)' }}
       >
         <Button variant="ghost" size="icon-sm" className="md:hidden shrink-0" onClick={() => setMobileOpen(true)}>
           <Menu className="size-5" />
@@ -412,9 +416,10 @@ export default function ModernDashboardLayout({ children }: { children: React.Re
       {/* Main content */}
       <main
         className={cn(
-          'min-h-screen bg-background pt-14 transition-[padding-left] duration-300 ease-in-out',
+          'min-h-screen bg-background transition-[padding-left] duration-300 ease-in-out',
           sidebarOpen ? 'md:pl-[256px]' : 'md:pl-[60px]',
         )}
+        style={{ paddingTop: 'calc(3.5rem + env(safe-area-inset-top))' }}
       >
         <PullToRefresh>
           <div className="px-4 py-4 md:px-6 md:py-5 max-w-[1600px] mx-auto">
