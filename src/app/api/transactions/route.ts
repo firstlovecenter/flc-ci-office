@@ -11,6 +11,7 @@ import { getUserBaseCurrency, convertToUserBaseCurrency } from '@/lib/currency-c
 import { formatTimeInExpenseWindowTimeZone, getExpenseWindowStatus } from '@/lib/expense-window';
 import { toDecimal, gt, isPositive, moneyToString, toMoney2dp } from '@/lib/money';
 import { getDepartmentApprovedBalance } from '@/lib/balance';
+import { getOverdueUnreceiptedApprovals } from '@/lib/receipt-compliance';
 
 // Force dynamic rendering - data is user/role specific
 export const dynamic = 'force-dynamic';
@@ -246,6 +247,27 @@ export async function POST(request: Request) {
         // Determine if this is a leader role (time-restricted) or admin
         const leaderRoles = ['DENOMINATION_LEADER', 'OVERSIGHT_LEADER', 'CAMPUS_LEADER', 'STREAM_LEADER', 'COUNCIL_LEADER'];
         const isLeader = leaderRoles.includes(session.user.role);
+
+        // Leaders with an approved expense request (created on/after the receipt
+        // enforcement start date) that is more than 24 hours old and still has no
+        // uploaded receipt are blocked from submitting new requests.
+        if (isLeader) {
+            const overdueApprovals = await getOverdueUnreceiptedApprovals(session.user.id);
+
+            if (overdueApprovals.length > 0) {
+                const list = overdueApprovals
+                    .map((t) => `"${t.description}" (${moneyToString(toDecimal(t.amount))})`)
+                    .join(', ');
+
+                return NextResponse.json(
+                    {
+                        error: `You have ${overdueApprovals.length} approved expense request${overdueApprovals.length > 1 ? 's' : ''} older than 24 hours without an uploaded receipt: ${list}. Please upload the receipt(s) before making new requests.`,
+                        overdueReceiptTransactionIds: overdueApprovals.map((t) => t.id),
+                    },
+                    { status: 400 }
+                );
+            }
+        }
 
         // Server-side time validation for expense requests - only for leaders
         // Admins can make requests anytime

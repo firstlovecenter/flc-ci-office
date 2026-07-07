@@ -1,0 +1,47 @@
+// Server-only checks for the "unreceipted approval" request block.
+//
+// Rule: a leader who has an APPROVED expense request more than 24 hours old
+// with no uploaded receipt cannot submit new requests until the receipt is
+// uploaded. Only applies to requests created on/after RECEIPT_ENFORCEMENT_START_DATE
+// so pre-existing approvals are grandfathered in.
+import { prisma } from '@/lib/prisma';
+
+export const RECEIPT_ENFORCEMENT_START_DATE = new Date('2026-07-08T00:00:00Z');
+const RECEIPT_GRACE_PERIOD_MS = 24 * 60 * 60 * 1000;
+
+export interface OverdueReceiptTransaction {
+    id: string;
+    description: string;
+    amount: string;
+    approvedAt: Date;
+}
+
+export async function getOverdueUnreceiptedApprovals(
+    userId: string,
+    now: Date = new Date(),
+): Promise<OverdueReceiptTransaction[]> {
+    const transactions = await prisma.transaction.findMany({
+        where: {
+            userId,
+            type: 'EXPENSE',
+            status: 'APPROVED',
+            createdAt: { gte: RECEIPT_ENFORCEMENT_START_DATE },
+            approvedAt: { lte: new Date(now.getTime() - RECEIPT_GRACE_PERIOD_MS) },
+            files: { none: {} },
+        },
+        select: {
+            id: true,
+            description: true,
+            amount: true,
+            approvedAt: true,
+        },
+        orderBy: { approvedAt: 'asc' },
+    });
+
+    return transactions.map((t) => ({
+        id: t.id,
+        description: t.description,
+        amount: t.amount.toString(),
+        approvedAt: t.approvedAt as Date,
+    }));
+}
