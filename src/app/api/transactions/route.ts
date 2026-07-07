@@ -248,8 +248,8 @@ export async function POST(request: Request) {
         const leaderRoles = ['DENOMINATION_LEADER', 'OVERSIGHT_LEADER', 'CAMPUS_LEADER', 'STREAM_LEADER', 'COUNCIL_LEADER'];
         const isLeader = leaderRoles.includes(session.user.role);
 
-        // Leaders with an approved expense request (created on/after the receipt
-        // enforcement start date) that is more than 24 hours old and still has no
+        // Leaders with an expense request approved on/after the receipt
+        // enforcement start date that is more than 24 hours old and still has no
         // uploaded receipt are blocked from submitting new requests.
         if (isLeader) {
             const overdueApprovals = await getOverdueUnreceiptedApprovals(session.user.id);
