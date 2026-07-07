@@ -50,6 +50,8 @@ function NewTransactionForm() {
     const [transactionDate, setTransactionDate] = useState(new Date().toISOString().split('T')[0]);
     const [error, setError] = useState('');
     const [profileLoading, setProfileLoading] = useState(true);
+    const [overdueApprovals, setOverdueApprovals] = useState<{ id: string; description: string; amount: string; approvedAt: string }[]>([]);
+    const [overdueLoading, setOverdueLoading] = useState(true);
     const [loading, setLoading] = useState(false);
     const [departmentBalance, setDepartmentBalance] = useState<string | null>(null);
     const [balanceCurrency, setBalanceCurrency] = useState<{ code: string; symbol: string } | null>(null);
@@ -65,6 +67,12 @@ function NewTransactionForm() {
     }, [typeParam, isLeader, sessionStatus]);
 
     useEffect(() => { fetchDepartments(); fetchCurrencies(); fetchUserProfile(); }, []);
+
+    useEffect(() => {
+        if (sessionStatus === 'loading') return;
+        if (!isLeader) { setOverdueLoading(false); return; }
+        fetchOverdueReceipts();
+    }, [sessionStatus, isLeader]);
 
     useEffect(() => {
         if (deptParam) setDepartmentId(deptParam);
@@ -85,6 +93,15 @@ function NewTransactionForm() {
         setBalanceLoading(true);
         try { const r = await fetch(`/api/departments/${deptId}/stats?exactLevel=true`, { cache: 'no-store' }); if (r.ok) { const d = await r.json(); setDepartmentBalance(d.balance); setBalanceCurrency(d.currency); } }
         catch {} finally { setBalanceLoading(false); }
+    };
+
+    const fetchOverdueReceipts = async () => {
+        setOverdueLoading(true);
+        try {
+            const r = await fetch('/api/transactions/overdue-receipts', { cache: 'no-store' });
+            if (r.ok) { const d = await r.json(); setOverdueApprovals(d.overdueApprovals || []); }
+        } catch {}
+        finally { setOverdueLoading(false); }
     };
 
     const fetchUserProfile = async () => {
@@ -146,6 +163,26 @@ function NewTransactionForm() {
         finally { setLoading(false); }
     };
 
+    // Overdue, unreceipted approvals block new requests until resolved
+    if (sessionStatus !== 'loading' && isLeader && !overdueLoading && overdueApprovals.length > 0) {
+        return (
+            <div className="max-w-sm mx-auto mt-16">
+                <div className="rounded-xl border border-border bg-card p-6">
+                    <Alert variant="destructive"><AlertDescription>
+                        <strong>Receipts required</strong><br />
+                        You have {overdueApprovals.length} approved expense request{overdueApprovals.length > 1 ? 's' : ''} older than 24 hours without an uploaded receipt. Upload {overdueApprovals.length > 1 ? 'these receipts' : 'this receipt'} before making new requests:
+                        <ul className="mt-2 list-disc pl-4 space-y-1">
+                            {overdueApprovals.map((t) => (
+                                <li key={t.id}>{t.description} — {balanceCurrency?.symbol || '₵'}{formatNumber(t.amount)}</li>
+                            ))}
+                        </ul>
+                    </AlertDescription></Alert>
+                    <Button variant="outline" className="w-full mt-4" onClick={() => router.push('/transactions')}>Go to Transactions to Upload Receipts</Button>
+                </div>
+            </div>
+        );
+    }
+
     // Time restriction for leaders
     if (sessionStatus !== 'loading' && isLeader) {
         const win = getExpenseWindowStatus();
@@ -171,7 +208,7 @@ function NewTransactionForm() {
         }
     }
 
-    if (sessionStatus === 'loading') return <div className="flex justify-center items-center min-h-[60vh]"><Loader2 className="h-7 w-7 animate-spin text-muted-foreground" /></div>;
+    if (sessionStatus === 'loading' || (isLeader && overdueLoading)) return <div className="flex justify-center items-center min-h-[60vh]"><Loader2 className="h-7 w-7 animate-spin text-muted-foreground" /></div>;
 
     // Leader time window banner
     const leaderBanner = isLeader && (() => {
