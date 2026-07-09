@@ -21,7 +21,7 @@ interface ReceiptFile {
 }
 
 interface Transaction {
-    id: string; description: string; amount: string; type: 'INCOME' | 'EXPENSE';
+    id: string; description: string; amount: string; requestedAmount?: string | null; type: 'INCOME' | 'EXPENSE';
     status: 'PENDING' | 'APPROVED' | 'REJECTED'; createdAt: string;
     user: { name: string; email: string };
     department: { name: string; level: string };
@@ -277,6 +277,9 @@ export default function ApprovalsPage() {
                                 </div>
                                 <div className="text-right shrink-0">
                                     <p className="text-sm font-bold text-foreground">{fmtAmt(t.amount, t.currency?.symbol)}</p>
+                                    {t.requestedAmount && (
+                                        <p className="text-[0.65rem] text-muted-foreground">was {fmtAmt(t.requestedAmount, t.currency?.symbol)}</p>
+                                    )}
                                     <Badge variant="outline" className={cn('mt-1 text-[0.65rem]', statusBadgeClass(t.status))}>{t.status}</Badge>
                                 </div>
                             </div>
@@ -306,7 +309,12 @@ export default function ApprovalsPage() {
                                         <p className="text-xs text-muted-foreground flex items-center gap-1"><Building2 className="h-3 w-3" />{t.department.name}</p>
                                     </td>
                                     <td className="py-3 px-4"><Badge variant="outline" className={statusBadgeClass(t.status)}>{t.status}</Badge></td>
-                                    <td className="py-3 px-4 font-semibold text-foreground">{fmtAmt(t.amount, t.currency?.symbol)}</td>
+                                    <td className="py-3 px-4 font-semibold text-foreground">
+                                        {fmtAmt(t.amount, t.currency?.symbol)}
+                                        {t.requestedAmount && (
+                                            <p className="text-xs font-normal text-muted-foreground">was {fmtAmt(t.requestedAmount, t.currency?.symbol)}</p>
+                                        )}
+                                    </td>
                                     <td className="py-3 px-4">
                                         <Button size="sm" variant="outline" onClick={() => { setSelectedTransaction(t); setDetailsOpen(true); }}>View Details</Button>
                                     </td>
@@ -326,6 +334,7 @@ export default function ApprovalsPage() {
                             {[
                                 { label: 'Description', value: selectedTransaction.description },
                                 { label: 'Amount', value: fmtAmt(selectedTransaction.amount, selectedTransaction.currency?.symbol) },
+                                ...(selectedTransaction.requestedAmount ? [{ label: 'Originally Requested', value: fmtAmt(selectedTransaction.requestedAmount, selectedTransaction.currency?.symbol) }] : []),
                                 { label: 'Type', value: selectedTransaction.type },
                                 { label: 'Department', value: selectedTransaction.department.name },
                                 { label: 'Submitted By', value: `${selectedTransaction.user.name} · ${selectedTransaction.user.email}` },
@@ -386,12 +395,25 @@ export default function ApprovalsPage() {
                                     <div className="space-y-1.5">
                                         <Label>Approved Amount <span className="text-destructive">*</span></Label>
                                         <Input type="number" value={approvedAmount} onChange={e => setApprovedAmount(e.target.value)} />
-                                        <p className="text-xs text-muted-foreground">You can modify the requested amount if needed</p>
+                                        <p className="text-xs text-muted-foreground">Only change this if you intend to approve a different amount than requested. To deduct a transfer fee or other charge, use the &quot;Charges&quot; field below instead — it keeps the requested amount intact and records the deduction separately.</p>
+                                        {(() => {
+                                            const original = parseFloat(selectedTransaction.amount);
+                                            const edited = parseFloat(approvedAmount);
+                                            if (isNaN(edited) || isNaN(original) || edited === original) return null;
+                                            const diff = original - edited;
+                                            return (
+                                                <Alert variant="warning">
+                                                    <AlertDescription>
+                                                        {diff > 0 ? 'Reducing' : 'Increasing'} the requested amount by {fmtAmt(Math.abs(diff).toFixed(2), selectedTransaction.currency?.symbol)}. The original requested amount will be preserved in the audit log.
+                                                    </AlertDescription>
+                                                </Alert>
+                                            );
+                                        })()}
                                     </div>
                                     <div className="space-y-1.5">
                                         <Label>Charges (Optional)</Label>
                                         <Input type="number" value={charges} onChange={e => setCharges(e.target.value)} />
-                                        <p className="text-xs text-muted-foreground">Any additional charges to be deducted</p>
+                                        <p className="text-xs text-muted-foreground">Any additional charges to be deducted (e.g. MoMo transfer fee) — recorded as a separate expense line</p>
                                     </div>
                                 </>
                             )}

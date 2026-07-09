@@ -173,6 +173,7 @@ model Transaction {
   rejectedAt      DateTime?
   rejectedBy      String?
   rejectionReason String?
+  requestedAmount Decimal?          @db.Decimal(14, 2)
     files                File[]
     currency             Currency?         @relation(fields: [currencyId], references: [id])
     department           Department        @relation(fields: [departmentId], references: [id])

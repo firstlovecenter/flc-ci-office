@@ -281,11 +281,16 @@ export async function PATCH(
             finalApprovedAmount = approvedAmount;
         }
 
+        // If the approver changed the amount, keep the originally requested
+        // amount on the record instead of silently overwriting it.
+        const amountWasChanged = status === 'APPROVED' && approvedAmount !== undefined && !eq(transaction.amount, approvedAmount);
+
         const updatedTransaction = await prisma.transaction.update({
             where: { id: transactionId },
             data: {
                 status,
                 amount: status === 'APPROVED' && approvedAmount !== undefined ? approvedAmount : transaction.amount,
+                requestedAmount: amountWasChanged ? transaction.amount : undefined,
                 approvedBy: status === 'APPROVED' ? session.user.id : undefined,
                 approvedAt: status === 'APPROVED' ? new Date() : undefined,
                 rejectedBy: status === 'REJECTED' ? session.user.id : undefined,
@@ -414,7 +419,9 @@ export async function PATCH(
             }
         }
 
-        // Create audit log for the approval/rejection
+        // Create audit log for the approval/rejection. When the approver
+        // changed the amount, record the before/after amounts explicitly so
+        // there's a durable trail of who reduced a request and by how much.
         await prisma.auditLog.create({
             data: {
                 id: crypto.randomUUID(),
@@ -422,11 +429,13 @@ export async function PATCH(
                 actionType: 'UPDATE',
                 entityType: 'Transaction',
                 entityId: transactionId,
-                afterData: { 
-                    status, 
+                beforeData: amountWasChanged ? { amount: moneyToString(transaction.amount) } : undefined,
+                afterData: {
+                    status,
                     approvedBy: status === 'APPROVED' ? session.user.id : undefined,
                     rejectedBy: status === 'REJECTED' ? session.user.id : undefined,
                     rejectionReason: status === 'REJECTED' ? rejectionReason : undefined,
+                    ...(amountWasChanged ? { amount: moneyToString(finalApprovedAmount), requestedAmount: moneyToString(transaction.amount) } : {}),
                 },
             },
         });
