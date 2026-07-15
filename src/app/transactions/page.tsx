@@ -19,7 +19,7 @@ import ReceiptUpload from '@/components/ReceiptUpload';
 
 type TransactionWithDetails = {
     id: string; description: string; amount: number; currencyId?: string | null;
-    type: 'INCOME' | 'EXPENSE'; status: 'PENDING' | 'APPROVED' | 'REJECTED';
+    type: 'INCOME' | 'EXPENSE'; status: 'PENDING' | 'APPROVED' | 'REJECTED'; isCharge?: boolean;
     weekLocked?: boolean; locked?: boolean; weekNumber?: number; year?: number;
     departmentId: string; userId: string;
     department: { id: string; name: string; level: string };
@@ -308,7 +308,7 @@ function TransactionsPageContent() {
                                 {tx.currency && baseCurrency && tx.currency.code !== baseCurrency.code && (
                                     <div><p className="text-xs text-muted-foreground mb-0.5">Original Amount</p><p className="text-sm text-foreground">{tx.currency.symbol}{Number(tx.amount).toLocaleString()} {tx.currency.code}</p></div>
                                 )}
-                                {tx.type === 'EXPENSE' && (
+                                {tx.type === 'EXPENSE' && !tx.isCharge && (
                                     <div className="pt-3 border-t border-border">
                                         <p className="text-xs text-muted-foreground mb-2">Receipt</p>
                                         {receipt ? (

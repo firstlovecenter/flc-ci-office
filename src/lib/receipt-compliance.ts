@@ -3,7 +3,9 @@
 // Rule: a leader who has an APPROVED expense request more than 24 hours old
 // with no uploaded receipt cannot submit new requests until the receipt is
 // uploaded. Only applies to requests approved on/after RECEIPT_ENFORCEMENT_START_DATE
-// so pre-existing approvals are grandfathered in.
+// so pre-existing approvals are grandfathered in. System-generated transaction
+// charges (isCharge) are excluded — they're bank/MoMo fees deducted by an
+// approver, not a receipted expense request, so they can't have a receipt.
 import { prisma } from '@/lib/prisma';
 
 export const RECEIPT_ENFORCEMENT_START_DATE = new Date('2026-07-08T00:00:00Z');
@@ -24,6 +26,7 @@ export async function getOverdueUnreceiptedApprovals(
         where: {
             userId,
             type: 'EXPENSE',
+            isCharge: false,
             status: 'APPROVED',
             approvedAt: {
                 gte: RECEIPT_ENFORCEMENT_START_DATE,

@@ -336,6 +336,7 @@ export async function PATCH(
                 data: {
                     id: crypto.randomUUID(),
                     type: 'EXPENSE', // Transaction charge is always a debit/expense
+                    isCharge: true, // System-generated fee, not a receipted expense request
                     amount: toMoney2dp(chargeDec),
                     amountInBase: toMoney2dp(chargeAmountInBaseDec),
                     description: `Transaction charge for: ${transaction.description.substring(0, 50)}${transaction.description.length > 50 ? '...' : ''} - Ref: ${transaction.id.substring(0, 8)}`,
