@@ -26,7 +26,7 @@ export async function POST(
 
     const transaction = await prisma.transaction.findUnique({
         where: { id: transactionId },
-        select: { id: true, type: true, status: true, userId: true, departmentId: true },
+        select: { id: true, type: true, status: true, userId: true, departmentId: true, isCharge: true },
     });
 
     if (!transaction) {
@@ -35,6 +35,10 @@ export async function POST(
 
     if (transaction.type !== 'EXPENSE') {
         return NextResponse.json({ error: 'Receipts can only be attached to expense transactions.' }, { status: 400 });
+    }
+
+    if (transaction.isCharge) {
+        return NextResponse.json({ error: 'Transaction charges are system-generated fees and do not require a receipt.' }, { status: 400 });
     }
 
     if (transaction.status !== 'APPROVED') {
