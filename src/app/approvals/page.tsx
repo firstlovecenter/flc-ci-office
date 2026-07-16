@@ -14,6 +14,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { cn, formatDepartmentLevel, formatNumber } from '@/lib/utils';
 import { sumMoney } from '@/lib/format-money';
 import { useToast } from '@/components/ToastProvider';
+import WaiveReceiptDialog from '@/components/WaiveReceiptDialog';
 
 interface ReceiptFile {
     id: string; fileName: string; fileUrl: string; fileMime: string; fileSize: number | null;
@@ -27,6 +28,11 @@ interface Transaction {
     department: { name: string; level: string };
     currency: { code: string; symbol: string } | null;
     files?: ReceiptFile[];
+    isCharge?: boolean;
+    receiptWaived?: boolean;
+    receiptWaivedAt?: string | null;
+    receiptWaivedReason?: string | null;
+    receiptWaivedByUser?: { id: string; name: string | null; email: string } | null;
 }
 
 function statusBadgeClass(status: string) {
@@ -65,6 +71,7 @@ export default function ApprovalsPage() {
     const [charges, setCharges] = useState('');
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
     const [bulkProcessing, setBulkProcessing] = useState(false);
+    const [waiveDialog, setWaiveDialog] = useState<{ open: boolean; transactionId: string | null }>({ open: false, transactionId: null });
 
     useEffect(() => {
         if (session?.user?.role) {
@@ -345,23 +352,52 @@ export default function ApprovalsPage() {
                                     <p className="text-sm text-foreground">{value}</p>
                                 </div>
                             ))}
-                            {selectedTransaction.type === 'EXPENSE' && selectedTransaction.files && selectedTransaction.files.length > 0 && (() => {
-                                const receipt = selectedTransaction.files![0];
-                                return (
-                                    <div>
-                                        <p className="text-[0.7rem] font-semibold uppercase tracking-[0.06em] text-muted-foreground mb-1.5">Receipt</p>
-                                        {receipt.fileMime?.startsWith('image/') ? (
-                                            <a href={receipt.fileUrl} target="_blank" rel="noopener noreferrer">
-                                                <img src={receipt.fileUrl} alt={receipt.fileName} className="max-h-52 rounded-xl border border-border cursor-zoom-in" />
-                                            </a>
-                                        ) : (
-                                            <a href={receipt.fileUrl} target="_blank" rel="noopener noreferrer">
-                                                <Button variant="outline" size="sm">{receipt.fileName}</Button>
-                                            </a>
-                                        )}
-                                        <p className="text-xs text-muted-foreground mt-1.5">Uploaded by {receipt.uploader?.name || receipt.uploader?.email || 'unknown'} · {new Date(receipt.uploadedAt).toLocaleString()}</p>
-                                    </div>
-                                );
+                            {selectedTransaction.type === 'EXPENSE' && !selectedTransaction.isCharge && (() => {
+                                const receipt = selectedTransaction.files?.[0];
+                                const canWaive = selectedTransaction.status === 'APPROVED' && !receipt && !selectedTransaction.receiptWaived;
+                                if (receipt) {
+                                    return (
+                                        <div>
+                                            <p className="text-[0.7rem] font-semibold uppercase tracking-[0.06em] text-muted-foreground mb-1.5">Receipt</p>
+                                            {receipt.fileMime?.startsWith('image/') ? (
+                                                <a href={receipt.fileUrl} target="_blank" rel="noopener noreferrer">
+                                                    <img src={receipt.fileUrl} alt={receipt.fileName} className="max-h-52 rounded-xl border border-border cursor-zoom-in" />
+                                                </a>
+                                            ) : (
+                                                <a href={receipt.fileUrl} target="_blank" rel="noopener noreferrer">
+                                                    <Button variant="outline" size="sm">{receipt.fileName}</Button>
+                                                </a>
+                                            )}
+                                            <p className="text-xs text-muted-foreground mt-1.5">Uploaded by {receipt.uploader?.name || receipt.uploader?.email || 'unknown'} · {new Date(receipt.uploadedAt).toLocaleString()}</p>
+                                        </div>
+                                    );
+                                }
+                                if (selectedTransaction.receiptWaived) {
+                                    return (
+                                        <div>
+                                            <p className="text-[0.7rem] font-semibold uppercase tracking-[0.06em] text-muted-foreground mb-1.5">Receipt</p>
+                                            <div className="rounded-lg border border-dashed border-border bg-muted/20 p-3">
+                                                <p className="text-sm font-medium text-foreground">Receipt requirement waived</p>
+                                                <p className="text-xs text-muted-foreground mt-1">
+                                                    Waived by {selectedTransaction.receiptWaivedByUser?.name || selectedTransaction.receiptWaivedByUser?.email || 'an admin'}{selectedTransaction.receiptWaivedAt ? ` · ${new Date(selectedTransaction.receiptWaivedAt).toLocaleString()}` : ''}
+                                                </p>
+                                                {selectedTransaction.receiptWaivedReason && <p className="text-xs text-muted-foreground mt-1">Reason: {selectedTransaction.receiptWaivedReason}</p>}
+                                            </div>
+                                        </div>
+                                    );
+                                }
+                                if (canWaive) {
+                                    return (
+                                        <div>
+                                            <p className="text-[0.7rem] font-semibold uppercase tracking-[0.06em] text-muted-foreground mb-1.5">Receipt</p>
+                                            <p className="text-sm text-muted-foreground mb-2">No receipt attached.</p>
+                                            <Button variant="outline" size="sm" onClick={() => { setDetailsOpen(false); setWaiveDialog({ open: true, transactionId: selectedTransaction.id }); }}>
+                                                Waive Receipt Requirement
+                                            </Button>
+                                        </div>
+                                    );
+                                }
+                                return null;
                             })()}
                         </div>
                     )}
@@ -438,6 +474,19 @@ export default function ApprovalsPage() {
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
+
+            {waiveDialog.transactionId && (
+                <WaiveReceiptDialog
+                    open={waiveDialog.open}
+                    transactionId={waiveDialog.transactionId}
+                    onClose={() => setWaiveDialog({ open: false, transactionId: null })}
+                    onWaived={result => {
+                        setHistoricalTransactions(p => p.map(t => t.id === waiveDialog.transactionId ? { ...t, ...result } : t));
+                        setSelectedTransaction(p => p && p.id === waiveDialog.transactionId ? { ...p, ...result } : p);
+                        showSuccess('Receipt requirement waived.');
+                    }}
+                />
+            )}
         </div>
     );
 }

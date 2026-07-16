@@ -6,6 +6,8 @@
 // so pre-existing approvals are grandfathered in. System-generated transaction
 // charges (isCharge) are excluded — they're bank/MoMo fees deducted by an
 // approver, not a receipted expense request, so they can't have a receipt.
+// Transactions the approving admin has explicitly waived (receiptWaived) are
+// also excluded — the requirement no longer applies to them.
 import { prisma } from '@/lib/prisma';
 
 export const RECEIPT_ENFORCEMENT_START_DATE = new Date('2026-07-08T00:00:00Z');
@@ -27,6 +29,7 @@ export async function getOverdueUnreceiptedApprovals(
             userId,
             type: 'EXPENSE',
             isCharge: false,
+            receiptWaived: false,
             status: 'APPROVED',
             approvedAt: {
                 gte: RECEIPT_ENFORCEMENT_START_DATE,

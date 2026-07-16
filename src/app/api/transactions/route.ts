@@ -152,6 +152,13 @@ export async function GET(request: Request) {
                         isBase: true,
                     },
                 },
+                receiptWaivedByUser: {
+                    select: {
+                        id: true,
+                        name: true,
+                        email: true,
+                    },
+                },
                 files: {
                     select: {
                         id: true,
