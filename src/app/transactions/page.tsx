@@ -16,6 +16,7 @@ import { formatMoney } from '@/lib/format-money';
 import { useToast } from '@/components/ToastProvider';
 import EditTransactionDialog from '@/components/EditTransactionDialog';
 import ReceiptUpload from '@/components/ReceiptUpload';
+import WaiveReceiptDialog from '@/components/WaiveReceiptDialog';
 
 type TransactionWithDetails = {
     id: string; description: string; amount: number; currencyId?: string | null;
@@ -26,6 +27,10 @@ type TransactionWithDetails = {
     user: { id: string; name: string; email: string };
     files: { id: string; fileName: string; fileUrl: string; fileMime: string; fileSize: number | null; uploadedAt: string; uploadedBy: string; uploader?: { id: string; name: string | null; email: string } }[];
     currency?: { id: string; code: string; symbol: string; name: string } | null;
+    receiptWaived?: boolean;
+    receiptWaivedAt?: string | null;
+    receiptWaivedReason?: string | null;
+    receiptWaivedByUser?: { id: string; name: string | null; email: string } | null;
     amountInBase?: number;
     createdAt: string; updatedAt: string;
 };
@@ -69,6 +74,7 @@ function TransactionsPageContent() {
     const [editDialog, setEditDialog] = useState<{ open: boolean; transaction: any }>({ open: false, transaction: null });
     const [detailsDialog, setDetailsDialog] = useState<{ open: boolean; transaction: any }>({ open: false, transaction: null });
     const [receiptDialog, setReceiptDialog] = useState<{ open: boolean; transactionId: string | null }>({ open: false, transactionId: null });
+    const [waiveDialog, setWaiveDialog] = useState<{ open: boolean; transactionId: string | null }>({ open: false, transactionId: null });
 
     const isSuperAdmin = session?.user?.role === 'SUPERADMIN';
     const isAdmin = session?.user?.role && ['SUPERADMIN', 'DENOMINATION_ADMIN', 'OVERSIGHT_ADMIN', 'CAMPUS_ADMIN'].includes(session.user.role);
@@ -294,7 +300,9 @@ function TransactionsPageContent() {
                         const tx = detailsDialog.transaction;
                         const receipt = tx.files?.[0];
                         const isOwner = session?.user?.id === tx.userId;
-                        const canUpload = tx.status === 'APPROVED' && !receipt && (isOwner || canUploadReceiptAsAdmin);
+                        const canUpload = tx.status === 'APPROVED' && !receipt && !tx.receiptWaived && (isOwner || canUploadReceiptAsAdmin);
+                        // Only the approving admin (not the requester) may waive the receipt requirement.
+                        const canWaive = tx.status === 'APPROVED' && !receipt && !tx.receiptWaived && canUploadReceiptAsAdmin;
                         return (
                             <div className="space-y-4 pt-2">
                                 <div><p className="text-xs text-muted-foreground mb-0.5">Description</p><p className="font-semibold text-foreground">{tx.description}</p></div>
@@ -326,12 +334,29 @@ function TransactionsPageContent() {
                                                     Uploaded by {receipt.uploader?.name || receipt.uploader?.email || 'unknown'} · {new Date(receipt.uploadedAt).toLocaleString()}{receipt.fileSize ? ` · ${formatMoney(receipt.fileSize / 1024, 0)} KB` : ''}
                                                 </p>
                                             </div>
-                                        ) : canUpload ? (
-                                            <div>
-                                                <Button variant="outline" size="sm" onClick={() => { setDetailsDialog({ open: false, transaction: null }); setTimeout(() => setReceiptDialog({ open: true, transactionId: tx.id }), 100); }}>
-                                                    <Paperclip className="mr-1.5 h-3.5 w-3.5" />Upload Receipt
-                                                </Button>
-                                                <p className="text-xs text-muted-foreground mt-1">Once uploaded, the receipt cannot be replaced.</p>
+                                        ) : tx.receiptWaived ? (
+                                            <div className="rounded-lg border border-dashed border-border bg-muted/20 p-3">
+                                                <p className="text-sm font-medium text-foreground">Receipt requirement waived</p>
+                                                <p className="text-xs text-muted-foreground mt-1">
+                                                    Waived by {tx.receiptWaivedByUser?.name || tx.receiptWaivedByUser?.email || 'an admin'}{tx.receiptWaivedAt ? ` · ${new Date(tx.receiptWaivedAt).toLocaleString()}` : ''}
+                                                </p>
+                                                {tx.receiptWaivedReason && <p className="text-xs text-muted-foreground mt-1">Reason: {tx.receiptWaivedReason}</p>}
+                                            </div>
+                                        ) : canUpload || canWaive ? (
+                                            <div className="flex flex-wrap gap-2">
+                                                {canUpload && (
+                                                    <div>
+                                                        <Button variant="outline" size="sm" onClick={() => { setDetailsDialog({ open: false, transaction: null }); setTimeout(() => setReceiptDialog({ open: true, transactionId: tx.id }), 100); }}>
+                                                            <Paperclip className="mr-1.5 h-3.5 w-3.5" />Upload Receipt
+                                                        </Button>
+                                                        <p className="text-xs text-muted-foreground mt-1">Once uploaded, the receipt cannot be replaced.</p>
+                                                    </div>
+                                                )}
+                                                {canWaive && (
+                                                    <Button variant="outline" size="sm" onClick={() => { setDetailsDialog({ open: false, transaction: null }); setTimeout(() => setWaiveDialog({ open: true, transactionId: tx.id }), 100); }}>
+                                                        Waive Receipt Requirement
+                                                    </Button>
+                                                )}
                                             </div>
                                         ) : (
                                             <p className="text-sm text-muted-foreground">{tx.status !== 'APPROVED' ? 'Available after approval.' : 'No receipt attached.'}</p>
@@ -362,6 +387,19 @@ function TransactionsPageContent() {
                         setDetailsDialog(p => p.transaction?.id === receiptDialog.transactionId ? { ...p, transaction: { ...p.transaction, files: [file] } } : p);
                         setTransactions(p => p.map(t => t.id === receiptDialog.transactionId ? { ...t, files: [file as any] } : t));
                         showSuccess('Receipt uploaded.');
+                    }}
+                />
+            )}
+
+            {waiveDialog.transactionId && (
+                <WaiveReceiptDialog
+                    open={waiveDialog.open}
+                    transactionId={waiveDialog.transactionId}
+                    onClose={() => setWaiveDialog({ open: false, transactionId: null })}
+                    onWaived={result => {
+                        setDetailsDialog(p => p.transaction?.id === waiveDialog.transactionId ? { ...p, transaction: { ...p.transaction, ...result } } : p);
+                        setTransactions(p => p.map(t => t.id === waiveDialog.transactionId ? { ...t, ...result } : t));
+                        showSuccess('Receipt requirement waived.');
                     }}
                 />
             )}

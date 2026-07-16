@@ -175,10 +175,15 @@ model Transaction {
   rejectionReason String?
   requestedAmount Decimal?          @db.Decimal(14, 2)
   isCharge        Boolean           @default(false)
+  receiptWaived       Boolean       @default(false)
+  receiptWaivedAt     DateTime?
+  receiptWaivedBy     String?
+  receiptWaivedReason String?
     files                File[]
     currency             Currency?         @relation(fields: [currencyId], references: [id])
     department           Department        @relation(fields: [departmentId], references: [id])
     user                 User              @relation("Transactions", fields: [userId], references: [id])
+    receiptWaivedByUser  User?             @relation("ReceiptWaivedBy", fields: [receiptWaivedBy], references: [id])
     publicExpenseRequest PublicExpenseRequest? @relation("PublicExpenseTransaction")
 
   @@index([createdAt])
@@ -210,6 +215,7 @@ model User {
     passwordResets                           PasswordReset[]          @relation("PasswordResets")
     transactions                             Transaction[]            @relation("Transactions")
     fileUploads                              File[]                   @relation("FileUploads")
+    receiptWaivers                           Transaction[]            @relation("ReceiptWaivedBy")
     activeUserRole                           UserRole?                @relation("ActiveUserRole", fields: [activeUserRoleId], references: [id])
     baseCurrency                             Currency?                @relation(fields: [baseCurrencyId], references: [id])
     department                               Department?              @relation(fields: [departmentId], references: [id])
@@ -254,6 +260,7 @@ enum ActionType {
   RECALCULATE
   IMPERSONATE
   STOP_IMPERSONATION
+  RECEIPT_WAIVED
 }
 
 enum AuditSeverity {
