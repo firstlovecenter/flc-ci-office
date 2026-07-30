@@ -33,32 +33,32 @@ export async function GET(request: Request) {
 
         const { searchParams } = new URL(request.url);
         const period = searchParams.get('period') || 'monthly'; // monthly, weekly, daily
-        const departmentId = searchParams.get('departmentId');
+        const organisationId = searchParams.get('organisationId');
 
-        // Build department scope based on user role
+        // Build organisation scope based on user role
         let scopeFilter = Prisma.empty;
         
         if (normalizedRole !== 'SUPERADMIN') {
-            // Use activeUserRole if available, otherwise use user's base department
-            const filterDepartmentId = session.user.activeUserRole?.departmentId || session.user.departmentId;
+            // Use activeUserRole if available, otherwise use user's base organisation
+            const filterOrganisationId = session.user.activeUserRole?.organisationId || session.user.organisationId;
 
-            if (filterDepartmentId) {
-                const allSubDepts = await getAllSubDepartments(filterDepartmentId);
-                const allowedIds = [filterDepartmentId, ...allSubDepts];
-                scopeFilter = Prisma.sql`AND "departmentId" IN (${Prisma.join(allowedIds)})`;
+            if (filterOrganisationId) {
+                const allSubDepts = await getAllSubOrganisations(filterOrganisationId);
+                const allowedIds = [filterOrganisationId, ...allSubDepts];
+                scopeFilter = Prisma.sql`AND "organisationId" IN (${Prisma.join(allowedIds)})`;
             } else {
-                // No department access -> return no data
+                // No organisation access -> return no data
                 scopeFilter = Prisma.sql`AND 1=0`;
             }
         }
 
-        // Build specific department filter
-        const departmentFilter = departmentId
-            ? Prisma.sql`AND "departmentId" = ${departmentId}`
+        // Build specific organisation filter
+        const organisationFilter = organisationId
+            ? Prisma.sql`AND "organisationId" = ${organisationId}`
             : Prisma.empty;
 
         // Combine filters
-        const finalFilter = Prisma.sql`${scopeFilter} ${departmentFilter}`;
+        const finalFilter = Prisma.sql`${scopeFilter} ${organisationFilter}`;
 
         let trendData;
 
@@ -220,10 +220,10 @@ export async function GET(request: Request) {
     }
 }
 
-// Helper function to get all sub-departments recursively
-async function getAllSubDepartments(departmentId: string): Promise<string[]> {
-    const children = await prisma.department.findMany({
-        where: { parentId: departmentId },
+// Helper function to get all sub-organisations recursively
+async function getAllSubOrganisations(organisationId: string): Promise<string[]> {
+    const children = await prisma.organisation.findMany({
+        where: { parentId: organisationId },
         select: { id: true }
     });
 
@@ -233,7 +233,7 @@ async function getAllSubDepartments(departmentId: string): Promise<string[]> {
 
     const childIds = children.map((c: { id: string }) => c.id);
     const subChildren = await Promise.all(
-        childIds.map((id: string) => getAllSubDepartments(id))
+        childIds.map((id: string) => getAllSubOrganisations(id))
     );
 
     return [...childIds, ...subChildren.flat()];

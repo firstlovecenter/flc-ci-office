@@ -4,9 +4,9 @@ import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { getUserBaseCurrency } from '@/lib/currency-conversion';
 import { convertToUserBaseCurrency } from '@/lib/currency-conversion';
-import { getDescendantDepartmentIds, hasDepartmentAccess } from '@/lib/departments';
+import { getDescendantOrganisationIds, hasOrganisationAccess } from '@/lib/organisations';
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
-import { formatCurrency, formatNumber, formatDepartmentLevel } from '@/lib/utils';
+import { formatCurrency, formatNumber, formatOrganisationLevel } from '@/lib/utils';
 import { Prisma } from '@prisma/client';
 import { toDecimal, moneyToString, type Money } from '@/lib/money';
 
@@ -27,22 +27,22 @@ export async function POST(request: NextRequest) {
             }, { status: 400 });
         }
 
-        const { departmentId, startDate, endDate, reportType, includeSubDepartments = true } = body;
+        const { organisationId, startDate, endDate, reportType, includeSubOrganisations = true } = body;
 
-        // Verify department access for non-superadmins
+        // Verify organisation access for non-superadmins
         if (session.user.role !== 'SUPERADMIN') {
-            const filterDepartmentId = session.user.activeUserRole?.departmentId || session.user.departmentId;
+            const filterOrganisationId = session.user.activeUserRole?.organisationId || session.user.organisationId;
             
-            if (departmentId) {
-                const hasAccess = await hasDepartmentAccess(
-                    { role: session.user.role, departmentId: filterDepartmentId },
-                    departmentId
+            if (organisationId) {
+                const hasAccess = await hasOrganisationAccess(
+                    { role: session.user.role, organisationId: filterOrganisationId },
+                    organisationId
                 );
                 if (!hasAccess) {
-                    return NextResponse.json({ error: 'You do not have access to this department' }, { status: 403 });
+                    return NextResponse.json({ error: 'You do not have access to this organisation' }, { status: 403 });
                 }
-            } else if (!filterDepartmentId) {
-                return NextResponse.json({ error: 'No department access' }, { status: 403 });
+            } else if (!filterOrganisationId) {
+                return NextResponse.json({ error: 'No organisation access' }, { status: 403 });
             }
         }
 
@@ -65,15 +65,15 @@ export async function POST(request: NextRequest) {
             status: 'APPROVED',
         };
         
-        if (departmentId) {
-            // Handle exact vs hierarchical department filtering
-            if (includeSubDepartments) {
-                // Get all descendant departments
-                const descendantIds = await getDescendantDepartmentIds(departmentId);
-                whereClause.departmentId = { in: descendantIds };
+        if (organisationId) {
+            // Handle exact vs hierarchical organisation filtering
+            if (includeSubOrganisations) {
+                // Get all descendant organisations
+                const descendantIds = await getDescendantOrganisationIds(organisationId);
+                whereClause.organisationId = { in: descendantIds };
             } else {
-                // Only exact department match
-                whereClause.departmentId = departmentId;
+                // Only exact organisation match
+                whereClause.organisationId = organisationId;
             }
         }
         
@@ -95,8 +95,7 @@ export async function POST(request: NextRequest) {
 
         const transactions = await prisma.transaction.findMany({
             where: whereClause,
-            include: {
-                department: true,
+            include: { organisation: true,
                 user: true,
                 currency: true,
             },
@@ -110,9 +109,9 @@ export async function POST(request: NextRequest) {
             const priorTransactions = await prisma.transaction.findMany({
                 where: {
                     status: 'APPROVED',
-                    ...(departmentId && includeSubDepartments
-                        ? { departmentId: { in: await getDescendantDepartmentIds(departmentId) } }
-                        : departmentId ? { departmentId } : {}),
+                    ...(organisationId && includeSubOrganisations
+                        ? { organisationId: { in: await getDescendantOrganisationIds(organisationId) } }
+                        : organisationId ? { organisationId } : {}),
                     createdAt: { lt: new Date(startDate) },
                 },
                 include: {
@@ -135,16 +134,16 @@ export async function POST(request: NextRequest) {
             });
         }
 
-        // Get department name and level
-        let departmentName = 'All Departments';
-        let departmentLevel = '';
-        if (departmentId) {
-            const dept = await prisma.department.findUnique({
-                where: { id: departmentId },
+        // Get organisation name and level
+        let organisationName = 'All Organisations';
+        let organisationLevel = '';
+        if (organisationId) {
+            const dept = await prisma.organisation.findUnique({
+                where: { id: organisationId },
             });
             if (dept) {
-                departmentName = dept.name;
-                departmentLevel = formatDepartmentLevel(dept.level);
+                organisationName = dept.name;
+                organisationLevel = formatOrganisationLevel(dept.level);
             }
         }
 
@@ -247,9 +246,9 @@ export async function POST(request: NextRequest) {
         y -= 25;
         drawCenteredText('Bank Statement Report', y, 16, boldFont);
         y -= 20;
-        const deptDisplayName = departmentLevel 
-            ? `${sanitizeText(departmentName)} (${departmentLevel})`
-            : sanitizeText(departmentName);
+        const deptDisplayName = organisationLevel 
+            ? `${sanitizeText(organisationName)} (${organisationLevel})`
+            : sanitizeText(organisationName);
         drawCenteredText(deptDisplayName, y, 10, font);
         y -= 15;
         drawCenteredText(`Currency: ${userBaseCurrency.code} (${safeCurrencySymbol})`, y, 9, font);
@@ -278,7 +277,7 @@ export async function POST(request: NextRequest) {
         const colX = {
             date: 50,
             description: 120,
-            department: 270,
+            organisation: 270,
             debit: 370,
             credit: 440,
             balance: 510,
@@ -288,7 +287,7 @@ export async function POST(request: NextRequest) {
         const drawTableHeader = (yPos: number) => {
             page.drawText('Date', { x: colX.date, y: yPos, size: 9, font: boldFont, color: rgb(0, 0, 0) });
             page.drawText('Description', { x: colX.description, y: yPos, size: 9, font: boldFont, color: rgb(0, 0, 0) });
-            page.drawText('Department', { x: colX.department, y: yPos, size: 9, font: boldFont, color: rgb(0, 0, 0) });
+            page.drawText('Organisation', { x: colX.organisation, y: yPos, size: 9, font: boldFont, color: rgb(0, 0, 0) });
             drawRightText('Debit', colX.debit + 70, yPos, 9);
             drawRightText('Credit', colX.credit + 70, yPos, 9);
             drawRightText('Balance', colX.balance + 70, yPos, 9);
@@ -321,7 +320,7 @@ export async function POST(request: NextRequest) {
                 description += ` (${txSafeSymbol}${formatNumber(moneyToString(tx.amount))} ${tx.currency.code})`;
             }
 
-            const deptName = sanitizeText(tx.department.name.substring(0, 20));
+            const deptName = sanitizeText(tx.organisation.name.substring(0, 20));
 
             const descriptionLines = wrapText(description, 140, 8);
             const lineHeight = 10;
@@ -355,7 +354,7 @@ export async function POST(request: NextRequest) {
                 page.drawText(line, { x: colX.description, y: y - (i * lineHeight), size: 8, font, color: rgb(0, 0, 0) });
             });
 
-            page.drawText(deptName, { x: colX.department, y, size: 8, font, color: rgb(0, 0, 0) });
+            page.drawText(deptName, { x: colX.organisation, y, size: 8, font, color: rgb(0, 0, 0) });
             drawRightText(isDebit ? `${safeCurrencySymbol}${formatNumber(moneyToString(convertedAmount))}` : '-', colX.debit + 70, y, 8);
             drawRightText(!isDebit ? `${safeCurrencySymbol}${formatNumber(moneyToString(convertedAmount))}` : '-', colX.credit + 70, y, 8);
             drawRightText(`${safeCurrencySymbol}${formatNumber(moneyToString(runningBalance))}`, colX.balance + 70, y, 8);

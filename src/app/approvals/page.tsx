@@ -11,7 +11,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { cn, formatDepartmentLevel, formatNumber } from '@/lib/utils';
+import { cn, formatOrganisationLevel, formatNumber } from '@/lib/utils';
 import { sumMoney } from '@/lib/format-money';
 import { useToast } from '@/components/ToastProvider';
 import WaiveReceiptDialog from '@/components/WaiveReceiptDialog';
@@ -25,7 +25,7 @@ interface Transaction {
     id: string; description: string; amount: string; requestedAmount?: string | null; type: 'INCOME' | 'EXPENSE';
     status: 'PENDING' | 'APPROVED' | 'REJECTED'; createdAt: string;
     user: { name: string; email: string };
-    department: { name: string; level: string };
+    organisation: { name: string; level: string };
     currency: { code: string; symbol: string } | null;
     files?: ReceiptFile[];
     isCharge?: boolean;
@@ -148,7 +148,7 @@ export default function ApprovalsPage() {
                 </div>
                 <div>
                     <p className="text-[0.6875rem] font-medium uppercase tracking-[0.10em] text-muted-foreground mb-0.5">Review queue</p>
-                    <h1 className="text-[1.625rem] sm:text-[1.875rem] font-semibold tracking-[-0.025em] text-foreground">Expense approvals</h1>
+                    <h1 className="text-[1.625rem] sm:text-[1.875rem] font-semibold tracking-[-0.025em] text-foreground">Withdrawal approvals</h1>
                     <p className="text-sm text-muted-foreground mt-0.5">Review and decide on pending transactions.</p>
                 </div>
             </div>
@@ -203,7 +203,7 @@ export default function ApprovalsPage() {
                             <div className="flex justify-between items-start gap-3">
                                 <div className="min-w-0 flex-1">
                                     <p className="font-semibold text-foreground text-sm truncate">{t.description}</p>
-                                    <p className="text-xs font-semibold text-primary mt-0.5">{t.department.name}</p>
+                                    <p className="text-xs font-semibold text-primary mt-0.5">{t.organisation.name}</p>
                                     <p className="text-xs text-muted-foreground mt-0.5">{fmtDate(t.createdAt)} · {t.user.name}</p>
                                 </div>
                                 <div className="text-right shrink-0">
@@ -228,7 +228,7 @@ export default function ApprovalsPage() {
                             <th className="py-3 px-4 text-left">
                                 <input type="checkbox" className="rounded" ref={el => { if (el) el.indeterminate = selectedIds.size > 0 && selectedIds.size < transactions.length; }} checked={transactions.length > 0 && selectedIds.size === transactions.length} onChange={toggleSelectAll} />
                             </th>
-                            {['Date', 'Description', 'Department', 'Submitted By', 'Type', 'Amount', 'Status', 'Actions'].map(h => <th key={h} className="py-3 px-4 text-left font-semibold text-foreground">{h}</th>)}
+                            {['Date', 'Description', 'Organisation', 'Submitted By', 'Type', 'Amount', 'Status', 'Actions'].map(h => <th key={h} className="py-3 px-4 text-left font-semibold text-foreground">{h}</th>)}
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-border">
@@ -245,7 +245,7 @@ export default function ApprovalsPage() {
                                 <td className="py-3 px-4"><input type="checkbox" className="rounded" checked={selectedIds.has(t.id)} onChange={() => toggleSelect(t.id)} /></td>
                                 <td className="py-3 px-4 text-muted-foreground">{fmtDate(t.createdAt)}</td>
                                 <td className="py-3 px-4 font-medium text-foreground max-w-[200px] truncate">{t.description}</td>
-                                <td className="py-3 px-4"><p className="font-medium text-foreground">{t.department.name}</p><p className="text-xs text-muted-foreground">{formatDepartmentLevel(t.department.level)}</p></td>
+                                <td className="py-3 px-4"><p className="font-medium text-foreground">{t.organisation.name}</p><p className="text-xs text-muted-foreground">{formatOrganisationLevel(t.organisation.level)}</p></td>
                                 <td className="py-3 px-4 text-foreground">{t.user.name}</td>
                                 <td className="py-3 px-4"><Badge variant="outline" className={t.type === 'INCOME' ? 'bg-success/10 text-success border-success/25' : 'bg-destructive/10 text-destructive border-destructive/25'}>{t.type}</Badge></td>
                                 <td className="py-3 px-4 font-semibold text-foreground text-right">{fmtAmt(t.amount, t.currency?.symbol)}</td>
@@ -279,7 +279,7 @@ export default function ApprovalsPage() {
                             <div className="flex justify-between items-start gap-3">
                                 <div className="min-w-0 flex-1">
                                     <p className="font-semibold text-foreground text-sm truncate">{t.description}</p>
-                                    <p className="text-xs text-muted-foreground mt-0.5">{t.department.name}</p>
+                                    <p className="text-xs text-muted-foreground mt-0.5">{t.organisation.name}</p>
                                     <p className="text-xs text-muted-foreground">{fmtDate(t.createdAt)} · {t.user.name}</p>
                                 </div>
                                 <div className="text-right shrink-0">
@@ -313,7 +313,7 @@ export default function ApprovalsPage() {
                                     <td className="py-3 px-4 font-medium text-foreground max-w-[200px] truncate">{t.description}</td>
                                     <td className="py-3 px-4">
                                         <p className="font-semibold text-foreground">{t.user.name}</p>
-                                        <p className="text-xs text-muted-foreground flex items-center gap-1"><Building2 className="h-3 w-3" />{t.department.name}</p>
+                                        <p className="text-xs text-muted-foreground flex items-center gap-1"><Building2 className="h-3 w-3" />{t.organisation.name}</p>
                                     </td>
                                     <td className="py-3 px-4"><Badge variant="outline" className={statusBadgeClass(t.status)}>{t.status}</Badge></td>
                                     <td className="py-3 px-4 font-semibold text-foreground">
@@ -343,7 +343,7 @@ export default function ApprovalsPage() {
                                 { label: 'Amount', value: fmtAmt(selectedTransaction.amount, selectedTransaction.currency?.symbol) },
                                 ...(selectedTransaction.requestedAmount ? [{ label: 'Originally Requested', value: fmtAmt(selectedTransaction.requestedAmount, selectedTransaction.currency?.symbol) }] : []),
                                 { label: 'Type', value: selectedTransaction.type },
-                                { label: 'Department', value: selectedTransaction.department.name },
+                                { label: 'Organisation', value: selectedTransaction.organisation.name },
                                 { label: 'Submitted By', value: `${selectedTransaction.user.name} · ${selectedTransaction.user.email}` },
                                 { label: 'Date', value: fmtDate(selectedTransaction.createdAt) },
                             ].map(({ label, value }) => (

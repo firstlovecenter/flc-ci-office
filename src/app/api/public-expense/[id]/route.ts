@@ -6,9 +6,9 @@ import crypto from 'crypto';
 import { getCurrentWeek, formatNumber } from '@/lib/utils';
 import { sendSms } from '@/lib/sms';
 import { generatePendingApprovalRequestSms, generateDebitAlertSms, generatePublicExpenseLeaderApprovedSms, generatePublicExpenseLeaderDeclinedSms } from '@/lib/sms-templates';
-import { getDescendantDepartmentIds, getLeaderRoleForLevel } from '@/lib/departments';
+import { getDescendantOrganisationIds, getLeaderRoleForLevel } from '@/lib/organisations';
 import { toDecimal, gt, isPositive, moneyToString, toMoney2dp } from '@/lib/money';
-import { getDepartmentApprovedBalance } from '@/lib/balance';
+import { getOrganisationApprovedBalance } from '@/lib/balance';
 
 export const dynamic = 'force-dynamic';
 
@@ -36,7 +36,7 @@ export async function PATCH(
 
     const { id } = await params;
     const body = await request.json();
-    const { action, departmentId } = body;
+    const { action, organisationId } = body;
 
     if (!['process', 'reject'].includes(action)) {
         return NextResponse.json({ error: 'Invalid action. Must be "process" or "reject".' }, { status: 400 });
@@ -46,7 +46,7 @@ export async function PATCH(
         // Fetch the public request
         const publicRequest = await prisma.publicExpenseRequest.findUnique({
             where: { id },
-            include: { oversightDept: { select: { id: true, name: true } } },
+            include: { oversightOrganisation: { select: { id: true, name: true } } },
         });
 
         if (!publicRequest) {
@@ -57,22 +57,22 @@ export async function PATCH(
             return NextResponse.json({ error: 'This request has already been processed.' }, { status: 400 });
         }
 
-        // Resolve the oversight department.
-        // If the active role is OVERSIGHT_ADMIN use its departmentId; otherwise look it up.
+        // Resolve the oversight organisation.
+        // If the active role is OVERSIGHT_ADMIN use its organisationId; otherwise look it up.
         let adminOversightDeptId: string | undefined =
             (session.user.activeUserRole as any)?.role === 'OVERSIGHT_ADMIN'
-                ? session.user.activeUserRole?.departmentId
+                ? session.user.activeUserRole?.organisationId
                 : undefined;
 
         if (!adminOversightDeptId) {
             const oversightUserRole = await prisma.userRole.findFirst({
                 where: { userId: session.user.id, role: 'OVERSIGHT_ADMIN' },
-                select: { departmentId: true },
+                select: { organisationId: true },
             });
-            adminOversightDeptId = oversightUserRole?.departmentId ?? undefined;
+            adminOversightDeptId = oversightUserRole?.organisationId ?? undefined;
         }
 
-        if (!adminOversightDeptId || publicRequest.oversightDeptId !== adminOversightDeptId) {
+        if (!adminOversightDeptId || publicRequest.oversightOrganisationId !== adminOversightDeptId) {
             return NextResponse.json({ error: 'You can only process requests for your own oversight church.' }, { status: 403 });
         }
 
@@ -102,18 +102,18 @@ export async function PATCH(
         }
 
         // action === 'process'
-        if (!departmentId) {
-            return NextResponse.json({ error: 'A department/church account must be selected to process this request.' }, { status: 400 });
+        if (!organisationId) {
+            return NextResponse.json({ error: 'A organisation/church account must be selected to process this request.' }, { status: 400 });
         }
 
-        // Verify the selected department is within this oversight's hierarchy
-        const allowedDeptIds = await getDescendantDepartmentIds(adminOversightDeptId);
-        if (!allowedDeptIds.includes(departmentId)) {
-            return NextResponse.json({ error: 'Selected department is not within your oversight hierarchy.' }, { status: 403 });
+        // Verify the selected organisation is within this oversight's hierarchy
+        const allowedDeptIds = await getDescendantOrganisationIds(adminOversightDeptId);
+        if (!allowedDeptIds.includes(organisationId)) {
+            return NextResponse.json({ error: 'Selected organisation is not within your oversight hierarchy.' }, { status: 403 });
         }
 
-        // Check that the selected department has sufficient balance (Decimal arithmetic)
-        const balance = await getDepartmentApprovedBalance(departmentId);
+        // Check that the selected organisation has sufficient balance (Decimal arithmetic)
+        const balance = await getOrganisationApprovedBalance(organisationId);
         const requestAmountDec = toDecimal(publicRequest.amount);
 
         if (!isPositive(balance)) {
@@ -143,7 +143,7 @@ export async function PATCH(
                 amount: toMoney2dp(publicRequest.amount),
                 amountInBase: toMoney2dp(publicRequest.amount),
                 description,
-                departmentId,
+                organisationId,
                 userId: session.user.id,
                 weekNumber,
                 year,
@@ -151,8 +151,7 @@ export async function PATCH(
                 status: 'PENDING', // Leader-created, needs admin approval
                 updatedAt: new Date(),
             },
-            include: {
-                department: { select: { id: true, name: true, level: true } },
+            include: { organisation: { select: { id: true, name: true, level: true } },
                 currency: true,
             },
         });
@@ -183,13 +182,13 @@ export async function PATCH(
             }
         }
 
-        // Notify the department leader of the deduction and remaining balance
+        // Notify the organisation leader of the deduction and remaining balance
         try {
-            const deptLevel = transaction.department?.level;
+            const deptLevel = transaction.organisation?.level;
             if (deptLevel) {
                 const leaderRole = getLeaderRoleForLevel(deptLevel as any);
                 const leaderUserRole = await prisma.userRole.findFirst({
-                    where: { role: leaderRole, departmentId },
+                    where: { role: leaderRole, organisationId },
                     include: { user: { select: { phone: true, name: true, archived: true } } },
                 });
                 if (leaderUserRole && !leaderUserRole.user.archived && leaderUserRole.user.phone) {
@@ -198,7 +197,7 @@ export async function PATCH(
                     const leaderSms = generateDebitAlertSms({
                         currency: 'GH\u20B5',
                         amount: formatNumber(moneyToString(requestAmountDec)),
-                        departmentName: transaction.department?.name || 'your department',
+                        organisationName: transaction.organisation?.name || 'your organisation',
                         description: ref,
                         balance: formatNumber(moneyToString(remainingBalance)),
                     });
@@ -206,7 +205,7 @@ export async function PATCH(
                 }
             }
         } catch (err) {
-            console.error('[Notify] SMS to department leader failed:', err);
+            console.error('[Notify] SMS to organisation leader failed:', err);
         }
 
         // Audit log
@@ -224,8 +223,8 @@ export async function PATCH(
 
         // Notify campus admins that a pending transaction needs approval
         try {
-            const dept = await prisma.department.findUnique({
-                where: { id: departmentId },
+            const dept = await prisma.organisation.findUnique({
+                where: { id: organisationId },
                 include: {
                     parent: {
                         include: {
@@ -235,19 +234,19 @@ export async function PATCH(
                 },
             });
 
-            const departmentHierarchy: string[] = [];
+            const organisationHierarchy: string[] = [];
             if (dept) {
-                departmentHierarchy.push(dept.id);
+                organisationHierarchy.push(dept.id);
                 let current: any = dept.parent;
                 while (current) {
-                    departmentHierarchy.push(current.id);
+                    organisationHierarchy.push(current.id);
                     if (current.level === 'CAMPUS') break;
                     current = current.parent;
                 }
             }
 
             const campusAdminRoles = await prisma.userRole.findMany({
-                where: { role: 'CAMPUS_ADMIN', departmentId: { in: departmentHierarchy } },
+                where: { role: 'CAMPUS_ADMIN', organisationId: { in: organisationHierarchy } },
                 include: {
                     user: { select: { phone: true, email: true, name: true, archived: true } },
                 },
@@ -320,21 +319,21 @@ export async function GET(
 
         if (!publicRequest) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
-        // Resolve the oversight department for this admin
+        // Resolve the oversight organisation for this admin
         let adminOversightDeptId: string | undefined =
             (session.user.activeUserRole as any)?.role === 'OVERSIGHT_ADMIN'
-                ? session.user.activeUserRole?.departmentId
+                ? session.user.activeUserRole?.organisationId
                 : undefined;
 
         if (!adminOversightDeptId) {
             const oversightUserRole = await prisma.userRole.findFirst({
                 where: { userId: session.user.id, role: 'OVERSIGHT_ADMIN' },
-                select: { departmentId: true },
+                select: { organisationId: true },
             });
-            adminOversightDeptId = oversightUserRole?.departmentId ?? undefined;
+            adminOversightDeptId = oversightUserRole?.organisationId ?? undefined;
         }
 
-        if (!adminOversightDeptId || publicRequest.oversightDeptId !== adminOversightDeptId) {
+        if (!adminOversightDeptId || publicRequest.oversightOrganisationId !== adminOversightDeptId) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 

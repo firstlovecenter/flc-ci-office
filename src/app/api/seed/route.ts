@@ -17,8 +17,8 @@ export async function POST(request: Request) {
 
     try {
 
-        // Create departments - new 5-level hierarchy
-        const denominationDept = await prisma.department.upsert({
+        // Create organisations - new 5-level hierarchy
+        const denominationDept = await prisma.organisation.upsert({
             where: { id: 'denomination-1' },
             update: {},
             create: {
@@ -29,7 +29,7 @@ export async function POST(request: Request) {
             },
         });
 
-        const oversightDept = await prisma.department.upsert({
+        const oversightOrganisation = await prisma.organisation.upsert({
             where: { id: 'oversight-1' },
             update: {},
             create: {
@@ -41,19 +41,19 @@ export async function POST(request: Request) {
             },
         });
 
-        const campusDept = await prisma.department.upsert({
+        const campusDept = await prisma.organisation.upsert({
             where: { id: 'campus-1' },
             update: {},
             create: {
                 id: 'campus-1',
                 name: 'Los Angeles Campus',
                 level: 'CAMPUS',
-                parentId: oversightDept.id,
+                parentId: oversightOrganisation.id,
                 updatedAt: new Date(),
             },
         });
 
-        const streamDept = await prisma.department.upsert({
+        const streamDept = await prisma.organisation.upsert({
             where: { id: 'stream-1' },
             update: {},
             create: {
@@ -65,7 +65,7 @@ export async function POST(request: Request) {
             },
         });
 
-        const councilDept = await prisma.department.upsert({
+        const councilDept = await prisma.organisation.upsert({
             where: { id: 'council-1' },
             update: {},
             create: {
@@ -99,7 +99,7 @@ export async function POST(request: Request) {
                 id: 'superadmin-role-1',
                 userId: superAdmin.id,
                 role: 'SUPERADMIN',
-                departmentId: denominationDept.id,
+                organisationId: denominationDept.id,
                 updatedAt: new Date(),
             },
         });
@@ -114,7 +114,7 @@ export async function POST(request: Request) {
                 phone: '0501234568',
                 password: hashedPassword,
                 activeRole: 'CAMPUS_ADMIN',
-                departmentId: campusDept.id,
+                organisationId: campusDept.id,
                 updatedAt: new Date(),
             },
         });
@@ -124,7 +124,7 @@ export async function POST(request: Request) {
                 id: 'campus-admin-role-1',
                 userId: campusAdmin.id,
                 role: 'CAMPUS_ADMIN',
-                departmentId: campusDept.id,
+                organisationId: campusDept.id,
                 updatedAt: new Date(),
             },
         });
@@ -139,7 +139,7 @@ export async function POST(request: Request) {
                 phone: '0501234569',
                 password: hashedPassword,
                 activeRole: 'COUNCIL_LEADER',
-                departmentId: councilDept.id,
+                organisationId: councilDept.id,
                 updatedAt: new Date(),
             },
         });
@@ -149,7 +149,7 @@ export async function POST(request: Request) {
                 id: 'council-leader-role-1',
                 userId: councilLeader.id,
                 role: 'COUNCIL_LEADER',
-                departmentId: councilDept.id,
+                organisationId: councilDept.id,
                 updatedAt: new Date(),
             },
         });

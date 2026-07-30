@@ -3,12 +3,13 @@ import { prisma } from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import crypto from 'crypto';
-import { hasDepartmentAccess } from '@/lib/departments';
+import { hasOrganisationAccess } from '@/lib/organisations';
 import { sendSms } from '@/lib/sms';
 import { generateTransactionApprovedSms, generateTransactionDeclinedSms, generateTransactionChargeSms, generateCreditAlertSms, generateDebitAlertSms, generateTransactionEditNotificationSms, generateApproverApprovedSms, generateApproverDeclinedSms } from '@/lib/sms-templates';
 import { formatNumber, isWeekLocked, getWeekFromDate } from '@/lib/utils';
 import { toDecimal, eq, moneyToString, toMoney2dp } from '@/lib/money';
-import { getDepartmentApprovedBalance } from '@/lib/balance';
+import { getOrganisationApprovedBalance } from '@/lib/balance';
+import { getAppCurrency } from '@/lib/currency';
 
 export async function PUT(
     request: Request,
@@ -23,7 +24,7 @@ export async function PUT(
     try {
         const params = await context.params;
         const body = await request.json();
-        const { type, amount, description, departmentId, currencyId, exchangeRate, date } = body;
+        const { type, amount, description, organisationId, date } = body;
         const transactionId = params.id;
 
         // Get the existing transaction
@@ -70,31 +71,27 @@ export async function PUT(
             }
         }
 
-        // Validate department access for non-superadmin
+        // Validate organisation access for non-superadmin
         if (session.user.role !== 'SUPERADMIN') {
-            const canAccessSource = await hasDepartmentAccess(session.user, existingTransaction.departmentId);
+            const canAccessSource = await hasOrganisationAccess(session.user, existingTransaction.organisationId);
             if (!canAccessSource) {
                 return NextResponse.json(
-                    { error: 'You do not have access to the transaction\'s current department' },
+                    { error: 'You do not have access to the transaction\'s current organisation' },
                     { status: 403 }
                 );
             }
-            const canAccessDest = await hasDepartmentAccess(session.user, departmentId);
+            const canAccessDest = await hasOrganisationAccess(session.user, organisationId);
             if (!canAccessDest) {
                 return NextResponse.json(
-                    { error: 'You do not have access to the destination department' },
+                    { error: 'You do not have access to the destination organisation' },
                     { status: 403 }
                 );
             }
         }
 
-        // Calculate amount in base currency using Decimal arithmetic and clamp to 2dp.
-        const amountDec = toDecimal(amount);
-        const amountInBaseDec = currencyId && exchangeRate
-            ? amountDec.mul(toDecimal(exchangeRate))
-            : amountDec;
-        const amountToPersist = toMoney2dp(amountDec);
-        const amountInBase = toMoney2dp(amountInBaseDec);
+        // GHS only — amountInBase equals amount
+        const ghs = await getAppCurrency();
+        const amountToPersist = toMoney2dp(toDecimal(amount));
 
         // If date is provided, recalculate week number and year from the new date
         let weekData: { weekNumber?: number; year?: number } = {};
@@ -111,16 +108,15 @@ export async function PUT(
                 type,
                 amount: amountToPersist,
                 description,
-                departmentId,
-                currencyId: currencyId || null,
-                exchangeRate: exchangeRate || null,
-                amountInBase: amountInBase,
+                organisationId,
+                currencyId: ghs.id,
+                exchangeRate: null,
+                amountInBase: amountToPersist,
                 ...(date ? { createdAt: new Date(date) } : {}),
                 ...weekData,
                 updatedAt: new Date(),
             },
-            include: {
-                department: true,
+            include: { organisation: true,
                 user: true,
                 currency: true,
                 files: true,
@@ -139,10 +135,10 @@ export async function PUT(
                     type: existingTransaction.type,
                     amount: moneyToString(existingTransaction.amount),
                     description: existingTransaction.description,
-                    departmentId: existingTransaction.departmentId,
+                    organisationId: existingTransaction.organisationId,
                     createdAt: existingTransaction.createdAt,
                 },
-                afterData: { description, type, amount, departmentId, ...(date ? { createdAt: new Date(date) } : {}), locked: existingTransaction.locked },
+                afterData: { description, type, amount, organisationId, ...(date ? { createdAt: new Date(date) } : {}), locked: existingTransaction.locked },
             },
         });
 
@@ -150,13 +146,12 @@ export async function PUT(
         const amountChanged = !eq(existingTransaction.amount, amount);
         const typeChanged = existingTransaction.type !== type;
         const descriptionChanged = existingTransaction.description !== description;
-        const departmentChanged = existingTransaction.departmentId !== departmentId;
-        const currencyChanged = (existingTransaction.currencyId || null) !== (currencyId || null);
+        const organisationChanged = existingTransaction.organisationId !== organisationId;
         const dateChanged = date ? new Date(date).toDateString() !== new Date(existingTransaction.createdAt).toDateString() : false;
 
-        const nonDateFieldChanged = amountChanged || typeChanged || descriptionChanged || departmentChanged || currencyChanged;
+        const nonDateFieldChanged = amountChanged || typeChanged || descriptionChanged || organisationChanged;
 
-        // Send SMS to department leaders if anything other than date changed
+        // Send SMS to organisation leaders if anything other than date changed
         if (nonDateFieldChanged) {
             try {
                 // Build a human-readable changes summary
@@ -164,16 +159,15 @@ export async function PUT(
                 if (amountChanged) changesList.push(`Amount: ${moneyToString(existingTransaction.amount)} → ${moneyToString(amount)}`);
                 if (typeChanged) changesList.push(`Type: ${existingTransaction.type} → ${type}`);
                 if (descriptionChanged) changesList.push(`Desc updated`);
-                if (departmentChanged) changesList.push(`Dept changed`);
-                if (currencyChanged) changesList.push(`Currency changed`);
+                if (organisationChanged) changesList.push(`Dept changed`);
                 const changesSummary = changesList.join(', ');
 
-                // Determine the department(s) whose leaders need to be notified
-                const departmentIds = new Set([existingTransaction.departmentId]);
-                if (departmentChanged) departmentIds.add(departmentId);
+                // Determine the organisation(s) whose leaders need to be notified
+                const organisationIds = new Set([existingTransaction.organisationId]);
+                if (organisationChanged) organisationIds.add(organisationId);
 
-                for (const deptId of departmentIds) {
-                    const dept = await prisma.department.findUnique({
+                for (const deptId of organisationIds) {
+                    const dept = await prisma.organisation.findUnique({
                         where: { id: deptId },
                         select: { id: true, name: true, level: true },
                     });
@@ -186,12 +180,12 @@ export async function PUT(
                         'COUNCIL_LEADER';
 
                     const leaders = await prisma.userRole.findMany({
-                        where: { role: leaderRole, departmentId: deptId },
+                        where: { role: leaderRole, organisationId: deptId },
                         include: { user: { select: { phone: true, email: true, name: true, archived: true } } },
                     });
 
                     const smsMessage = generateTransactionEditNotificationSms({
-                        departmentName: dept.name,
+                        organisationName: dept.name,
                         description: existingTransaction.description || description,
                         changes: changesSummary,
                         editedBy: session.user.name || 'Admin',
@@ -239,8 +233,7 @@ export async function PATCH(
         // Get the transaction
         const transaction = await prisma.transaction.findUnique({
             where: { id: transactionId },
-            include: {
-                department: true,
+            include: { organisation: true,
                 user: true,
                 currency: true,
             },
@@ -261,17 +254,17 @@ export async function PATCH(
             return new NextResponse('Only admins can approve/reject transactions', { status: 403 });
         }
 
-        // Check if the admin has access to this department
+        // Check if the admin has access to this organisation
         if (session.user.role !== 'SUPERADMIN') {
-            const filterDepartmentId = session.user.activeUserRole?.departmentId || session.user.departmentId;
+            const filterOrganisationId = session.user.activeUserRole?.organisationId || session.user.organisationId;
             
-            const hasAccess = await hasDepartmentAccess(
-                { role: session.user.role, departmentId: filterDepartmentId },
-                transaction.departmentId
+            const hasAccess = await hasOrganisationAccess(
+                { role: session.user.role, organisationId: filterOrganisationId },
+                transaction.organisationId
             );
 
             if (!hasAccess) {
-                return new NextResponse('You do not have access to this department', { status: 403 });
+                return new NextResponse('You do not have access to this organisation', { status: 403 });
             }
         }
 
@@ -297,8 +290,7 @@ export async function PATCH(
                 rejectedAt: status === 'REJECTED' ? new Date() : undefined,
                 rejectionReason: status === 'REJECTED' ? rejectionReason : undefined,
             },
-            include: {
-                department: {
+            include: { organisation: {
                     select: {
                         id: true,
                         name: true,
@@ -340,7 +332,7 @@ export async function PATCH(
                     amount: toMoney2dp(chargeDec),
                     amountInBase: toMoney2dp(chargeAmountInBaseDec),
                     description: `Transaction charge for: ${transaction.description.substring(0, 50)}${transaction.description.length > 50 ? '...' : ''} - Ref: ${transaction.id.substring(0, 8)}`,
-                    departmentId: transaction.departmentId,
+                    organisationId: transaction.organisationId,
                     userId: session.user.id, // Charge created by approving admin
                     currencyId: transaction.currencyId,
                     exchangeRate: transaction.exchangeRate,
@@ -354,19 +346,19 @@ export async function PATCH(
                 },
             });
 
-            // Send SMS notification to the department leader about the charge
+            // Send SMS notification to the organisation leader about the charge
             try {
-                // Find the department leader based on department level
-                const leaderRole = updatedTransaction.department.level === 'DENOMINATION' ? 'DENOMINATION_LEADER' :
-                                  updatedTransaction.department.level === 'OVERSIGHT' ? 'OVERSIGHT_LEADER' :
-                                  updatedTransaction.department.level === 'CAMPUS' ? 'CAMPUS_LEADER' :
-                                  updatedTransaction.department.level === 'STREAM' ? 'STREAM_LEADER' :
+                // Find the organisation leader based on organisation level
+                const leaderRole = updatedTransaction.organisation.level === 'DENOMINATION' ? 'DENOMINATION_LEADER' :
+                                  updatedTransaction.organisation.level === 'OVERSIGHT' ? 'OVERSIGHT_LEADER' :
+                                  updatedTransaction.organisation.level === 'CAMPUS' ? 'CAMPUS_LEADER' :
+                                  updatedTransaction.organisation.level === 'STREAM' ? 'STREAM_LEADER' :
                                   'COUNCIL_LEADER';
 
-                const departmentLeaderRoles = await prisma.userRole.findMany({
+                const organisationLeaderRoles = await prisma.userRole.findMany({
                     where: {
                         role: leaderRole,
-                        departmentId: updatedTransaction.department.id,
+                        organisationId: updatedTransaction.organisation.id,
                     },
                     include: {
                         user: {
@@ -381,7 +373,7 @@ export async function PATCH(
                 });
 
                 // Filter active users
-                const leaders = departmentLeaderRoles
+                const leaders = organisationLeaderRoles
                     .filter(ur => !ur.user.archived)
                     .map(ur => ({ phone: ur.user.phone, email: ur.user.email, name: ur.user.name }));
 
@@ -393,7 +385,7 @@ export async function PATCH(
                     const smsMessage = await generateTransactionChargeSms({
                         currency: currencySymbol,
                         chargeAmount: chargeAmountStr,
-                        departmentName: transaction.department.name,
+                        organisationName: transaction.organisation.name,
                         transactionRef: chargeRef,
                         description: chargeDesc,
                     });
@@ -443,7 +435,7 @@ export async function PATCH(
 
         // Fetch balance once for APPROVED — reused for both creator and approver notifications
         const approvedBalance = status === 'APPROVED'
-            ? await getDepartmentApprovedBalance(updatedTransaction.department.id)
+            ? await getOrganisationApprovedBalance(updatedTransaction.organisation.id)
             : null;
 
         // Track the creator's phone if we notify them. The approval SMS already
@@ -470,7 +462,7 @@ export async function PATCH(
                         currency: currencySymbol,
                         amount: formatNumber(moneyToString(updatedTransaction.amount)),
                         chargeText,
-                        departmentName: updatedTransaction.department.name,
+                        organisationName: updatedTransaction.organisation.name,
                         balance: formatNumber(moneyToString(approvedBalance!)),
                         description: refShort,
                     });
@@ -511,7 +503,7 @@ export async function PATCH(
                 const currencySymbol = updatedTransaction.currency?.symbol || '$';
                 const transactionType = updatedTransaction.type === 'EXPENSE' ? 'expense' : 'income';
                 const submitterName = updatedTransaction.user.name || 'User';
-                const deptName = updatedTransaction.department.name;
+                const deptName = updatedTransaction.organisation.name;
                 const amountStr = formatNumber(moneyToString(updatedTransaction.amount));
 
                 if (status === 'APPROVED') {
@@ -521,14 +513,14 @@ export async function PATCH(
                         : '';
                     const sms = generateApproverApprovedSms({
                         transactionType, currency: currencySymbol, amount: amountStr,
-                        submitterName, departmentName: deptName, balance: balStr, chargeText,
+                        submitterName, organisationName: deptName, balance: balStr, chargeText,
                     });
                     await sendSms({ to: approverUser.phone, message: sms }).catch(() => false);
                 } else {
                     const reasonText = rejectionReason ? ` Reason: ${rejectionReason}` : '';
                     const sms = generateApproverDeclinedSms({
                         transactionType, currency: currencySymbol, amount: amountStr,
-                        submitterName, departmentName: deptName, reasonText,
+                        submitterName, organisationName: deptName, reasonText,
                     });
                     await sendSms({ to: approverUser.phone, message: sms }).catch(() => false);
                 }
@@ -537,21 +529,21 @@ export async function PATCH(
             console.error('[SMS] Error sending approver confirmation notification:', err);
         }
 
-        // Send credit/debit alert SMS to the department leader when approved
+        // Send credit/debit alert SMS to the organisation leader when approved
         if (status === 'APPROVED') {
             try {
-                // Determine the leader role based on department level
-                const leaderRole = updatedTransaction.department.level === 'DENOMINATION' ? 'DENOMINATION_LEADER' :
-                                  updatedTransaction.department.level === 'OVERSIGHT' ? 'OVERSIGHT_LEADER' :
-                                  updatedTransaction.department.level === 'CAMPUS' ? 'CAMPUS_LEADER' :
-                                  updatedTransaction.department.level === 'STREAM' ? 'STREAM_LEADER' :
+                // Determine the leader role based on organisation level
+                const leaderRole = updatedTransaction.organisation.level === 'DENOMINATION' ? 'DENOMINATION_LEADER' :
+                                  updatedTransaction.organisation.level === 'OVERSIGHT' ? 'OVERSIGHT_LEADER' :
+                                  updatedTransaction.organisation.level === 'CAMPUS' ? 'CAMPUS_LEADER' :
+                                  updatedTransaction.organisation.level === 'STREAM' ? 'STREAM_LEADER' :
                                   'COUNCIL_LEADER';
 
-                // Find all users with the leader role for this department
-                const departmentLeaderRoles = await prisma.userRole.findMany({
+                // Find all users with the leader role for this organisation
+                const organisationLeaderRoles = await prisma.userRole.findMany({
                     where: {
                         role: leaderRole,
-                        departmentId: updatedTransaction.department.id,
+                        organisationId: updatedTransaction.organisation.id,
                     },
                     include: {
                         user: {
@@ -566,12 +558,12 @@ export async function PATCH(
                 });
 
                 // Filter active users
-                const leaders = departmentLeaderRoles
+                const leaders = organisationLeaderRoles
                     .filter(ur => !ur.user.archived)
                     .map(ur => ({ phone: ur.user.phone, email: ur.user.email, name: ur.user.name }));
 
                 if (leaders.length > 0) {
-                    const balance = await getDepartmentApprovedBalance(updatedTransaction.department.id);
+                    const balance = await getOrganisationApprovedBalance(updatedTransaction.organisation.id);
 
                     const currencySymbol = updatedTransaction.currency?.symbol || '$';
                     const transactionDescription = updatedTransaction.description || (updatedTransaction.type === 'INCOME' ? 'Income' : 'Expense');
@@ -586,7 +578,7 @@ export async function PATCH(
                             currency: currencySymbol,
                             amount: txAmount,
                             description: descShort,
-                            departmentName: updatedTransaction.department.name,
+                            organisationName: updatedTransaction.organisation.name,
                             balance: balStr,
                         });
                     } else {
@@ -594,7 +586,7 @@ export async function PATCH(
                             currency: currencySymbol,
                             amount: txAmount,
                             description: descShort,
-                            departmentName: updatedTransaction.department.name,
+                            organisationName: updatedTransaction.organisation.name,
                             balance: balStr,
                         });
                     }
@@ -628,18 +620,18 @@ export async function PATCH(
         let balanceCurrency: { code: string; symbol: string } | null = null;
 
         try {
-            const balance = await getDepartmentApprovedBalance(updatedTransaction.department.id);
+            const balance = await getOrganisationApprovedBalance(updatedTransaction.organisation.id);
             newBalance = moneyToString(balance);
 
-            // Get currency from department's base currency
-            const dept = await prisma.department.findUnique({
-                where: { id: updatedTransaction.department.id },
-                include: { departmentBaseCurrency: { include: { currency: true } } },
+            // Get currency from organisation's base currency
+            const dept = await prisma.organisation.findUnique({
+                where: { id: updatedTransaction.organisation.id },
+                include: { organisationBaseCurrency: { include: { currency: true } } },
             });
-            if (dept?.departmentBaseCurrency?.currency) {
+            if (dept?.organisationBaseCurrency?.currency) {
                 balanceCurrency = {
-                    code: dept.departmentBaseCurrency.currency.code,
-                    symbol: dept.departmentBaseCurrency.currency.symbol,
+                    code: dept.organisationBaseCurrency.currency.code,
+                    symbol: dept.organisationBaseCurrency.currency.symbol,
                 };
             } else if (updatedTransaction.currency) {
                 balanceCurrency = {

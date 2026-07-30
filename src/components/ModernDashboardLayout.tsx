@@ -5,10 +5,10 @@ import Image from 'next/image';
 import { useSession, signOut } from 'next-auth/react';
 import { usePathname, useRouter } from 'next/navigation';
 import {
-  Home, Receipt, PlusCircle, Building2, Sun, Moon, Monitor,
+  Home, Receipt, PlusCircle, Building2, Wallet, Sun, Moon, Monitor,
   LogOut, Menu, ChevronLeft, ChevronRight, ChevronDown, X,
   Search, ClipboardList, BarChart2, TrendingUp,
-  Users, CircleDollarSign, Inbox, Bell,
+  Users, Inbox, Bell,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useColorMode } from '@/app/providers';
@@ -25,13 +25,6 @@ import RoleSwitcher from './RoleSwitcher';
 
 const SIDEBAR_WIDTH = 256;
 const SIDEBAR_MINI_WIDTH = 60;
-
-function getDeptNavLabel(role: string): string {
-  if (role.includes('DENOMINATION')) return 'Oversights';
-  if (role.includes('OVERSIGHT')) return 'Campuses';
-  if (role.includes('CAMPUS')) return 'Streams';
-  return 'Churches';
-}
 
 interface NavItem {
   text: string;
@@ -283,11 +276,17 @@ export default function ModernDashboardLayout({ children }: { children: React.Re
   const isAdmin = normalizedRole && normalizedRole.endsWith('_ADMIN');
   const isLeader = normalizedRole && normalizedRole.endsWith('_LEADER');
   const hasAnalytics = isAdmin || isSuperAdmin || ['DENOMINATION_LEADER', 'OVERSIGHT_LEADER', 'CAMPUS_LEADER'].includes(normalizedRole);
+  const canSeeOrganisation =
+    isSuperAdmin ||
+    ['DENOMINATION', 'OVERSIGHT', 'CAMPUS'].some((lvl) => normalizedRole.includes(lvl));
+  const canSeeAccounts = !!(isSuperAdmin || isLeaderOrAdmin);
 
   const isActive = (path: string) => {
     const clean = path.split('?')[0];
     if (clean === '/dashboard') return pathname === '/dashboard';
     if (clean === '/transactions') return pathname === '/transactions';
+    if (clean === '/organisations') return pathname === '/organisations' || pathname.startsWith('/organisations/');
+    if (clean === '/accounts') return pathname === '/accounts' || pathname.startsWith('/accounts/');
     return pathname === clean || pathname.startsWith(clean + '/');
   };
 
@@ -296,7 +295,7 @@ export default function ModernDashboardLayout({ children }: { children: React.Re
       title: null,
       items: [
         { text: 'Home', icon: Home, path: '/dashboard', show: true, badge: 0 },
-        { text: 'Request Expense', icon: PlusCircle, path: '/transactions/new?type=EXPENSE', show: !isSuperAdmin && !!isLeader, badge: 0 },
+        { text: 'Request withdrawal', icon: PlusCircle, path: '/transactions/new?type=EXPENSE', show: !isSuperAdmin && !!isLeader, badge: 0 },
         { text: 'Transaction History', icon: Receipt, path: '/transactions', show: true, badge: pendingCounts.transactions },
       ],
     },
@@ -306,8 +305,8 @@ export default function ModernDashboardLayout({ children }: { children: React.Re
         { text: 'Approvals', icon: ClipboardList, path: '/approvals', show: !!(isAdmin || isSuperAdmin), badge: pendingCounts.approvals },
         { text: 'Public Requests', icon: Inbox, path: '/public-requests', show: normalizedRole === 'OVERSIGHT_ADMIN', badge: pendingCounts.publicRequests },
         { text: 'Users', icon: Users, path: '/users', show: !!(isAdmin || isSuperAdmin), badge: 0 },
-        { text: getDeptNavLabel(normalizedRole), icon: Building2, path: '/departments', show: !!(isSuperAdmin || isLeaderOrAdmin), badge: 0 },
-        { text: 'Currencies', icon: CircleDollarSign, path: '/currencies', show: !!(isSuperAdmin || normalizedRole === 'DENOMINATION_ADMIN'), badge: 0 },
+        { text: 'Organisation', icon: Building2, path: '/organisations', show: canSeeOrganisation, badge: 0 },
+        { text: 'Accounts', icon: Wallet, path: '/accounts', show: canSeeAccounts, badge: 0 },
       ],
     },
     {

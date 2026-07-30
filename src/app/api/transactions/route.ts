@@ -6,12 +6,19 @@ import crypto from 'crypto';
 import { getCurrentWeek, getWeekFromDate, formatNumber } from '@/lib/utils';
 import { sendSms } from '@/lib/sms';
 import { generatePendingApprovalRequestSms, generateCreditAlertSms, generateDebitAlertSms, generateAdminTransactionAlertSms } from '@/lib/sms-templates';
-import { getDescendantDepartmentIds, hasDepartmentAccess } from '@/lib/departments';
+import { getDescendantOrganisationIds, hasOrganisationAccess } from '@/lib/organisations';
 import { getUserBaseCurrency, convertToUserBaseCurrency } from '@/lib/currency-conversion';
 import { formatTimeInExpenseWindowTimeZone, getExpenseWindowStatus } from '@/lib/expense-window';
 import { toDecimal, gt, isPositive, moneyToString, toMoney2dp } from '@/lib/money';
-import { getDepartmentApprovedBalance } from '@/lib/balance';
+import { getOrganisationApprovedBalance } from '@/lib/balance';
 import { getOverdueUnreceiptedApprovals } from '@/lib/receipt-compliance';
+import {
+    assertMoneyBearingOrganisation,
+    canRecordDeposit,
+    hasAccountBalance,
+    isExpenseWindowExempt,
+} from '@/lib/org-model';
+import { getAppCurrency } from '@/lib/currency';
 
 // Force dynamic rendering - data is user/role specific
 export const dynamic = 'force-dynamic';
@@ -24,85 +31,85 @@ export async function GET(request: Request) {
     }
 
     const { searchParams } = new URL(request.url);
-    const departmentId = searchParams.get('departmentId');
+    const organisationId = searchParams.get('organisationId');
     const startDate = searchParams.get('startDate');
     const endDate = searchParams.get('endDate');
-    const exactDepartment = searchParams.get('exactDepartment') === 'true';
+    const exactOrganisation = searchParams.get('exactOrganisation') === 'true';
     const status = searchParams.get('status');
 
     try {
         const whereClause: any = {};
 
-        // Determine which department to use for filtering
+        // Determine which organisation to use for filtering
         // For PENDING status queries (approvals page), use ALL user roles to show all pending transactions
-        // For other queries, use the activeUserRole's department for context-specific filtering
-        let filterDepartmentId = session.user.departmentId;
-        let allDepartmentIds: string[] = [];
+        // For other queries, use the activeUserRole's organisation for context-specific filtering
+        let filterOrganisationId = session.user.organisationId;
+        let allOrganisationIds: string[] = [];
         
         if (status === 'PENDING' && session.user.role !== 'SUPERADMIN') {
-            // For approvals, aggregate all departments from all user roles
+            // For approvals, aggregate all organisations from all user roles
             const userRoles = await prisma.userRole.findMany({
                 where: { 
                     userId: session.user.id,
                 },
-                select: { departmentId: true },
+                select: { organisationId: true },
             });
             
-            // Get descendants for each role's department
+            // Get descendants for each role's organisation
             for (const role of userRoles) {
-                if (role.departmentId) {
-                    const descendants = await getDescendantDepartmentIds(role.departmentId);
-                    allDepartmentIds.push(...descendants);
+                if (role.organisationId) {
+                    const descendants = await getDescendantOrganisationIds(role.organisationId);
+                    allOrganisationIds.push(...descendants);
                 }
             }
             
-            // Also include user's base department
-            if (filterDepartmentId) {
-                const baseDescendants = await getDescendantDepartmentIds(filterDepartmentId);
-                allDepartmentIds.push(...baseDescendants);
+            // Also include user's base organisation
+            if (filterOrganisationId) {
+                const baseDescendants = await getDescendantOrganisationIds(filterOrganisationId);
+                allOrganisationIds.push(...baseDescendants);
             }
             
             // Remove duplicates
-            allDepartmentIds = [...new Set(allDepartmentIds)];
-        } else if (session.user.activeUserRole?.departmentId) {
-            // For non-pending queries, use active role's department from session
-            filterDepartmentId = session.user.activeUserRole.departmentId;
+            allOrganisationIds = [...new Set(allOrganisationIds)];
+        } else if (session.user.activeUserRole?.organisationId) {
+            // For non-pending queries, use active role's organisation from session
+            filterOrganisationId = session.user.activeUserRole.organisationId;
         }
 
         if (session.user.role !== 'SUPERADMIN') {
-            if (!filterDepartmentId && allDepartmentIds.length === 0) {
+            if (!filterOrganisationId && allOrganisationIds.length === 0) {
                 return new NextResponse('Forbidden', { status: 403 });
             }
 
-            // Use aggregated departments for pending queries, otherwise use standard filtering
-            const allowedIds = allDepartmentIds.length > 0 
-                ? allDepartmentIds 
-                : (filterDepartmentId ? await getDescendantDepartmentIds(filterDepartmentId) : []);
+            // Use aggregated organisations for pending queries, otherwise use standard filtering
+            const allowedIds = allOrganisationIds.length > 0 
+                ? allOrganisationIds 
+                : (filterOrganisationId ? await getDescendantOrganisationIds(filterOrganisationId) : []);
 
-            if (departmentId) {
-                // If specific department requested, verify access
-                if (!allowedIds.includes(departmentId)) {
+            if (organisationId) {
+                // If specific organisation requested, verify access
+                if (!allowedIds.includes(organisationId)) {
                     return new NextResponse('Forbidden', { status: 403 });
                 }
-                // If exactDepartment is true, only get transactions from that specific department
-                if (exactDepartment) {
-                    whereClause.departmentId = departmentId;
+                // If exactOrganisation is true, only get transactions from that specific organisation
+                if (exactOrganisation) {
+                    whereClause.organisationId = organisationId;
                 } else {
-                    // Otherwise, get transactions from the department and all its descendants
-                    const descendantIds = await getDescendantDepartmentIds(departmentId);
-                    whereClause.departmentId = { in: descendantIds };
+                    // Otherwise, get transactions from the organisation and all its descendants
+                    const descendantIds = await getDescendantOrganisationIds(organisationId);
+                    whereClause.organisationId = { in: descendantIds };
                 }
             } else {
-                // Otherwise, return transactions from all allowed departments
-                whereClause.departmentId = { in: allowedIds };
+                // Otherwise, return transactions from all allowed organisations
+                whereClause.organisationId = { in: allowedIds };
             }
-        } else if (departmentId) {
+        } else if (organisationId) {
             // Superadmin can specify exact or hierarchical filtering
-            if (exactDepartment) {
-                whereClause.departmentId = departmentId;
+            if (exactOrganisation) {
+                whereClause.organisationId = organisationId;
             } else {
-                const descendantIds = await getDescendantDepartmentIds(departmentId);
-                whereClause.departmentId = { in: descendantIds };
+                const descendantIds = await getDescendantOrganisationIds(organisationId);
+                whereClause.organisationId = { in: descendantIds };
             }
         }
 
@@ -128,8 +135,7 @@ export async function GET(request: Request) {
 
         const transactions = await prisma.transaction.findMany({
             where: whereClause,
-            include: {
-                department: {
+            include: { organisation: {
                     select: {
                         id: true,
                         name: true,
@@ -227,7 +233,7 @@ export async function POST(request: Request) {
 
     try {
         const body = await request.json();
-        const { type, amount, description, departmentId, currencyId, exchangeRate, date } = body;
+        const { type, amount, description, organisationId, date } = body;
         
         // If a custom date is provided, compute week number from that date
         // Otherwise use current week
@@ -245,8 +251,8 @@ export async function POST(request: Request) {
             year = weekInfo.year;
         }
 
-        // Validate that the user can create transaction for this department
-        const canAccess = await hasDepartmentAccess(session.user, departmentId);
+        // Validate that the user can create transaction for this organisation
+        const canAccess = await hasOrganisationAccess(session.user, organisationId);
         if (!canAccess) {
             return new NextResponse('Unauthorized', { status: 403 });
         }
@@ -254,6 +260,46 @@ export async function POST(request: Request) {
         // Determine if this is a leader role (time-restricted) or admin
         const leaderRoles = ['DENOMINATION_LEADER', 'OVERSIGHT_LEADER', 'CAMPUS_LEADER', 'STREAM_LEADER', 'COUNCIL_LEADER'];
         const isLeader = leaderRoles.includes(session.user.role);
+
+        // Money only on Accounts; load org early for account-type rules.
+        const organisation = await prisma.organisation.findUnique({
+            where: { id: organisationId },
+            select: {
+                level: true,
+                id: true,
+                name: true,
+                accountType: true,
+                parent: {
+                    select: {
+                        id: true,
+                        level: true,
+                        parent: {
+                            select: {
+                                id: true,
+                                level: true,
+                                parent: { select: { id: true, level: true } },
+                            },
+                        },
+                    },
+                },
+            },
+        });
+
+        if (!organisation) {
+            return NextResponse.json({ error: 'Organisation not found' }, { status: 404 });
+        }
+
+        const moneyError = assertMoneyBearingOrganisation(organisation.level);
+        if (moneyError) {
+            return NextResponse.json({ error: moneyError }, { status: 400 });
+        }
+
+        if (type === 'INCOME' && !canRecordDeposit(organisation.accountType)) {
+            return NextResponse.json(
+                { error: 'Special project accounts do not accept deposits. Record withdrawals only.' },
+                { status: 400 }
+            );
+        }
 
         // Leaders with an expense request approved on/after the receipt
         // enforcement start date that is more than 24 hours old and still has no
@@ -276,64 +322,27 @@ export async function POST(request: Request) {
             }
         }
 
-        // Server-side time validation for expense requests - only for leaders
-        // Admins can make requests anytime
-        if (type === 'EXPENSE' && isLeader) {
+        // Expense time window: leaders only, and never for special projects.
+        if (type === 'EXPENSE' && isLeader && !isExpenseWindowExempt(organisation.accountType)) {
             const expenseWindow = getExpenseWindowStatus();
 
             if (!expenseWindow.isOpen) {
                 return NextResponse.json(
                     {
                         error: expenseWindow.isSunday
-                            ? 'Expense requests are not accepted on Sundays. Please try again Monday from 6:00 AM.'
-                            : `Expense requests can only be made between ${expenseWindow.timeRange}. Actual time is ${formatTimeInExpenseWindowTimeZone(expenseWindow.now)}`,
+                            ? 'Withdrawal requests are not accepted on Sundays. Please try again Monday from 6:00 AM.'
+                            : `Withdrawal requests can only be made between ${expenseWindow.timeRange}. Actual time is ${formatTimeInExpenseWindowTimeZone(expenseWindow.now)}`,
                     },
                     { status: 400 }
                 );
             }
         }
 
-        // Validate base currency is set for oversight and below departments
-        const department = await prisma.department.findUnique({
-            where: { id: departmentId },
-            select: { level: true, id: true, name: true, parent: { select: { id: true, level: true, parent: { select: { id: true, level: true, parent: { select: { id: true, level: true } } } } } } }
-        });
-
-        if (department) {
-            const oversightRoles = ['OVERSIGHT_ADMIN', 'OVERSIGHT_LEADER', 'CAMPUS_ADMIN', 'CAMPUS_LEADER', 'STREAM_LEADER', 'COUNCIL_LEADER', 'STREAM_ADMIN', 'COUNCIL_ADMIN'];
-            const requiresBaseCurrency = oversightRoles.includes(session.user.role);
-
-            if (requiresBaseCurrency) {
-                // Find the oversight department
-                let oversightDept = department;
-                while (oversightDept && oversightDept.level !== 'OVERSIGHT') {
-                    oversightDept = oversightDept.parent as typeof oversightDept;
-                }
-
-                if (oversightDept && oversightDept.level === 'OVERSIGHT') {
-                    // Check if base currency is set for this oversight department
-                    const deptBaseCurrency = await prisma.departmentBaseCurrency.findUnique({
-                        where: { departmentId: oversightDept.id },
-                    });
-
-                    if (!deptBaseCurrency) {
-                        return NextResponse.json(
-                            { error: `Base currency must be set for ${oversightDept.name || 'your oversight department'} before transactions can be recorded. Please contact your Oversight Admin to set the base currency.` },
-                            { status: 400 }
-                        );
-                    }
-                }
-            }
-        }
-
-        // Calculate amount in base currency using Decimal arithmetic to avoid float drift.
-        // Persist clamped to 2dp so balances always render to cents.
+        // App is GHS-only — amounts are already in Ghana Cedis.
+        const ghs = await getAppCurrency();
         const amountDec = toDecimal(amount);
-        const amountInBaseDec = currencyId && exchangeRate
-            ? amountDec.mul(toDecimal(exchangeRate))
-            : amountDec;
         const amountToPersist = toMoney2dp(amountDec);
-        const amountInBase = toMoney2dp(amountInBaseDec);
+        const amountInBase = amountToPersist;
 
         // All roles except SUPERADMIN require approval for EXPENSE transactions
         // All INCOME transactions are auto-approved (no approval needed)
@@ -341,26 +350,23 @@ export async function POST(request: Request) {
         const isIncomeTransaction = type === 'INCOME';
         const needsApproval = !isSuperAdmin && !isIncomeTransaction;
         
-        // Leaders can only create expense requests, not income
+        // Account holders can only create withdrawal requests, not deposits
         if (isLeader && type === 'INCOME') {
-            return new NextResponse('Leaders cannot record income. Please contact an admin.', { status: 403 });
+            return new NextResponse('Account holders cannot record deposits. Please contact a manager.', { status: 403 });
         }
 
-        // Server-side balance validation for expense requests.
-        // Compares Decimal values end-to-end against the exact-department
-        // approved balance. The request amount is converted to base currency
-        // before comparing so foreign-currency requests are checked correctly.
-        if (type === 'EXPENSE') {
-            const deptBalance = await getDepartmentApprovedBalance(departmentId);
+        // Balance check for operating accounts only — special projects have no spendable balance.
+        if (type === 'EXPENSE' && hasAccountBalance(organisation.accountType)) {
+            const deptBalance = await getOrganisationApprovedBalance(organisationId);
 
             if (!isPositive(deptBalance)) {
                 return NextResponse.json(
-                    { error: 'This church does not have a positive balance. Expense requests cannot be made for churches without a positive balance.' },
+                    { error: 'This account does not have a positive balance. Withdrawal requests cannot be made without a positive balance.' },
                     { status: 400 }
                 );
             }
 
-            if (gt(amountInBaseDec, deptBalance)) {
+            if (gt(amountDec, deptBalance)) {
                 return NextResponse.json(
                     { error: `Insufficient balance. The available balance is ${moneyToString(deptBalance)}. You cannot request more than this amount.` },
                     { status: 400 }
@@ -373,11 +379,11 @@ export async function POST(request: Request) {
                 id: crypto.randomUUID(),
                 type,
                 amount: amountToPersist,
-                currencyId: currencyId || null,
-                exchangeRate: exchangeRate || null,
-                amountInBase: amountInBase,
+                currencyId: ghs.id,
+                exchangeRate: null,
+                amountInBase,
                 description,
-                departmentId,
+                organisationId,
                 userId: session.user.id,
                 weekNumber,
                 year,
@@ -388,8 +394,7 @@ export async function POST(request: Request) {
                 approvedBy: needsApproval ? null : session.user.id,
                 approvedAt: needsApproval ? null : new Date(),
             },
-            include: {
-                department: true,
+            include: { organisation: true,
                 currency: true,
             },
         });
@@ -409,9 +414,9 @@ export async function POST(request: Request) {
         // Send SMS to campus admins if this is a pending transaction (created by leader or admin)
         if (transaction.status === 'PENDING') {
             try {
-                // Get the department with its hierarchy
-                const dept = await prisma.department.findUnique({
-                    where: { id: transaction.departmentId },
+                // Get the organisation with its hierarchy
+                const dept = await prisma.organisation.findUnique({
+                    where: { id: transaction.organisationId },
                     include: {
                         parent: {
                             include: {
@@ -425,23 +430,23 @@ export async function POST(request: Request) {
                     }
                 });
 
-                // Build array of department IDs in the hierarchy (from current up to campus level)
-                const departmentHierarchy: string[] = [];
+                // Build array of organisation IDs in the hierarchy (from current up to campus level)
+                const organisationHierarchy: string[] = [];
                 if (dept) {
-                    departmentHierarchy.push(dept.id);
-                    let currentDept: any = dept.parent;
-                    while (currentDept) {
-                        departmentHierarchy.push(currentDept.id);
-                        if (currentDept.level === 'CAMPUS') break; // Stop at campus level
-                        currentDept = currentDept.parent;
+                    organisationHierarchy.push(dept.id);
+                    let currentOrg: any = dept.parent;
+                    while (currentOrg) {
+                        organisationHierarchy.push(currentOrg.id);
+                        if (currentOrg.level === 'CAMPUS') break; // Stop at campus level
+                        currentOrg = currentOrg.parent;
                     }
                 }
 
-                // Find all users who have been assigned CAMPUS_ADMIN role for departments in the hierarchy
+                // Find all users who have been assigned CAMPUS_ADMIN role for organisations in the hierarchy
                 const campusAdminRoles = await prisma.userRole.findMany({
                     where: {
                         role: 'CAMPUS_ADMIN',
-                        departmentId: { in: departmentHierarchy },
+                        organisationId: { in: organisationHierarchy },
                     },
                     include: {
                         user: {
@@ -497,26 +502,26 @@ export async function POST(request: Request) {
             }
         }
 
-        // Send CREDIT/DEBIT ALERT to department leaders when auto-approved transaction is created (SUPERADMIN only)
+        // Send CREDIT/DEBIT ALERT to organisation leaders when auto-approved transaction is created (SUPERADMIN only)
         if (transaction.status === 'APPROVED') {
             try {
                 const alertType = type === 'INCOME' ? 'CREDIT' : 'DEBIT';
-                console.log(`[SMS] Processing ${alertType} alert for ${type.toLowerCase()} transaction in ${transaction.department.name}`);
+                console.log(`[SMS] Processing ${alertType} alert for ${type.toLowerCase()} transaction in ${transaction.organisation.name}`);
                 
-                // Find the department leader based on department level
-                const leaderRole = transaction.department.level === 'DENOMINATION' ? 'DENOMINATION_LEADER' :
-                                  transaction.department.level === 'OVERSIGHT' ? 'OVERSIGHT_LEADER' :
-                                  transaction.department.level === 'CAMPUS' ? 'CAMPUS_LEADER' :
-                                  transaction.department.level === 'STREAM' ? 'STREAM_LEADER' :
+                // Find the organisation leader based on organisation level
+                const leaderRole = transaction.organisation.level === 'DENOMINATION' ? 'DENOMINATION_LEADER' :
+                                  transaction.organisation.level === 'OVERSIGHT' ? 'OVERSIGHT_LEADER' :
+                                  transaction.organisation.level === 'CAMPUS' ? 'CAMPUS_LEADER' :
+                                  transaction.organisation.level === 'STREAM' ? 'STREAM_LEADER' :
                                   'COUNCIL_LEADER';
 
-                console.log(`[SMS] Looking for ${leaderRole} in department ${transaction.departmentId}`);
+                console.log(`[SMS] Looking for ${leaderRole} in organisation ${transaction.organisationId}`);
 
-                // Get department leaders - this will find users with leader role even if they have other roles
-                const departmentLeaderRoles = await prisma.userRole.findMany({
+                // Get organisation leaders - this will find users with leader role even if they have other roles
+                const organisationLeaderRoles = await prisma.userRole.findMany({
                     where: {
                         role: leaderRole,
-                        departmentId: transaction.departmentId,
+                        organisationId: transaction.organisationId,
                     },
                     include: {
                         user: {
@@ -531,7 +536,7 @@ export async function POST(request: Request) {
                 });
 
                 // Filter active users, deduplicate by email
-                const leaders = departmentLeaderRoles
+                const leaders = organisationLeaderRoles
                     .filter(ur => !ur.user.archived)
                     .reduce((acc: { phone: string | null; email: string; name: string | null }[], ur) => {
                         if (!acc.find(l => l.email === ur.user.email)) {
@@ -544,19 +549,19 @@ export async function POST(request: Request) {
 
                 // Compute shared balance + formatted values once, reused for both the
                 // account-owner alert and the acting-admin confirmation below.
-                const balance = await getDepartmentApprovedBalance(transaction.departmentId);
+                const balance = await getOrganisationApprovedBalance(transaction.organisationId);
                 const currencySymbol = transaction.currency?.symbol || '₵';
                 const descText = description || (type === 'INCOME' ? 'Income' : 'Expense');
                 const descShort = descText.substring(0, 40) + (descText.length > 40 ? '...' : '');
                 const amtStr = formatNumber(moneyToString(amount));
                 const balStr = formatNumber(moneyToString(balance));
-                const deptName = transaction.department.name;
+                const deptName = transaction.organisation.name;
 
                 // Track phones already alerted so the admin doesn't get a duplicate
-                // message when they are also the department leader.
+                // message when they are also the organisation leader.
                 const notifiedPhones = new Set<string>();
 
-                // 1) Alert the account owner (department leader) being credited/debited
+                // 1) Alert the account owner (organisation leader) being credited/debited
                 if (leaders.length > 0) {
                     // Generate appropriate alert message based on transaction type
                     let smsMessage: string;
@@ -564,7 +569,7 @@ export async function POST(request: Request) {
                         smsMessage = await generateCreditAlertSms({
                             currency: currencySymbol,
                             amount: amtStr,
-                            departmentName: deptName,
+                            organisationName: deptName,
                             description: descShort,
                             balance: balStr,
                         });
@@ -572,7 +577,7 @@ export async function POST(request: Request) {
                         smsMessage = await generateDebitAlertSms({
                             currency: currencySymbol,
                             amount: amtStr,
-                            departmentName: deptName,
+                            organisationName: deptName,
                             description: descShort,
                             balance: balStr,
                         });
@@ -607,7 +612,7 @@ export async function POST(request: Request) {
                             transactionType: type,
                             currency: currencySymbol,
                             amount: amtStr,
-                            departmentName: deptName,
+                            organisationName: deptName,
                             description: descShort,
                             balance: balStr,
                         });
@@ -627,27 +632,27 @@ export async function POST(request: Request) {
             }
         }
 
-        // Calculate new balance for the department (exact, in Decimal)
+        // Calculate new balance for the organisation (exact, in Decimal)
         let newBalance: string | null = null;
         let balanceCurrency: { code: string; symbol: string } | null = null;
 
         try {
-            const balance = await getDepartmentApprovedBalance(transaction.departmentId);
+            const balance = await getOrganisationApprovedBalance(transaction.organisationId);
             newBalance = moneyToString(balance);
 
-            // Get currency from department's base currency
-            const dept = await prisma.department.findUnique({
-                where: { id: transaction.departmentId },
+            // Get currency from organisation's base currency
+            const dept = await prisma.organisation.findUnique({
+                where: { id: transaction.organisationId },
                 include: { 
-                    departmentBaseCurrency: {
+                    organisationBaseCurrency: {
                         include: { currency: true }
                     }
                 },
             });
-            if (dept?.departmentBaseCurrency?.currency) {
+            if (dept?.organisationBaseCurrency?.currency) {
                 balanceCurrency = {
-                    code: dept.departmentBaseCurrency.currency.code,
-                    symbol: dept.departmentBaseCurrency.currency.symbol,
+                    code: dept.organisationBaseCurrency.currency.code,
+                    symbol: dept.organisationBaseCurrency.currency.symbol,
                 };
             }
         } catch (balanceError) {
@@ -673,7 +678,7 @@ export async function PUT(request: Request) {
 
     try {
         const body = await request.json();
-        const { id, type, amount, description, departmentId, currencyId, exchangeRate } = body;
+        const { id, type, amount, description, organisationId } = body;
 
         const transaction = await prisma.transaction.findUnique({
             where: { id },
@@ -690,7 +695,7 @@ export async function PUT(request: Request) {
         }
 
         // Check permissions
-        const canAccess = await hasDepartmentAccess(session.user, transaction.departmentId);
+        const canAccess = await hasOrganisationAccess(session.user, transaction.organisationId);
         if (!canAccess) {
             return new NextResponse('Forbidden', { status: 403 });
         }
@@ -712,14 +717,8 @@ export async function PUT(request: Request) {
             }
         }
 
-        // Calculate amount in base currency using Decimal arithmetic to avoid float drift.
-        // Persist clamped to 2dp so balances always render to cents.
-        const amountDec = toDecimal(amount);
-        const amountInBaseDec = currencyId && exchangeRate
-            ? amountDec.mul(toDecimal(exchangeRate))
-            : amountDec;
-        const amountToPersist = toMoney2dp(amountDec);
-        const amountInBase = toMoney2dp(amountInBaseDec);
+        const ghs = await getAppCurrency();
+        const amountToPersist = toMoney2dp(toDecimal(amount));
 
         const updatedTransaction = await prisma.transaction.update({
             where: { id },
@@ -727,14 +726,13 @@ export async function PUT(request: Request) {
                 type,
                 amount: amountToPersist,
                 description,
-                departmentId,
-                currencyId: currencyId || null,
-                exchangeRate: exchangeRate || null,
-                amountInBase: amountInBase,
+                organisationId,
+                currencyId: ghs.id,
+                exchangeRate: null,
+                amountInBase: amountToPersist,
                 updatedAt: new Date(),
             },
-            include: {
-                department: true,
+            include: { organisation: true,
                 currency: true,
             },
         });
@@ -782,7 +780,7 @@ export async function DELETE(request: Request) {
         }
 
         // Check permissions
-        const canAccess = await hasDepartmentAccess(session.user, transaction.departmentId);
+        const canAccess = await hasOrganisationAccess(session.user, transaction.organisationId);
         if (!canAccess) {
             return new NextResponse('Forbidden', { status: 403 });
         }
@@ -843,7 +841,7 @@ export async function PATCH(request: Request) {
             where: { id },
             include: {
                 user: { select: { name: true, email: true } },
-                department: { select: { name: true } },
+                organisation: { select: { name: true } },
                 currency: { select: { code: true, symbol: true } },
             },
         });
@@ -859,7 +857,7 @@ export async function PATCH(request: Request) {
         }
 
         // Check permissions
-        const canAccess = await hasDepartmentAccess(session.user, transaction.departmentId);
+        const canAccess = await hasOrganisationAccess(session.user, transaction.organisationId);
         if (!canAccess) {
             return new NextResponse('Forbidden', { status: 403 });
         }
@@ -880,8 +878,7 @@ export async function PATCH(request: Request) {
                 rejectionReason: action === 'reject' ? rejectionReason : null,
                 updatedAt: new Date(),
             },
-            include: {
-                department: true,
+            include: { organisation: true,
                 currency: true,
             },
         });

@@ -42,7 +42,7 @@ export default function PublicExpensePage() {
     const [oversights, setOversights] = useState<OversightOption[]>([]);
     const [loadingOversights, setLoadingOversights] = useState(true);
     const [form, setForm] = useState({
-        oversightDeptId: '', requesterName: '', leaderPhone: '', churchName: '',
+        oversightOrganisationId: '', requesterName: '', leaderPhone: '', churchName: '',
         momoName: '', momoNumber: '', amount: '', description: '',
     });
     const [submitting, setSubmitting] = useState(false);
@@ -67,7 +67,7 @@ export default function PublicExpensePage() {
         const win = getExpenseWindowStatus();
         if (!win.isOpen) { setError(win.isSunday ? 'Expense requests are not accepted on Sundays.' : `Expense requests can only be made between ${win.timeRange}.`); return; }
         const amount = parseFloat(form.amount);
-        if (!form.oversightDeptId) return setError('Please select your oversight church.');
+        if (!form.oversightOrganisationId) return setError('Please select your oversight church.');
         if (!form.requesterName.trim()) return setError('Please enter your name.');
         if (!form.leaderPhone.trim()) return setError('Please enter the leader phone number.');
         if (!form.churchName.trim()) return setError('Please enter the name of your church.');
@@ -79,7 +79,7 @@ export default function PublicExpensePage() {
         try {
             const res = await fetch('/api/public-expense', {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ oversightDeptId: form.oversightDeptId, requesterName: form.requesterName.trim(), leaderPhone: form.leaderPhone.trim(), churchName: form.churchName.trim(), momoName: form.momoName.trim(), momoNumber: form.momoNumber.trim(), amount, description: form.description.trim() }),
+                body: JSON.stringify({ oversightOrganisationId: form.oversightOrganisationId, requesterName: form.requesterName.trim(), leaderPhone: form.leaderPhone.trim(), churchName: form.churchName.trim(), momoName: form.momoName.trim(), momoNumber: form.momoNumber.trim(), amount, description: form.description.trim() }),
             });
             const data = await res.json();
             if (!res.ok) setError(data.error || 'Failed to submit request. Please try again.');
@@ -108,7 +108,7 @@ export default function PublicExpensePage() {
                             <p className="text-xs text-muted-foreground/60 mt-1">Keep this for your records.</p>
                         </div>
                     )}
-                    <Button variant="outline" className="w-full" onClick={() => { setSubmitted(false); setReferenceId(null); setForm({ oversightDeptId: '', requesterName: '', leaderPhone: '', churchName: '', momoName: '', momoNumber: '', amount: '', description: '' }); }}>
+                    <Button variant="outline" className="w-full" onClick={() => { setSubmitted(false); setReferenceId(null); setForm({ oversightOrganisationId: '', requesterName: '', leaderPhone: '', churchName: '', momoName: '', momoNumber: '', amount: '', description: '' }); }}>
                         Submit another request
                     </Button>
                 </div>
@@ -163,7 +163,7 @@ export default function PublicExpensePage() {
                 <form onSubmit={handleSubmit} className="flex flex-col gap-4">
                     <div className="space-y-1.5">
                         <Label>Oversight church <span className="text-destructive">*</span></Label>
-                        <Select value={form.oversightDeptId} onValueChange={v => { setForm(p => ({ ...p, oversightDeptId: v })); setError(''); }} disabled={loadingOversights} required>
+                        <Select value={form.oversightOrganisationId} onValueChange={v => { setForm(p => ({ ...p, oversightOrganisationId: v })); setError(''); }} disabled={loadingOversights} required>
                             <SelectTrigger><SelectValue placeholder={loadingOversights ? 'Loading churches…' : 'Select oversight church'} /></SelectTrigger>
                             <SelectContent>{oversights.map(o => <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>)}</SelectContent>
                         </Select>

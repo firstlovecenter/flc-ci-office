@@ -17,7 +17,7 @@ import { sumMoney } from '@/lib/format-money';
 interface PublicRequest {
     id: string; requesterName: string; churchName: string; momoName: string; momoNumber: string;
     amount: string; description: string; status: 'PENDING' | 'PROCESSED' | 'REJECTED';
-    createdAt: string; oversightDeptId: string; transactionId: string | null;
+    createdAt: string; oversightOrganisationId: string; transactionId: string | null;
 }
 
 const statusBadgeVariant = (s: string): 'success' | 'destructive' | 'warning' => {
@@ -33,7 +33,7 @@ export default function PublicRequestsPage() {
 
     const [requests, setRequests] = useState<PublicRequest[]>([]);
     const [loading, setLoading] = useState(true);
-    const [departments, setDepartments] = useState<any[]>([]);
+    const [organisations, setOrganisations] = useState<any[]>([]);
     const [loadingDepts, setLoadingDepts] = useState(false);
     const [statusFilter, setStatusFilter] = useState('PENDING');
 
@@ -70,18 +70,18 @@ export default function PublicRequestsPage() {
         fetchRequests();
     }, [session, fetchRequests, hasOversightAdminAccess, hasSuperAdminAccess]);
 
-    const fetchDepartments = async () => {
-        if (departments.length > 0) return;
+    const fetchOrganisations = async () => {
+        if (organisations.length > 0) return;
         setLoadingDepts(true);
-        try { const res = await fetch('/api/departments'); const d = await res.json(); setDepartments(Array.isArray(d) ? d : []); }
-        catch { showError('Failed to load departments.'); }
+        try { const res = await fetch('/api/organisations'); const d = await res.json(); setOrganisations(Array.isArray(d) ? d : []); }
+        catch { showError('Failed to load organisations.'); }
         finally { setLoadingDepts(false); }
     };
 
     const fetchBalance = async (deptId: string) => {
         setLoadingBalance(true); setDeptBalance(null);
         try {
-            const res = await fetch(`/api/transactions?departmentId=${deptId}&exactDepartment=true&status=APPROVED`);
+            const res = await fetch(`/api/transactions?organisationId=${deptId}&exactOrganisation=true&status=APPROVED`);
             const txs = await res.json();
             if (Array.isArray(txs)) setDeptBalance(sumMoney(txs.map((tx: any) => { const a = Number(tx.amountInBase || tx.amount); return tx.type === 'INCOME' ? a : -a; })));
         } catch { setDeptBalance(null); }
@@ -89,7 +89,7 @@ export default function PublicRequestsPage() {
     };
 
     const openProcessDialog = (req: PublicRequest) => {
-        setProcessDialog({ open: true, request: req }); setSelectedDeptId(''); setDeptBalance(null); setProcessError(''); fetchDepartments();
+        setProcessDialog({ open: true, request: req }); setSelectedDeptId(''); setDeptBalance(null); setProcessError(''); fetchOrganisations();
     };
     const closeProcessDialog = () => { setProcessDialog({ open: false, request: null }); setSelectedDeptId(''); setDeptBalance(null); setProcessError(''); };
 
@@ -97,7 +97,7 @@ export default function PublicRequestsPage() {
         if (!processDialog.request || !selectedDeptId) return;
         setProcessError(''); setProcessing(true);
         try {
-            const res = await fetch(`/api/public-expense/${processDialog.request.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'process', departmentId: selectedDeptId }) });
+            const res = await fetch(`/api/public-expense/${processDialog.request.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'process', organisationId: selectedDeptId }) });
             const data = await res.json();
             if (!res.ok) setProcessError(data.error || 'Failed to process request.');
             else { showSuccess('Request processed. A pending expense transaction has been created.'); closeProcessDialog(); fetchRequests(); }
@@ -252,9 +252,9 @@ export default function PublicRequestsPage() {
                             <div className="border-t border-border pt-3">
                                 <p className="text-xs font-semibold uppercase tracking-[0.07em] text-muted-foreground mb-3">Select account to deduct from</p>
                                 <Select value={selectedDeptId} onValueChange={v => { setSelectedDeptId(v); if (v) fetchBalance(v); }} disabled={loadingDepts}>
-                                    <SelectTrigger><SelectValue placeholder={loadingDepts ? 'Loading...' : 'Church / Department Account'} /></SelectTrigger>
+                                    <SelectTrigger><SelectValue placeholder={loadingDepts ? 'Loading...' : 'Church / Organisation Account'} /></SelectTrigger>
                                     <SelectContent>
-                                        {departments.map(d => <SelectItem key={d.id} value={d.id}>{d.name} ({d.level})</SelectItem>)}
+                                        {organisations.map(d => <SelectItem key={d.id} value={d.id}>{d.name} ({d.level})</SelectItem>)}
                                     </SelectContent>
                                 </Select>
                             </div>
@@ -263,7 +263,7 @@ export default function PublicRequestsPage() {
                                 deptBalance !== null ? (
                                     <Alert variant={noBalance || insufficientBalance ? 'destructive' : 'default'}>
                                         <AlertDescription>
-                                            {noBalance ? 'This department has no positive balance. Cannot process this request.'
+                                            {noBalance ? 'This organisation has no positive balance. Cannot process this request.'
                                                 : insufficientBalance ? `Insufficient balance. Available: GH₵ ${formatNumber(deptBalance)}. Requested: GH₵ ${formatNumber(requestAmount)}.`
                                                 : `Available balance: GH₵ ${formatNumber(deptBalance)}`}
                                         </AlertDescription>

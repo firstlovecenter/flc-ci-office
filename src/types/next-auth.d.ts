@@ -6,14 +6,14 @@ declare module 'next-auth' {
             id: string;
             role: string;
             roles: string[];
-            departmentId?: string | null;
-            departmentLevel?: string;
-            departmentName?: string;
+            organisationId?: string | null;
+            organisationLevel?: string;
+            organisationName?: string;
             activeUserRoleId?: string | null;
             activeUserRole?: {
                 id: string;
                 role: string;
-                departmentId: string;
+                organisationId: string;
             } | null;
             loginAt?: number;
             // Impersonation fields
@@ -27,14 +27,14 @@ declare module 'next-auth' {
         id: string;
         role: string;
         roles: string[];
-        departmentId?: string;
-        departmentLevel?: string;
-        departmentName?: string;
+        organisationId?: string;
+        organisationLevel?: string;
+        organisationName?: string;
         activeUserRoleId?: string;
         activeUserRole?: {
             id: string;
             role: string;
-            departmentId: string;
+            organisationId: string;
         } | null;
     }
 }
@@ -44,14 +44,14 @@ declare module 'next-auth/jwt' {
         id: string;
         role: string;
         roles: string[];
-        departmentId?: string | null;
-        departmentLevel?: string;
-        departmentName?: string;
+        organisationId?: string | null;
+        organisationLevel?: string;
+        organisationName?: string;
         activeUserRoleId?: string | null;
         activeUserRole?: {
             id: string;
             role: string;
-            departmentId: string;
+            organisationId: string;
         } | null;
         loginAt?: number;
         // Impersonation fields

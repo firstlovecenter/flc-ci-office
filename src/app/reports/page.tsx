@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { cn, formatDepartmentLevel, formatCurrency } from '@/lib/utils';
+import { cn, formatOrganisationLevel, formatCurrency } from '@/lib/utils';
 import { roundMoney, sumMoney } from '@/lib/format-money';
 import { useColorMode } from '@/app/providers';
 import { useToast } from '@/components/ToastProvider';
@@ -22,9 +22,9 @@ function ReportsPageContent() {
     const { resolvedMode } = useColorMode();
     const isDark = resolvedMode === 'dark';
 
-    const [departments, setDepartments] = useState<any[]>([]);
-    const [selectedDepartment, setSelectedDepartment] = useState('');
-    const [fixedDepartment, setFixedDepartment] = useState<any>(null);
+    const [organisations, setOrganisations] = useState<any[]>([]);
+    const [selectedOrganisation, setSelectedOrganisation] = useState('');
+    const [fixedOrganisation, setFixedOrganisation] = useState<any>(null);
     const [transactions, setTransactions] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
     const [stats, setStats] = useState({ income: 0, expense: 0, balance: 0 });
@@ -33,37 +33,37 @@ function ReportsPageContent() {
     const [openingBalance, setOpeningBalance] = useState(0);
     const [closingBalance, setClosingBalance] = useState(0);
     const [baseCurrency, setBaseCurrency] = useState<{ id: string; code: string; symbol: string } | null>(null);
-    const [includeSubDepartments, setIncludeSubDepartments] = useState(true);
+    const [includeSubOrganisations, setIncludeSubOrganisations] = useState(true);
     const [chartData, setChartData] = useState<{ week: string; income: number; expense: number }[]>([]);
     const [chartLoading, setChartLoading] = useState(true);
-    const [userDepartmentId, setUserDepartmentId] = useState<string | null>(null);
-    const [userDepartmentName, setUserDepartmentName] = useState<string | null>(null);
+    const [userOrganisationId, setUserOrganisationId] = useState<string | null>(null);
+    const [userOrganisationName, setUserOrganisationName] = useState<string | null>(null);
     const [isLeader, setIsLeader] = useState(false);
-    const [hasSubDepartments, setHasSubDepartments] = useState(false);
+    const [hasSubOrganisations, setHasSubOrganisations] = useState(false);
 
     const leaderRoles = ['DENOMINATION_LEADER', 'OVERSIGHT_LEADER', 'CAMPUS_LEADER', 'STREAM_LEADER', 'COUNCIL_LEADER'];
 
     useEffect(() => {
-        fetchDepartments(); fetchBaseCurrency();
-        if (deptParam) { fetchFixedDepartment(); fetchChartDataForDept(deptParam); }
+        fetchOrganisations(); fetchBaseCurrency();
+        if (deptParam) { fetchFixedOrganisation(); fetchChartDataForDept(deptParam); }
         else fetchChartData();
     }, [deptParam]);
 
     useEffect(() => {
-        if (deptParam) setSelectedDepartment(deptParam);
-        else if (userDepartmentId && !selectedDepartment) setSelectedDepartment(userDepartmentId);
-    }, [userDepartmentId, deptParam]);
+        if (deptParam) setSelectedOrganisation(deptParam);
+        else if (userOrganisationId && !selectedOrganisation) setSelectedOrganisation(userOrganisationId);
+    }, [userOrganisationId, deptParam]);
 
-    const fetchFixedDepartment = async () => {
+    const fetchFixedOrganisation = async () => {
         if (!deptParam) return;
-        const r = await fetch(`/api/departments/${deptParam}`);
-        if (r.ok) setFixedDepartment(await r.json());
+        const r = await fetch(`/api/organisations/${deptParam}`);
+        if (r.ok) setFixedOrganisation(await r.json());
     };
 
     const fetchChartDataForDept = async (deptId: string) => {
         setChartLoading(true);
         try {
-            const r = await fetch(`/api/departments/${deptId}/stats`, { cache: 'no-store' });
+            const r = await fetch(`/api/organisations/${deptId}/stats`, { cache: 'no-store' });
             if (r.ok) { const d = await r.json(); if (d.chartData) setChartData(d.chartData); if (d.currency) setBaseCurrency({ id: '', code: d.currency.code, symbol: d.currency.symbol }); }
         } catch {} finally { setChartLoading(false); }
     };
@@ -75,18 +75,18 @@ function ReportsPageContent() {
                 const d = await r.json(); setBaseCurrency(d.baseCurrency);
                 const activeUserRole = d.activeUserRole || d.userRoles?.[0];
                 const activeRole = activeUserRole?.role || d.role;
-                const activeDeptId = activeUserRole?.departmentId || d.departmentId;
-                const activeDeptName = activeUserRole?.department?.name || d.department?.name;
-                if (activeDeptId) setUserDepartmentId(activeDeptId);
-                if (activeDeptName) setUserDepartmentName(activeDeptName);
+                const activeDeptId = activeUserRole?.organisationId || d.organisationId;
+                const activeDeptName = activeUserRole?.organisation?.name || d.organisation?.name;
+                if (activeDeptId) setUserOrganisationId(activeDeptId);
+                if (activeDeptName) setUserOrganisationName(activeDeptName);
                 if (activeRole && leaderRoles.includes(activeRole)) setIsLeader(true);
             }
         } catch {}
     };
 
-    const fetchDepartments = async () => {
-        const r = await fetch('/api/departments');
-        if (r.ok) { const d = await r.json(); setDepartments(d); if (d.length > 1) setHasSubDepartments(true); }
+    const fetchOrganisations = async () => {
+        const r = await fetch('/api/organisations');
+        if (r.ok) { const d = await r.json(); setOrganisations(d); if (d.length > 1) setHasSubOrganisations(true); }
     };
 
     const fetchChartData = async () => {
@@ -101,7 +101,7 @@ function ReportsPageContent() {
             let opening = 0;
             if (startDate) {
                 let openUrl = '/api/transactions?status=APPROVED&';
-                if (selectedDepartment) { openUrl += `departmentId=${selectedDepartment}&`; if (!includeSubDepartments) openUrl += `exactDepartment=true&`; }
+                if (selectedOrganisation) { openUrl += `organisationId=${selectedOrganisation}&`; if (!includeSubOrganisations) openUrl += `exactOrganisation=true&`; }
                 openUrl += `endDate=${new Date(new Date(startDate).getTime() - 86400000).toISOString().split('T')[0]}`;
                 const or = await fetch(openUrl);
                 if (or.ok) { const od = await or.json(); opening = roundMoney(sumMoney(od.filter((t: any) => t.type === 'INCOME').map((t: any) => t.amountInBase || t.amount)) - sumMoney(od.filter((t: any) => t.type === 'EXPENSE').map((t: any) => t.amountInBase || t.amount))); }
@@ -109,7 +109,7 @@ function ReportsPageContent() {
             setOpeningBalance(opening);
 
             let url = '/api/transactions?status=APPROVED&';
-            if (selectedDepartment) { url += `departmentId=${selectedDepartment}&`; if (!includeSubDepartments) url += `exactDepartment=true&`; }
+            if (selectedOrganisation) { url += `organisationId=${selectedOrganisation}&`; if (!includeSubOrganisations) url += `exactOrganisation=true&`; }
             if (startDate) url += `startDate=${startDate}&`;
             if (endDate) url += `endDate=${endDate}&`;
 
@@ -129,12 +129,12 @@ function ReportsPageContent() {
     const handleDownload = () => {
         const sym = baseCurrency?.code || 'GHS';
         let bal = openingBalance;
-        const headers = `Date,Description,Department,Debit (${sym}),Credit (${sym}),Balance (${sym})\n`;
+        const headers = `Date,Description,Organisation,Debit (${sym}),Credit (${sym}),Balance (${sym})\n`;
         const rows = transactions.map(tx => {
             const debit = tx.type === 'EXPENSE' ? Number(tx.amountInBase || tx.amount) : 0;
             const credit = tx.type === 'INCOME' ? Number(tx.amountInBase || tx.amount) : 0;
             bal = roundMoney(bal + credit - debit);
-            return `${new Date(tx.createdAt).toLocaleDateString()},${tx.description},${tx.department.name},${debit || ''},${credit || ''},${bal}`;
+            return `${new Date(tx.createdAt).toLocaleDateString()},${tx.description},${tx.organisation.name},${debit || ''},${credit || ''},${bal}`;
         }).join('\n');
         const blob = new Blob([headers + rows], { type: 'text/csv' });
         const url = URL.createObjectURL(blob); const a = document.createElement('a');
@@ -142,10 +142,10 @@ function ReportsPageContent() {
     };
 
     const handleDownloadPDF = async () => {
-        if (isLeader && !userDepartmentId) { showError('Please wait for user data to load, then try again.'); return; }
-        const deptToUse = isLeader ? userDepartmentId : selectedDepartment;
+        if (isLeader && !userOrganisationId) { showError('Please wait for user data to load, then try again.'); return; }
+        const deptToUse = isLeader ? userOrganisationId : selectedOrganisation;
         try {
-            const r = await fetch('/api/reports/pdf', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ departmentId: deptToUse, startDate, endDate, reportType: 'statement', includeSubDepartments: isLeader ? true : includeSubDepartments }) });
+            const r = await fetch('/api/reports/pdf', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ organisationId: deptToUse, startDate, endDate, reportType: 'statement', includeSubOrganisations: isLeader ? true : includeSubOrganisations }) });
             if (!r.ok) { let msg = 'Unknown error'; try { const d = await r.json(); msg = d.error || d.details || msg; } catch { msg = `Server error: ${r.status} ${r.statusText}`; } showError(`Failed to generate PDF: ${msg}`); return; }
             const blob = await r.blob();
             if (blob.type !== 'application/pdf') { showError('Failed to generate PDF: Invalid response format'); return; }
@@ -155,10 +155,10 @@ function ReportsPageContent() {
 
     const fmtCurr = (v: number) => baseCurrency ? formatCurrency(v, baseCurrency.code, baseCurrency.symbol) : formatCurrency(v);
 
-    const deptName = fixedDepartment ? `${fixedDepartment.name} (${formatDepartmentLevel(fixedDepartment.level)})`
-        : isLeader ? userDepartmentName || 'My Department'
-        : selectedDepartment ? departments.find(d => d.id === selectedDepartment)?.name || 'All Departments'
-        : 'All Departments';
+    const deptName = fixedOrganisation ? `${fixedOrganisation.name} (${formatOrganisationLevel(fixedOrganisation.level)})`
+        : isLeader ? userOrganisationName || 'My Organisation'
+        : selectedOrganisation ? organisations.find(d => d.id === selectedOrganisation)?.name || 'All Organisations'
+        : 'All Organisations';
 
     const chartColors = { income: '#22C55E', expense: '#EF4444', grid: isDark ? '#1E293B' : '#E2E8F0', text: isDark ? '#94A3B8' : '#64748B', tooltipBg: isDark ? '#1E293B' : '#FFFFFF', tooltipBorder: isDark ? '#334155' : '#E2E8F0' };
 
@@ -172,10 +172,10 @@ function ReportsPageContent() {
                 <div>
                     <p className="text-[0.6875rem] font-medium uppercase tracking-[0.10em] text-muted-foreground mb-0.5">Analytics</p>
                     <h1 className="text-[1.625rem] sm:text-[1.875rem] font-semibold tracking-[-0.025em] text-foreground">
-                        {fixedDepartment ? `${fixedDepartment.name} trends` : 'Trends'}
+                        {fixedOrganisation ? `${fixedOrganisation.name} trends` : 'Trends'}
                     </h1>
                     <p className="text-sm text-muted-foreground mt-0.5">
-                        {fixedDepartment ? 'Financial trends for this church and its sub-churches.' : 'Income and expense movements over time.'}
+                        {fixedOrganisation ? 'Financial trends for this church and its sub-churches.' : 'Income and expense movements over time.'}
                     </p>
                 </div>
             </div>
@@ -203,26 +203,26 @@ function ReportsPageContent() {
                     <div className="space-y-1.5"><Label>End Date</Label><Input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} /></div>
                 </div>
                 <div className="flex flex-wrap gap-3 items-end">
-                    {!fixedDepartment && !isLeader && hasSubDepartments && (
+                    {!fixedOrganisation && !isLeader && hasSubOrganisations && (
                         <>
                             <div className="space-y-1.5 w-full sm:w-auto">
-                                <Label>Department (Optional)</Label>
-                                <Select value={selectedDepartment || "none"} onValueChange={(v) => setSelectedDepartment(v === "none" ? "" : v)}>
-                                    <SelectTrigger className="w-full sm:w-64"><SelectValue placeholder="All Departments" /></SelectTrigger>
+                                <Label>Organisation (Optional)</Label>
+                                <Select value={selectedOrganisation || "none"} onValueChange={(v) => setSelectedOrganisation(v === "none" ? "" : v)}>
+                                    <SelectTrigger className="w-full sm:w-64"><SelectValue placeholder="All Organisations" /></SelectTrigger>
                                     <SelectContent>
-                                        <SelectItem value="none">All Departments</SelectItem>
-                                        {departments.map(d => <SelectItem key={d.id} value={d.id}>{d.name} ({formatDepartmentLevel(d.level)})</SelectItem>)}
+                                        <SelectItem value="none">All Organisations</SelectItem>
+                                        {organisations.map(d => <SelectItem key={d.id} value={d.id}>{d.name} ({formatOrganisationLevel(d.level)})</SelectItem>)}
                                     </SelectContent>
                                 </Select>
                             </div>
-                            {selectedDepartment && (
+                            {selectedOrganisation && (
                                 <div className="space-y-1.5 w-full sm:w-auto">
                                     <Label>Scope</Label>
-                                    <Select value={includeSubDepartments ? 'include' : 'exact'} onValueChange={v => setIncludeSubDepartments(v === 'include')}>
+                                    <Select value={includeSubOrganisations ? 'include' : 'exact'} onValueChange={v => setIncludeSubOrganisations(v === 'include')}>
                                         <SelectTrigger className="w-full sm:w-56"><SelectValue /></SelectTrigger>
                                         <SelectContent>
-                                            <SelectItem value="include">Include Lower Departments</SelectItem>
-                                            <SelectItem value="exact">Selected Department Only</SelectItem>
+                                            <SelectItem value="include">Include Lower Organisations</SelectItem>
+                                            <SelectItem value="exact">Selected Organisation Only</SelectItem>
                                         </SelectContent>
                                     </Select>
                                 </div>
@@ -287,7 +287,7 @@ function ReportsPageContent() {
                                     <div key={tx.id} className={cn('rounded-xl border border-border p-3', i % 2 === 0 ? 'bg-muted/20' : 'bg-card')}>
                                         <div className="flex justify-between items-center mb-1">
                                             <p className="text-sm font-bold text-foreground">{new Date(tx.createdAt).toLocaleDateString()}</p>
-                                            <p className="text-xs text-muted-foreground">{tx.department.name}</p>
+                                            <p className="text-xs text-muted-foreground">{tx.organisation.name}</p>
                                         </div>
                                         <p className="text-sm text-foreground mb-2">{tx.description}</p>
                                         {tx.currency && baseCurrency && tx.currency.code !== baseCurrency.code && <p className="text-xs text-muted-foreground mb-2">(Original: {tx.currency.symbol}{Number(tx.amount).toLocaleString()} {tx.currency.code})</p>}
@@ -310,7 +310,7 @@ function ReportsPageContent() {
                         <div className="hidden md:block overflow-x-auto">
                             <table className="w-full text-sm">
                                 <thead className="bg-primary text-white">
-                                    <tr>{['Date', 'Description', 'Department', 'Debit', 'Credit', 'Balance'].map((h, i) => <th key={h} className={cn('py-3 px-4 font-bold', i >= 3 ? 'text-right' : 'text-left')}>{h}</th>)}</tr>
+                                    <tr>{['Date', 'Description', 'Organisation', 'Debit', 'Credit', 'Balance'].map((h, i) => <th key={h} className={cn('py-3 px-4 font-bold', i >= 3 ? 'text-right' : 'text-left')}>{h}</th>)}</tr>
                                 </thead>
                                 <tbody>
                                     {(() => { let bal = openingBalance; return transactions.map((tx, i) => {
@@ -322,7 +322,7 @@ function ReportsPageContent() {
                                             <tr key={tx.id} className={cn('border-b border-border', i % 2 === 0 ? 'bg-muted/15' : 'bg-card')}>
                                                 <td className="py-2.5 px-4 text-muted-foreground">{new Date(tx.createdAt).toLocaleDateString()}</td>
                                                 <td className="py-2.5 px-4"><span className="text-foreground">{tx.description}</span>{tx.currency && baseCurrency && tx.currency.code !== baseCurrency.code && <span className="block text-xs text-muted-foreground">(Original: {tx.currency.symbol}{Number(tx.amount).toLocaleString()} {tx.currency.code})</span>}</td>
-                                                <td className="py-2.5 px-4 text-foreground">{tx.department.name}</td>
+                                                <td className="py-2.5 px-4 text-foreground">{tx.organisation.name}</td>
                                                 <td className={cn('py-2.5 px-4 text-right font-medium', debit ? 'text-destructive' : 'text-muted-foreground')}>{debit ? fmtCurr(debit) : '—'}</td>
                                                 <td className={cn('py-2.5 px-4 text-right font-medium', credit ? 'text-success' : 'text-muted-foreground')}>{credit ? fmtCurr(credit) : '—'}</td>
                                                 <td className={cn('py-2.5 px-4 text-right font-bold', bal >= 0 ? 'text-success' : 'text-destructive')}>{fmtCurr(bal)}</td>
@@ -347,7 +347,7 @@ function ReportsPageContent() {
                 </>
             )}
 
-            {!loading && transactions.length === 0 && (selectedDepartment || startDate || endDate) && (
+            {!loading && transactions.length === 0 && (selectedOrganisation || startDate || endDate) && (
                 <div className="rounded-xl border border-border bg-card p-8 text-center">
                     <p className="text-lg font-semibold text-foreground mb-1">No Transactions Found</p>
                     <p className="text-sm text-muted-foreground">There are no transactions for the selected criteria. Try adjusting your filters or date range.</p>

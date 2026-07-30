@@ -31,7 +31,7 @@ export default function ForgotPasswordPage() {
             });
 
             const data = await response.json();
-            if (!response.ok) throw new Error(data.error || 'Failed to send reset SMS');
+            if (!response.ok) throw new Error(data.error || 'Failed to send reset instructions');
 
             setSuccess(true);
             setIdentifier('');
@@ -66,7 +66,7 @@ export default function ForgotPasswordPage() {
                     Forgot your password?
                 </h1>
                 <p className="text-sm text-muted-foreground mb-8">
-                    Enter the email or phone number on your account. We&apos;ll text you a reset code.
+                    Enter the email or phone number on your account. We&apos;ll send a reset code by SMS and email when available.
                 </p>
 
                 {error && (
@@ -105,7 +105,7 @@ export default function ForgotPasswordPage() {
                         className="mt-2 w-full font-medium"
                         disabled={loading || success || !identifier}
                     >
-                        {loading ? 'Sending…' : 'Send reset code via SMS'}
+                        {loading ? 'Sending…' : 'Send reset code'}
                     </Button>
 
                     <div className="flex justify-center mt-3 pt-4 border-t border-border">

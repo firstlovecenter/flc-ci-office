@@ -8,7 +8,7 @@ import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 
 interface SearchResult {
-    type: 'user' | 'transaction' | 'department';
+    type: 'user' | 'transaction' | 'organisation';
     id: string;
     title: string;
     subtitle: string;
@@ -19,13 +19,13 @@ interface SearchResult {
 
 const typeIcon = (type: string) => {
     if (type === 'user') return User;
-    if (type === 'department') return Building2;
+    if (type === 'organisation') return Building2;
     return Receipt;
 };
 
 const typeBgColor = (type: string) => {
     if (type === 'user') return 'bg-blue-500/10 text-blue-500';
-    if (type === 'department') return 'bg-primary/10 text-primary';
+    if (type === 'organisation') return 'bg-primary/10 text-primary';
     return 'bg-success/10 text-success';
 };
 

@@ -11,8 +11,9 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { cn, formatCurrency, formatDepartmentLevel, isWeekLocked } from '@/lib/utils';
+import { cn, formatCurrency, formatOrganisationLevel, isWeekLocked } from '@/lib/utils';
 import { formatMoney } from '@/lib/format-money';
+import { APP_CURRENCY } from '@/lib/currency-constants';
 import { useToast } from '@/components/ToastProvider';
 import EditTransactionDialog from '@/components/EditTransactionDialog';
 import ReceiptUpload from '@/components/ReceiptUpload';
@@ -22,8 +23,8 @@ type TransactionWithDetails = {
     id: string; description: string; amount: number; currencyId?: string | null;
     type: 'INCOME' | 'EXPENSE'; status: 'PENDING' | 'APPROVED' | 'REJECTED'; isCharge?: boolean;
     weekLocked?: boolean; locked?: boolean; weekNumber?: number; year?: number;
-    departmentId: string; userId: string;
-    department: { id: string; name: string; level: string };
+    organisationId: string; userId: string;
+    organisation: { id: string; name: string; level: string };
     user: { id: string; name: string; email: string };
     files: { id: string; fileName: string; fileUrl: string; fileMime: string; fileSize: number | null; uploadedAt: string; uploadedBy: string; uploader?: { id: string; name: string | null; email: string } }[];
     currency?: { id: string; code: string; symbol: string; name: string } | null;
@@ -64,9 +65,7 @@ function TransactionsPageContent() {
 
     const [transactions, setTransactions] = useState<TransactionWithDetails[]>([]);
     const [summary, setSummary] = useState({ income: '0', expense: '0', balance: '0' });
-    const [baseCurrency, setBaseCurrency] = useState<{ id: string; code: string; symbol: string } | null>(null);
-    const [currencies, setCurrencies] = useState<any[]>([]);
-    const [department, setDepartment] = useState<any>(null);
+    const [organisation, setOrganisation] = useState<any>(null);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState(searchParams?.get('search') || '');
     const [typeFilter, setTypeFilter] = useState('ALL');
@@ -78,35 +77,24 @@ function TransactionsPageContent() {
 
     const isSuperAdmin = session?.user?.role === 'SUPERADMIN';
     const isAdmin = session?.user?.role && ['SUPERADMIN', 'DENOMINATION_ADMIN', 'OVERSIGHT_ADMIN', 'CAMPUS_ADMIN'].includes(session.user.role);
-    // Any admin role may attach receipts within their departmental scope. The
+    // Any admin role may attach receipts within their organisational scope. The
     // transaction list is already scoped server-side, so a visible approved
     // expense is one this admin is allowed to act on (the API re-checks too).
     const canUploadReceiptAsAdmin = session?.user?.role === 'SUPERADMIN' || session?.user?.role?.endsWith('_ADMIN') || false;
     const isLeader = session?.user?.role?.includes('LEADER') || false;
-    const canSelectBaseCurrency = session?.user?.role === 'OVERSIGHT_ADMIN';
+    const baseCurrency = APP_CURRENCY;
 
     useEffect(() => {
-        fetchCurrencies(); fetchBaseCurrency(); fetchTransactions(); fetchSummary();
-        if (deptParam) fetchDepartment();
-        const onVisible = () => { if (document.visibilityState === 'visible') { fetchBaseCurrency(); fetchTransactions(); fetchSummary(); } };
+        fetchTransactions(); fetchSummary();
+        if (deptParam) fetchOrganisation();
+        const onVisible = () => { if (document.visibilityState === 'visible') { fetchTransactions(); fetchSummary(); } };
         document.addEventListener('visibilitychange', onVisible);
         return () => document.removeEventListener('visibilitychange', onVisible);
     }, [deptParam, session?.user?.role]);
 
-    const fetchCurrencies = async () => { try { const r = await fetch('/api/currencies?active=true'); if (r.ok) setCurrencies(await r.json()); } catch {} };
-    const fetchBaseCurrency = async () => {
-        try {
-            if (session?.user?.role && ['SUPERADMIN', 'DENOMINATION_ADMIN', 'DENOMINATION_LEADER'].includes(session.user.role)) {
-                const r = await fetch('/api/currencies?active=true'); if (r.ok) { const cs = await r.json(); const base = cs.find((c: any) => c.isBase); if (base) setBaseCurrency(base); }
-            } else {
-                const r = await fetch('/api/users/me'); if (r.ok) { const d = await r.json(); if (d.baseCurrency) setBaseCurrency(d.baseCurrency); else { const r2 = await fetch('/api/currencies?active=true'); if (r2.ok) { const cs = await r2.json(); const base = cs.find((c: any) => c.isBase); if (base) setBaseCurrency(base); } } }
-            }
-        } catch {}
-    };
-    const handleBaseCurrencyChange = async (currencyId: string) => { try { await fetch('/api/users/me', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ baseCurrencyId: currencyId }) }); await fetchBaseCurrency(); await fetchTransactions(); } catch {} };
-    const fetchDepartment = async () => { try { const r = await fetch(`/api/departments/${deptParam}`); if (r.ok) setDepartment(await r.json()); } catch {} };
-    const fetchTransactions = async () => { try { const url = deptParam ? `/api/transactions?departmentId=${deptParam}` : '/api/transactions'; const r = await fetch(url); if (r.ok) setTransactions(await r.json()); } catch {} finally { setLoading(false); } };
-    const fetchSummary = async () => { try { const url = deptParam ? `/api/transactions/summary?departmentId=${deptParam}` : '/api/transactions/summary'; const r = await fetch(url, { cache: 'no-store' }); if (r.ok) { const d = await r.json(); setSummary({ income: String(d.income ?? '0'), expense: String(d.expense ?? '0'), balance: String(d.balance ?? '0') }); } } catch {} };
+    const fetchOrganisation = async () => { try { const r = await fetch(`/api/organisations/${deptParam}`); if (r.ok) setOrganisation(await r.json()); } catch {} };
+    const fetchTransactions = async () => { try { const url = deptParam ? `/api/transactions?organisationId=${deptParam}` : '/api/transactions'; const r = await fetch(url); if (r.ok) setTransactions(await r.json()); } catch {} finally { setLoading(false); } };
+    const fetchSummary = async () => { try { const url = deptParam ? `/api/transactions/summary?organisationId=${deptParam}` : '/api/transactions/summary'; const r = await fetch(url, { cache: 'no-store' }); if (r.ok) { const d = await r.json(); setSummary({ income: String(d.income ?? '0'), expense: String(d.expense ?? '0'), balance: String(d.balance ?? '0') }); } } catch {} };
 
     const handleDelete = async (id: string, desc: string) => {
         if (!confirm(`Delete "${desc}"? This cannot be undone.`)) return;
@@ -127,7 +115,7 @@ function TransactionsPageContent() {
 
     const filteredTransactions = useMemo(() => {
         let filtered = [...transactions];
-        if (searchTerm) filtered = filtered.filter(tx => tx.description.toLowerCase().includes(searchTerm.toLowerCase()) || tx.department.name.toLowerCase().includes(searchTerm.toLowerCase()) || tx.user?.name?.toLowerCase().includes(searchTerm.toLowerCase()));
+        if (searchTerm) filtered = filtered.filter(tx => tx.description.toLowerCase().includes(searchTerm.toLowerCase()) || tx.organisation.name.toLowerCase().includes(searchTerm.toLowerCase()) || tx.user?.name?.toLowerCase().includes(searchTerm.toLowerCase()));
         if (typeFilter !== 'ALL') filtered = filtered.filter(tx => tx.type === typeFilter);
         if (approvalFilter !== 'ALL') filtered = filtered.filter(tx => tx.status === approvalFilter);
         return filtered.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
@@ -151,7 +139,7 @@ function TransactionsPageContent() {
 
     const balance = Number(summary.balance);
     const balanceColor = balance < 0 ? 'text-destructive' : balance < 5000 ? 'text-warning' : 'text-success';
-    const fmtAmt = (tx: TransactionWithDetails) => baseCurrency ? formatCurrency(Number(tx.amountInBase || tx.amount), baseCurrency.code, baseCurrency.symbol) : formatCurrency(Number(tx.amountInBase || tx.amount));
+    const fmtAmt = (tx: TransactionWithDetails) => formatCurrency(Number(tx.amountInBase || tx.amount), baseCurrency.code, baseCurrency.symbol);
 
     return (
         <div>
@@ -162,19 +150,19 @@ function TransactionsPageContent() {
                     <div className="min-w-0">
                         <p className="text-[0.6875rem] font-medium uppercase tracking-[0.10em] text-muted-foreground mb-0.5">Ledger</p>
                         <h1 className="text-[1.625rem] sm:text-[1.875rem] font-semibold tracking-[-0.025em] text-foreground">
-                            {department?.name ? `${department.name}${department.level ? ` ${formatDepartmentLevel(department.level)}` : ''}` : 'Transaction history'}
+                            {organisation?.name ? `${organisation.name}${organisation.level ? ` ${formatOrganisationLevel(organisation.level)}` : ''}` : 'Transaction history'}
                         </h1>
-                        <p className="text-sm text-muted-foreground mt-0.5">{department ? 'Including sub-departments.' : 'Every entry, recorded and reconciled.'}</p>
+                        <p className="text-sm text-muted-foreground mt-0.5">{organisation ? 'Including sub-organisations.' : 'Every entry, recorded and reconciled.'}</p>
                     </div>
                 </div>
-                <Button asChild><Link href={deptParam ? `/transactions/new?dept=${deptParam}` : '/transactions/new'}><Plus className="mr-1.5 h-4 w-4" />{isLeader ? 'Request expense' : 'New transaction'}</Link></Button>
+                <Button asChild><Link href={deptParam ? `/transactions/new?dept=${deptParam}` : '/transactions/new'}><Plus className="mr-1.5 h-4 w-4" />{isLeader ? 'Request withdrawal' : 'New transaction'}</Link></Button>
             </div>
 
             {/* Summary */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
-                <SummaryCard title="Account balance" value={Number(summary.balance).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} symbol={baseCurrency?.symbol} Icon={Wallet} colorClass={balanceColor} />
-                <SummaryCard title="Total inflows" value={Number(summary.income).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} symbol={baseCurrency?.symbol} Icon={TrendingUp} colorClass="text-success" />
-                <SummaryCard title="Total expense" value={Number(summary.expense).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} symbol={baseCurrency?.symbol} Icon={TrendingUp} colorClass="text-destructive" />
+                <SummaryCard title="Account balance" value={Number(summary.balance).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} symbol={baseCurrency.symbol} Icon={Wallet} colorClass={balanceColor} />
+                <SummaryCard title="Total inflows" value={Number(summary.income).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} symbol={baseCurrency.symbol} Icon={TrendingUp} colorClass="text-success" />
+                <SummaryCard title="Total expense" value={Number(summary.expense).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} symbol={baseCurrency.symbol} Icon={TrendingUp} colorClass="text-destructive" />
             </div>
 
             {/* Filters */}
@@ -183,15 +171,9 @@ function TransactionsPageContent() {
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
                     <Input placeholder="Search transactions…" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="pl-9 rounded-full" />
                 </div>
-                {canSelectBaseCurrency && (
-                    <Select value={baseCurrency?.id || ''} onValueChange={handleBaseCurrencyChange}>
-                        <SelectTrigger className="w-[140px]"><SelectValue placeholder="Base Currency" /></SelectTrigger>
-                        <SelectContent>{currencies.map(c => <SelectItem key={c.id} value={c.id}>{c.symbol} {c.code}</SelectItem>)}</SelectContent>
-                    </Select>
-                )}
                 <Select value={typeFilter} onValueChange={setTypeFilter}>
                     <SelectTrigger className="w-[130px]"><SelectValue placeholder="Type" /></SelectTrigger>
-                    <SelectContent><SelectItem value="ALL">All Types</SelectItem><SelectItem value="INCOME">Income</SelectItem><SelectItem value="EXPENSE">Expense</SelectItem></SelectContent>
+                    <SelectContent><SelectItem value="ALL">All Types</SelectItem><SelectItem value="INCOME">Deposit</SelectItem><SelectItem value="EXPENSE">Withdrawal</SelectItem></SelectContent>
                 </Select>
                 <Select value={approvalFilter} onValueChange={setApprovalFilter}>
                     <SelectTrigger className="w-[130px]"><SelectValue placeholder="Status" /></SelectTrigger>
@@ -214,7 +196,7 @@ function TransactionsPageContent() {
                                 <div className="flex justify-between items-center gap-2">
                                     <div className="min-w-0 flex-1">
                                         <p className="font-semibold text-foreground truncate text-sm">{tx.description}</p>
-                                        <p className="text-xs text-primary font-medium mt-0.5">{tx.department.name}</p>
+                                        <p className="text-xs text-primary font-medium mt-0.5">{tx.organisation.name}</p>
                                         <p className="text-xs text-muted-foreground">{new Date(tx.createdAt).toLocaleDateString()}</p>
                                     </div>
                                     <div className="text-right shrink-0">
@@ -256,16 +238,15 @@ function TransactionsPageContent() {
                                                 <td className="px-4 py-2.5">
                                                     <p className="font-semibold text-foreground">{tx.description}</p>
                                                     <div className="flex flex-wrap items-center gap-1 mt-0.5">
-                                                        {!isLeader && <p className="text-xs text-muted-foreground">{tx.department.name}</p>}
+                                                        {!isLeader && <p className="text-xs text-muted-foreground">{tx.organisation.name}</p>}
                                                         {tx.files?.length > 0 && <Badge variant="outline" className="h-4 text-[0.6rem] gap-0.5"><Paperclip className="h-2.5 w-2.5" />Receipt</Badge>}
                                                     </div>
                                                     {tx.user?.email !== 'skaduteye@gmail.com' && <p className="text-xs text-muted-foreground">By: {tx.user?.name || tx.user?.email}</p>}
-                                                    {tx.currency && baseCurrency && tx.currency.code !== baseCurrency.code && <p className="text-xs text-muted-foreground">Original: {tx.currency.symbol}{Number(tx.amount).toLocaleString()} {tx.currency.code}</p>}
                                                 </td>
                                                 <td className="px-4 py-2.5 text-right font-bold text-destructive">{tx.type === 'EXPENSE' && tx.status === 'APPROVED' ? fmtAmt(tx) : '—'}</td>
                                                 <td className="px-4 py-2.5 text-right font-bold text-success">{tx.type === 'INCOME' && tx.status === 'APPROVED' ? fmtAmt(tx) : '—'}</td>
                                                 <td className={cn('px-4 py-2.5 text-right font-bold', runBalance >= 0 ? 'text-success' : 'text-destructive')}>
-                                                    {baseCurrency ? formatCurrency(runBalance, baseCurrency.code, baseCurrency.symbol) : formatCurrency(runBalance)}
+                                                    {formatCurrency(runBalance, baseCurrency.code, baseCurrency.symbol)}
                                                 </td>
                                                 {isAdmin && (
                                                     <td className="px-4 py-2.5">
@@ -310,12 +291,9 @@ function TransactionsPageContent() {
                                     <div><p className="text-xs text-muted-foreground mb-0.5">Amount</p><p className={cn('text-xl font-bold', tx.type === 'INCOME' ? 'text-success' : 'text-destructive')}>{tx.type === 'INCOME' ? '+' : '−'}{fmtAmt(tx)}</p></div>
                                     <div><p className="text-xs text-muted-foreground mb-1">Status</p><Badge variant={statusBadgeVariant(tx.status)}>{tx.status}</Badge></div>
                                 </div>
-                                <div><p className="text-xs text-muted-foreground mb-0.5">Department</p><p className="text-foreground">{tx.department?.name}</p></div>
+                                <div><p className="text-xs text-muted-foreground mb-0.5">Organisation</p><p className="text-foreground">{tx.organisation?.name}</p></div>
                                 <div><p className="text-xs text-muted-foreground mb-0.5">Submitted By</p><p className="text-foreground font-medium">{tx.user?.name}</p><p className="text-xs text-muted-foreground">{tx.user?.email}</p></div>
                                 <div><p className="text-xs text-muted-foreground mb-0.5">Date</p><p className="text-foreground">{new Date(tx.createdAt).toLocaleString()}</p></div>
-                                {tx.currency && baseCurrency && tx.currency.code !== baseCurrency.code && (
-                                    <div><p className="text-xs text-muted-foreground mb-0.5">Original Amount</p><p className="text-sm text-foreground">{tx.currency.symbol}{Number(tx.amount).toLocaleString()} {tx.currency.code}</p></div>
-                                )}
                                 {tx.type === 'EXPENSE' && !tx.isCharge && (
                                     <div className="pt-3 border-t border-border">
                                         <p className="text-xs text-muted-foreground mb-2">Receipt</p>

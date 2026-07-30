@@ -2,13 +2,12 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { getDescendantDepartmentIds } from '@/lib/departments';
-import { getUserBaseCurrency, convertToUserBaseCurrency } from '@/lib/currency-conversion';
+import { getDescendantOrganisationIds } from '@/lib/organisations';
+import { getAppCurrency } from '@/lib/currency';
 import { getISOWeek, getISOWeekYear, subWeeks } from 'date-fns';
 import { Prisma } from '@prisma/client';
-import { moneyToString, type Money } from '@/lib/money';
+import { toDecimal, moneyToString, type Money } from '@/lib/money';
 
-// Force dynamic rendering - data is user/role specific
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: Request) {
@@ -19,85 +18,76 @@ export async function GET(request: Request) {
     }
 
     try {
-        // Special stats for Superadmin
         if (session.user.role === 'SUPERADMIN') {
-             const today = new Date();
-             today.setHours(0, 0, 0, 0);
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
 
-             const [
-                 userCount, 
-                 departmentCount, 
-                 transactionCount, 
-                 pendingCount,
-                 activeDepartmentCount,
-                 activeCurrencyCount,
-                 todaysLoginCount,
-                 criticalErrorCount
-             ] = await Promise.all([
-                 prisma.user.count({ where: { archived: false } }),
-                 prisma.department.count(),
-                 prisma.transaction.count(),
-                 prisma.transaction.count({ where: { status: 'PENDING' } }),
-                 prisma.department.count({ where: { isActive: true } }),
-                 prisma.currency.count({ where: { isActive: true } }),
-                 prisma.auditLog.count({ 
-                     where: { 
-                         actionType: 'LOGIN',
-                         timestamp: { gte: today }
-                     } 
-                 }),
-                 prisma.auditLog.count({
-                     where: {
-                         severity: 'CRITICAL',
-                         success: false, // Only count failed critical operations, not intentional ones like impersonation
-                         timestamp: { gte: today }
-                     }
-                 })
-             ]);
+            const [
+                userCount,
+                organisationCount,
+                transactionCount,
+                pendingCount,
+                activeOrganisationCount,
+                todaysLoginCount,
+                criticalErrorCount,
+            ] = await Promise.all([
+                prisma.user.count({ where: { archived: false } }),
+                prisma.organisation.count(),
+                prisma.transaction.count(),
+                prisma.transaction.count({ where: { status: 'PENDING' } }),
+                prisma.organisation.count({ where: { isActive: true } }),
+                prisma.auditLog.count({
+                    where: {
+                        actionType: 'LOGIN',
+                        timestamp: { gte: today },
+                    },
+                }),
+                prisma.auditLog.count({
+                    where: {
+                        severity: 'CRITICAL',
+                        success: false,
+                        timestamp: { gte: today },
+                    },
+                }),
+            ]);
 
-             return NextResponse.json({
-                 superAdminStats: {
-                     users: userCount,
-                     departments: departmentCount,
-                     transactions: transactionCount,
-                     pendingApprovals: pendingCount,
-                     activeDepartments: activeDepartmentCount,
-                     activeCurrencies: activeCurrencyCount,
-                     todaysLogins: todaysLoginCount,
-                     criticalErrors: criticalErrorCount
-                 }
-             });
+            return NextResponse.json({
+                superAdminStats: {
+                    users: userCount,
+                    organisations: organisationCount,
+                    transactions: transactionCount,
+                    pendingApprovals: pendingCount,
+                    activeOrganisations: activeOrganisationCount,
+                    activeCurrencies: 1,
+                    todaysLogins: todaysLoginCount,
+                    criticalErrors: criticalErrorCount,
+                },
+            });
         }
 
         let whereClause: any = {};
+        let filterOrganisationId = session.user.organisationId;
 
-        // Determine which department to use for filtering
-        // For users with multiple roles, use the activeUserRole's department
-        let filterDepartmentId = session.user.departmentId;
-        
-        if (session.user.activeUserRole?.departmentId) {
-            filterDepartmentId = session.user.activeUserRole.departmentId;
+        if (session.user.activeUserRole?.organisationId) {
+            filterOrganisationId = session.user.activeUserRole.organisationId;
         }
 
         if (session.user.role !== 'SUPERADMIN' && session.user.role !== 'DENOMINATION_ADMIN') {
-            if (!filterDepartmentId) {
-                return new NextResponse('Forbidden - No department assigned', { status: 403 });
+            if (!filterOrganisationId) {
+                return new NextResponse('Forbidden - No organisation assigned', { status: 403 });
             }
-            const allowedIds = await getDescendantDepartmentIds(filterDepartmentId);
-            whereClause.departmentId = { in: allowedIds };
+            const allowedIds = await getDescendantOrganisationIds(filterOrganisationId);
+            whereClause.organisationId = { in: allowedIds };
         }
 
-        // Get current week date range (Monday to Sunday)
         const now = new Date();
         const currentWeekNumber = getISOWeek(now);
         const currentWeekYear = getISOWeekYear(now);
 
-        // Support pagination: chartOffset=0 is current 4 weeks, chartOffset=1 is previous 4 weeks, etc.
         const { searchParams } = new URL(request.url);
         const chartOffset = Math.max(0, parseInt(searchParams.get('chartOffset') || '0', 10) || 0);
-        const weeksBack = chartOffset * 4; // How many additional weeks to go back
+        const weeksBack = chartOffset * 4;
 
-        // Calculate the 4 ISO weeks for the requested page
         const weekRanges: { weekNumber: number; year: number }[] = [];
         for (let i = 3; i >= 0; i--) {
             const weekDate = subWeeks(now, i + weeksBack);
@@ -107,46 +97,23 @@ export async function GET(request: Request) {
             });
         }
 
-        // Fetch all data in parallel for better performance
         const [
-            userBaseCurrency,
-            exchangeRates,
+            baseCurrency,
             incomeTransactions,
             expenseTransactions,
             weeklyIncomeTransactions,
             last4WeeksIncomeTransactions,
             last4WeeksExpenseTransactions,
         ] = await Promise.all([
-            getUserBaseCurrency(session.user.id),
-            prisma.exchangeRate.findMany({
-                include: {
-                    fromCurrency: true,
-                    toCurrency: true,
-                },
+            getAppCurrency(),
+            prisma.transaction.findMany({
+                where: { ...whereClause, type: 'INCOME', status: 'APPROVED' },
+                select: { amount: true, amountInBase: true },
             }),
             prisma.transaction.findMany({
-                where: {
-                    ...whereClause,
-                    type: 'INCOME',
-                    status: 'APPROVED',
-                },
-                select: {
-                    amount: true,
-                    currencyId: true,
-                },
+                where: { ...whereClause, type: 'EXPENSE', status: 'APPROVED' },
+                select: { amount: true, amountInBase: true },
             }),
-            prisma.transaction.findMany({
-                where: {
-                    ...whereClause,
-                    type: 'EXPENSE',
-                    status: 'APPROVED',
-                },
-                select: {
-                    amount: true,
-                    currencyId: true,
-                },
-            }),
-            // Get this week's income using weekNumber/year fields
             prisma.transaction.findMany({
                 where: {
                     ...whereClause,
@@ -155,82 +122,44 @@ export async function GET(request: Request) {
                     weekNumber: currentWeekNumber,
                     year: currentWeekYear,
                 },
-                select: {
-                    amount: true,
-                    currencyId: true,
-                },
+                select: { amount: true, amountInBase: true },
             }),
-            // Get income transactions for the chart period
-            // Filter by weekNumber/year directly for accurate matching
             prisma.transaction.findMany({
                 where: {
                     ...whereClause,
                     type: 'INCOME',
                     status: 'APPROVED',
-                    OR: weekRanges.map(w => ({ weekNumber: w.weekNumber, year: w.year })),
+                    OR: weekRanges.map((w) => ({ weekNumber: w.weekNumber, year: w.year })),
                 },
-                select: {
-                    amount: true,
-                    currencyId: true,
-                    weekNumber: true,
-                    year: true,
-                },
+                select: { amount: true, amountInBase: true, weekNumber: true, year: true },
             }),
-            // Get expense transactions for the chart period
             prisma.transaction.findMany({
                 where: {
                     ...whereClause,
                     type: 'EXPENSE',
                     status: 'APPROVED',
-                    OR: weekRanges.map(w => ({ weekNumber: w.weekNumber, year: w.year })),
+                    OR: weekRanges.map((w) => ({ weekNumber: w.weekNumber, year: w.year })),
                 },
-                select: {
-                    amount: true,
-                    currencyId: true,
-                    weekNumber: true,
-                    year: true,
-                },
+                select: { amount: true, amountInBase: true, weekNumber: true, year: true },
             }),
         ]);
-        
-        if (!userBaseCurrency) {
+
+        if (!baseCurrency) {
             return new NextResponse('Base currency not configured', { status: 500 });
         }
 
         const D = Prisma.Decimal;
-        // Convert each transaction to user's base currency (Decimal arithmetic)
-        let totalIncome: Money = new D(0);
-        for (const tx of incomeTransactions) {
-            const currencyId = tx.currencyId || userBaseCurrency.id;
-            totalIncome = totalIncome.plus(convertToUserBaseCurrency(
-                tx.amount as any,
-                currencyId,
-                userBaseCurrency.id,
-                exchangeRates
-            ));
-        }
+        const sumTx = (txs: { amount: any; amountInBase: any }[]) => {
+            let total: Money = new D(0);
+            for (const tx of txs) {
+                total = total.plus(toDecimal(tx.amountInBase ?? tx.amount));
+            }
+            return total;
+        };
 
-        let totalExpense: Money = new D(0);
-        for (const tx of expenseTransactions) {
-            const currencyId = tx.currencyId || userBaseCurrency.id;
-            totalExpense = totalExpense.plus(convertToUserBaseCurrency(
-                tx.amount as any,
-                currencyId,
-                userBaseCurrency.id,
-                exchangeRates
-            ));
-        }
-
-        let weeklyIncome: Money = new D(0);
-        for (const tx of weeklyIncomeTransactions) {
-            const currencyId = tx.currencyId || userBaseCurrency.id;
-            weeklyIncome = weeklyIncome.plus(convertToUserBaseCurrency(
-                tx.amount as any,
-                currencyId,
-                userBaseCurrency.id,
-                exchangeRates
-            ));
-        }
+        const totalIncome = sumTx(incomeTransactions);
+        const totalExpense = sumTx(expenseTransactions);
+        const weeklyIncome = sumTx(weeklyIncomeTransactions);
 
         const chartData = weekRanges.map((week) => {
             let weekIncomeTotal: Money = new D(0);
@@ -238,19 +167,13 @@ export async function GET(request: Request) {
 
             for (const tx of last4WeeksIncomeTransactions) {
                 if (tx.weekNumber === week.weekNumber && tx.year === week.year) {
-                    const currencyId = tx.currencyId || userBaseCurrency.id;
-                    weekIncomeTotal = weekIncomeTotal.plus(convertToUserBaseCurrency(
-                        tx.amount as any, currencyId, userBaseCurrency.id, exchangeRates
-                    ));
+                    weekIncomeTotal = weekIncomeTotal.plus(toDecimal(tx.amountInBase ?? tx.amount));
                 }
             }
 
             for (const tx of last4WeeksExpenseTransactions) {
                 if (tx.weekNumber === week.weekNumber && tx.year === week.year) {
-                    const currencyId = tx.currencyId || userBaseCurrency.id;
-                    weekExpenseTotal = weekExpenseTotal.plus(convertToUserBaseCurrency(
-                        tx.amount as any, currencyId, userBaseCurrency.id, exchangeRates
-                    ));
+                    weekExpenseTotal = weekExpenseTotal.plus(toDecimal(tx.amountInBase ?? tx.amount));
                 }
             }
 
@@ -261,21 +184,20 @@ export async function GET(request: Request) {
             };
         });
 
-        const netBalance = totalIncome.minus(totalExpense);
-
         return NextResponse.json(
             {
                 income: moneyToString(totalIncome),
                 expense: moneyToString(totalExpense),
-                balance: moneyToString(netBalance),
+                balance: moneyToString(totalIncome.minus(totalExpense)),
                 weeklyIncome: moneyToString(weeklyIncome),
-                chartData: chartData,
+                chartData,
+                currency: { code: baseCurrency.code, symbol: baseCurrency.symbol },
             },
             {
                 headers: {
                     'Cache-Control': 'private, no-store, no-cache, must-revalidate',
                 },
-            }
+            },
         );
     } catch (error) {
         return new NextResponse('Internal Server Error', { status: 500 });

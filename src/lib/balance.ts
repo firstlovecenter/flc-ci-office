@@ -2,7 +2,7 @@
 // coerces transaction amounts through JS Number.
 import { prisma } from '@/lib/prisma';
 import { sumDecimals, toDecimal, type Money } from '@/lib/money';
-import { getDescendantDepartmentIds } from '@/lib/departments';
+import { getDescendantOrganisationIds } from '@/lib/organisations';
 
 interface BalanceParts {
     income: Money;
@@ -11,26 +11,26 @@ interface BalanceParts {
 }
 
 /**
- * Compute the APPROVED balance for a department.
+ * Compute the APPROVED balance for a organisation.
  *
- * @param departmentId The department to compute for.
+ * @param organisationId The organisation to compute for.
  * @param includeDescendants If false, only transactions on this exact
- *   department are summed. If true, descendants are included.
+ *   organisation are summed. If true, descendants are included.
  *
  * Uses each transaction's `amountInBase` when present, otherwise falls back
  * to `amount`. With a single-currency setup these are equivalent.
  */
-export async function getDepartmentBalance(
-    departmentId: string,
+export async function getOrganisationBalance(
+    organisationId: string,
     includeDescendants: boolean = false,
 ): Promise<BalanceParts> {
-    const departmentIds = includeDescendants
-        ? await getDescendantDepartmentIds(departmentId)
-        : [departmentId];
+    const organisationIds = includeDescendants
+        ? await getDescendantOrganisationIds(organisationId)
+        : [organisationId];
 
     const transactions = await prisma.transaction.findMany({
         where: {
-            departmentId: { in: departmentIds },
+            organisationId: { in: organisationIds },
             status: 'APPROVED',
         },
         select: {
@@ -55,12 +55,12 @@ export async function getDepartmentBalance(
 }
 
 /**
- * Convenience: returns just the balance Decimal for the exact department
+ * Convenience: returns just the balance Decimal for the exact organisation
  * (no descendants). This is the value that expense-request validation must
  * compare against.
  */
-export async function getDepartmentApprovedBalance(departmentId: string): Promise<Money> {
-    const { balance } = await getDepartmentBalance(departmentId, false);
+export async function getOrganisationApprovedBalance(organisationId: string): Promise<Money> {
+    const { balance } = await getOrganisationBalance(organisationId, false);
     return balance;
 }
 

@@ -9,7 +9,7 @@ import {
     generateFirstRoleAssignmentSms,
     generateRoleAssignmentSms,
     generateTransactionNotificationSms,
-    generateDepartmentAlertSms,
+    generateOrganisationAlertSms,
     generateWeekLockNotificationSms,
     generateApprovalReminderSms,
 } from '@/lib/sms-templates';
@@ -100,7 +100,7 @@ export async function POST(req: NextRequest) {
                     message = await generateTransactionNotificationSms(resolvedParams);
                     break;
                 case 'department_alert':
-                    message = await generateDepartmentAlertSms(resolvedParams);
+                    message = await generateOrganisationAlertSms(resolvedParams);
                     break;
                 case 'week_lock_notification':
                     message = await generateWeekLockNotificationSms(resolvedParams);

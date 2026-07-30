@@ -285,7 +285,7 @@ export default function NotificationSettings() {
                         <strong>You'll receive notifications for:</strong>
                     </Typography>
                     <Typography variant="caption" color="text.secondary" component="ul" sx={{ pl: 2, m: 0 }}>
-                        <li>New transactions in your department</li>
+                        <li>New transactions in your organisation</li>
                         <li>Transaction approvals or rejections</li>
                         <li>Important system updates</li>
                         <li>Week lock notifications</li>

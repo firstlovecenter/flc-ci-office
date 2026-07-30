@@ -8,14 +8,14 @@ import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { cn, formatRole, formatDepartmentLevel } from '@/lib/utils';
+import { cn, formatRole, formatOrganisationLevel } from '@/lib/utils';
 import EditUserDialog from '@/components/EditUserDialog';
 
 interface UserDetail {
     id: string; title: string | null; name: string | null; email: string; phone: string | null; image: string | null;
     archived: boolean;
-    department: { id: string; name: string; level: string } | null;
-    userRoles?: Array<{ id: string; role: string; department: { id: string; name: string; level: string } }>;
+    organisation: { id: string; name: string; level: string } | null;
+    userRoles?: Array<{ id: string; role: string; organisation: { id: string; name: string; level: string } }>;
     auditLogs?: Array<{ id: string; actionType: string; description: string; timestamp: string }>;
     createdAt: string; updatedAt: string;
 }
@@ -91,9 +91,9 @@ export default function UserDetailPage() {
                     <div className="text-center mb-4">
                         {user.userRoles.map((ur: any, i) => (
                             <div key={ur.id}>
-                                <p className="text-sm text-muted-foreground">{formatRole(ur.role)} : <strong className="text-foreground">{ur.department.name}</strong></p>
+                                <p className="text-sm text-muted-foreground">{formatRole(ur.role)} : <strong className="text-foreground">{ur.organisation.name}</strong></p>
                                 {user.userRoles!.length > 1 && i < user.userRoles!.length - 1 && (
-                                    <p className="text-sm text-muted-foreground">{formatDepartmentLevel(ur.department.level)}</p>
+                                    <p className="text-sm text-muted-foreground">{formatOrganisationLevel(ur.organisation.level)}</p>
                                 )}
                             </div>
                         ))}
@@ -105,7 +105,7 @@ export default function UserDetailPage() {
                     <InfoTile label="Full Name"><p className="font-semibold text-foreground">{user.name || '—'}</p></InfoTile>
                     <InfoTile label="Phone Number" fullWidth><p className="font-semibold text-foreground">{user.phone || '—'}</p></InfoTile>
                     <InfoTile label="Email Address" fullWidth><p className="font-semibold text-foreground">{user.email}</p></InfoTile>
-                    {user.department && <InfoTile label="Department" fullWidth><p className="font-semibold text-foreground">{user.department.name}</p></InfoTile>}
+                    {user.organisation && <InfoTile label="Organisation" fullWidth><p className="font-semibold text-foreground">{user.organisation.name}</p></InfoTile>}
                 </div>
 
                 {/* User history */}

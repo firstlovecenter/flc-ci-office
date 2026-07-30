@@ -18,7 +18,7 @@ import {
 interface OverviewData {
     totalIncome: number; totalExpense: number; netCashFlow: number; totalTransactions: number;
     pendingCount: number; approvedCount: number; rejectedCount: number;
-    approvalRate: number; avgApprovalTime: number; activeDepartments: number; activeUsers: number;
+    approvalRate: number; avgApprovalTime: number; activeOrganisations: number; activeUsers: number;
 }
 
 const ALLOWED_ROLES = ['SUPERADMIN', 'DENOMINATION_ADMIN', 'DENOMINATION_LEADER', 'OVERSIGHT_ADMIN', 'OVERSIGHT_LEADER', 'CAMPUS_ADMIN', 'CAMPUS_LEADER'];
@@ -57,24 +57,24 @@ export default function AnalyticsPage() {
     const [loading, setLoading] = useState(true);
     const [overview, setOverview] = useState<OverviewData | null>(null);
     const [monthlyTrend, setMonthlyTrend] = useState<any[]>([]);
-    const [departments, setDepartments] = useState<any[]>([]);
+    const [organisations, setOrganisations] = useState<any[]>([]);
     const [trends, setTrends] = useState<any[]>([]);
     const [currencyDistribution, setCurrencyDistribution] = useState<any[]>([]);
 
     const [startDate, setStartDate] = useState('');
     const [endDate, setEndDate] = useState('');
-    const [selectedDepartment, setSelectedDepartment] = useState('');
+    const [selectedOrganisation, setSelectedOrganisation] = useState('');
     const [period, setPeriod] = useState('monthly');
-    const [departmentLimit, setDepartmentLimit] = useState(10);
+    const [departmentLimit, setOrganisationLimit] = useState(10);
 
     useEffect(() => { if (session && !hasAccess) router.push('/dashboard'); }, [session, hasAccess, router]);
-    useEffect(() => { if (hasAccess) fetchAllData(); }, [hasAccess, startDate, endDate, selectedDepartment, period, departmentLimit]);
+    useEffect(() => { if (hasAccess) fetchAllData(); }, [hasAccess, startDate, endDate, selectedOrganisation, period, departmentLimit]);
 
     const buildParams = (extra: Record<string, string | number> = {}) => {
         const p = new URLSearchParams();
         if (startDate) p.append('startDate', startDate);
         if (endDate) p.append('endDate', endDate);
-        if (selectedDepartment) p.append('departmentId', selectedDepartment);
+        if (selectedOrganisation) p.append('organisationId', selectedOrganisation);
         Object.entries(extra).forEach(([k, v]) => p.append(k, String(v)));
         return p;
     };
@@ -84,7 +84,7 @@ export default function AnalyticsPage() {
         try {
             await Promise.all([
                 fetch(`/api/analytics/overview?${buildParams()}`).then(r => r.ok ? r.json() : null).then(d => { if (d) { setOverview(d.overview); setMonthlyTrend(d.monthlyTrend || []); } }),
-                fetch(`/api/analytics/departments?${buildParams({ limit: departmentLimit })}`).then(r => r.ok ? r.json() : null).then(d => { if (d) setDepartments(d.departments || []); }),
+                fetch(`/api/analytics/organisations?${buildParams({ limit: departmentLimit })}`).then(r => r.ok ? r.json() : null).then(d => { if (d) setOrganisations(d.organisations || []); }),
                 fetch(`/api/analytics/trends?${buildParams({ period })}`).then(r => r.ok ? r.json() : null).then(d => { if (d) { setTrends(d.trends || []); setCurrencyDistribution(d.currencyDistribution || []); } }),
             ]);
         } catch { /* ignore */ }
@@ -125,7 +125,7 @@ export default function AnalyticsPage() {
                 <div>
                     <p className="text-[0.6875rem] font-medium uppercase tracking-[0.10em] text-muted-foreground mb-0.5">Insights</p>
                     <h1 className="text-[1.625rem] sm:text-[1.875rem] font-semibold tracking-[-0.025em] text-foreground">Analytics</h1>
-                    <p className="text-sm text-muted-foreground mt-0.5">Approval rates, status breakdown, and departmental performance.</p>
+                    <p className="text-sm text-muted-foreground mt-0.5">Approval rates, status breakdown, and organisational performance.</p>
                 </div>
             </div>
 
@@ -141,12 +141,12 @@ export default function AnalyticsPage() {
                         </Select>
                     </div>
                     <div className="space-y-1.5"><Label className="text-xs">Top Depts</Label>
-                        <Select value={String(departmentLimit)} onValueChange={v => setDepartmentLimit(Number(v))}>
+                        <Select value={String(departmentLimit)} onValueChange={v => setOrganisationLimit(Number(v))}>
                             <SelectTrigger className="w-full sm:w-28 h-9 text-sm"><SelectValue /></SelectTrigger>
                             <SelectContent><SelectItem value="5">Top 5</SelectItem><SelectItem value="10">Top 10</SelectItem><SelectItem value="20">Top 20</SelectItem></SelectContent>
                         </Select>
                     </div>
-                    <Button variant="outline" size="sm" className="col-span-2 sm:col-span-1" onClick={() => { setStartDate(''); setEndDate(''); setSelectedDepartment(''); setPeriod('monthly'); setDepartmentLimit(10); }}>Reset</Button>
+                    <Button variant="outline" size="sm" className="col-span-2 sm:col-span-1" onClick={() => { setStartDate(''); setEndDate(''); setSelectedOrganisation(''); setPeriod('monthly'); setOrganisationLimit(10); }}>Reset</Button>
                 </div>
             </div>
 
@@ -166,7 +166,7 @@ export default function AnalyticsPage() {
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                         <SecondaryKpi label="Pending" value={overview?.pendingCount} Icon={Clock} colorClass="text-warning" />
                         <SecondaryKpi label="Approved" value={overview?.approvedCount} Icon={CheckCircle} colorClass="text-success" />
-                        <SecondaryKpi label="Active Depts" value={overview?.activeDepartments} Icon={Building2} colorClass="text-primary" />
+                        <SecondaryKpi label="Active Depts" value={overview?.activeOrganisations} Icon={Building2} colorClass="text-primary" />
                         <SecondaryKpi label="Active Users" value={overview?.activeUsers} Icon={Users} colorClass="text-blue-500" />
                     </div>
 
@@ -202,9 +202,9 @@ export default function AnalyticsPage() {
                     {/* Bar chart + Line chart */}
                     <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
                         <div className="lg:col-span-3 rounded-xl border border-border bg-card p-4 sm:p-5">
-                            <p className="font-semibold text-foreground mb-4">Top Departments by Volume</p>
+                            <p className="font-semibold text-foreground mb-4">Top Organisations by Volume</p>
                             <ResponsiveContainer width="100%" height={320}>
-                                <BarChart data={departments}>
+                                <BarChart data={organisations}>
                                     <CartesianGrid strokeDasharray="3 3" stroke={chartColors.grid} />
                                     <XAxis dataKey="name" tick={axisStyle} angle={-45} textAnchor="end" height={100} axisLine={{ stroke: chartColors.grid }} tickLine={false} />
                                     <YAxis tick={axisStyle} axisLine={{ stroke: chartColors.grid }} tickLine={false} tickFormatter={v => formatCurrency(v)} />

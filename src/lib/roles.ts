@@ -13,13 +13,13 @@ export const ROLE_HIERARCHY: Record<string, number> = {
     COUNCIL_LEADER: 11,
 };
 
-// Department hierarchy
-export const DEPARTMENT_HIERARCHY: Record<string, number> = {
+// Organisation hierarchy — STREAM deprecated; Campus → Account is one step
+export const ORGANISATION_HIERARCHY: Record<string, number> = {
     DENOMINATION: 1,
     OVERSIGHT: 2,
     CAMPUS: 3,
-    STREAM: 4,
-    COUNCIL: 5,
+    STREAM: 3.5, // legacy only
+    COUNCIL: 4,
 };
 
 /**
@@ -77,14 +77,14 @@ export function getAssignableRoles(adminRole: string): string[] {
 }
 
 /**
- * Check if a department is at or below another department in hierarchy
- * @param adminDepartmentLevel - The department level of the admin
- * @param targetDepartmentLevel - The department level being checked
+ * Check if a organisation is at or below another organisation in hierarchy
+ * @param adminOrganisationLevel - The organisation level of the admin
+ * @param targetOrganisationLevel - The organisation level being checked
  * @returns true if target is at or below admin level
  */
-export function canManageDepartmentLevel(adminDepartmentLevel: string, targetDepartmentLevel: string): boolean {
-    const adminLevel = DEPARTMENT_HIERARCHY[adminDepartmentLevel];
-    const targetLevel = DEPARTMENT_HIERARCHY[targetDepartmentLevel];
+export function canManageOrganisationLevel(adminOrganisationLevel: string, targetOrganisationLevel: string): boolean {
+    const adminLevel = ORGANISATION_HIERARCHY[adminOrganisationLevel];
+    const targetLevel = ORGANISATION_HIERARCHY[targetOrganisationLevel];
 
     if (adminLevel === undefined || targetLevel === undefined) {
         return false;
@@ -95,12 +95,12 @@ export function canManageDepartmentLevel(adminDepartmentLevel: string, targetDep
 }
 
 /**
- * Get the department level that corresponds to a role
+ * Get the organisation level that corresponds to a role
  * @param role - The role name
- * @returns The department level string (e.g., 'CAMPUS', 'DENOMINATION') or null if role doesn't map to a department
+ * @returns The organisation level string (e.g., 'CAMPUS', 'DENOMINATION') or null if role doesn't map to a organisation
  */
-export function getDepartmentLevelForRole(role: string): string | null {
-    // Map roles to their corresponding department levels
+export function getOrganisationLevelForRole(role: string): string | null {
+    // Map roles to their corresponding organisation levels
     const roleMapping: Record<string, string> = {
         DENOMINATION_ADMIN: 'DENOMINATION',
         DENOMINATION_LEADER: 'DENOMINATION',

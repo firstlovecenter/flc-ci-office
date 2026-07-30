@@ -27,7 +27,7 @@ function UsersPageContent() {
     const { showSuccess, showError } = useToast();
 
     const [users, setUsers] = useState<any[]>([]);
-    const [departments, setDepartments] = useState<any[]>([]);
+    const [organisations, setOrganisations] = useState<any[]>([]);
     const [open, setOpen] = useState(false);
     const [editDialogOpen, setEditDialogOpen] = useState(false);
     const [selectedUser, setSelectedUser] = useState<any>(null);
@@ -45,7 +45,7 @@ function UsersPageContent() {
         }
     }, [session, router]);
 
-    useEffect(() => { fetchUsers(); fetchDepartments(); }, [session, deptParam]);
+    useEffect(() => { fetchUsers(); fetchOrganisations(); }, [session, deptParam]);
 
     const fetchUsers = async () => {
         setLoading(true);
@@ -53,14 +53,14 @@ function UsersPageContent() {
             const res = await fetch('/api/users');
             if (res.ok) {
                 const data = await res.json();
-                setUsers(deptParam ? data.filter((u: any) => u.departmentId === deptParam) : data);
+                setUsers(deptParam ? data.filter((u: any) => u.organisationId === deptParam) : data);
             }
         } finally { setLoading(false); }
     };
 
-    const fetchDepartments = async () => {
-        const res = await fetch('/api/departments?all=true');
-        if (res.ok) setDepartments(await res.json());
+    const fetchOrganisations = async () => {
+        const res = await fetch('/api/organisations?all=true');
+        if (res.ok) setOrganisations(await res.json());
     };
 
     const handleDelete = async (id: string) => {
@@ -181,7 +181,7 @@ function UsersPageContent() {
                                     </div>
                                     <p className="text-sm text-muted-foreground truncate">
                                         {user.userRoles?.[0]?.role ? `${user.userRoles[0].role} — ` : ''}
-                                        {user.userRoles?.[0]?.department?.name || user.department?.name || 'No department'}
+                                        {user.userRoles?.[0]?.organisation?.name || user.organisation?.name || 'No organisation'}
                                         {user.userRoles?.length > 1 ? ` (+${user.userRoles.length - 1} more)` : ''}
                                     </p>
                                 </div>
@@ -242,7 +242,7 @@ function UsersPageContent() {
                 open={editDialogOpen}
                 onClose={() => setEditDialogOpen(false)}
                 user={selectedUser}
-                departments={departments}
+                organisations={organisations}
                 onSave={() => { showSuccess('User updated successfully'); fetchUsers(); }}
                 onDelete={handleDelete}
                 onArchive={handleArchive}

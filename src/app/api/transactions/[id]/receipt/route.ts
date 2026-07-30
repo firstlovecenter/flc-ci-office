@@ -3,7 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { uploadToCloudinary, destroyCloudinaryAsset, publicIdFromCloudinaryUrl } from '@/lib/cloudinary';
-import { hasDepartmentAccess } from '@/lib/departments';
+import { hasOrganisationAccess } from '@/lib/organisations';
 import { createAuditLog } from '@/lib/audit';
 import crypto from 'crypto';
 
@@ -26,7 +26,7 @@ export async function POST(
 
     const transaction = await prisma.transaction.findUnique({
         where: { id: transactionId },
-        select: { id: true, type: true, status: true, userId: true, departmentId: true, isCharge: true },
+        select: { id: true, type: true, status: true, userId: true, organisationId: true, isCharge: true },
     });
 
     if (!transaction) {
@@ -46,14 +46,14 @@ export async function POST(
     }
 
     // The owner may always attach their own receipt. Admins (and SuperAdmin) may
-    // attach receipts for any approved expense within their departmental scope.
+    // attach receipts for any approved expense within their organisational scope.
     const isOwner = transaction.userId === session.user.id;
     const role = session.user.role;
     const isAdmin = role === 'SUPERADMIN' || (typeof role === 'string' && role.endsWith('_ADMIN'));
     const hasScopedAccess = isAdmin
-        ? await hasDepartmentAccess(
-              { role, departmentId: session.user.departmentId },
-              transaction.departmentId,
+        ? await hasOrganisationAccess(
+              { role, organisationId: session.user.organisationId },
+              transaction.organisationId,
           )
         : false;
 

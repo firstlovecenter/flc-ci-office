@@ -17,7 +17,7 @@ import {
     Select,
     MenuItem,
 } from '@mui/material';
-import { formatCurrency, formatDepartmentLevel } from '@/lib/utils';
+import { formatCurrency, formatOrganisationLevel } from '@/lib/utils';
 
 interface CorrectTransactionDialogProps {
     open: boolean;
@@ -33,39 +33,39 @@ export default function CorrectTransactionDialog({
     onSuccess,
 }: CorrectTransactionDialogProps) {
     const [newAmount, setNewAmount] = useState('');
-    const [newDepartmentId, setNewDepartmentId] = useState('');
-    const [departments, setDepartments] = useState<any[]>([]);
+    const [newOrganisationId, setNewOrganisationId] = useState('');
+    const [organisations, setOrganisations] = useState<any[]>([]);
     const [reason, setReason] = useState('');
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
 
     useEffect(() => {
         if (open) {
-            fetchDepartments();
-            // Reset department selection to original
-            setNewDepartmentId('');
+            fetchOrganisations();
+            // Reset organisation selection to original
+            setNewOrganisationId('');
             setNewAmount('');
             setReason('');
             setError('');
         }
     }, [open]);
 
-    const fetchDepartments = async () => {
+    const fetchOrganisations = async () => {
         try {
-            const response = await fetch('/api/departments?all=true');
+            const response = await fetch('/api/organisations?all=true');
             if (response.ok) {
                 const data = await response.json();
-                setDepartments(data);
+                setOrganisations(data);
             }
         } catch (err) {
-            console.error('Failed to fetch departments:', err);
+            console.error('Failed to fetch organisations:', err);
         }
     };
 
     const handleClose = () => {
         if (!loading) {
             setNewAmount('');
-            setNewDepartmentId('');
+            setNewOrganisationId('');
             setReason('');
             setError('');
             onClose();
@@ -80,10 +80,10 @@ export default function CorrectTransactionDialog({
 
     const handleSubmit = async () => {
         const hasAmountChange = newAmount && parseFloat(newAmount) !== parseFloat(transaction?.amount);
-        const hasDepartmentChange = newDepartmentId && newDepartmentId !== transaction?.departmentId;
+        const hasOrganisationChange = newOrganisationId && newOrganisationId !== transaction?.organisationId;
 
-        if (!hasAmountChange && !hasDepartmentChange) {
-            setError('Please change the amount, department, or both');
+        if (!hasAmountChange && !hasOrganisationChange) {
+            setError('Please change the amount, organisation, or both');
             return;
         }
 
@@ -100,8 +100,8 @@ export default function CorrectTransactionDialog({
             if (hasAmountChange) {
                 payload.newAmount = parseFloat(newAmount);
             }
-            if (hasDepartmentChange) {
-                payload.newDepartmentId = newDepartmentId;
+            if (hasOrganisationChange) {
+                payload.newOrganisationId = newOrganisationId;
             }
 
             const response = await fetch(`/api/transactions/${transaction.id}/correct`, {
@@ -128,10 +128,10 @@ export default function CorrectTransactionDialog({
 
     const difference = calculateDifference();
     const hasTransaction = Boolean(transaction?.id);
-    const isDepartmentChange = newDepartmentId !== '' && newDepartmentId !== transaction?.departmentId;
+    const isOrganisationChange = newOrganisationId !== '' && newOrganisationId !== transaction?.organisationId;
     const hasAmountChange = difference !== null && difference !== 0;
-    const selectedDepartment = departments.find(d => d.id === newDepartmentId);
-    const hasAnyChange = hasAmountChange || isDepartmentChange;
+    const selectedOrganisation = organisations.find(d => d.id === newOrganisationId);
+    const hasAnyChange = hasAmountChange || isOrganisationChange;
     const canSubmit = hasTransaction && !loading && hasAnyChange && reason.trim().length > 0;
 
     return (
@@ -152,7 +152,7 @@ export default function CorrectTransactionDialog({
 
                 <Alert severity="info" sx={{ mb: 3 }}>
                     This will create correction transaction(s) that reference the original. 
-                    You can change the amount, the department/church, or both.
+                    You can change the amount, the organisation/church, or both.
                     The original transaction will remain unchanged.
                 </Alert>
 
@@ -172,7 +172,7 @@ export default function CorrectTransactionDialog({
                             {transaction.description}
                         </Typography>
                         <Typography variant="caption" display="block" color="text.secondary">
-                            Church: {transaction.department?.name}
+                            Church: {transaction.organisation?.name}
                         </Typography>
                     </Box>
                 )}
@@ -180,18 +180,18 @@ export default function CorrectTransactionDialog({
                 <FormControl fullWidth sx={{ mb: 3 }}>
                     <InputLabel>Change Church (Optional)</InputLabel>
                     <Select
-                        value={newDepartmentId}
+                        value={newOrganisationId}
                         label="Change Church (Optional)"
-                        onChange={(e) => setNewDepartmentId(e.target.value)}
+                        onChange={(e) => setNewOrganisationId(e.target.value)}
                     >
                         <MenuItem value="">
-                            <em>Keep original ({transaction?.department?.name})</em>
+                            <em>Keep original ({transaction?.organisation?.name})</em>
                         </MenuItem>
-                        {departments
-                            .filter(d => d.id !== transaction?.departmentId)
+                        {organisations
+                            .filter(d => d.id !== transaction?.organisationId)
                             .map((dept) => (
                                 <MenuItem key={dept.id} value={dept.id}>
-                                    {dept.name} {formatDepartmentLevel(dept.level)}
+                                    {dept.name} {formatOrganisationLevel(dept.level)}
                                 </MenuItem>
                             ))}
                     </Select>
@@ -235,10 +235,10 @@ export default function CorrectTransactionDialog({
                 />
 
                 {hasAnyChange && (
-                    <Alert severity={isDepartmentChange ? 'info' : (difference && difference > 0 ? 'success' : 'warning')} sx={{ mt: 2 }}>
-                        {isDepartmentChange && (
+                    <Alert severity={isOrganisationChange ? 'info' : (difference && difference > 0 ? 'success' : 'warning')} sx={{ mt: 2 }}>
+                        {isOrganisationChange && (
                             <>
-                                Transaction will be moved from <strong>{transaction?.department?.name}</strong> to <strong>{selectedDepartment?.name}</strong>.
+                                Transaction will be moved from <strong>{transaction?.organisation?.name}</strong> to <strong>{selectedOrganisation?.name}</strong>.
                                 {difference !== null && difference !== 0 && (
                                     <> Amount will also be adjusted by{' '}
                                     <strong>
@@ -252,7 +252,7 @@ export default function CorrectTransactionDialog({
                                 {' '}Leaders of both churches will receive an SMS notification.
                             </>
                         )}
-                        {!isDepartmentChange && difference !== null && difference !== 0 && (
+                        {!isOrganisationChange && difference !== null && difference !== 0 && (
                             <>
                                 A {difference > 0 ? 'credit' : 'debit'} correction transaction of{' '}
                                 <strong>
@@ -262,7 +262,7 @@ export default function CorrectTransactionDialog({
                                         transaction?.currency?.symbol
                                     )}
                                 </strong>{' '}
-                                will be created. The department leader will receive an SMS notification.
+                                will be created. The organisation leader will receive an SMS notification.
                             </>
                         )}
                     </Alert>
@@ -277,7 +277,7 @@ export default function CorrectTransactionDialog({
                     variant="contained" 
                     disabled={!canSubmit}
                 >
-                    {loading ? 'Creating Correction...' : isDepartmentChange ? 'Transfer & Correct' : 'Create Correction'}
+                    {loading ? 'Creating Correction...' : isOrganisationChange ? 'Transfer & Correct' : 'Create Correction'}
                 </Button>
             </DialogActions>
         </Dialog>

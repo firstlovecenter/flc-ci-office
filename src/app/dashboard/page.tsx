@@ -133,10 +133,10 @@ export default function DashboardPage() {
         chartData: { week: string; income: string; expense: string }[];
         superAdminStats: undefined | {
             users: number;
-            departments: number;
+            organisations: number;
             transactions: number;
             pendingApprovals: number;
-            activeDepartments: number;
+            activeOrganisations: number;
             activeCurrencies: number;
             todaysLogins: number;
             criticalErrors: number;
@@ -144,7 +144,7 @@ export default function DashboardPage() {
     }>({ income: '0', expense: '0', balance: '0', weeklyIncome: '0', chartData: [], superAdminStats: undefined });
 
     const [baseCurrency, setBaseCurrency] = useState<{ code: string; symbol: string } | null>(null);
-    const [departmentLeader, setDepartmentLeader] = useState<{ name: string; image: string | null } | null>(null);
+    const [organisationLeader, setOrganisationLeader] = useState<{ name: string; image: string | null } | null>(null);
     const [loading, setLoading] = useState(true);
     const [chartOffset, setChartOffset] = useState(0);
     const [chartLoading, setChartLoading] = useState(false);
@@ -164,15 +164,15 @@ export default function DashboardPage() {
             if (userData.baseCurrency) {
                 setBaseCurrency({ code: userData.baseCurrency.code, symbol: userData.baseCurrency.symbol });
             }
-            if (userData.department) {
+            if (userData.organisation) {
                 try {
-                    const deptRes = await fetch(`/api/departments/${userData.department.id}`);
+                    const deptRes = await fetch(`/api/organisations/${userData.organisation.id}`);
                     if (deptRes.ok) {
                         const deptData = await deptRes.json();
                         const leaderRole = deptData.userRoles?.find((ur: any) =>
                             ['COUNCIL_LEADER', 'STREAM_LEADER', 'CAMPUS_LEADER', 'OVERSIGHT_LEADER', 'DENOMINATION_LEADER'].includes(ur.role)
                         );
-                        if (leaderRole?.user) setDepartmentLeader(leaderRole.user);
+                        if (leaderRole?.user) setOrganisationLeader(leaderRole.user);
                     }
                 } catch { /* ignore */ }
             }
@@ -237,7 +237,7 @@ export default function DashboardPage() {
                 color: '#3B82F6', roles: null as Role[] | null,
             },
             {
-                title: 'Churches', icon: Building2, href: '/departments',
+                title: 'Churches', icon: Building2, href: '/organisations',
                 color: '#F59E0B', roles: null as Role[] | null, excludeForLeaders: true,
             },
         ];
@@ -294,13 +294,13 @@ export default function DashboardPage() {
 
     const statCards = isSuperAdmin && stats.superAdminStats ? [
         { title: 'Total Users', amount: stats.superAdminStats.users, icon: Users, color: '#6B7280', isBlinking: false },
-        { title: 'Total Departments', amount: stats.superAdminStats.departments, icon: Building2, color: '#F59E0B', isBlinking: false },
+        { title: 'Total Organisations', amount: stats.superAdminStats.organisations, icon: Building2, color: '#F59E0B', isBlinking: false },
         { title: 'Total Transactions', amount: stats.superAdminStats.transactions, icon: Receipt, color: '#3B82F6', isBlinking: false },
         { title: 'Pending Approvals', amount: stats.superAdminStats.pendingApprovals, icon: Clock, color: '#EF4444', isBlinking: stats.superAdminStats.pendingApprovals > 0 },
         { title: "Today's Logins", amount: stats.superAdminStats.todaysLogins, icon: ShieldCheck, color: '#22C55E', isBlinking: false },
         { title: 'Active Currencies', amount: stats.superAdminStats.activeCurrencies, icon: Coins, color: '#6B7280', isBlinking: false },
         { title: 'Critical Errors (Today)', amount: stats.superAdminStats.criticalErrors, icon: AlertCircle, color: '#DC2626', isBlinking: stats.superAdminStats.criticalErrors > 0 },
-        { title: 'Active Departments', amount: stats.superAdminStats.activeDepartments, icon: Building2, color: '#6B7280', isBlinking: false },
+        { title: 'Active Organisations', amount: stats.superAdminStats.activeOrganisations, icon: Building2, color: '#6B7280', isBlinking: false },
     ] : isLeader ? [
         { title: 'Account Balance', amount: stats.balance || 0, icon: Wallet, color: getStatColor('balance', stats.balance), isBlinking: Number(stats.balance || 0) < 5000 },
         { title: "This Week's Income", amount: stats.weeklyIncome || 0, icon: TrendingUp, color: getStatColor('weeklyIncome'), isBlinking: false },
@@ -324,13 +324,13 @@ export default function DashboardPage() {
     const getAdminRoute = (title: string) => {
         switch (title) {
             case 'Total Users': return '/users';
-            case 'Total Departments': return '/departments';
+            case 'Total Organisations': return '/organisations';
             case 'Total Transactions': return '/transactions';
             case 'Pending Approvals': return '/approvals';
             case "Today's Logins": return '/audit';
             case 'Active Currencies': return '/currencies';
             case 'Critical Errors (Today)': return '/audit';
-            case 'Active Departments': return '/departments';
+            case 'Active Organisations': return '/organisations';
             default: return undefined;
         }
     };
@@ -345,10 +345,10 @@ export default function DashboardPage() {
                         <div className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0 bg-secondary text-muted-foreground">
                             <Building2 className="h-6 w-6" />
                         </div>
-                    ) : departmentLeader ? (
+                    ) : organisationLeader ? (
                         <Avatar className="w-14 h-14 sm:w-16 sm:h-16 border border-border shrink-0">
-                            {departmentLeader.image && <AvatarImage src={departmentLeader.image} alt={departmentLeader.name} />}
-                            <AvatarFallback className="text-xl">{departmentLeader.name.charAt(0)}</AvatarFallback>
+                            {organisationLeader.image && <AvatarImage src={organisationLeader.image} alt={organisationLeader.name} />}
+                            <AvatarFallback className="text-xl">{organisationLeader.name.charAt(0)}</AvatarFallback>
                         </Avatar>
                     ) : (
                         <div className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0 bg-foreground/5 text-foreground">
@@ -363,9 +363,9 @@ export default function DashboardPage() {
                             <h1 className="text-[1.625rem] sm:text-[1.875rem] md:text-[2.25rem] font-medium tracking-[-0.02em] leading-[1.15] text-foreground">
                                 {isSuperAdmin
                                     ? 'System management'
-                                    : session?.user?.departmentName && session?.user?.departmentLevel
-                                        ? `${session.user.departmentName} ${session.user.departmentLevel}`
-                                        : session?.user?.departmentName || 'Dashboard'}
+                                    : session?.user?.organisationName && session?.user?.organisationLevel
+                                        ? `${session.user.organisationName} ${session.user.organisationLevel}`
+                                        : session?.user?.organisationName || 'Dashboard'}
                             </h1>
                             {session?.user?.role && (
                                 <Badge variant="outline" className="text-[0.625rem] uppercase tracking-[0.10em] font-medium h-[22px]">
@@ -376,8 +376,8 @@ export default function DashboardPage() {
                         <p className="text-sm text-muted-foreground mt-1.5 max-w-[580px]">
                             {isSuperAdmin
                                 ? 'Manage every part of the system from one place.'
-                                : departmentLeader
-                                    ? `Led by ${departmentLeader.name}`
+                                : organisationLeader
+                                    ? `Led by ${organisationLeader.name}`
                                     : "Here's what's happening with your finances today."}
                         </p>
                     </div>
@@ -540,7 +540,7 @@ export default function DashboardPage() {
                                     win.isOpen ? 'text-success' : 'text-warning',
                                 )}>
                                     {win.isOpen
-                                        ? 'Expense submissions open · Closes at 3:00 PM'
+                                        ? 'Expense submissions open · Closes at 3:30 PM'
                                         : win.isSunday
                                             ? 'Submissions closed on Sundays · Opens Monday 6:00 AM'
                                             : `Submissions closed · Opens at 6:00 AM (in ~${hoursUntilOpen}h)`}

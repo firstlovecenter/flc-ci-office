@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { useSession } from 'next-auth/react';
 
 interface EditUserDialogProps {
-    open: boolean; onClose: () => void; user: any; departments?: any[];
+    open: boolean; onClose: () => void; user: any; organisations?: any[];
     onSave?: () => void; onSuccess?: () => void;
     onDelete?: (id: string) => Promise<void>;
     onArchive?: (user: any) => Promise<void>;
@@ -134,7 +134,7 @@ export default function EditUserDialog({ open, onClose, user, onSave, onSuccess,
                     {user?.userRoles && user.userRoles.length > 0 && (
                         <div className="rounded-xl border border-border bg-muted/20 p-3">
                             <p className="text-xs font-semibold text-muted-foreground mb-2">Assigned Roles:</p>
-                            {user.userRoles.map((ur: any) => <p key={ur.id} className="text-sm text-foreground">· <strong>{ur.role}</strong> — {ur.department?.name}</p>)}
+                            {user.userRoles.map((ur: any) => <p key={ur.id} className="text-sm text-foreground">· <strong>{ur.role}</strong> — {ur.organisation?.name}</p>)}
                         </div>
                     )}
 

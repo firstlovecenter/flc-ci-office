@@ -7,7 +7,7 @@ import crypto from 'crypto';
 import { sendSms, formatGhanaPhone } from '@/lib/sms';
 import { generateFirstRoleAssignmentSms } from '@/lib/sms-templates';
 import { canManageUser, canAssignRole, ROLE_HIERARCHY } from '@/lib/roles';
-import { getDescendantDepartmentIds } from '@/lib/departments';
+import { getDescendantOrganisationIds } from '@/lib/organisations';
 import type { Role } from '@prisma/client';
 import { validateRoleAssignment } from '@/lib/roleValidation';
 
@@ -44,8 +44,7 @@ export async function GET(
         // Get the user
         const user = await prisma.user.findUnique({
             where: { id: userId },
-            include: {
-                department: {
+            include: { organisation: {
                     select: {
                         id: true,
                         name: true,
@@ -53,8 +52,7 @@ export async function GET(
                     },
                 },
                 userRoles: {
-                    include: {
-                        department: {
+                    include: { organisation: {
                             select: {
                                 id: true,
                                 name: true,
@@ -88,22 +86,22 @@ export async function GET(
 
         // For non-superadmins, verify they can access this user
         if (session.user.role !== 'SUPERADMIN') {
-            const filterDepartmentId = session.user.activeUserRole?.departmentId || session.user.departmentId;
+            const filterOrganisationId = session.user.activeUserRole?.organisationId || session.user.organisationId;
             
-            if (!filterDepartmentId) {
+            if (!filterOrganisationId) {
                 return NextResponse.json(
-                    { error: 'No department assigned' },
+                    { error: 'No organisation assigned' },
                     { status: 403 }
                 );
             }
 
-            // Get all departments this admin oversees
-            const allowedDepartmentIds = await getDescendantDepartmentIds(filterDepartmentId);
+            // Get all organisations this admin oversees
+            const allowedOrganisationIds = await getDescendantOrganisationIds(filterOrganisationId);
             
-            // Check if user is in admin's department hierarchy
-            if (user.departmentId && !allowedDepartmentIds.includes(user.departmentId)) {
+            // Check if user is in admin's organisation hierarchy
+            if (user.organisationId && !allowedOrganisationIds.includes(user.organisationId)) {
                 return NextResponse.json(
-                    { error: 'Cannot view users outside your department hierarchy' },
+                    { error: 'Cannot view users outside your organisation hierarchy' },
                     { status: 403 }
                 );
             }
@@ -134,7 +132,7 @@ export async function PUT(
     try {
         const params = await context.params;
         const body = await request.json();
-        const { title, name, email, phone, image, roleDepartmentPairs } = body;
+        const { title, name, email, phone, image, roleOrganisationPairs } = body;
         const userId = params.id;
 
         // Validate required fields
@@ -154,11 +152,9 @@ export async function PUT(
         // Get the user being edited
         const targetUser = await prisma.user.findUnique({
             where: { id: userId },
-            include: { 
-                department: true,
+            include: { organisation: true,
                 userRoles: {
-                    include: {
-                        department: true,
+                    include: { organisation: true,
                     },
                 },
             },
@@ -171,9 +167,9 @@ export async function PUT(
             );
         }
 
-        // Extract unique roles and departments for validation
-        const userRoles: string[] | undefined = roleDepartmentPairs ? Array.from(new Set(roleDepartmentPairs.map((pair: any) => pair.role as string))) : undefined;
-        const firstDept = roleDepartmentPairs?.[0]?.departmentId;
+        // Extract unique roles and organisations for validation
+        const userRoles: string[] | undefined = roleOrganisationPairs ? Array.from(new Set(roleOrganisationPairs.map((pair: any) => pair.role as string))) : undefined;
+        const firstDept = roleOrganisationPairs?.[0]?.organisationId;
 
         // Validate role assignments if roles are being updated
         if (userRoles) {
@@ -194,34 +190,34 @@ export async function PUT(
             );
         }
 
-        // For non-superadmins, verify department access
+        // For non-superadmins, verify organisation access
         if (session.user.role !== 'SUPERADMIN') {
-            const filterDepartmentId = session.user.activeUserRole?.departmentId || session.user.departmentId;
+            const filterOrganisationId = session.user.activeUserRole?.organisationId || session.user.organisationId;
             
-            if (!filterDepartmentId) {
+            if (!filterOrganisationId) {
                 return NextResponse.json(
-                    { error: 'No department assigned' },
+                    { error: 'No organisation assigned' },
                     { status: 403 }
                 );
             }
 
-            // Get all departments this admin oversees
-            const allowedDepartmentIds = await getDescendantDepartmentIds(filterDepartmentId);
+            // Get all organisations this admin oversees
+            const allowedOrganisationIds = await getDescendantOrganisationIds(filterOrganisationId);
             
-            // Check current user's department
-            if (targetUser.departmentId && !allowedDepartmentIds.includes(targetUser.departmentId)) {
+            // Check current user's organisation
+            if (targetUser.organisationId && !allowedOrganisationIds.includes(targetUser.organisationId)) {
                 return NextResponse.json(
-                    { error: 'Cannot manage users outside your department hierarchy' },
+                    { error: 'Cannot manage users outside your organisation hierarchy' },
                     { status: 403 }
                 );
             }
 
-            // Check target departments (if being changed)
-            if (roleDepartmentPairs) {
-                for (const pair of roleDepartmentPairs) {
-                    if (!allowedDepartmentIds.includes(pair.departmentId)) {
+            // Check target organisations (if being changed)
+            if (roleOrganisationPairs) {
+                for (const pair of roleOrganisationPairs) {
+                    if (!allowedOrganisationIds.includes(pair.organisationId)) {
                         return NextResponse.json(
-                            { error: 'Cannot assign user to a department outside your hierarchy' },
+                            { error: 'Cannot assign user to a organisation outside your hierarchy' },
                             { status: 403 }
                         );
                     }
@@ -278,30 +274,29 @@ export async function PUT(
             );
         }
 
-        // Update backward compatibility fields if role-department pairs are provided
-        if (roleDepartmentPairs && roleDepartmentPairs.length > 0 && userRoles && userRoles.length > 0) {
+        // Update backward compatibility fields if role-organisation pairs are provided
+        if (roleOrganisationPairs && roleOrganisationPairs.length > 0 && userRoles && userRoles.length > 0) {
             updateData.roles = userRoles;
             updateData.activeRole = userRoles[0];
-            updateData.departmentId = firstDept;
+            updateData.organisationId = firstDept;
         }
 
         // Update the user
         const updatedUser = await prisma.user.update({
             where: { id: userId },
             data: updateData,
-            include: {
-                department: true,
+            include: { organisation: true,
             },
         });
 
-        // Handle UserRole updates if role-department pairs are provided
-        if (roleDepartmentPairs !== undefined) {
+        // Handle UserRole updates if role-organisation pairs are provided
+        if (roleOrganisationPairs !== undefined) {
             // Get existing roles to determine if this is first assignment or removal
             const existingUserRoles = await prisma.userRole.findMany({
                 where: { userId: userId },
             });
             const hadRolesBefore = existingUserRoles.length > 0;
-            const hasRolesNow = roleDepartmentPairs.length > 0;
+            const hasRolesNow = roleOrganisationPairs.length > 0;
             
             // First role assignment: never had roles before AND getting roles now
             const isFirstRoleAssignment = !hadRolesBefore && hasRolesNow;
@@ -317,10 +312,10 @@ export async function PUT(
             if (hasRolesNow) {
                 // Create new UserRole entries
                 await prisma.userRole.createMany({
-                    data: roleDepartmentPairs.map((pair: any) => ({
+                    data: roleOrganisationPairs.map((pair: any) => ({
                         userId: userId,
                         role: pair.role,
-                        departmentId: pair.departmentId,
+                        organisationId: pair.organisationId,
                     })),
                 });
 
@@ -344,7 +339,7 @@ export async function PUT(
                         password: null, // Revoke login access
                         activeUserRoleId: null,
                         activeRole: null,
-                        departmentId: null,
+                        organisationId: null,
                     },
                 });
                 
@@ -396,16 +391,16 @@ export async function PUT(
 
                     const resetCode = resetToken.substring(0, 6).toUpperCase();
                     const resetLink = `${process.env.NEXTAUTH_URL}/auth/reset-password?token=${resetCode}`;
-                    const primaryRolePair = roleDepartmentPairs[0];
-                    const department = await prisma.department.findUnique({
-                        where: { id: primaryRolePair.departmentId },
+                    const primaryRolePair = roleOrganisationPairs[0];
+                    const organisation = await prisma.organisation.findUnique({
+                        where: { id: primaryRolePair.organisationId },
                         select: { name: true },
                     });
 
                     const smsContent = await generateFirstRoleAssignmentSms({
                         userName: name || email || 'User',
                         role: primaryRolePair.role,
-                        department: department?.name || 'Unknown Department',
+                        organisation: organisation?.name || 'Unknown Organisation',
                         resetLink,
                     });
 
@@ -437,7 +432,7 @@ export async function PUT(
                     actionType: 'UPDATE',
                     entityType: 'User',
                     entityId: updatedUser.id,
-                    afterData: { title, name, email, roleDepartmentPairs },
+                    afterData: { title, name, email, roleOrganisationPairs },
                 },
             });
         }
@@ -484,7 +479,7 @@ export async function DELETE(
         // Get the user being deleted
         const targetUser = await prisma.user.findUnique({
             where: { id: userId },
-            include: { department: true },
+            include: { organisation: true },
         });
 
         if (!targetUser) {
@@ -564,8 +559,7 @@ export async function PATCH(
         // Get the user being archived
         const targetUser = await prisma.user.findUnique({
             where: { id: userId },
-            include: { 
-                department: true,
+            include: { organisation: true,
                 userRoles: true,
             },
         });
@@ -595,24 +589,24 @@ export async function PATCH(
             );
         }
 
-        // For non-superadmins, verify department access
+        // For non-superadmins, verify organisation access
         if (session.user.role !== 'SUPERADMIN') {
-            const filterDepartmentId = session.user.activeUserRole?.departmentId || session.user.departmentId;
+            const filterOrganisationId = session.user.activeUserRole?.organisationId || session.user.organisationId;
             
-            if (!filterDepartmentId) {
+            if (!filterOrganisationId) {
                 return NextResponse.json(
-                    { error: 'No department assigned' },
+                    { error: 'No organisation assigned' },
                     { status: 403 }
                 );
             }
 
-            // Get all departments this admin oversees
-            const allowedDepartmentIds = await getDescendantDepartmentIds(filterDepartmentId);
+            // Get all organisations this admin oversees
+            const allowedOrganisationIds = await getDescendantOrganisationIds(filterOrganisationId);
             
-            // Check if user is in admin's department hierarchy
-            if (targetUser.departmentId && !allowedDepartmentIds.includes(targetUser.departmentId)) {
+            // Check if user is in admin's organisation hierarchy
+            if (targetUser.organisationId && !allowedOrganisationIds.includes(targetUser.organisationId)) {
                 return NextResponse.json(
-                    { error: 'Cannot archive users outside your department hierarchy' },
+                    { error: 'Cannot archive users outside your organisation hierarchy' },
                     { status: 403 }
                 );
             }
@@ -622,7 +616,7 @@ export async function PATCH(
         const updatedUser = await prisma.user.update({
             where: { id: userId },
             data: { archived },
-            include: { department: true },
+            include: { organisation: true },
         });
 
         // Remove password from response

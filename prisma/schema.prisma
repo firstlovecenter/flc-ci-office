@@ -23,7 +23,7 @@ model AuditLog {
   severity     AuditSeverity @default(LOW)
   success      Boolean       @default(true)
   userAgent    String?
-    user         User          @relation("AuditLogs", fields: [userId], references: [id])
+  user         User          @relation("AuditLogs", fields: [userId], references: [id])
 
   @@index([actionType])
   @@index([entityType, entityId])
@@ -33,75 +33,81 @@ model AuditLog {
 }
 
 model Currency {
-  id                                                 String                   @id
-  code                                               String                   @unique
-  name                                               String
-  symbol                                             String
-  isBase                                             Boolean                  @default(false)
-  isActive                                           Boolean                  @default(true)
-  createdAt                                          DateTime                 @default(now())
-  updatedAt                                          DateTime
-    departmentBaseCurrencies                           DepartmentBaseCurrency[]
-    exchangeRates                                      ExchangeRate[]           @relation("FromCurrency")
-    reverseRates                                       ExchangeRate[]           @relation("ToCurrency")
-    transactions                                       Transaction[]
-    users                                              User[]
+  id                         String                       @id
+  code                       String                       @unique
+  name                       String
+  symbol                     String
+  isBase                     Boolean                      @default(false)
+  isActive                   Boolean                      @default(true)
+  createdAt                  DateTime                     @default(now())
+  updatedAt                  DateTime
+  organisationBaseCurrencies OrganisationBaseCurrency[]
+  exchangeRates              ExchangeRate[]               @relation("FromCurrency")
+  reverseRates               ExchangeRate[]               @relation("ToCurrency")
+  transactions               Transaction[]
+  users                      User[]
 
   @@index([code])
   @@index([isActive])
 }
 
-model Department {
-  id                     String                  @id
-  name                   String
-  level                  DepartmentLevel?
-  parentId               String?
-  createdAt              DateTime                @default(now())
-  updatedAt              DateTime
-  closedAt               DateTime?
-  closedBy               String?
-  closureReason          String?
-  isActive               Boolean                 @default(true)
-  publicFormEnabled      Boolean                 @default(true)
-    parent                 Department?             @relation("DepartmentHierarchy", fields: [parentId], references: [id])
-    children               Department[]            @relation("DepartmentHierarchy")
-    departmentBaseCurrency DepartmentBaseCurrency?
-    transactions           Transaction[]
-    users                  User[]
-    userRoles              UserRole[]
-    publicExpenseRequests  PublicExpenseRequest[]  @relation("OversightPublicRequests")
+/// Organisation unit in the hierarchy:
+/// HQ (DENOMINATION) → Oversight → Campus → Account (COUNCIL).
+model Organisation {
+  id                       String                     @id
+  name                     String
+  level                    OrganisationLevel?
+  /// Only set when level is COUNCIL (Account). OPERATING holds a balance;
+  /// SPECIAL_PROJECT is expense-only with no balance.
+  accountType              AccountType?
+  parentId                 String?
+  createdAt                DateTime                   @default(now())
+  updatedAt                DateTime
+  closedAt                 DateTime?
+  closedBy                 String?
+  closureReason            String?
+  isActive                 Boolean                    @default(true)
+  publicFormEnabled        Boolean                    @default(true)
+  parent                   Organisation?              @relation("OrganisationHierarchy", fields: [parentId], references: [id])
+  children                 Organisation[]             @relation("OrganisationHierarchy")
+  organisationBaseCurrency OrganisationBaseCurrency?
+  transactions             Transaction[]
+  users                    User[]
+  userRoles                UserRole[]
+  publicExpenseRequests    PublicExpenseRequest[]     @relation("OversightPublicRequests")
 
   @@index([isActive])
   @@index([level])
   @@index([parentId])
+  @@index([accountType])
 }
 
-model DepartmentBaseCurrency {
-  id           String     @id
-  departmentId String     @unique
-  currencyId   String
-  setBy        String
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime
-    currency     Currency   @relation(fields: [currencyId], references: [id])
-    department   Department @relation(fields: [departmentId], references: [id])
-    setByUser    User       @relation("DepartmentBaseCurrenciesSet", fields: [setBy], references: [id])
+model OrganisationBaseCurrency {
+  id             String       @id
+  organisationId String       @unique
+  currencyId     String
+  setBy          String
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime
+  currency       Currency     @relation(fields: [currencyId], references: [id])
+  organisation   Organisation @relation(fields: [organisationId], references: [id])
+  setByUser      User         @relation("OrganisationBaseCurrenciesSet", fields: [setBy], references: [id])
 
   @@index([currencyId])
-  @@index([departmentId])
+  @@index([organisationId])
 }
 
 model ExchangeRate {
-  id                                             String   @id
-  fromCurrencyId                                 String
-  toCurrencyId                                   String
-  rate                                           Decimal
-  effectiveDate                                  DateTime @default(now())
-  createdBy                                      String
-  createdAt                                      DateTime @default(now())
-  updatedAt                                      DateTime
-    fromCurrency                                   Currency @relation("FromCurrency", fields: [fromCurrencyId], references: [id])
-    toCurrency                                     Currency @relation("ToCurrency", fields: [toCurrencyId], references: [id])
+  id             String   @id
+  fromCurrencyId String
+  toCurrencyId   String
+  rate           Decimal
+  effectiveDate  DateTime @default(now())
+  createdBy      String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime
+  fromCurrency   Currency @relation("FromCurrency", fields: [fromCurrencyId], references: [id])
+  toCurrency     Currency @relation("ToCurrency", fields: [toCurrencyId], references: [id])
 
   @@unique([fromCurrencyId, toCurrencyId])
   @@index([effectiveDate])
@@ -118,8 +124,8 @@ model File {
   fileSize      Int?
   uploadedBy    String
   uploadedAt    DateTime    @default(now())
-    transaction   Transaction @relation(fields: [transactionId], references: [id])
-    uploader      User        @relation("FileUploads", fields: [uploadedBy], references: [id])
+  transaction   Transaction @relation(fields: [transactionId], references: [id])
+  uploader      User        @relation("FileUploads", fields: [uploadedBy], references: [id])
 
   @@index([uploadedBy])
 }
@@ -132,7 +138,7 @@ model PasswordReset {
   used      Boolean   @default(false)
   usedAt    DateTime?
   createdAt DateTime  @default(now())
-    user      User      @relation("PasswordResets", fields: [userId], references: [id], onDelete: Cascade)
+  user      User      @relation("PasswordResets", fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([expiresAt])
   @@index([token])
@@ -153,73 +159,73 @@ model SmsTemplate {
 }
 
 model Transaction {
-  id              String            @id
-  departmentId    String
-  userId          String
-  type            TransactionType
-  amount          Decimal           @db.Decimal(14, 2)
-  description     String
-  weekNumber      Int
-  year            Int
-  locked          Boolean           @default(false)
-  createdAt       DateTime          @default(now())
-  updatedAt       DateTime
-  approvedAt      DateTime?
-  approvedBy      String?
-  status          TransactionStatus @default(PENDING)
-  amountInBase    Decimal?          @db.Decimal(14, 2)
-  currencyId      String?
-  exchangeRate    Decimal?
-  rejectedAt      DateTime?
-  rejectedBy      String?
-  rejectionReason String?
-  requestedAmount Decimal?          @db.Decimal(14, 2)
-  isCharge        Boolean           @default(false)
-  receiptWaived       Boolean       @default(false)
-  receiptWaivedAt     DateTime?
-  receiptWaivedBy     String?
-  receiptWaivedReason String?
-    files                File[]
-    currency             Currency?         @relation(fields: [currencyId], references: [id])
-    department           Department        @relation(fields: [departmentId], references: [id])
-    user                 User              @relation("Transactions", fields: [userId], references: [id])
-    receiptWaivedByUser  User?             @relation("ReceiptWaivedBy", fields: [receiptWaivedBy], references: [id])
-    publicExpenseRequest PublicExpenseRequest? @relation("PublicExpenseTransaction")
+  id                   String                 @id
+  organisationId       String
+  userId               String
+  type                 TransactionType
+  amount               Decimal                @db.Decimal(14, 2)
+  description          String
+  weekNumber           Int
+  year                 Int
+  locked               Boolean                @default(false)
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime
+  approvedAt           DateTime?
+  approvedBy           String?
+  status               TransactionStatus      @default(PENDING)
+  amountInBase         Decimal?               @db.Decimal(14, 2)
+  currencyId           String?
+  exchangeRate         Decimal?
+  rejectedAt           DateTime?
+  rejectedBy           String?
+  rejectionReason      String?
+  requestedAmount      Decimal?               @db.Decimal(14, 2)
+  isCharge             Boolean                @default(false)
+  receiptWaived        Boolean                @default(false)
+  receiptWaivedAt      DateTime?
+  receiptWaivedBy      String?
+  receiptWaivedReason  String?
+  files                File[]
+  currency             Currency?              @relation(fields: [currencyId], references: [id])
+  organisation         Organisation           @relation(fields: [organisationId], references: [id])
+  user                 User                   @relation("Transactions", fields: [userId], references: [id])
+  receiptWaivedByUser  User?                  @relation("ReceiptWaivedBy", fields: [receiptWaivedBy], references: [id])
+  publicExpenseRequest PublicExpenseRequest?  @relation("PublicExpenseTransaction")
 
   @@index([createdAt])
   @@index([currencyId])
-  @@index([departmentId])
-  @@index([departmentId, status, type])
+  @@index([organisationId])
+  @@index([organisationId, status, type])
   @@index([status])
   @@index([type])
   @@index([userId])
 }
 
 model User {
-  id                                       String                   @id
-  name                                     String?
-  email                                    String                   @unique
-  password                                 String?
-  image                                    String?
-  departmentId                             String?
-  createdAt                                DateTime                 @default(now())
-  updatedAt                                DateTime
-  archived                                 Boolean                  @default(false)
-  baseCurrencyId                           String?
-  activeRole                               Role?
-  activeUserRoleId                         String?
-  title                                    String?
-  phone                                    String                   @unique
-    auditLogs                                AuditLog[]               @relation("AuditLogs")
-    departmentBaseCurrenciesSet              DepartmentBaseCurrency[] @relation("DepartmentBaseCurrenciesSet")
-    passwordResets                           PasswordReset[]          @relation("PasswordResets")
-    transactions                             Transaction[]            @relation("Transactions")
-    fileUploads                              File[]                   @relation("FileUploads")
-    receiptWaivers                           Transaction[]            @relation("ReceiptWaivedBy")
-    activeUserRole                           UserRole?                @relation("ActiveUserRole", fields: [activeUserRoleId], references: [id])
-    baseCurrency                             Currency?                @relation(fields: [baseCurrencyId], references: [id])
-    department                               Department?              @relation(fields: [departmentId], references: [id])
-    userRoles                                UserRole[]               @relation("UserRoles")
+  id                            String                     @id
+  name                          String?
+  email                         String                     @unique
+  password                      String?
+  image                         String?
+  organisationId                String?
+  createdAt                     DateTime                   @default(now())
+  updatedAt                     DateTime
+  archived                      Boolean                    @default(false)
+  baseCurrencyId                String?
+  activeRole                    Role?
+  activeUserRoleId              String?
+  title                         String?
+  phone                         String                     @unique
+  auditLogs                     AuditLog[]                 @relation("AuditLogs")
+  organisationBaseCurrenciesSet OrganisationBaseCurrency[] @relation("OrganisationBaseCurrenciesSet")
+  passwordResets                PasswordReset[]            @relation("PasswordResets")
+  transactions                  Transaction[]              @relation("Transactions")
+  fileUploads                   File[]                     @relation("FileUploads")
+  receiptWaivers                Transaction[]              @relation("ReceiptWaivedBy")
+  activeUserRole                UserRole?                  @relation("ActiveUserRole", fields: [activeUserRoleId], references: [id])
+  baseCurrency                  Currency?                  @relation(fields: [baseCurrencyId], references: [id])
+  organisation                  Organisation?              @relation(fields: [organisationId], references: [id])
+  userRoles                     UserRole[]                 @relation("UserRoles")
 
   @@index([activeUserRoleId])
   @@index([archived])
@@ -227,18 +233,18 @@ model User {
 }
 
 model UserRole {
-  id                                   String     @id
-  userId                               String
-  role                                 Role?
-  departmentId                         String
-  createdAt                            DateTime   @default(now())
-  updatedAt                            DateTime
-    activeUsers                          User[]     @relation("ActiveUserRole")
-    department                           Department @relation(fields: [departmentId], references: [id])
-    user                                 User       @relation("UserRoles", fields: [userId], references: [id], onDelete: Cascade)
+  id             String        @id
+  userId         String
+  role           Role?
+  organisationId String
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime
+  activeUsers    User[]        @relation("ActiveUserRole")
+  organisation   Organisation  @relation(fields: [organisationId], references: [id])
+  user           User          @relation("UserRoles", fields: [userId], references: [id], onDelete: Cascade)
 
-  @@unique([userId, role, departmentId])
-  @@index([departmentId])
+  @@unique([userId, role, organisationId])
+  @@index([organisationId])
   @@index([role])
   @@index([userId])
 }
@@ -270,12 +276,20 @@ enum AuditSeverity {
   CRITICAL
 }
 
-enum DepartmentLevel {
+enum OrganisationLevel {
   DENOMINATION
   OVERSIGHT
   CAMPUS
+  /// Deprecated — kept for existing rows until data migration collapses streams.
   STREAM
+  /// Product name: Account (money-bearing leaf).
   COUNCIL
+}
+
+/// Account kinds. Only meaningful when Organisation.level is COUNCIL.
+enum AccountType {
+  OPERATING
+  SPECIAL_PROJECT
 }
 
 enum Role {
@@ -304,24 +318,24 @@ enum TransactionType {
 }
 
 model PublicExpenseRequest {
-  id              String                     @id @default(uuid())
-  requesterName   String
-  churchName      String
-  momoName        String
-  momoNumber      String
-  leaderPhone     String?
-  amount          Decimal                    @db.Decimal(14, 2)
-  description     String
-  status          PublicExpenseRequestStatus @default(PENDING)
-  oversightDeptId String
-  transactionId   String?                    @unique
-  createdAt       DateTime                   @default(now())
-  updatedAt       DateTime
+  id                      String                     @id @default(uuid())
+  requesterName           String
+  churchName              String
+  momoName                String
+  momoNumber              String
+  leaderPhone             String?
+  amount                  Decimal                    @db.Decimal(14, 2)
+  description             String
+  status                  PublicExpenseRequestStatus @default(PENDING)
+  oversightOrganisationId String
+  transactionId           String?                    @unique
+  createdAt               DateTime                   @default(now())
+  updatedAt               DateTime
 
-  oversightDept Department    @relation("OversightPublicRequests", fields: [oversightDeptId], references: [id])
-  transaction   Transaction?  @relation("PublicExpenseTransaction", fields: [transactionId], references: [id])
+  oversightOrganisation Organisation  @relation("OversightPublicRequests", fields: [oversightOrganisationId], references: [id])
+  transaction           Transaction?  @relation("PublicExpenseTransaction", fields: [transactionId], references: [id])
 
-  @@index([oversightDeptId])
+  @@index([oversightOrganisationId])
   @@index([status])
 }
 

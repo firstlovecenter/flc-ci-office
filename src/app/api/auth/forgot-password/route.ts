@@ -3,11 +3,12 @@ import crypto from 'crypto';
 import { prisma } from '@/lib/prisma';
 import { sendSms, formatGhanaPhone } from '@/lib/sms';
 import { generatePasswordResetSms } from '@/lib/sms-templates';
+import { sendEmail, isEmailConfigured } from '@/lib/email';
+import { generatePasswordResetEmail } from '@/lib/email-templates';
 import { checkRateLimit, rateLimits, getClientIp, rateLimitResponse } from '@/lib/rate-limit';
 
 export async function POST(request: NextRequest) {
   try {
-    // Rate limit: 3 requests per 15 minutes per IP
     const ip = getClientIp(request);
     const rl = checkRateLimit(`forgot-password:${ip}`, rateLimits.forgotPassword);
     if (!rl.success) {
@@ -23,12 +24,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check if it's an email or phone number
     const isEmail = identifier.includes('@');
-    
-    // Find user by email or phone
+
     const user = await prisma.user.findFirst({
-      where: isEmail 
+      where: isEmail
         ? { email: identifier.toLowerCase() }
         : { phone: identifier },
       select: {
@@ -46,24 +45,15 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Generate secure random token
     const token = crypto.randomBytes(32).toString('hex');
     const expiresAt = new Date();
-    expiresAt.setHours(expiresAt.getHours() + 12); // 12 hours expiration for reset link
+    expiresAt.setHours(expiresAt.getHours() + 12);
 
-    // Invalidate any existing unused tokens for this user
     await prisma.passwordReset.updateMany({
-      where: {
-        userId: user.id,
-        used: false,
-      },
-      data: {
-        used: true,
-        usedAt: new Date(),
-      },
+      where: { userId: user.id, used: false },
+      data: { used: true, usedAt: new Date() },
     });
 
-    // Create new password reset record
     await prisma.passwordReset.create({
       data: {
         id: crypto.randomUUID(),
@@ -73,29 +63,38 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // Generate 6-digit code for SMS (easier to type than full token)
     const resetCode = token.substring(0, 6).toUpperCase();
+    const baseUrl = (process.env.NEXTAUTH_URL || process.env.APP_URL || '').replace(/\/+$/, '');
+    const resetUrl = baseUrl
+      ? `${baseUrl}/auth/reset-password?token=${token}`
+      : undefined;
 
     let smsSent = false;
+    let emailSent = false;
 
-    // Send SMS with reset code only (no URL to avoid truncation)
     if (user.phone) {
       const formattedPhone = formatGhanaPhone(user.phone);
       if (formattedPhone) {
         const smsContent = await generatePasswordResetSms({
-          resetCode: resetCode,
-          expirationMinutes: 15, // OTP validity window
-          // Don't include resetUrl - SMS links often get truncated
+          resetCode,
+          expirationMinutes: 15,
         });
-
-        smsSent = await sendSms({
-          to: formattedPhone,
-          message: smsContent,
-        });
+        smsSent = await sendSms({ to: formattedPhone, message: smsContent });
       }
     }
 
-    if (!smsSent) {
+    if (user.email && isEmailConfigured()) {
+      const { subject, html } = generatePasswordResetEmail({
+        userName: user.name || undefined,
+        resetCode,
+        resetUrl,
+        expirationHours: 12,
+        otpExpirationMinutes: 15,
+      });
+      emailSent = await sendEmail({ to: user.email, subject, html });
+    }
+
+    if (!smsSent && !emailSent) {
       return NextResponse.json(
         { error: 'Failed to send password reset instructions. Please contact support.' },
         { status: 500 }
@@ -104,6 +103,10 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       message: 'If an account exists with this information, password reset instructions have been sent.',
+      channels: {
+        sms: smsSent,
+        email: emailSent,
+      },
     });
   } catch (error) {
     return NextResponse.json(

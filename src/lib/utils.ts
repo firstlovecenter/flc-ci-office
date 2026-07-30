@@ -28,7 +28,7 @@ export function getWeekFromDate(date: Date) {
 
 export function formatCurrency(amount: number | string, _currencyCode: string = 'GHS', currencySymbol?: string) {
     const formatted = formatMoney(amount);
-    return currencySymbol ? `${currencySymbol}${formatted}` : formatted;
+    return `${currencySymbol || '₵'}${formatted}`;
 }
 
 // Format number with commas. Always shows at least `decimals` fraction digits,
@@ -46,30 +46,21 @@ export function isWeekLocked(weekNumber: number, year: number): boolean {
     return false;
 }
 
+import { formatOrgLevel, formatMoneyMovement, formatRoleLabel } from '@/lib/org-model';
+
 /**
- * Format a role enum value for display (e.g., STREAM_LEADER -> Stream Leader)
+ * Format a role enum value for display (bank-style manager/holder labels)
  */
 export function formatRole(role: string | null | undefined): string {
-    if (!role) return '';
-    
-    // Handle special case for SUPERADMIN
-    if (role === 'SUPERADMIN') return 'Super Admin';
-    
-    // Replace underscores with spaces and capitalize each word
-    return role
-        .split('_')
-        .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-        .join(' ');
+    return formatRoleLabel(role);
 }
 
 /**
- * Format a department level enum value for display (e.g., DENOMINATION -> Denomination)
+ * Format an organisation unit or account label for display
+ * (DENOMINATION -> HQ, COUNCIL -> Account). Accounts are bank accounts, not org units.
  */
-export function formatDepartmentLevel(level: string | null | undefined): string {
-    if (!level) return '';
-    
-    // Capitalize first letter, lowercase the rest
-    return level.charAt(0).toUpperCase() + level.slice(1).toLowerCase();
+export function formatOrganisationLevel(level: string | null | undefined): string {
+    return formatOrgLevel(level);
 }
 
 /**
@@ -81,9 +72,8 @@ export function formatStatus(status: string | null | undefined): string {
 }
 
 /**
- * Format transaction type for display (e.g., INCOME -> Income)
+ * Format transaction type for display (INCOME -> Deposit, EXPENSE -> Withdrawal)
  */
 export function formatTransactionType(type: string | null | undefined): string {
-    if (!type) return '';
-    return type.charAt(0).toUpperCase() + type.slice(1).toLowerCase();
+    return formatMoneyMovement(type);
 }

@@ -134,7 +134,7 @@ export async function POST(req: NextRequest) {
 }
 
 async function handleSMSRequest(body: any) {
-  const { message, recipientType, phoneNumber, role, departmentId } = body;
+  const { message, recipientType, phoneNumber, role, organisationId } = body;
 
   if (!message || !message.trim()) {
     return NextResponse.json({ error: 'Message is required' }, { status: 400 });
@@ -185,15 +185,15 @@ async function handleSMSRequest(body: any) {
           name: ur.user.name || 'User',
         }))
         .filter(r => r.phone || r.email);
-    } else if (recipientType === 'department') {
-      if (!departmentId) {
-        return NextResponse.json({ error: 'Department is required' }, { status: 400 });
+    } else if (recipientType === 'organisation') {
+      if (!organisationId) {
+        return NextResponse.json({ error: 'Organisation is required' }, { status: 400 });
       }
 
-      // Get all users in this department (via UserRoles for multi-role support)
+      // Get all users in this organisation (via UserRoles for multi-role support)
       const userRolesInDept = await prisma.userRole.findMany({
         where: {
-          departmentId: departmentId,
+          organisationId: organisationId,
         },
         include: {
           user: {

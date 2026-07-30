@@ -23,7 +23,7 @@ export function generatePasswordResetSms(params: PasswordResetSmsParams): string
 interface FirstRoleAssignmentSmsParams {
     userName: string;
     role: string;
-    department: string;
+    organisation: string;
     resetLink: string;
 }
 
@@ -35,13 +35,13 @@ export function generateFirstRoleAssignmentSms(params: FirstRoleAssignmentSmsPar
 interface RoleAssignmentSmsParams {
     userName: string;
     role: string;
-    department: string;
+    organisation: string;
 }
 
 export function generateRoleAssignmentSms(params: RoleAssignmentSmsParams): string {
-    const { userName, role, department } = params;
+    const { userName, role, organisation } = params;
     const roleDisplay = role.replace(/_/g, ' ');
-    return `Hello ${userName}, your role has been updated to ${roleDisplay} for ${department}.`;
+    return `Hello ${userName}, your role has been updated to ${roleDisplay} for ${organisation}.`;
 }
 
 interface TransactionNotificationSmsParams {
@@ -57,18 +57,18 @@ export function generateTransactionNotificationSms(params: TransactionNotificati
     return `${userName}, your ${action} transaction of ${amount} is now ${status}.`;
 }
 
-interface DepartmentAlertSmsParams {
-    departmentName: string;
+interface OrganisationAlertSmsParams {
+    organisationName: string;
     message: string;
 }
 
-export function generateDepartmentAlertSms(params: DepartmentAlertSmsParams): string {
-    const { departmentName, message } = params;
+export function generateOrganisationAlertSms(params: OrganisationAlertSmsParams): string {
+    const { organisationName, message } = params;
     const maxMessageLength = 130;
     const truncatedMessage = message.length > maxMessageLength 
         ? message.substring(0, maxMessageLength) + '...' 
         : message;
-    return `${departmentName}: ${truncatedMessage}`;
+    return `${organisationName}: ${truncatedMessage}`;
 }
 
 interface WeekLockNotificationSmsParams {
@@ -96,7 +96,7 @@ interface TransactionApprovedSmsParams {
     currency: string;
     amount: string;
     chargeText: string;
-    departmentName: string;
+    organisationName: string;
     balance: string;
     description: string;
 }
@@ -123,14 +123,14 @@ interface ApproverApprovedSmsParams {
     currency: string;
     amount: string;
     submitterName: string;
-    departmentName: string;
+    organisationName: string;
     balance: string;
     chargeText: string;
 }
 
 export function generateApproverApprovedSms(params: ApproverApprovedSmsParams): string {
-    const { transactionType, currency, amount, submitterName, departmentName, balance, chargeText } = params;
-    return `You approved a ${transactionType} request of ${currency}${amount} from ${submitterName} (${departmentName}).${chargeText} New balance: ${currency}${balance}.`;
+    const { transactionType, currency, amount, submitterName, organisationName, balance, chargeText } = params;
+    return `You approved a ${transactionType} request of ${currency}${amount} from ${submitterName} (${organisationName}).${chargeText} New balance: ${currency}${balance}.`;
 }
 
 interface ApproverDeclinedSmsParams {
@@ -138,26 +138,26 @@ interface ApproverDeclinedSmsParams {
     currency: string;
     amount: string;
     submitterName: string;
-    departmentName: string;
+    organisationName: string;
     reasonText: string;
 }
 
 export function generateApproverDeclinedSms(params: ApproverDeclinedSmsParams): string {
-    const { transactionType, currency, amount, submitterName, departmentName, reasonText } = params;
-    return `You declined a ${transactionType} request of ${currency}${amount} from ${submitterName} (${departmentName}).${reasonText}`;
+    const { transactionType, currency, amount, submitterName, organisationName, reasonText } = params;
+    return `You declined a ${transactionType} request of ${currency}${amount} from ${submitterName} (${organisationName}).${reasonText}`;
 }
 
 interface TransactionChargeSmsParams {
     currency: string;
     chargeAmount: string;
-    departmentName: string;
+    organisationName: string;
     transactionRef: string;
     description: string;
 }
 
 export function generateTransactionChargeSms(params: TransactionChargeSmsParams): string {
-    const { currency, chargeAmount, departmentName, transactionRef, description } = params;
-    return `Transaction charge of ${currency}${chargeAmount} has been applied to ${departmentName}. Ref: ${transactionRef}. Original: ${description}.`;
+    const { currency, chargeAmount, organisationName, transactionRef, description } = params;
+    return `Transaction charge of ${currency}${chargeAmount} has been applied to ${organisationName}. Ref: ${transactionRef}. Original: ${description}.`;
 }
 
 interface PendingApprovalRequestSmsParams {
@@ -175,7 +175,7 @@ export function generatePendingApprovalRequestSms(params: PendingApprovalRequest
 
 interface CorrectionNotificationSmsParams {
     transactionType: string;
-    departmentName: string;
+    organisationName: string;
     currency: string;
     originalAmount: string;
     newAmount: string;
@@ -186,59 +186,59 @@ interface CorrectionNotificationSmsParams {
 }
 
 export function generateCorrectionNotificationSms(params: CorrectionNotificationSmsParams): string {
-    const { transactionType, departmentName, currency, originalAmount, newAmount, correctionType, adjustmentAmount, reason, balance } = params;
+    const { transactionType, organisationName, currency, originalAmount, newAmount, correctionType, adjustmentAmount, reason, balance } = params;
     // Truncate reason to keep message within 2 SMS segments
     const shortReason = reason.length > 20 ? reason.substring(0, 20) + '...' : reason;
-    return `CORRECTION: ${departmentName} ${transactionType} ${currency}${originalAmount} to ${currency}${newAmount}. ${correctionType}: ${currency}${adjustmentAmount}. ${shortReason}. Bal: ${currency}${balance}.`;
+    return `CORRECTION: ${organisationName} ${transactionType} ${currency}${originalAmount} to ${currency}${newAmount}. ${correctionType}: ${currency}${adjustmentAmount}. ${shortReason}. Bal: ${currency}${balance}.`;
 }
 
-interface DepartmentTransferSmsParams {
+interface OrganisationTransferSmsParams {
     transactionType: string;
     currency: string;
     amount: string;
-    fromDepartment: string;
-    toDepartment: string;
+    fromOrganisation: string;
+    toOrganisation: string;
     reason: string;
     balance: string;
 }
 
-export function generateDepartmentTransferSms(params: DepartmentTransferSmsParams): string {
-    const { transactionType, currency, amount, fromDepartment, toDepartment, reason, balance } = params;
+export function generateOrganisationTransferSms(params: OrganisationTransferSmsParams): string {
+    const { transactionType, currency, amount, fromOrganisation, toOrganisation, reason, balance } = params;
     const shortReason = reason.length > 20 ? reason.substring(0, 20) + '...' : reason;
-    return `TRANSFER: ${transactionType} ${currency}${amount} moved from ${fromDepartment} to ${toDepartment}. ${shortReason}. Bal: ${currency}${balance}.`;
+    return `TRANSFER: ${transactionType} ${currency}${amount} moved from ${fromOrganisation} to ${toOrganisation}. ${shortReason}. Bal: ${currency}${balance}.`;
 }
 
 interface CreditAlertSmsParams {
     currency: string;
     amount: string;
-    departmentName: string;
+    organisationName: string;
     description: string;
     balance: string;
 }
 
 export function generateCreditAlertSms(params: CreditAlertSmsParams): string {
-    const { currency, amount, departmentName, description, balance } = params;
-    return `${currency}${amount} credited to your ${departmentName} account. Ref: ${description}. Your new balance is ${currency}${balance}.`;
+    const { currency, amount, organisationName, description, balance } = params;
+    return `${currency}${amount} credited to your ${organisationName} account. Ref: ${description}. Your new balance is ${currency}${balance}.`;
 }
 
 interface DebitAlertSmsParams {
     currency: string;
     amount: string;
-    departmentName: string;
+    organisationName: string;
     description: string;
     balance: string;
 }
 
 export function generateDebitAlertSms(params: DebitAlertSmsParams): string {
-    const { currency, amount, departmentName, description, balance } = params;
-    return `${currency}${amount} debited from your ${departmentName} account. Ref: ${description}. Your new balance is ${currency}${balance}.`;
+    const { currency, amount, organisationName, description, balance } = params;
+    return `${currency}${amount} debited from your ${organisationName} account. Ref: ${description}. Your new balance is ${currency}${balance}.`;
 }
 
 interface AdminTransactionAlertSmsParams {
     transactionType: 'INCOME' | 'EXPENSE';
     currency: string;
     amount: string;
-    departmentName: string;
+    organisationName: string;
     description: string;
     balance: string;
 }
@@ -246,10 +246,10 @@ interface AdminTransactionAlertSmsParams {
 // Confirmation sent to the admin who recorded a credit/debit (the actor),
 // distinct from the credit/debit alert that goes to the account owner (leader).
 export function generateAdminTransactionAlertSms(params: AdminTransactionAlertSmsParams): string {
-    const { transactionType, currency, amount, departmentName, description, balance } = params;
+    const { transactionType, currency, amount, organisationName, description, balance } = params;
     const verb = transactionType === 'INCOME' ? 'credited' : 'debited';
     const preposition = transactionType === 'INCOME' ? 'to' : 'from';
-    return `You ${verb} ${currency}${amount} ${preposition} the ${departmentName} account. Ref: ${description}. New balance is ${currency}${balance}.`;
+    return `You ${verb} ${currency}${amount} ${preposition} the ${organisationName} account. Ref: ${description}. New balance is ${currency}${balance}.`;
 }
 
 interface PublicExpenseRequestSmsParams {
@@ -259,26 +259,26 @@ interface PublicExpenseRequestSmsParams {
     momoName: string;
     momoNumber: string;
     description: string;
-    oversightDeptName: string;
+    oversightOrganisationName: string;
 }
 
 export function generatePublicExpenseRequestSms(params: PublicExpenseRequestSmsParams): string {
-    const { requesterName, churchName, amount, momoNumber, description, oversightDeptName } = params;
+    const { requesterName, churchName, amount, momoNumber, description, oversightOrganisationName } = params;
     const shortDesc = description.length > 30 ? description.substring(0, 30) + '...' : description;
-    return `New public expense request for ${oversightDeptName}. From: ${requesterName} (${churchName}), GHS${amount}. Momo: ${momoNumber}. Reason: ${shortDesc}. Please log in to review.`;
+    return `New public expense request for ${oversightOrganisationName}. From: ${requesterName} (${churchName}), GHS${amount}. Momo: ${momoNumber}. Reason: ${shortDesc}. Please log in to review.`;
 }
 
 interface TransactionEditNotificationSmsParams {
-    departmentName: string;
+    organisationName: string;
     description: string;
     changes: string;
     editedBy: string;
 }
 
 export function generateTransactionEditNotificationSms(params: TransactionEditNotificationSmsParams): string {
-    const { departmentName, description, changes, editedBy } = params;
+    const { organisationName, description, changes, editedBy } = params;
     const shortDesc = description.length > 25 ? description.substring(0, 25) + '...' : description;
-    return `EDIT ALERT: "${shortDesc}" in ${departmentName} was modified by ${editedBy}. Changes: ${changes}.`;
+    return `EDIT ALERT: "${shortDesc}" in ${organisationName} was modified by ${editedBy}. Changes: ${changes}.`;
 }
 
 interface PublicExpenseLeaderSubmittedSmsParams {

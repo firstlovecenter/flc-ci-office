@@ -33,7 +33,7 @@ export async function GET(request: Request) {
         const { searchParams } = new URL(request.url);
         const startDate = searchParams.get('startDate');
         const endDate = searchParams.get('endDate');
-        const departmentId = searchParams.get('departmentId');
+        const organisationId = searchParams.get('organisationId');
 
         // Build date filter
         const dateFilter = startDate && endDate ? {
@@ -43,52 +43,52 @@ export async function GET(request: Request) {
             }
         } : {};
 
-        // Build department filter based on user role
-        let departmentIds: string[] | null = null;
+        // Build organisation filter based on user role
+        let organisationIds: string[] | null = null;
         
         if (normalizedRole !== 'SUPERADMIN') {
             // Non-superadmins are restricted to their tree
-            // Use activeUserRole if available, otherwise use user's base department
-            const filterDepartmentId = session.user.activeUserRole?.departmentId || session.user.departmentId;
+            // Use activeUserRole if available, otherwise use user's base organisation
+            const filterOrganisationId = session.user.activeUserRole?.organisationId || session.user.organisationId;
 
-            if (filterDepartmentId) {
-                const allSubDepts = await getAllSubDepartments(filterDepartmentId);
-                const allowedIds = [filterDepartmentId, ...allSubDepts];
+            if (filterOrganisationId) {
+                const allSubDepts = await getAllSubOrganisations(filterOrganisationId);
+                const allowedIds = [filterOrganisationId, ...allSubDepts];
                 
-                if (departmentId) {
-                    // User requested specific department - verify access
-                    if (allowedIds.includes(departmentId)) {
-                        departmentIds = [departmentId];
+                if (organisationId) {
+                    // User requested specific organisation - verify access
+                    if (allowedIds.includes(organisationId)) {
+                        organisationIds = [organisationId];
                     } else {
-                        // Requested department is out of scope -> return forbidden or empty
+                        // Requested organisation is out of scope -> return forbidden or empty
                         // Returning empty filter with ID='none' to match nothing
-                        departmentIds = ['__NO_ACCESS__']; 
+                        organisationIds = ['__NO_ACCESS__']; 
                     }
                 } else {
-                    // No specific department requested -> show all in scope
-                    departmentIds = allowedIds;
+                    // No specific organisation requested -> show all in scope
+                    organisationIds = allowedIds;
                 }
             } else {
-                // User has no department -> see nothing
-                departmentIds = ['__NO_ACCESS__'];
+                // User has no organisation -> see nothing
+                organisationIds = ['__NO_ACCESS__'];
             }
         } else {
             // Superadmin
-            if (departmentId) {
-                departmentIds = [departmentId];
+            if (organisationId) {
+                organisationIds = [organisationId];
             }
         }
 
-        const transactionDeptFilter = departmentIds
-            ? { departmentId: { in: departmentIds } }
+        const transactionDeptFilter = organisationIds
+            ? { organisationId: { in: organisationIds } }
             : {};
 
-        const userDeptFilter = departmentIds
-            ? { departmentId: { in: departmentIds } }
+        const userDeptFilter = organisationIds
+            ? { organisationId: { in: organisationIds } }
             : {};
 
-        const departmentCountFilter = departmentIds
-            ? { id: { in: departmentIds } }
+        const organisationCountFilter = organisationIds
+            ? { id: { in: organisationIds } }
             : {};
 
         // Get total transactions with status breakdown
@@ -152,10 +152,10 @@ export async function GET(request: Request) {
             ? (approvedCount / totalTransactions) * 100
             : 0;
 
-        // Get active departments and users count
-        const [activeDepartments, activeUsers] = await Promise.all([
-            prisma.department.count({
-                where: { isActive: true, ...departmentCountFilter }
+        // Get active organisations and users count
+        const [activeOrganisations, activeUsers] = await Promise.all([
+            prisma.organisation.count({
+                where: { isActive: true, ...organisationCountFilter }
             }),
             prisma.user.count({
                 where: { archived: false, ...userDeptFilter }
@@ -177,7 +177,7 @@ export async function GET(request: Request) {
                 SUM(CASE WHEN type = 'EXPENSE' AND status = 'APPROVED' THEN COALESCE("amountInBase", 0) ELSE 0 END) as expense
             FROM "Transaction"
             WHERE "createdAt" >= ${twelveMonthsAgo}
-            ${departmentIds ? Prisma.sql`AND "departmentId" IN (${Prisma.join(departmentIds)})` : Prisma.empty}
+            ${organisationIds ? Prisma.sql`AND "organisationId" IN (${Prisma.join(organisationIds)})` : Prisma.empty}
             GROUP BY month
             ORDER BY month ASC
         `;
@@ -201,7 +201,7 @@ export async function GET(request: Request) {
                 rejectedCount,
                 approvalRate: Math.round(approvalRate * 100) / 100,
                 avgApprovalTime: Math.round(avgApprovalTime * 100) / 100,
-                activeDepartments,
+                activeOrganisations,
                 activeUsers
             },
             monthlyTrend: formattedMonthlyData
@@ -216,10 +216,10 @@ export async function GET(request: Request) {
     }
 }
 
-// Helper function to get all sub-departments recursively
-async function getAllSubDepartments(departmentId: string): Promise<string[]> {
-    const children = await prisma.department.findMany({
-        where: { parentId: departmentId },
+// Helper function to get all sub-organisations recursively
+async function getAllSubOrganisations(organisationId: string): Promise<string[]> {
+    const children = await prisma.organisation.findMany({
+        where: { parentId: organisationId },
         select: { id: true }
     });
 
@@ -229,7 +229,7 @@ async function getAllSubDepartments(departmentId: string): Promise<string[]> {
 
     const childIds = children.map((c: { id: string }) => c.id);
     const subChildren = await Promise.all(
-        childIds.map((id: string) => getAllSubDepartments(id))
+        childIds.map((id: string) => getAllSubOrganisations(id))
     );
 
     return [...childIds, ...subChildren.flat()];

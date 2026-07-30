@@ -10,11 +10,11 @@ import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { Badge } from '@/components/ui/badge';
-import { cn, formatNumber, formatDepartmentLevel } from '@/lib/utils';
-import { roundMoney } from '@/lib/format-money';
+import { cn, formatNumber, formatOrganisationLevel, formatTransactionType } from '@/lib/utils';
 import { useToast } from '@/components/ToastProvider';
-import { getExpenseWindowStatus, formatTimeInExpenseWindowTimeZone } from '@/lib/expense-window';
+import { getExpenseWindowStatus, formatTimeInExpenseWindowTimeZone, EXPENSE_WINDOW_CLOSE_HOUR, EXPENSE_WINDOW_CLOSE_MINUTE } from '@/lib/expense-window';
+import { canRecordDeposit, hasAccountBalance, isExpenseWindowExempt } from '@/lib/org-model';
+import { APP_CURRENCY } from '@/lib/currency-constants';
 
 type TransactionType = 'INCOME' | 'EXPENSE';
 
@@ -26,7 +26,7 @@ function NewTransactionForm() {
     const searchParams = useSearchParams();
     const deptParam = searchParams?.get('dept');
     const typeParam = searchParams?.get('type');
-    const exactDepartment = searchParams?.get('exact') === 'true';
+    const exactOrganisation = searchParams?.get('exact') === 'true';
     const { data: session, status: sessionStatus } = useSession();
     const { showSuccess, showError } = useToast();
 
@@ -41,23 +41,23 @@ function NewTransactionForm() {
     const [amount, setAmount] = useState('');
     const [description, setDescription] = useState('');
     const [descriptionPreset, setDescriptionPreset] = useState('');
-    const [departmentId, setDepartmentId] = useState('');
-    const [currencyId, setCurrencyId] = useState('');
-    const [departments, setDepartments] = useState<any[]>([]);
-    const [currencies, setCurrencies] = useState<any[]>([]);
-    const [baseCurrency, setBaseCurrency] = useState<any>(null);
-    const [exchangeRate, setExchangeRate] = useState<number | null>(null);
+    const [organisationId, setOrganisationId] = useState('');
+    const [organisations, setOrganisations] = useState<any[]>([]);
     const [transactionDate, setTransactionDate] = useState(new Date().toISOString().split('T')[0]);
     const [error, setError] = useState('');
-    const [profileLoading, setProfileLoading] = useState(true);
     const [overdueApprovals, setOverdueApprovals] = useState<{ id: string; description: string; amount: string; approvedAt: string }[]>([]);
     const [overdueLoading, setOverdueLoading] = useState(true);
     const [loading, setLoading] = useState(false);
-    const [departmentBalance, setDepartmentBalance] = useState<string | null>(null);
-    const [balanceCurrency, setBalanceCurrency] = useState<{ code: string; symbol: string } | null>(null);
+    const [organisationBalance, setOrganisationBalance] = useState<string | null>(null);
     const [balanceLoading, setBalanceLoading] = useState(false);
 
     const needsApproval = !isSuperAdmin && type !== 'INCOME';
+    const selectedOrganisation = organisations.find((o) => o.id === organisationId);
+    const selectedAccountType = selectedOrganisation?.accountType as string | undefined;
+    const showBalance = type === 'EXPENSE' && hasAccountBalance(selectedAccountType as any);
+    const windowExempt = isExpenseWindowExempt(selectedAccountType as any);
+    const allowDeposit = canRecordDeposit(selectedAccountType as any);
+    const moneyAccounts = organisations.filter((o) => o.level === 'COUNCIL');
 
     useEffect(() => {
         if (sessionStatus === 'loading') return;
@@ -66,7 +66,7 @@ function NewTransactionForm() {
         else if (!isLeader && !typeParam) setType('INCOME');
     }, [typeParam, isLeader, sessionStatus]);
 
-    useEffect(() => { fetchDepartments(); fetchCurrencies(); fetchUserProfile(); }, []);
+    useEffect(() => { fetchOrganisations(); }, []);
 
     useEffect(() => {
         if (sessionStatus === 'loading') return;
@@ -75,105 +75,124 @@ function NewTransactionForm() {
     }, [sessionStatus, isLeader]);
 
     useEffect(() => {
-        if (deptParam) setDepartmentId(deptParam);
-        else if (session?.user?.departmentId) setDepartmentId(session.user.departmentId);
+        if (deptParam) setOrganisationId(deptParam);
+        else if (session?.user?.organisationId) setOrganisationId(session.user.organisationId);
     }, [session, deptParam]);
 
-    useEffect(() => { if (departmentId) fetchDepartmentBalance(departmentId); }, [departmentId]);
-
     useEffect(() => {
-        if (currencyId && baseCurrency && currencyId !== baseCurrency.id) fetchExchangeRate(currencyId, baseCurrency.id);
-        else setExchangeRate(null);
-    }, [currencyId, baseCurrency]);
+        if (!allowDeposit && type === 'INCOME') setType('EXPENSE');
+    }, [allowDeposit, type]);
 
-    const fetchDepartments = async () => { const r = await fetch('/api/departments?all=true'); if (r.ok) setDepartments(await r.json()); };
-    const fetchCurrencies = async () => { const r = await fetch('/api/currencies?active=true'); if (r.ok) setCurrencies(await r.json()); };
+    useEffect(() => { if (organisationId) fetchOrganisationBalance(organisationId); }, [organisationId]);
 
-    const fetchDepartmentBalance = async (deptId: string) => {
+    const fetchOrganisations = async () => {
+        const r = await fetch('/api/organisations?all=true');
+        if (r.ok) setOrganisations(await r.json());
+    };
+
+    const fetchOrganisationBalance = async (deptId: string) => {
         setBalanceLoading(true);
-        try { const r = await fetch(`/api/departments/${deptId}/stats?exactLevel=true`, { cache: 'no-store' }); if (r.ok) { const d = await r.json(); setDepartmentBalance(d.balance); setBalanceCurrency(d.currency); } }
-        catch {} finally { setBalanceLoading(false); }
+        try {
+            const r = await fetch(`/api/organisations/${deptId}/stats?exactLevel=true`, { cache: 'no-store' });
+            if (r.ok) {
+                const d = await r.json();
+                setOrganisationBalance(d.balance);
+            }
+        } catch {}
+        finally { setBalanceLoading(false); }
     };
 
     const fetchOverdueReceipts = async () => {
         setOverdueLoading(true);
         try {
             const r = await fetch('/api/transactions/overdue-receipts', { cache: 'no-store' });
-            if (r.ok) { const d = await r.json(); setOverdueApprovals(d.overdueApprovals || []); }
+            if (r.ok) {
+                const d = await r.json();
+                setOverdueApprovals(d.overdueApprovals || []);
+            }
         } catch {}
         finally { setOverdueLoading(false); }
     };
 
-    const fetchUserProfile = async () => {
-        setProfileLoading(true);
-        try {
-            const r = await fetch('/api/users/me');
-            if (!r.ok) { setError((await r.text()) || 'Unable to load your profile.'); return; }
-            const p = await r.json();
-            if (p.baseCurrency) { setBaseCurrency(p.baseCurrency); setCurrencyId(p.baseCurrency.id); }
-            else {
-                const oversightAndBelow = ['OVERSIGHT_ADMIN', 'OVERSIGHT_LEADER', 'CAMPUS_ADMIN', 'CAMPUS_LEADER', 'STREAM_LEADER', 'COUNCIL_LEADER'];
-                if (session?.user?.role && oversightAndBelow.includes(session.user.role))
-                    setError('Base currency must be set for your oversight department before you can record transactions. Please contact your Oversight Admin.');
-                else setError('Unable to determine base currency. Please refresh and try again.');
-            }
-        } catch { setError('Unable to load your profile. Please refresh and try again.'); }
-        finally { setProfileLoading(false); }
-    };
-
-    const fetchExchangeRate = async (fromId: string, toId: string) => {
-        try {
-            const r = await fetch(`/api/exchange-rates?t=${Date.now()}`, { cache: 'no-store' });
-            if (r.ok) {
-                const rates = await r.json();
-                let rate = rates.find((r: any) => r.fromCurrency.id === fromId && r.toCurrency.id === toId);
-                if (rate) { setExchangeRate(parseFloat(rate.rate)); return; }
-                rate = rates.find((r: any) => r.fromCurrency.id === toId && r.toCurrency.id === fromId);
-                if (rate) { setExchangeRate(1 / parseFloat(rate.rate)); return; }
-                setExchangeRate(null);
-            }
-        } catch {}
-    };
-
     const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault(); setError('');
-        if (profileLoading) { setError('Loading your profile. Please wait.'); return; }
-        if (!baseCurrency) { setError('Base currency is not set.'); return; }
+        e.preventDefault();
+        setError('');
         setLoading(true);
-        if (type === 'EXPENSE' && isLeader) {
+
+        if (type === 'EXPENSE' && isLeader && !windowExempt) {
             const win = getExpenseWindowStatus();
-            if (!win.isOpen) { setError(win.isSunday ? 'Expense requests are not accepted on Sundays.' : `Expense requests can only be made between ${win.timeRange}`); setLoading(false); return; }
+            if (!win.isOpen) {
+                setError(win.isSunday
+                    ? 'Withdrawal requests are not accepted on Sundays.'
+                    : `Withdrawal requests can only be made between ${win.timeRange}`);
+                setLoading(false);
+                return;
+            }
         }
-        if (type === 'EXPENSE' && departmentBalance !== null) {
-            const bal = Number(departmentBalance);
-            if (bal <= 0) { setError('This church does not have a positive balance.'); setLoading(false); return; }
-            if (parseFloat(amount) > bal) { setError(`Insufficient balance. Available: ${balanceCurrency?.symbol || '₵'}${formatNumber(departmentBalance)}`); setLoading(false); return; }
+
+        if (type === 'EXPENSE' && showBalance && organisationBalance !== null) {
+            const bal = Number(organisationBalance);
+            if (bal <= 0) {
+                setError('This account does not have a positive balance.');
+                setLoading(false);
+                return;
+            }
+            if (parseFloat(amount) > bal) {
+                setError(`Insufficient balance. Available: ${APP_CURRENCY.symbol}${formatNumber(organisationBalance)}`);
+                setLoading(false);
+                return;
+            }
         }
+
         try {
-            const finalDescription = descriptionPreset ? (description ? `${descriptionPreset} - ${description}` : descriptionPreset) : description;
-            const r = await fetch('/api/transactions', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type, amount: parseFloat(amount), description: finalDescription, departmentId, currencyId: currencyId || null, exchangeRate: exchangeRate || null, date: transactionDate ? new Date(transactionDate).toISOString() : undefined }) });
-            if (!r.ok) { let msg = 'Failed to create transaction'; try { const d = await r.json(); msg = d.error || msg; } catch {} throw new Error(msg); }
+            const finalDescription = descriptionPreset
+                ? (description ? `${descriptionPreset} - ${description}` : descriptionPreset)
+                : description;
+            const r = await fetch('/api/transactions', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    type,
+                    amount: parseFloat(amount),
+                    description: finalDescription,
+                    organisationId,
+                    date: transactionDate ? new Date(transactionDate).toISOString() : undefined,
+                }),
+            });
+            if (!r.ok) {
+                let msg = 'Failed to create transaction';
+                try { const d = await r.json(); msg = d.error || msg; } catch {}
+                throw new Error(msg);
+            }
             const result = await r.json();
-            if (result.newBalance !== undefined) { const sym = result.currency?.symbol || balanceCurrency?.symbol || '₵'; showSuccess(`Transaction created! New balance: ${sym}${formatNumber(result.newBalance)}`); }
-            else if (needsApproval) showSuccess(type === 'EXPENSE' ? 'Expense request submitted for approval' : 'Transaction submitted for approval');
-            else showSuccess('Transaction created successfully');
-            router.push(deptParam ? `/transactions?dept=${deptParam}${exactDepartment ? '&exact=true' : ''}` : '/transactions');
+            if (result.newBalance !== undefined) {
+                showSuccess(`Transaction created! New balance: ${APP_CURRENCY.symbol}${formatNumber(result.newBalance)}`);
+            } else if (needsApproval) {
+                showSuccess(type === 'EXPENSE' ? 'Withdrawal request submitted for approval' : 'Transaction submitted for approval');
+            } else {
+                showSuccess('Transaction created successfully');
+            }
+            router.push(deptParam ? `/transactions?dept=${deptParam}${exactOrganisation ? '&exact=true' : ''}` : '/transactions');
             router.refresh();
-        } catch (err) { const msg = err instanceof Error ? err.message : 'Error creating transaction'; setError(msg); showError(msg); }
-        finally { setLoading(false); }
+        } catch (err) {
+            const msg = err instanceof Error ? err.message : 'Error creating transaction';
+            setError(msg);
+            showError(msg);
+        } finally {
+            setLoading(false);
+        }
     };
 
-    // Overdue, unreceipted approvals block new requests until resolved
     if (sessionStatus !== 'loading' && isLeader && !overdueLoading && overdueApprovals.length > 0) {
         return (
             <div className="max-w-sm mx-auto mt-16">
                 <div className="rounded-xl border border-border bg-card p-6">
                     <Alert variant="destructive"><AlertDescription>
                         <strong>Receipts required</strong><br />
-                        You have {overdueApprovals.length} approved expense request{overdueApprovals.length > 1 ? 's' : ''} older than 24 hours without an uploaded receipt. Upload {overdueApprovals.length > 1 ? 'these receipts' : 'this receipt'} before making new requests:
+                        You have {overdueApprovals.length} approved withdrawal request{overdueApprovals.length > 1 ? 's' : ''} older than 24 hours without an uploaded receipt. Upload {overdueApprovals.length > 1 ? 'these receipts' : 'this receipt'} before making new requests:
                         <ul className="mt-2 list-disc pl-4 space-y-1">
                             {overdueApprovals.map((t) => (
-                                <li key={t.id}>{t.description} — {balanceCurrency?.symbol || '₵'}{formatNumber(t.amount)}</li>
+                                <li key={t.id}>{t.description} — {APP_CURRENCY.symbol}{formatNumber(t.amount)}</li>
                             ))}
                         </ul>
                     </AlertDescription></Alert>
@@ -183,8 +202,7 @@ function NewTransactionForm() {
         );
     }
 
-    // Time restriction for leaders
-    if (sessionStatus !== 'loading' && isLeader) {
+    if (sessionStatus !== 'loading' && isLeader && !windowExempt) {
         const win = getExpenseWindowStatus();
         if (!win.isOpen) {
             return (
@@ -192,11 +210,11 @@ function NewTransactionForm() {
                     <div className="rounded-xl border border-border bg-card p-6">
                         <Alert variant="warning"><AlertDescription>
                             {win.isSunday ? (
-                                <><strong>Closed on Sundays</strong><br />Expense requests are not accepted on Sundays. Please try again Monday from 6:00 AM.</>
+                                <><strong>Closed on Sundays</strong><br />Withdrawal requests are not accepted on Sundays. Please try again Monday from 6:00 AM.</>
                             ) : (
                                 <>
-                                    <strong>Outside Operating Hours</strong><br />
-                                    Expense requests can only be made between <strong>{win.timeRange}</strong>, Monday to Saturday.<br />
+                                    <strong>Outside operating hours</strong><br />
+                                    Withdrawal requests can only be made between <strong>{win.timeRange}</strong>, Monday to Saturday.<br />
                                     Current time: {formatTimeInExpenseWindowTimeZone(win.now)}
                                 </>
                             )}
@@ -208,33 +226,32 @@ function NewTransactionForm() {
         }
     }
 
-    if (sessionStatus === 'loading' || (isLeader && overdueLoading)) return <div className="flex justify-center items-center min-h-[60vh]"><Loader2 className="h-7 w-7 animate-spin text-muted-foreground" /></div>;
+    if (sessionStatus === 'loading' || (isLeader && overdueLoading)) {
+        return <div className="flex justify-center items-center min-h-[60vh]"><Loader2 className="h-7 w-7 animate-spin text-muted-foreground" /></div>;
+    }
 
-    // Leader time window banner
-    const leaderBanner = isLeader && (() => {
+    const leaderBanner = isLeader && !windowExempt && (() => {
         const win = getExpenseWindowStatus();
-        const minutesLeft = (15 - win.hour) * 60 - win.minute;
+        const minutesLeft = (EXPENSE_WINDOW_CLOSE_HOUR - win.hour) * 60 + EXPENSE_WINDOW_CLOSE_MINUTE - win.minute;
         const closingSoon = minutesLeft <= 60;
         return (
             <div className={cn('flex items-center gap-2 px-3 py-2 rounded-xl border mb-4', closingSoon ? 'border-warning/30 bg-warning/8' : 'border-success/30 bg-success/8')}>
                 <div className={cn('w-2 h-2 rounded-full shrink-0 animate-pulse', closingSoon ? 'bg-warning' : 'bg-success')} />
                 <p className={cn('text-xs font-semibold', closingSoon ? 'text-warning' : 'text-success')}>
-                    {closingSoon ? `Submissions close at 3:00 PM · ${minutesLeft} min remaining` : 'Submissions open · Closes at 3:00 PM'}
+                    {closingSoon ? `Submissions close at 3:30 PM · ${minutesLeft} min remaining` : 'Submissions open · Closes at 3:30 PM'}
                 </p>
             </div>
         );
     })();
 
-    const selectedCurrency = currencies.find(c => c.id === currencyId);
-
     return (
         <div className="max-w-lg mx-auto">
             <div className="mb-8 pb-6 border-b border-border">
-                <p className="text-[0.6875rem] font-medium uppercase tracking-[0.10em] text-muted-foreground mb-0.5">{isLeader ? 'Expense request' : 'New entry'}</p>
+                <p className="text-[0.6875rem] font-medium uppercase tracking-[0.10em] text-muted-foreground mb-0.5">{isLeader ? 'Withdrawal request' : 'New entry'}</p>
                 <h1 className="text-[1.625rem] sm:text-[1.875rem] font-semibold tracking-[-0.025em] text-foreground">
-                    {isLeader ? 'New expense request' : needsApproval ? 'New transaction request' : 'New transaction'}
+                    {isLeader ? 'New withdrawal request' : needsApproval ? 'New transaction request' : 'New transaction'}
                 </h1>
-                <p className="text-sm text-muted-foreground mt-0.5">{isLeader ? 'Submit for approval by your admin.' : 'Record an income or expense entry.'}</p>
+                <p className="text-sm text-muted-foreground mt-0.5">{isLeader ? 'Submit for approval by your manager.' : 'Record a deposit or withdrawal in Ghana Cedis.'}</p>
             </div>
 
             {leaderBanner}
@@ -245,15 +262,14 @@ function NewTransactionForm() {
                 </p>
             )}
 
-            {/* Available balance for expense */}
-            {type === 'EXPENSE' && (
+            {showBalance && (
                 <div className="relative rounded-xl border border-border bg-card p-5 mb-5 overflow-hidden">
                     <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-success to-transparent opacity-70" />
                     <p className="text-[0.6875rem] font-semibold uppercase tracking-[0.10em] text-muted-foreground mb-1.5">Available balance</p>
-                    {balanceLoading ? <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /> : departmentBalance !== null ? (
+                    {balanceLoading ? <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /> : organisationBalance !== null ? (
                         <>
                             <p className="text-[1.875rem] sm:text-[2.125rem] font-semibold tracking-[-0.02em] tabular-nums text-success">
-                                {balanceCurrency?.symbol || '₵'}{formatNumber(departmentBalance)}
+                                {APP_CURRENCY.symbol}{formatNumber(organisationBalance)}
                             </p>
                             <p className="text-xs text-muted-foreground mt-0.5">You cannot request more than this amount.</p>
                         </>
@@ -264,14 +280,13 @@ function NewTransactionForm() {
             <div className="rounded-xl border border-border bg-card p-6">
                 <form onSubmit={handleSubmit} className="flex flex-col gap-4">
                     {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
-                    {!profileLoading && !baseCurrency && !error && <Alert variant="warning"><AlertDescription>Base currency is required before you can submit a transaction.</AlertDescription></Alert>}
 
                     {!isLeader && (
                         <div className="space-y-1.5">
-                            <Label>Church <span className="text-destructive">*</span></Label>
-                            <Select value={departmentId} onValueChange={setDepartmentId} required>
-                                <SelectTrigger><SelectValue placeholder="Select a church" /></SelectTrigger>
-                                <SelectContent>{departments.map(d => <SelectItem key={d.id} value={d.id}>{d.name} {formatDepartmentLevel(d.level)}</SelectItem>)}</SelectContent>
+                            <Label>Account <span className="text-destructive">*</span></Label>
+                            <Select value={organisationId} onValueChange={setOrganisationId} required>
+                                <SelectTrigger><SelectValue placeholder="Select an account" /></SelectTrigger>
+                                <SelectContent>{moneyAccounts.map(d => <SelectItem key={d.id} value={d.id}>{d.name} {formatOrganisationLevel(d.level)}</SelectItem>)}</SelectContent>
                             </Select>
                         </div>
                     )}
@@ -281,38 +296,21 @@ function NewTransactionForm() {
                             <Label>Type</Label>
                             <Select value={type} onValueChange={v => { setType(v as TransactionType); setDescriptionPreset(''); }}>
                                 <SelectTrigger><SelectValue /></SelectTrigger>
-                                <SelectContent><SelectItem value="INCOME">Income</SelectItem><SelectItem value="EXPENSE">Expense</SelectItem></SelectContent>
-                            </Select>
-                        </div>
-                    )}
-
-                    {!isLeader && (
-                        <div className="space-y-1.5">
-                            <Label>Currency <span className="text-destructive">*</span></Label>
-                            <Select value={currencyId} onValueChange={setCurrencyId} required>
-                                <SelectTrigger><SelectValue placeholder="Select currency" /></SelectTrigger>
-                                <SelectContent>{currencies.map(c => <SelectItem key={c.id} value={c.id}>{c.code} — {c.name} ({c.symbol}){c.isBase ? ' [Base]' : ''}</SelectItem>)}</SelectContent>
+                                <SelectContent>
+                                    {allowDeposit && <SelectItem value="INCOME">{formatTransactionType('INCOME')}</SelectItem>}
+                                    <SelectItem value="EXPENSE">{formatTransactionType('EXPENSE')}</SelectItem>
+                                </SelectContent>
                             </Select>
                         </div>
                     )}
 
                     <div className="space-y-1.5">
-                        <Label>Amount <span className="text-destructive">*</span></Label>
+                        <Label>Amount ({APP_CURRENCY.code}) <span className="text-destructive">*</span></Label>
                         <div className="relative">
-                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-medium text-muted-foreground">{selectedCurrency?.symbol || '₵'}</span>
+                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-medium text-muted-foreground">{APP_CURRENCY.symbol}</span>
                             <Input type="number" required value={amount} onChange={e => setAmount(e.target.value)} placeholder="0.00" className="pl-8" />
                         </div>
                     </div>
-
-                    {exchangeRate && amount && parseFloat(amount) > 0 && (
-                        <div className="flex items-center justify-between px-3 py-2 rounded-xl border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950/30">
-                            <p className="text-xs text-muted-foreground">Converted amount</p>
-                            <div className="flex items-center gap-2">
-                                <p className="text-sm font-bold text-blue-600 dark:text-blue-400">{baseCurrency?.symbol}{formatNumber(roundMoney(parseFloat(amount) * exchangeRate))}</p>
-                                <Badge variant="outline" className="text-[0.65rem] h-4 border-blue-200 text-blue-600 dark:border-blue-800 dark:text-blue-400">{selectedCurrency?.code} → {baseCurrency?.code} @ {exchangeRate.toFixed(4)}</Badge>
-                            </div>
-                        </div>
-                    )}
 
                     <div className="space-y-1.5">
                         <Label>Transaction Date <span className="text-destructive">*</span></Label>
@@ -337,14 +335,14 @@ function NewTransactionForm() {
                             onChange={e => setDescription(e.target.value)}
                             required={type === 'EXPENSE' && !descriptionPreset}
                             rows={3}
-                            placeholder={type === 'EXPENSE' ? 'What is this expense for?' : 'Additional details about this income (optional)'}
+                            placeholder={type === 'EXPENSE' ? 'What is this withdrawal for?' : 'Additional details about this deposit (optional)'}
                         />
                     </div>
 
                     <div className="flex gap-3 justify-end pt-1">
                         <Button type="button" variant="outline" onClick={() => router.back()} disabled={loading}>Cancel</Button>
-                        <Button type="submit" disabled={loading || profileLoading}>
-                            {loading ? <><Loader2 className="mr-1.5 h-4 w-4 animate-spin" />Submitting...</> : isLeader ? 'Submit Expense Request' : needsApproval ? 'Submit for Approval' : 'Save Transaction'}
+                        <Button type="submit" disabled={loading}>
+                            {loading ? <><Loader2 className="mr-1.5 h-4 w-4 animate-spin" />Submitting...</> : isLeader ? 'Submit withdrawal request' : needsApproval ? 'Submit for Approval' : 'Save Transaction'}
                         </Button>
                     </div>
                 </form>

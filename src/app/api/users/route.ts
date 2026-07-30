@@ -3,11 +3,11 @@ import { prisma } from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import bcrypt from 'bcryptjs';
-import { getDescendantDepartmentIds } from '@/lib/departments';
+import { getDescendantOrganisationIds } from '@/lib/organisations';
 import { validateRoleAssignment } from '@/lib/roleValidation';
 import crypto from 'crypto';
 
-// Force dynamic rendering - user list is role/department specific
+// Force dynamic rendering - user list is role/organisation specific
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: Request) {
@@ -31,41 +31,41 @@ export async function GET(request: Request) {
             archived: false, // Only show non-archived users by default
         };
 
-        // Determine which department to use for filtering
-        // For users with multiple roles, use the activeUserRole's department
-        let filterDepartmentId = session.user.departmentId;
+        // Determine which organisation to use for filtering
+        // For users with multiple roles, use the activeUserRole's organisation
+        let filterOrganisationId = session.user.organisationId;
         
-        if (session.user.activeUserRole?.departmentId) {
-            filterDepartmentId = session.user.activeUserRole.departmentId;
+        if (session.user.activeUserRole?.organisationId) {
+            filterOrganisationId = session.user.activeUserRole.organisationId;
         }
 
         // For available users (leader selection), we want all registered users
-        // that are not archived, regardless of their current department
+        // that are not archived, regardless of their current organisation
         if (availableOnly) {
             // Get all non-archived users - they can be selected as leaders
             // Admins can see users that don't have roles yet, or users within their hierarchy
             if (session.user.role !== 'SUPERADMIN') {
                 // Get users that are either:
-                // 1. Have no department (unassigned users)
-                // 2. Are in the admin's department hierarchy
-                const allowedDepartmentIds = filterDepartmentId 
-                    ? await getDescendantDepartmentIds(filterDepartmentId)
+                // 1. Have no organisation (unassigned users)
+                // 2. Are in the admin's organisation hierarchy
+                const allowedOrganisationIds = filterOrganisationId 
+                    ? await getDescendantOrganisationIds(filterOrganisationId)
                     : [];
                     
                 whereClause.OR = [
-                    { departmentId: null },
-                    { departmentId: { in: allowedDepartmentIds } },
+                    { organisationId: null },
+                    { organisationId: { in: allowedOrganisationIds } },
                 ];
             }
             // SUPERADMIN can see all users
         } else {
-            // Filter users based on department hierarchy (original behavior)
+            // Filter users based on organisation hierarchy (original behavior)
             if (session.user.role !== 'SUPERADMIN') {
-                if (filterDepartmentId) {
-                    const allowedDepartmentIds = await getDescendantDepartmentIds(filterDepartmentId);
-                    whereClause.departmentId = { in: allowedDepartmentIds };
+                if (filterOrganisationId) {
+                    const allowedOrganisationIds = await getDescendantOrganisationIds(filterOrganisationId);
+                    whereClause.organisationId = { in: allowedOrganisationIds };
                 } else {
-                    // User has no department, can't see any users
+                    // User has no organisation, can't see any users
                     return NextResponse.json([]);
                 }
             }
@@ -73,8 +73,7 @@ export async function GET(request: Request) {
 
         const users = await prisma.user.findMany({
             where: whereClause,
-            include: {
-                department: true,
+            include: { organisation: true,
                 baseCurrency: {
                     select: {
                         id: true,
@@ -84,8 +83,7 @@ export async function GET(request: Request) {
                     },
                 },
                 userRoles: {
-                    include: {
-                        department: {
+                    include: { organisation: {
                             select: {
                                 id: true,
                                 name: true,
@@ -127,7 +125,7 @@ export async function POST(request: Request) {
 
     try {
         const body = await request.json();
-        const { title, name, email, phone, roleDepartmentPairs } = body;
+        const { title, name, email, phone, roleOrganisationPairs } = body;
 
         // Validate required fields
         if (!phone?.trim()) {
@@ -140,11 +138,11 @@ export async function POST(request: Request) {
         }
 
         // Users can now be created without roles initially
-        const hasRoles = roleDepartmentPairs && roleDepartmentPairs.length > 0;
+        const hasRoles = roleOrganisationPairs && roleOrganisationPairs.length > 0;
         
         // Extract unique roles for backward compatibility validation (only if roles provided)
-        const userRoles: string[] = hasRoles ? Array.from(new Set(roleDepartmentPairs.map((pair: any) => pair.role as string))) : [];
-        const firstDept = hasRoles ? roleDepartmentPairs[0].departmentId : null;
+        const userRoles: string[] = hasRoles ? Array.from(new Set(roleOrganisationPairs.map((pair: any) => pair.role as string))) : [];
+        const firstDept = hasRoles ? roleOrganisationPairs[0].organisationId : null;
 
         // Validate role assignments only if roles are provided
         if (hasRoles) {
@@ -163,31 +161,31 @@ export async function POST(request: Request) {
             return new NextResponse('User already exists', { status: 400 });
         }
 
-        // For non-superadmins, verify they can create users in the target department
+        // For non-superadmins, verify they can create users in the target organisation
         if (session.user.role !== 'SUPERADMIN') {
-            const filterDepartmentId = session.user.activeUserRole?.departmentId || session.user.departmentId;
+            const filterOrganisationId = session.user.activeUserRole?.organisationId || session.user.organisationId;
             
-            if (!filterDepartmentId) {
-                return new NextResponse('Forbidden - No department assigned', { status: 403 });
+            if (!filterOrganisationId) {
+                return new NextResponse('Forbidden - No organisation assigned', { status: 403 });
             }
 
-            // Get all departments this admin oversees
-            const allowedDepartmentIds = await getDescendantDepartmentIds(filterDepartmentId);
+            // Get all organisations this admin oversees
+            const allowedOrganisationIds = await getDescendantOrganisationIds(filterOrganisationId);
             
-            // Verify all target departments are within their scope
-            for (const pair of roleDepartmentPairs) {
-                if (!allowedDepartmentIds.includes(pair.departmentId)) {
-                    return new NextResponse('Forbidden - Cannot create user in this department', { status: 403 });
+            // Verify all target organisations are within their scope
+            for (const pair of roleOrganisationPairs) {
+                if (!allowedOrganisationIds.includes(pair.organisationId)) {
+                    return new NextResponse('Forbidden - Cannot create user in this organisation', { status: 403 });
                 }
             }
 
             // Verify the role being assigned is appropriate for the admin's level
             // Admins can only assign roles at their level or below
-            const userDept = firstDept ? await prisma.department.findUnique({ where: { id: firstDept } }) : null;
-            const adminDept = await prisma.department.findUnique({ where: { id: filterDepartmentId } });
+            const userDept = firstDept ? await prisma.organisation.findUnique({ where: { id: firstDept } }) : null;
+            const adminDept = await prisma.organisation.findUnique({ where: { id: filterOrganisationId } });
             
             if (userDept && adminDept) {
-                const DEPARTMENT_HIERARCHY: Record<string, number> = {
+                const ORGANISATION_HIERARCHY: Record<string, number> = {
                     DENOMINATION: 1,
                     OVERSIGHT: 2,
                     CAMPUS: 3,
@@ -195,12 +193,12 @@ export async function POST(request: Request) {
                     COUNCIL: 5,
                 };
 
-                const userDeptLevel = userDept.level ? DEPARTMENT_HIERARCHY[userDept.level] : 999;
-                const adminDeptLevel = adminDept.level ? DEPARTMENT_HIERARCHY[adminDept.level] : 999;
+                const userDeptLevel = userDept.level ? ORGANISATION_HIERARCHY[userDept.level] : 999;
+                const adminDeptLevel = adminDept.level ? ORGANISATION_HIERARCHY[adminDept.level] : 999;
 
-                // User department must be at admin's level or below
+                // User organisation must be at admin's level or below
                 if (userDeptLevel < adminDeptLevel) {
-                    return new NextResponse('Forbidden - Cannot create user at higher department level', { status: 403 });
+                    return new NextResponse('Forbidden - Cannot create user at higher organisation level', { status: 403 });
                 }
             }
         }
@@ -216,18 +214,18 @@ export async function POST(request: Request) {
                 phone: phone.trim(),
                 password: await bcrypt.hash(randomPassword, 10),
                 activeRole: hasRoles ? (userRoles[0] as any) : null, // Keep for backward compatibility
-                departmentId: firstDept, // Set to first department for backward compatibility
+                organisationId: firstDept, // Set to first organisation for backward compatibility
                 updatedAt: new Date(),
             },
         });
 
-        // Create UserRole entries for each role-department pair (only if roles provided)
-        if (hasRoles && roleDepartmentPairs.length > 0) {
+        // Create UserRole entries for each role-organisation pair (only if roles provided)
+        if (hasRoles && roleOrganisationPairs.length > 0) {
             await prisma.userRole.createMany({
-                data: roleDepartmentPairs.map((pair: any) => ({
+                data: roleOrganisationPairs.map((pair: any) => ({
                     userId: user.id,
                     role: pair.role,
-                    departmentId: pair.departmentId,
+                    organisationId: pair.organisationId,
                 })),
             });
 

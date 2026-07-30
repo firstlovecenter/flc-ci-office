@@ -24,8 +24,8 @@ export async function GET(req: NextRequest) {
                 image: true,
                 activeRole: true,
                 archived: true,
-                departmentId: true,
-                department: {
+                organisationId: true,
+                organisation: {
                     select: {
                         id: true,
                         name: true,
@@ -33,8 +33,7 @@ export async function GET(req: NextRequest) {
                     },
                 },
                 userRoles: {
-                    include: {
-                        department: {
+                    include: { organisation: {
                             select: {
                                 id: true,
                                 name: true,
@@ -142,8 +141,8 @@ export async function PATCH(req: NextRequest) {
                 phone: true,
                 image: true,
                 activeRole: true,
-                departmentId: true,
-                department: {
+                organisationId: true,
+                organisation: {
                     select: {
                         id: true,
                         name: true,

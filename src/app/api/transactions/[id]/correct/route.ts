@@ -5,9 +5,9 @@ import { authOptions } from '@/lib/auth';
 import { createAuditLog } from '@/lib/audit';
 import { formatCurrency, formatNumber } from '@/lib/utils';
 import { toDecimal, moneyToString, toMoney2dp } from '@/lib/money';
-import { getDepartmentApprovedBalance } from '@/lib/balance';
+import { getOrganisationApprovedBalance } from '@/lib/balance';
 import { sendSms } from '@/lib/sms';
-import { generateCorrectionNotificationSms, generateDepartmentTransferSms, generateAdminTransactionAlertSms } from '@/lib/sms-templates';
+import { generateCorrectionNotificationSms, generateOrganisationTransferSms, generateAdminTransactionAlertSms } from '@/lib/sms-templates';
 import crypto from 'crypto';
 
 export async function POST(
@@ -23,11 +23,11 @@ export async function POST(
     try {
         const params = await context.params;
         const body = await request.json();
-        const { newAmount, reason, newDepartmentId } = body;
+        const { newAmount, reason, newOrganisationId } = body;
         const originalTransactionId = params.id;
 
-        // Determine if this is a department change, amount change, or both
-        const isDepartmentChange = newDepartmentId && newDepartmentId !== '';
+        // Determine if this is a organisation change, amount change, or both
+        const isOrganisationChange = newOrganisationId && newOrganisationId !== '';
         const isAmountChange = newAmount !== undefined && newAmount !== null;
 
         // Only admins can create corrections
@@ -42,8 +42,7 @@ export async function POST(
         // Get the original transaction
         const originalTransaction = await prisma.transaction.findUnique({
             where: { id: originalTransactionId },
-            include: {
-                department: {
+            include: { organisation: {
                     select: {
                         id: true,
                         name: true,
@@ -69,16 +68,16 @@ export async function POST(
             );
         }
 
-        // Validate the new department if provided
-        let newDepartment = null;
-        if (isDepartmentChange) {
-            newDepartment = await prisma.department.findUnique({
-                where: { id: newDepartmentId },
+        // Validate the new organisation if provided
+        let newOrganisation = null;
+        if (isOrganisationChange) {
+            newOrganisation = await prisma.organisation.findUnique({
+                where: { id: newOrganisationId },
                 select: { id: true, name: true, level: true },
             });
-            if (!newDepartment) {
+            if (!newOrganisation) {
                 return NextResponse.json(
-                    { error: 'New department not found' },
+                    { error: 'New organisation not found' },
                     { status: 404 }
                 );
             }
@@ -91,22 +90,22 @@ export async function POST(
         const originalAmount = moneyToString(originalAmountDec);
         const newAmountValue = moneyToString(newAmountDec);
 
-        if (correctionAmountDec.eq(0) && !isDepartmentChange) {
+        if (correctionAmountDec.eq(0) && !isOrganisationChange) {
             return NextResponse.json(
-                { error: 'No changes detected. Please change the amount or department.' },
+                { error: 'No changes detected. Please change the amount or organisation.' },
                 { status: 400 }
             );
         }
 
-        const targetDepartmentId = isDepartmentChange ? newDepartmentId : originalTransaction.departmentId;
-        const targetDepartment = isDepartmentChange ? newDepartment! : originalTransaction.department;
+        const targetOrganisationId = isOrganisationChange ? newOrganisationId : originalTransaction.organisationId;
+        const targetOrganisation = isOrganisationChange ? newOrganisation! : originalTransaction.organisation;
 
-        // Amount-only correction (no department change)
-        // Handle department change: reverse from old department, create in new department
-        if (isDepartmentChange) {
-            // Step 1: Reverse the original transaction in the old department
+        // Amount-only correction (no organisation change)
+        // Handle organisation change: reverse from old organisation, create in new organisation
+        if (isOrganisationChange) {
+            // Step 1: Reverse the original transaction in the old organisation
             const reverseType = originalTransaction.type === 'INCOME' ? 'EXPENSE' : 'INCOME';
-            const reverseDescription = `DEPT TRANSFER: Reversed - moved to ${targetDepartment.name}. Original: "${originalTransaction.description}". ${reason || 'Department correction'} - Ref: ${originalTransaction.id.substring(0, 8)}`;
+            const reverseDescription = `DEPT TRANSFER: Reversed - moved to ${targetOrganisation.name}. Original: "${originalTransaction.description}". ${reason || 'Organisation correction'} - Ref: ${originalTransaction.id.substring(0, 8)}`;
 
             const reverseAmountInBaseDec = originalTransaction.currencyId && originalTransaction.exchangeRate
                 ? originalAmountDec.mul(toDecimal(originalTransaction.exchangeRate))
@@ -119,7 +118,7 @@ export async function POST(
                     amount: toMoney2dp(originalAmountDec),
                     amountInBase: toMoney2dp(reverseAmountInBaseDec),
                     description: reverseDescription,
-                    departmentId: originalTransaction.departmentId,
+                    organisationId: originalTransaction.organisationId,
                     userId: session.user.id,
                     currencyId: originalTransaction.currencyId,
                     exchangeRate: originalTransaction.exchangeRate,
@@ -131,14 +130,13 @@ export async function POST(
                     year: originalTransaction.year,
                     updatedAt: new Date(),
                 },
-                include: {
-                    department: { select: { id: true, name: true, level: true } },
+                include: { organisation: { select: { id: true, name: true, level: true } },
                     currency: true,
                 },
             });
 
-            // Step 2: Create the transaction in the new department with the (possibly new) amount
-            const newDescription = `DEPT TRANSFER: From ${originalTransaction.department.name}. Original: "${originalTransaction.description}". ${reason || 'Department correction'} - Ref: ${originalTransaction.id.substring(0, 8)}`;
+            // Step 2: Create the transaction in the new organisation with the (possibly new) amount
+            const newDescription = `DEPT TRANSFER: From ${originalTransaction.organisation.name}. Original: "${originalTransaction.description}". ${reason || 'Organisation correction'} - Ref: ${originalTransaction.id.substring(0, 8)}`;
 
             const newAmountInBaseDec = originalTransaction.currencyId && originalTransaction.exchangeRate
                 ? newAmountDec.mul(toDecimal(originalTransaction.exchangeRate))
@@ -151,7 +149,7 @@ export async function POST(
                     amount: toMoney2dp(newAmountDec),
                     amountInBase: toMoney2dp(newAmountInBaseDec),
                     description: newDescription,
-                    departmentId: targetDepartmentId,
+                    organisationId: targetOrganisationId,
                     userId: session.user.id,
                     currencyId: originalTransaction.currencyId,
                     exchangeRate: originalTransaction.exchangeRate,
@@ -163,8 +161,7 @@ export async function POST(
                     year: originalTransaction.year,
                     updatedAt: new Date(),
                 },
-                include: {
-                    department: { select: { id: true, name: true, level: true } },
+                include: { organisation: { select: { id: true, name: true, level: true } },
                     currency: true,
                 },
             });
@@ -175,12 +172,12 @@ export async function POST(
                 actionType: 'CREATE',
                 entityType: 'Transaction',
                 entityId: reversalTransaction.id,
-                description: `Reversed transaction ${originalTransaction.id} for department transfer to ${targetDepartment.name}`,
+                description: `Reversed transaction ${originalTransaction.id} for organisation transfer to ${targetOrganisation.name}`,
                 beforeData: null,
                 afterData: reversalTransaction as any,
                 metadata: {
                     originalTransactionId: originalTransaction.id,
-                    transferTo: targetDepartmentId,
+                    transferTo: targetOrganisationId,
                     reason,
                 },
                 severity: 'HIGH',
@@ -191,12 +188,12 @@ export async function POST(
                 actionType: 'CREATE',
                 entityType: 'Transaction',
                 entityId: newTransaction.id,
-                description: `Created transfer transaction from ${originalTransaction.department.name} to ${targetDepartment.name}`,
+                description: `Created transfer transaction from ${originalTransaction.organisation.name} to ${targetOrganisation.name}`,
                 beforeData: null,
                 afterData: newTransaction as any,
                 metadata: {
                     originalTransactionId: originalTransaction.id,
-                    transferFrom: originalTransaction.departmentId,
+                    transferFrom: originalTransaction.organisationId,
                     originalAmount,
                     newAmount: newAmountValue,
                     reason,
@@ -205,33 +202,33 @@ export async function POST(
             });
 
             // Track phones already notified so the acting admin doesn't receive a
-            // duplicate message when they are also one of the department leaders.
+            // duplicate message when they are also one of the organisation leaders.
             const notifiedPhones = new Set<string>();
 
-            // Send SMS to old department leader
+            // Send SMS to old organisation leader
             try {
-                const oldLeaderRole = originalTransaction.department.level === 'DENOMINATION' ? 'DENOMINATION_LEADER' :
-                    originalTransaction.department.level === 'OVERSIGHT' ? 'OVERSIGHT_LEADER' :
-                    originalTransaction.department.level === 'CAMPUS' ? 'CAMPUS_LEADER' :
-                    originalTransaction.department.level === 'STREAM' ? 'STREAM_LEADER' :
+                const oldLeaderRole = originalTransaction.organisation.level === 'DENOMINATION' ? 'DENOMINATION_LEADER' :
+                    originalTransaction.organisation.level === 'OVERSIGHT' ? 'OVERSIGHT_LEADER' :
+                    originalTransaction.organisation.level === 'CAMPUS' ? 'CAMPUS_LEADER' :
+                    originalTransaction.organisation.level === 'STREAM' ? 'STREAM_LEADER' :
                     'COUNCIL_LEADER';
 
                 const oldLeaders = await prisma.userRole.findMany({
-                    where: { role: oldLeaderRole, departmentId: originalTransaction.departmentId },
+                    where: { role: oldLeaderRole, organisationId: originalTransaction.organisationId },
                     include: { user: { select: { phone: true, name: true, archived: true } } },
                 });
 
-                const oldBalance = await getDepartmentApprovedBalance(originalTransaction.departmentId);
+                const oldBalance = await getOrganisationApprovedBalance(originalTransaction.organisationId);
 
                 const currencySymbol = originalTransaction.currency?.symbol || '$';
                 for (const lr of oldLeaders.filter(ur => !ur.user.archived)) {
-                    const sms = generateDepartmentTransferSms({
+                    const sms = generateOrganisationTransferSms({
                         transactionType: originalTransaction.type.toLowerCase(),
                         currency: currencySymbol,
                         amount: formatNumber(originalAmount),
-                        fromDepartment: originalTransaction.department.name,
-                        toDepartment: targetDepartment.name,
-                        reason: reason || 'Department correction',
+                        fromOrganisation: originalTransaction.organisation.name,
+                        toOrganisation: targetOrganisation.name,
+                        reason: reason || 'Organisation correction',
                         balance: formatNumber(moneyToString(oldBalance)),
                     });
                     if (lr.user.phone) {
@@ -241,30 +238,30 @@ export async function POST(
                 }
             } catch (e) { /* Don't fail on SMS */ }
 
-            // Send SMS to new department leader
+            // Send SMS to new organisation leader
             try {
-                const newLeaderRole = targetDepartment.level === 'DENOMINATION' ? 'DENOMINATION_LEADER' :
-                    targetDepartment.level === 'OVERSIGHT' ? 'OVERSIGHT_LEADER' :
-                    targetDepartment.level === 'CAMPUS' ? 'CAMPUS_LEADER' :
-                    targetDepartment.level === 'STREAM' ? 'STREAM_LEADER' :
+                const newLeaderRole = targetOrganisation.level === 'DENOMINATION' ? 'DENOMINATION_LEADER' :
+                    targetOrganisation.level === 'OVERSIGHT' ? 'OVERSIGHT_LEADER' :
+                    targetOrganisation.level === 'CAMPUS' ? 'CAMPUS_LEADER' :
+                    targetOrganisation.level === 'STREAM' ? 'STREAM_LEADER' :
                     'COUNCIL_LEADER';
 
                 const newLeaders = await prisma.userRole.findMany({
-                    where: { role: newLeaderRole, departmentId: targetDepartmentId },
+                    where: { role: newLeaderRole, organisationId: targetOrganisationId },
                     include: { user: { select: { phone: true, name: true, archived: true } } },
                 });
 
-                const newBalance = await getDepartmentApprovedBalance(targetDepartmentId);
+                const newBalance = await getOrganisationApprovedBalance(targetOrganisationId);
 
                 const currencySymbol = originalTransaction.currency?.symbol || '$';
                 for (const lr of newLeaders.filter(ur => !ur.user.archived)) {
-                    const sms = generateDepartmentTransferSms({
+                    const sms = generateOrganisationTransferSms({
                         transactionType: originalTransaction.type.toLowerCase(),
                         currency: currencySymbol,
                         amount: formatNumber(newAmountValue),
-                        fromDepartment: originalTransaction.department.name,
-                        toDepartment: targetDepartment.name,
-                        reason: reason || 'Department correction',
+                        fromOrganisation: originalTransaction.organisation.name,
+                        toOrganisation: targetOrganisation.name,
+                        reason: reason || 'Organisation correction',
                         balance: formatNumber(moneyToString(newBalance)),
                     });
                     if (lr.user.phone) {
@@ -281,15 +278,15 @@ export async function POST(
                     select: { phone: true },
                 });
                 if (actingAdmin?.phone && !notifiedPhones.has(actingAdmin.phone)) {
-                    const adminBalance = await getDepartmentApprovedBalance(targetDepartmentId);
+                    const adminBalance = await getOrganisationApprovedBalance(targetOrganisationId);
                     const currencySymbol = originalTransaction.currency?.symbol || '$';
-                    const sms = generateDepartmentTransferSms({
+                    const sms = generateOrganisationTransferSms({
                         transactionType: originalTransaction.type.toLowerCase(),
                         currency: currencySymbol,
                         amount: formatNumber(newAmountValue),
-                        fromDepartment: originalTransaction.department.name,
-                        toDepartment: targetDepartment.name,
-                        reason: reason || 'Department correction',
+                        fromOrganisation: originalTransaction.organisation.name,
+                        toOrganisation: targetOrganisation.name,
+                        reason: reason || 'Organisation correction',
                         balance: formatNumber(moneyToString(adminBalance)),
                     });
                     await sendSms({ to: actingAdmin.phone, message: sms }).catch(() => {});
@@ -301,7 +298,7 @@ export async function POST(
                 originalTransaction,
                 reversalTransaction,
                 newTransaction,
-                message: `Transaction transferred from ${originalTransaction.department.name} to ${targetDepartment.name}${!correctionAmountDec.eq(0) ? ` with amount adjusted to ${formatCurrency(newAmountValue, originalTransaction.currency?.code, originalTransaction.currency?.symbol)}` : ''}.`,
+                message: `Transaction transferred from ${originalTransaction.organisation.name} to ${targetOrganisation.name}${!correctionAmountDec.eq(0) ? ` with amount adjusted to ${formatCurrency(newAmountValue, originalTransaction.currency?.code, originalTransaction.currency?.symbol)}` : ''}.`,
             });
         }
         // For EXPENSE: if new < original, we need to CREDIT back (INCOME)
@@ -331,7 +328,7 @@ export async function POST(
                 amount: toMoney2dp(absoluteCorrectionDec),
                 amountInBase: toMoney2dp(correctionAmountInBaseDec),
                 description: correctionDescription,
-                departmentId: originalTransaction.departmentId,
+                organisationId: originalTransaction.organisationId,
                 userId: session.user.id, // Correction created by admin
                 currencyId: originalTransaction.currencyId,
                 exchangeRate: originalTransaction.exchangeRate,
@@ -343,8 +340,7 @@ export async function POST(
                 year: originalTransaction.year,
                 updatedAt: new Date(),
             },
-            include: {
-                department: {
+            include: { organisation: {
                     select: {
                         id: true,
                         name: true,
@@ -374,20 +370,20 @@ export async function POST(
             severity: 'HIGH',
         });
 
-        // Send SMS notification to the department leader (account owner) and a
+        // Send SMS notification to the organisation leader (account owner) and a
         // confirmation to the admin who performed the correction.
         try {
-            // Find the department leader based on department level
-            const leaderRole = originalTransaction.department.level === 'DENOMINATION' ? 'DENOMINATION_LEADER' :
-                              originalTransaction.department.level === 'OVERSIGHT' ? 'OVERSIGHT_LEADER' :
-                              originalTransaction.department.level === 'CAMPUS' ? 'CAMPUS_LEADER' :
-                              originalTransaction.department.level === 'STREAM' ? 'STREAM_LEADER' :
+            // Find the organisation leader based on organisation level
+            const leaderRole = originalTransaction.organisation.level === 'DENOMINATION' ? 'DENOMINATION_LEADER' :
+                              originalTransaction.organisation.level === 'OVERSIGHT' ? 'OVERSIGHT_LEADER' :
+                              originalTransaction.organisation.level === 'CAMPUS' ? 'CAMPUS_LEADER' :
+                              originalTransaction.organisation.level === 'STREAM' ? 'STREAM_LEADER' :
                               'COUNCIL_LEADER';
 
-            const departmentLeaders = await prisma.userRole.findMany({
+            const organisationLeaders = await prisma.userRole.findMany({
                 where: {
                     role: leaderRole,
-                    departmentId: originalTransaction.departmentId,
+                    organisationId: originalTransaction.organisationId,
                 },
                 include: {
                     user: {
@@ -396,11 +392,11 @@ export async function POST(
                 },
             });
 
-            const activeLeaders = departmentLeaders.filter(ur => !ur.user.archived);
+            const activeLeaders = organisationLeaders.filter(ur => !ur.user.archived);
 
             // Compute balance + formatting once, reused for both the leader alert
             // and the acting-admin confirmation below.
-            const balance = await getDepartmentApprovedBalance(originalTransaction.departmentId);
+            const balance = await getOrganisationApprovedBalance(originalTransaction.organisationId);
             const currencySymbol = originalTransaction.currency?.symbol || '$';
             const balStr = formatNumber(moneyToString(balance));
             const notifiedPhones = new Set<string>();
@@ -409,7 +405,7 @@ export async function POST(
             if (activeLeaders.length > 0) {
                 const correctionParams = {
                     transactionType: originalTransaction.type.toLowerCase(),
-                    departmentName: originalTransaction.department.name,
+                    organisationName: originalTransaction.organisation.name,
                     currency: currencySymbol,
                     originalAmount: formatNumber(originalAmount),
                     newAmount: formatNumber(newAmountValue),
@@ -439,7 +435,7 @@ export async function POST(
                     transactionType: correctionType,
                     currency: currencySymbol,
                     amount: formatNumber(absoluteCorrectionAmount),
-                    departmentName: originalTransaction.department.name,
+                    organisationName: originalTransaction.organisation.name,
                     description: `Correction: ${shortReason}`,
                     balance: balStr,
                 });

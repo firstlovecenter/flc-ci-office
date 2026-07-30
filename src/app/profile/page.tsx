@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { cn, formatRole, formatDepartmentLevel } from '@/lib/utils';
+import { cn, formatRole, formatOrganisationLevel } from '@/lib/utils';
 
 interface UserProfile {
     id: string;
@@ -21,8 +21,8 @@ interface UserProfile {
     image: string | null;
     role: string;
     archived: boolean;
-    department: { id: string; name: string; level: string } | null;
-    userRoles?: Array<{ id: string; role: string; department: { id: string; name: string; level: string } }>;
+    organisation: { id: string; name: string; level: string } | null;
+    userRoles?: Array<{ id: string; role: string; organisation: { id: string; name: string; level: string } }>;
     auditLogs?: Array<{ id: string; actionType: string; description: string; timestamp: string }>;
     createdAt: string;
     updatedAt: string;
@@ -165,10 +165,10 @@ export default function ProfilePage() {
                         {profile.userRoles.map((ur: any, i) => (
                             <div key={ur.id}>
                                 <p className="text-sm text-muted-foreground">
-                                    {formatRole(ur.role)} : <strong className="text-foreground">{ur.department.name}</strong>
+                                    {formatRole(ur.role)} : <strong className="text-foreground">{ur.organisation.name}</strong>
                                 </p>
                                 {profile.userRoles!.length > 1 && i < profile.userRoles!.length - 1 && (
-                                    <p className="text-sm text-muted-foreground">{formatDepartmentLevel(ur.department.level)}</p>
+                                    <p className="text-sm text-muted-foreground">{formatOrganisationLevel(ur.organisation.level)}</p>
                                 )}
                             </div>
                         ))}
@@ -195,9 +195,9 @@ export default function ProfilePage() {
                         ) : <p className="font-semibold text-foreground">{profile.email}</p>}
                     </InfoTile>
 
-                    {profile.department && (
-                        <InfoTile label="Department" fullWidth>
-                            <p className="font-semibold text-foreground">{profile.department.name}</p>
+                    {profile.organisation && (
+                        <InfoTile label="Organisation" fullWidth>
+                            <p className="font-semibold text-foreground">{profile.organisation.name}</p>
                         </InfoTile>
                     )}
                 </div>

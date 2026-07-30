@@ -3,10 +3,10 @@ import { prisma } from '@/lib/prisma';
 
 export const dynamic = 'force-dynamic';
 
-// Public endpoint — returns all active OVERSIGHT-level departments for the dropdown
+// Public endpoint — returns all active OVERSIGHT-level organisations for the dropdown
 export async function GET() {
     try {
-        const oversights = await prisma.department.findMany({
+        const oversights = await prisma.organisation.findMany({
             where: {
                 level: 'OVERSIGHT',
                 isActive: true,

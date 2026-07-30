@@ -7,9 +7,9 @@ import { formatMoney } from '@/lib/format-money';
 // Force dynamic rendering - data is user/role specific
 export const dynamic = 'force-dynamic';
 
-async function getAllSubDepartments(departmentId: string): Promise<string[]> {
-    const children = await prisma.department.findMany({
-        where: { parentId: departmentId },
+async function getAllSubOrganisations(organisationId: string): Promise<string[]> {
+    const children = await prisma.organisation.findMany({
+        where: { parentId: organisationId },
         select: { id: true }
     });
 
@@ -19,7 +19,7 @@ async function getAllSubDepartments(departmentId: string): Promise<string[]> {
 
     const childIds = children.map((c: { id: string }) => c.id);
     const subChildren = await Promise.all(
-        childIds.map((id: string) => getAllSubDepartments(id))
+        childIds.map((id: string) => getAllSubOrganisations(id))
     );
 
     return [...childIds, ...subChildren.flat()];
@@ -40,26 +40,26 @@ export async function GET(request: Request) {
         }
 
         const normalizedRole = (session.user.role || '').toUpperCase();
-        let departmentIds: string[] | null = null; // null means all
+        let organisationIds: string[] | null = null; // null means all
 
         if (normalizedRole !== 'SUPERADMIN') {
-            // Use activeUserRole if available, otherwise use user's base department
-            const filterDepartmentId = session.user.activeUserRole?.departmentId || session.user.departmentId;
+            // Use activeUserRole if available, otherwise use user's base organisation
+            const filterOrganisationId = session.user.activeUserRole?.organisationId || session.user.organisationId;
 
-            if (filterDepartmentId) {
-                const allSubDepts = await getAllSubDepartments(filterDepartmentId);
-                departmentIds = [filterDepartmentId, ...allSubDepts];
+            if (filterOrganisationId) {
+                const allSubDepts = await getAllSubOrganisations(filterOrganisationId);
+                organisationIds = [filterOrganisationId, ...allSubDepts];
             } else {
-                // If user has no department but is not superadmin, restrict to nothing
-                departmentIds = [];
+                // If user has no organisation but is not superadmin, restrict to nothing
+                organisationIds = [];
             }
         }
 
-        const deptFilter = departmentIds ? { departmentId: { in: departmentIds } } : {};
-        const deptIdFilter = departmentIds ? { id: { in: departmentIds } } : {};
+        const deptFilter = organisationIds ? { organisationId: { in: organisationIds } } : {};
+        const deptIdFilter = organisationIds ? { id: { in: organisationIds } } : {};
 
         // Parallel Search
-        const [users, departments, transactions] = await Promise.all([
+        const [users, organisations, transactions] = await Promise.all([
             // Search Users
             prisma.user.findMany({
                 where: {
@@ -75,11 +75,11 @@ export async function GET(request: Request) {
                     ]
                 },
                 take: 5,
-                select: { id: true, name: true, email: true, image: true, department: { select: { name: true } } }
+                select: { id: true, name: true, email: true, image: true, organisation: { select: { name: true } } }
             }),
 
-            // Search Departments
-            prisma.department.findMany({
+            // Search Organisations
+            prisma.organisation.findMany({
                 where: {
                     AND: [
                         { ...deptIdFilter },
@@ -110,16 +110,16 @@ export async function GET(request: Request) {
                 type: 'user',
                 id: u.id,
                 title: u.name || 'Unknown',
-                subtitle: u.department?.name || u.email,
+                subtitle: u.organisation?.name || u.email,
                 url: `/users/${u.id}`,
                 image: u.image
             })),
-            ...departments.map(d => ({
-                type: 'department',
+            ...organisations.map(d => ({
+                type: 'organisation',
                 id: d.id,
                 title: d.name,
-                subtitle: d.level || 'Department',
-                url: `/departments/${d.id}/dashboard`
+                subtitle: d.level || 'Organisation',
+                url: `/organisations/${d.id}/dashboard`
             })),
             ...transactions.map(t => ({
                 type: 'transaction',

@@ -7,12 +7,12 @@ const SUPERADMIN_EMAIL = 'skaduteye@gmail.com';
  * Validates role assignment constraints:
  * - Only skaduteye@gmail.com can have SUPERADMIN role
  * - Only one DENOMINATION_ADMIN can exist globally
- * - Multiple users can have other admin roles for the same department
+ * - Multiple users can have other admin roles for the same organisation
  */
 export async function validateRoleAssignment(
     userId: string,
     roles: string[],
-    departmentId?: string | null,
+    organisationId?: string | null,
     userEmail?: string
 ): Promise<{ valid: boolean; error?: string }> {
     // Check for SUPERADMIN constraint - only skaduteye@gmail.com can have it
@@ -77,7 +77,7 @@ export async function validateRoleAssignment(
         }
     }
 
-    // Multiple users CAN have the same department-level admin roles
+    // Multiple users CAN have the same organisation-level admin roles
     // No additional validation needed for:
     // OVERSIGHT_ADMIN, CAMPUS_ADMIN, etc.
 
@@ -87,7 +87,7 @@ export async function validateRoleAssignment(
 /**
  * Get all users with a specific role
  */
-export async function getUsersByRole(role: string, departmentId?: string) {
+export async function getUsersByRole(role: string, organisationId?: string) {
     // Query users by activeRole or through userRoles relationship
     const where: any = {
         OR: [
@@ -97,14 +97,13 @@ export async function getUsersByRole(role: string, departmentId?: string) {
         archived: false,
     };
 
-    if (departmentId) {
-        where.departmentId = departmentId;
+    if (organisationId) {
+        where.organisationId = organisationId;
     }
 
     return await prisma.user.findMany({
         where,
-        include: {
-            department: true,
+        include: { organisation: true,
         },
         orderBy: {
             createdAt: 'desc',
@@ -118,7 +117,7 @@ export async function getUsersByRole(role: string, departmentId?: string) {
 export async function canAssignRole(
     userId: string,
     role: string,
-    departmentId?: string | null
+    organisationId?: string | null
 ): Promise<{ canAssign: boolean; reason?: string }> {
     // For non-unique roles, always allow
     if (!['SUPERADMIN', 'DENOMINATION_ADMIN'].includes(role)) {
@@ -126,7 +125,7 @@ export async function canAssignRole(
     }
 
     // For unique roles, check if one already exists
-    const validation = await validateRoleAssignment(userId, [role], departmentId);
+    const validation = await validateRoleAssignment(userId, [role], organisationId);
 
     if (!validation.valid) {
         return {

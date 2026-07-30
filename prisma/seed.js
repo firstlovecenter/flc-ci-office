@@ -6,8 +6,8 @@ const prisma = new PrismaClient();
 async function main() {
     console.log('Starting seed...');
 
-    // Create departments
-    const denominationDept = await prisma.department.upsert({
+    // Create organisations
+    const denominationDept = await prisma.organisation.upsert({
         where: { id: 'global-1' },
         update: {},
         create: {
@@ -17,7 +17,7 @@ async function main() {
         },
     });
 
-    const oversightDept = await prisma.department.upsert({
+    const oversightOrganisation = await prisma.organisation.upsert({
         where: { id: 'regional-1' },
         update: {},
         create: {
@@ -28,18 +28,18 @@ async function main() {
         },
     });
 
-    const campusDept = await prisma.department.upsert({
+    const campusDept = await prisma.organisation.upsert({
         where: { id: 'campus-1' },
         update: {},
         create: {
             id: 'campus-1',
             name: 'Los Angeles Campus',
             level: 'CAMPUS',
-            parentId: oversightDept.id,
+            parentId: oversightOrganisation.id,
         },
     });
 
-    const streamDept = await prisma.department.upsert({
+    const streamDept = await prisma.organisation.upsert({
         where: { id: 'stream-1' },
         update: {},
         create: {
@@ -50,7 +50,7 @@ async function main() {
         },
     });
 
-    const councilDept = await prisma.department.upsert({
+    const councilDept = await prisma.organisation.upsert({
         where: { id: 'council-1' },
         update: {},
         create: {
@@ -61,7 +61,7 @@ async function main() {
         },
     });
 
-    console.log('Created departments');
+    console.log('Created organisations');
 
     // Create users
     const hashedPassword = await bcrypt.hash('password123', 10);
@@ -85,7 +85,7 @@ async function main() {
             name: 'Campus Admin',
             password: hashedPassword,
             role: 'CAMPUS_ADMIN',
-            departmentId: campusDept.id,
+            organisationId: campusDept.id,
         },
     });
 
@@ -97,7 +97,7 @@ async function main() {
             name: 'Council Leader',
             password: hashedPassword,
             role: 'COUNCIL_LEADER',
-            departmentId: councilDept.id,
+            organisationId: councilDept.id,
         },
     });
 

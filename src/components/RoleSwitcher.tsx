@@ -18,8 +18,8 @@ import { cn, formatRole } from '@/lib/utils';
 interface UserRoleOption {
     id: string;
     role: string;
-    departmentId: string;
-    departmentName: string;
+    organisationId: string;
+    organisationName: string;
 }
 
 export default function RoleSwitcher() {
@@ -42,8 +42,8 @@ export default function RoleSwitcher() {
                     data.userRoles.map((ur: any) => ({
                         id: ur.id,
                         role: ur.role,
-                        departmentId: ur.departmentId,
-                        departmentName: ur.department?.name || 'Unknown',
+                        organisationId: ur.organisationId,
+                        organisationName: ur.organisation?.name || 'Unknown',
                     })),
                 );
                 setActiveUserRoleId(data.activeUserRoleId ?? null);
@@ -113,7 +113,7 @@ export default function RoleSwitcher() {
                                 <Badge variant={active ? 'default' : 'secondary'} className="w-fit text-[0.65rem]">
                                     {formatRole(userRole.role)}
                                 </Badge>
-                                <span className="text-xs text-muted-foreground truncate mt-1">{userRole.departmentName}</span>
+                                <span className="text-xs text-muted-foreground truncate mt-1">{userRole.organisationName}</span>
                             </div>
                         </DropdownMenuItem>
                     );

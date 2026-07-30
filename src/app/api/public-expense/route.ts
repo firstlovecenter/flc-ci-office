@@ -9,7 +9,7 @@ import { formatTimeInExpenseWindowTimeZone, getExpenseWindowStatus } from '@/lib
 export const dynamic = 'force-dynamic';
 
 // Auth-protected GET:
-// - OVERSIGHT_ADMIN: requests for own oversight department
+// - OVERSIGHT_ADMIN: requests for own oversight organisation
 // - SUPERADMIN: all public expense requests
 // Public POST is below
 export async function GET(request: Request) {
@@ -26,26 +26,26 @@ export async function GET(request: Request) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    // Resolve the oversight department for the admin.
-    // If the active role is OVERSIGHT_ADMIN, use its departmentId directly.
+    // Resolve the oversight organisation for the admin.
+    // If the active role is OVERSIGHT_ADMIN, use its organisationId directly.
     // Otherwise (multi-role user with a different active role) look up the
     // OVERSIGHT_ADMIN UserRole record from the database.
     let adminOversightDeptId: string | undefined =
         (session.user.activeUserRole as any)?.role === 'OVERSIGHT_ADMIN'
-            ? session.user.activeUserRole?.departmentId
+            ? session.user.activeUserRole?.organisationId
             : undefined;
 
     if (!adminOversightDeptId && isOversightAdmin) {
         // Active role is not OVERSIGHT_ADMIN — find the right oversight dept from UserRole
         const oversightUserRole = await prisma.userRole.findFirst({
             where: { userId: session.user.id, role: 'OVERSIGHT_ADMIN' },
-            select: { departmentId: true },
+            select: { organisationId: true },
         });
-        adminOversightDeptId = oversightUserRole?.departmentId ?? undefined;
+        adminOversightDeptId = oversightUserRole?.organisationId ?? undefined;
     }
 
     if (isOversightAdmin && !adminOversightDeptId) {
-        return NextResponse.json({ error: 'No oversight department found for your account' }, { status: 400 });
+        return NextResponse.json({ error: 'No oversight organisation found for your account' }, { status: 400 });
     }
 
     const { searchParams } = new URL(request.url);
@@ -54,7 +54,7 @@ export async function GET(request: Request) {
     try {
         const requests = await prisma.publicExpenseRequest.findMany({
             where: {
-                ...(isOversightAdmin && adminOversightDeptId ? { oversightDeptId: adminOversightDeptId } : {}),
+                ...(isOversightAdmin && adminOversightDeptId ? { oversightOrganisationId: adminOversightDeptId } : {}),
                 ...(status ? { status: status as any } : {}),
             },
             orderBy: { createdAt: 'desc' },
@@ -84,10 +84,10 @@ export async function POST(request: Request) {
         }
 
         const body = await request.json();
-        const { oversightDeptId, requesterName, leaderPhone, churchName, momoName, momoNumber, amount, description } = body;
+        const { oversightOrganisationId, requesterName, leaderPhone, churchName, momoName, momoNumber, amount, description } = body;
 
         // Validate required fields
-        if (!oversightDeptId || !requesterName || !leaderPhone || !churchName || !momoName || !momoNumber || !amount || !description) {
+        if (!oversightOrganisationId || !requesterName || !leaderPhone || !churchName || !momoName || !momoNumber || !amount || !description) {
             return NextResponse.json(
                 { error: 'All fields are required: oversight church, requester name, leader phone, church name, Momo name, Momo number, amount, and reason.' },
                 { status: 400 }
@@ -98,13 +98,13 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'Amount must be a positive number.' }, { status: 400 });
         }
 
-        // Verify the oversight department exists, is active, and has the public form enabled
-        const oversightDept = await prisma.department.findUnique({
-            where: { id: oversightDeptId, level: 'OVERSIGHT', isActive: true, publicFormEnabled: true },
+        // Verify the oversight organisation exists, is active, and has the public form enabled
+        const oversightOrganisation = await prisma.organisation.findUnique({
+            where: { id: oversightOrganisationId, level: 'OVERSIGHT', isActive: true, publicFormEnabled: true },
             select: { id: true, name: true },
         });
 
-        if (!oversightDept) {
+        if (!oversightOrganisation) {
             return NextResponse.json({ error: 'Invalid oversight church selected.' }, { status: 400 });
         }
 
@@ -118,7 +118,7 @@ export async function POST(request: Request) {
                 momoNumber: momoNumber.trim(),
                 amount,
                 description: description.trim(),
-                oversightDeptId,
+                oversightOrganisationId,
                 updatedAt: new Date(),
             },
         });
@@ -142,7 +142,7 @@ export async function POST(request: Request) {
             const adminRoles = await prisma.userRole.findMany({
                 where: {
                     role: 'OVERSIGHT_ADMIN',
-                    departmentId: oversightDeptId,
+                    organisationId: oversightOrganisationId,
                 },
                 include: {
                     user: {
@@ -167,7 +167,7 @@ export async function POST(request: Request) {
                 momoName,
                 momoNumber,
                 description,
-                oversightDeptName: oversightDept.name,
+                oversightOrganisationName: oversightOrganisation.name,
             });
 
             for (const admin of admins) {

@@ -55,6 +55,109 @@ setInterval(() => {
   }
 }, 30 * 60 * 1000).unref?.();
 
+type AuthClaims = {
+  id: string;
+  email: string | null;
+  name: string | null;
+  image: string | null;
+  role: string;
+  roles: string[];
+  organisationId: string | undefined;
+  organisationLevel: string | undefined;
+  organisationName: string | undefined;
+  activeUserRoleId: string | null;
+  activeUserRole: { id: string; role: string; organisationId: string } | null;
+};
+
+/**
+ * Load authoritative role/org claims from the DB.
+ * JWT is a session carrier only — claims are revalidated from here.
+ * Throws on missing/archived users so callers can fail closed.
+ */
+async function loadAuthClaimsFromDb(userId: string): Promise<AuthClaims> {
+  const dbUser = await prisma.user.findUnique({
+    where: { id: userId },
+    include: {
+      organisation: true,
+      activeUserRole: { include: { organisation: true } },
+      userRoles: { include: { organisation: true } },
+    },
+  });
+
+  if (!dbUser || dbUser.archived) {
+    throw new Error('User account is no longer active');
+  }
+
+  const allRoles = dbUser.userRoles
+    .map((ur) => ur.role)
+    .filter((r): r is Role => r !== null);
+  const isSuperUser =
+    dbUser.activeRole === 'SUPERADMIN' || dbUser.activeRole === 'DENOMINATION_ADMIN';
+
+  if (isSuperUser) {
+    return {
+      id: dbUser.id,
+      email: dbUser.email,
+      name: dbUser.name,
+      image: dbUser.image,
+      role: dbUser.activeRole as string,
+      roles: allRoles.length > 0 ? (allRoles as string[]) : [dbUser.activeRole as string],
+      organisationId: dbUser.organisationId || undefined,
+      organisationLevel: dbUser.organisation?.level || undefined,
+      organisationName: dbUser.organisation?.name || undefined,
+      activeUserRoleId: dbUser.activeUserRoleId || null,
+      activeUserRole: dbUser.activeUserRole
+        ? {
+            id: dbUser.activeUserRole.id,
+            role: dbUser.activeUserRole.role as string,
+            organisationId: dbUser.activeUserRole.organisationId,
+          }
+        : null,
+    };
+  }
+
+  if (dbUser.userRoles.length === 0) {
+    throw new Error('User account is no longer active');
+  }
+
+  const activeRole = dbUser.activeUserRole || dbUser.userRoles[0];
+  if (!activeRole?.role) {
+    throw new Error('User account is no longer active');
+  }
+
+  return {
+    id: dbUser.id,
+    email: dbUser.email,
+    name: dbUser.name,
+    image: dbUser.image,
+    role: activeRole.role as string,
+    roles: allRoles as string[],
+    organisationId: activeRole.organisationId,
+    organisationLevel: activeRole.organisation?.level || undefined,
+    organisationName: activeRole.organisation?.name || undefined,
+    activeUserRoleId: activeRole.id,
+    activeUserRole: {
+      id: activeRole.id,
+      role: activeRole.role as string,
+      organisationId: activeRole.organisationId,
+    },
+  };
+}
+
+function applyClaimsToToken(token: Record<string, unknown>, claims: AuthClaims) {
+  token.id = claims.id;
+  token.email = claims.email;
+  token.name = claims.name;
+  token.picture = claims.image;
+  token.role = claims.role;
+  token.roles = claims.roles;
+  token.organisationId = claims.organisationId;
+  token.organisationLevel = claims.organisationLevel;
+  token.organisationName = claims.organisationName;
+  token.activeUserRoleId = claims.activeUserRoleId;
+  token.activeUserRole = claims.activeUserRole;
+}
+
 export const authOptions: NextAuthOptions = {
     secret: process.env.NEXTAUTH_SECRET,
     session: {
@@ -96,16 +199,13 @@ export const authOptions: NextAuthOptions = {
                             : { phone: loginIdentifier }),
                         archived: false,
                     },
-                    include: {
-                        department: true,
+                    include: { organisation: true,
                         activeUserRole: {
-                            include: {
-                                department: true,
+                            include: { organisation: true,
                             },
                         },
                         userRoles: {
-                            include: {
-                                department: true,
+                            include: { organisation: true,
                             },
                         },
                     },
@@ -146,14 +246,14 @@ export const authOptions: NextAuthOptions = {
                         image: user.image,
                         role: user.activeRole,
                         roles: allRoles as string[],
-                        departmentId: user.departmentId || undefined,
-                        departmentLevel: user.department?.level || undefined,
-                        departmentName: user.department?.name,
+                        organisationId: user.organisationId || undefined,
+                        organisationLevel: user.organisation?.level || undefined,
+                        organisationName: user.organisation?.name,
                         activeUserRoleId: user.activeUserRoleId || undefined,
                         activeUserRole: user.activeUserRole ? {
                             id: user.activeUserRole.id,
                             role: user.activeUserRole.role as string,
-                            departmentId: user.activeUserRole.departmentId,
+                            organisationId: user.activeUserRole.organisationId,
                         } : undefined,
                     } as any;
                 }
@@ -178,14 +278,14 @@ export const authOptions: NextAuthOptions = {
                     image: user.image,
                     role: activeRole.role,
                     roles: allRoles as string[],
-                    departmentId: activeRole.departmentId,
-                    departmentLevel: activeRole.department?.level,
-                    departmentName: activeRole.department?.name,
+                    organisationId: activeRole.organisationId,
+                    organisationLevel: activeRole.organisation?.level,
+                    organisationName: activeRole.organisation?.name,
                     activeUserRoleId: activeRole.id,
                     activeUserRole: {
                         id: activeRole.id,
                         role: activeRole.role as string,
-                        departmentId: activeRole.departmentId,
+                        organisationId: activeRole.organisationId,
                     },
                 } as any;
             },
@@ -193,59 +293,40 @@ export const authOptions: NextAuthOptions = {
     ],
     callbacks: {
         async session({ session, token }) {
-            if (token) {
-                // If the token was marked expired or lacks essential fields,
-                // throw immediately so NextAuth returns no session to the client.
-                if ((token as any).expired || !token.id || !token.email) {
-                    throw new Error('Session expired or invalid');
-                }
+            if ((token as any).expired || !token.id || !token.email) {
+                throw new Error('Session expired or invalid');
+            }
 
-                // Validate that the user still exists and is active
-                // This check happens on every session access
-                try {
-                    const user = await prisma.user.findUnique({
-                        where: { email: token.email as string },
-                        select: { 
-                            id: true, 
-                            archived: true,
-                        },
-                    });
-                    
-                    // If user doesn't exist or is archived, throw error to invalidate session
-                    // This will cause NextAuth to clear the session on the client side
-                    if (!user || user.archived) {
-                        console.log('Session invalidated: User is archived or deleted');
-                        throw new Error('User account is no longer active');
-                    }
-                } catch (error) {
-                    if (error instanceof Error && (
-                        error.message === 'User account is no longer active' ||
-                        error.message === 'Session expired or invalid'
-                    )) {
-                        // Re-throw our intentional errors to invalidate the session
-                        throw error;
-                    }
-                    // For other errors, log but continue with session to avoid breaking the app
-                    console.error('Error checking user status in session callback:', error);
-                }
-                
-                session.user.id = token.id as string;
-                session.user.name = token.name as string;
-                session.user.email = token.email as string;
-                session.user.image = token.picture as string;
-                session.user.role = token.role as string;
-                session.user.roles = token.roles as string[];
-                session.user.departmentId = token.departmentId as string;
-                session.user.departmentLevel = token.departmentLevel as string;
-                session.user.departmentName = token.departmentName as string;
-                session.user.activeUserRoleId = token.activeUserRoleId as string | null;
-                session.user.activeUserRole = token.activeUserRole as any;
+            // Fail closed: every session read reloads role/org from DB.
+            // JWT is only a carrier for id + expiry + impersonation flags.
+            try {
+                const claims = await loadAuthClaimsFromDb(token.id as string);
+                session.user.id = claims.id;
+                session.user.name = claims.name as string;
+                session.user.email = claims.email as string;
+                session.user.image = claims.image as string;
+                session.user.role = claims.role;
+                session.user.roles = claims.roles;
+                session.user.organisationId = claims.organisationId as string;
+                session.user.organisationLevel = claims.organisationLevel as string;
+                session.user.organisationName = claims.organisationName as string;
+                session.user.activeUserRoleId = claims.activeUserRoleId;
+                session.user.activeUserRole = claims.activeUserRole as any;
                 session.user.loginAt = token.loginAt as number;
-                // Impersonation fields
                 session.user.isImpersonating = token.isImpersonating as boolean | undefined;
                 session.user.originalAdminId = token.originalAdminId as string | undefined;
                 session.user.originalAdminName = token.originalAdminName as string | undefined;
+            } catch (error) {
+                if (error instanceof Error && (
+                    error.message === 'User account is no longer active' ||
+                    error.message === 'Session expired or invalid'
+                )) {
+                    throw error;
+                }
+                console.error('Session revalidation failed (fail-closed):', error);
+                throw new Error('Session expired or invalid');
             }
+
             return session;
         },
         async jwt({ token, user, trigger, session }) {
@@ -262,9 +343,9 @@ export const authOptions: NextAuthOptions = {
                 token.picture = user.image;
                 token.role = user.role;
                 token.roles = user.roles;
-                token.departmentId = user.departmentId;
-                token.departmentLevel = user.departmentLevel;
-                token.departmentName = user.departmentName;
+                token.organisationId = user.organisationId;
+                token.organisationLevel = user.organisationLevel;
+                token.organisationName = user.organisationName;
                 token.activeUserRoleId = user.activeUserRoleId;
                 token.activeUserRole = user.activeUserRole;
                 token.loginAt = Date.now();
@@ -285,157 +366,56 @@ export const authOptions: NextAuthOptions = {
             // This runs when update() is called from the client
             if (trigger === 'update') {
                 // Handle stop impersonation
-                if ((session as any)?.stopImpersonation === true && token.isImpersonating && token.originalAdminEmail) {
-                    const adminUser = await prisma.user.findUnique({
-                        where: { email: token.originalAdminEmail as string },
-                        include: {
-                            department: true,
-                            activeUserRole: { include: { department: true } },
-                            userRoles: { include: { department: true } },
-                        },
-                    });
-
-                    if (adminUser && !adminUser.archived) {
-                        const allRoles = adminUser.userRoles.map(ur => ur.role).filter((r): r is Role => r !== null);
-                        token.id = adminUser.id;
-                        token.email = adminUser.email;
-                        token.name = adminUser.name;
-                        token.picture = adminUser.image;
-                        token.role = adminUser.activeRole as string;
-                        token.roles = allRoles.length > 0 ? allRoles : [adminUser.activeRole as string];
-                        token.departmentId = adminUser.departmentId;
-                        token.departmentLevel = adminUser.department?.level || undefined;
-                        token.departmentName = adminUser.department?.name;
-                        token.activeUserRoleId = adminUser.activeUserRoleId || null;
-                        token.activeUserRole = adminUser.activeUserRole ? {
-                            id: adminUser.activeUserRole.id,
-                            role: adminUser.activeUserRole.role as string,
-                            departmentId: adminUser.activeUserRole.departmentId,
-                        } : null;
-                        // Clear impersonation fields
+                if ((session as any)?.stopImpersonation === true && token.isImpersonating && token.originalAdminId) {
+                    try {
+                        const claims = await loadAuthClaimsFromDb(token.originalAdminId as string);
+                        applyClaimsToToken(token as any, claims);
                         token.isImpersonating = undefined;
                         token.originalAdminId = undefined;
                         token.originalAdminEmail = undefined;
                         token.originalAdminName = undefined;
+                    } catch {
+                        return { expired: true } as any;
                     }
                     return token;
                 }
 
                 // Handle start impersonation — only SUPERADMIN may do this
                 if ((session as any)?.impersonateUserId && token.role === 'SUPERADMIN') {
-                    const targetUser = await prisma.user.findUnique({
-                        where: { id: (session as any).impersonateUserId as string },
-                        include: {
-                            department: true,
-                            activeUserRole: { include: { department: true } },
-                            userRoles: { include: { department: true } },
-                        },
-                    });
-
-                    if (targetUser && !targetUser.archived) {
-                        const allRoles = targetUser.userRoles.map(ur => ur.role).filter((r): r is Role => r !== null);
-                        const isSuperUser = targetUser.activeRole === 'SUPERADMIN' || targetUser.activeRole === 'DENOMINATION_ADMIN';
-
-                        // Store original admin identity before switching
+                    try {
+                        const claims = await loadAuthClaimsFromDb((session as any).impersonateUserId as string);
                         const origAdminId = token.id as string;
                         const origAdminEmail = token.email as string;
                         const origAdminName = token.name as string;
-
+                        applyClaimsToToken(token as any, claims);
                         token.isImpersonating = true;
                         token.originalAdminId = origAdminId;
                         token.originalAdminEmail = origAdminEmail;
                         token.originalAdminName = origAdminName;
-
-                        token.id = targetUser.id;
-                        token.email = targetUser.email;
-                        token.name = targetUser.name;
-                        token.picture = targetUser.image;
-
-                        if (isSuperUser) {
-                            token.role = targetUser.activeRole as string;
-                            token.roles = allRoles.length > 0 ? allRoles : [targetUser.activeRole as string];
-                            token.departmentId = targetUser.departmentId;
-                            token.departmentLevel = targetUser.department?.level || undefined;
-                            token.departmentName = targetUser.department?.name;
-                            token.activeUserRoleId = targetUser.activeUserRoleId || null;
-                            token.activeUserRole = targetUser.activeUserRole ? {
-                                id: targetUser.activeUserRole.id,
-                                role: targetUser.activeUserRole.role as string,
-                                departmentId: targetUser.activeUserRole.departmentId,
-                            } : null;
-                        } else {
-                            const activeRole = targetUser.activeUserRole || targetUser.userRoles[0];
-                            token.role = activeRole?.role || 'COUNCIL_LEADER';
-                            token.roles = allRoles;
-                            token.departmentId = activeRole?.departmentId;
-                            token.departmentLevel = activeRole?.department?.level || undefined;
-                            token.departmentName = activeRole?.department?.name || undefined;
-                            token.activeUserRoleId = activeRole?.id || null;
-                            token.activeUserRole = activeRole ? {
-                                id: activeRole.id,
-                                role: activeRole.role as string,
-                                departmentId: activeRole.departmentId,
-                            } : null;
-                        }
+                    } catch {
+                        // Keep admin token if target cannot be loaded
                     }
                     return token;
                 }
 
-                // Fetch fresh user data to get updated activeUserRole
-                const updatedUser = await prisma.user.findUnique({
-                    where: { email: token.email as string },
-                    include: {
-                        department: true,
-                        activeUserRole: {
-                            include: {
-                                department: true,
-                            },
-                        },
-                        userRoles: {
-                            include: {
-                                department: true,
-                            },
-                        },
-                    },
-                });
+                // Role switch / profile refresh — reload claims from DB
+                try {
+                    const claims = await loadAuthClaimsFromDb(token.id as string);
+                    applyClaimsToToken(token as any, claims);
+                } catch {
+                    return { expired: true } as any;
+                }
+                return token;
+            }
 
-                if (updatedUser && !updatedUser.archived) {
-                    const allRoles = updatedUser.userRoles.map(ur => ur.role).filter((r): r is Role => r !== null);
-                    const isSuperUserOnUpdate = updatedUser.activeRole === 'SUPERADMIN' || updatedUser.activeRole === 'DENOMINATION_ADMIN';
-
-                    // Always update name and image
-                    token.name = updatedUser.name;
-                    token.picture = updatedUser.image;
-
-                    if (isSuperUserOnUpdate) {
-                        token.id = updatedUser.id;
-                        token.role = updatedUser.activeRole as string;
-                        token.roles = allRoles.length > 0 ? allRoles : [updatedUser.activeRole as string];
-                        token.departmentId = updatedUser.departmentId;
-                        token.departmentLevel = updatedUser.department?.level || undefined;
-                        token.departmentName = updatedUser.department?.name;
-                        token.activeUserRoleId = updatedUser.activeUserRoleId || null;
-                        token.activeUserRole = updatedUser.activeUserRole ? {
-                            id: updatedUser.activeUserRole.id,
-                            role: updatedUser.activeUserRole.role as string,
-                            departmentId: updatedUser.activeUserRole.departmentId,
-                        } : null;
-                    } else {
-                        const activeRole = updatedUser.activeUserRole || updatedUser.userRoles[0];
-
-                        token.id = updatedUser.id;
-                        token.role = activeRole?.role || 'COUNCIL_LEADER';
-                        token.roles = allRoles;
-                        token.departmentId = activeRole?.departmentId;
-                        token.departmentLevel = activeRole?.department?.level || undefined;
-                        token.departmentName = activeRole?.department?.name || undefined;
-                        token.activeUserRoleId = activeRole?.id || null;
-                        token.activeUserRole = activeRole ? {
-                            id: activeRole.id,
-                            role: activeRole.role as string,
-                            departmentId: activeRole.departmentId,
-                        } : null;
-                    }
+            // Periodic revalidation: refresh claims from DB on every JWT pass
+            // so revoked roles / org moves take effect without waiting for update().
+            if (token.id && !user) {
+                try {
+                    const claims = await loadAuthClaimsFromDb(token.id as string);
+                    applyClaimsToToken(token as any, claims);
+                } catch {
+                    return { expired: true } as any;
                 }
             }
             

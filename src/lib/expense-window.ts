@@ -25,7 +25,15 @@ function getTimePartsInTimeZone(date: Date, timeZone: string) {
 
 export const EXPENSE_WINDOW_OPEN_HOUR = 6;
 export const EXPENSE_WINDOW_CLOSE_HOUR = 15;
-export const EXPENSE_WINDOW_TIME_RANGE = '6:00 AM and 3:00 PM';
+export const EXPENSE_WINDOW_CLOSE_MINUTE = 30;
+export const EXPENSE_WINDOW_TIME_RANGE = '6:00 AM and 3:30 PM';
+
+function isWithinExpenseWindow(hour: number, minute: number): boolean {
+    if (hour < EXPENSE_WINDOW_OPEN_HOUR) return false;
+    if (hour > EXPENSE_WINDOW_CLOSE_HOUR) return false;
+    if (hour === EXPENSE_WINDOW_CLOSE_HOUR && minute >= EXPENSE_WINDOW_CLOSE_MINUTE) return false;
+    return true;
+}
 
 export function getExpenseWindowStatus(now: Date = new Date()) {
     const timeZone = EXPENSE_WINDOW_TIMEZONE;
@@ -40,7 +48,7 @@ export function getExpenseWindowStatus(now: Date = new Date()) {
         isSunday,
         hour,
         minute,
-        isOpen: !isSunday && hour >= EXPENSE_WINDOW_OPEN_HOUR && hour < EXPENSE_WINDOW_CLOSE_HOUR,
+        isOpen: !isSunday && isWithinExpenseWindow(hour, minute),
     };
 }
 

@@ -3,7 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { TransactionStatus } from '@prisma/client';
-import { getDescendantDepartmentIds } from '@/lib/departments';
+import { getDescendantOrganisationIds } from '@/lib/organisations';
 
 // Force dynamic rendering - data is user/role specific
 export const dynamic = 'force-dynamic';
@@ -26,30 +26,30 @@ export async function GET(request: NextRequest) {
         const adminRoles = ['SUPERADMIN', 'DENOMINATION_ADMIN', 'OVERSIGHT_ADMIN', 'CAMPUS_ADMIN'];
         const isAdmin = adminRoles.includes(userRole);
 
-        // Determine which department to use for filtering
-        // For users with multiple roles, use the activeUserRole's department
-        let filterDepartmentId = session.user.departmentId;
+        // Determine which organisation to use for filtering
+        // For users with multiple roles, use the activeUserRole's organisation
+        let filterOrganisationId = session.user.organisationId;
         
-        if (session.user.activeUserRole?.departmentId) {
-            filterDepartmentId = session.user.activeUserRole.departmentId;
+        if (session.user.activeUserRole?.organisationId) {
+            filterOrganisationId = session.user.activeUserRole.organisationId;
         }
 
         const isOversightAdmin = userRole === 'OVERSIGHT_ADMIN' || userRoles.includes('OVERSIGHT_ADMIN');
         const isSuperAdmin = userRole === 'SUPERADMIN' || userRoles.includes('SUPERADMIN');
         const isDenominationAdmin = userRole === 'DENOMINATION_ADMIN' || userRoles.includes('DENOMINATION_ADMIN');
 
-        // For oversight admin badge count: resolve the correct oversight department.
+        // For oversight admin badge count: resolve the correct oversight organisation.
         // If the active role is not OVERSIGHT_ADMIN, look up the UserRole record.
-        let oversightDeptIdForCount: string | undefined;
+        let oversightOrganisationIdForCount: string | undefined;
         if (isOversightAdmin && !isSuperAdmin) {
             if ((session.user.activeUserRole as any)?.role === 'OVERSIGHT_ADMIN') {
-                oversightDeptIdForCount = session.user.activeUserRole?.departmentId ?? undefined;
+                oversightOrganisationIdForCount = session.user.activeUserRole?.organisationId ?? undefined;
             } else {
                 const oversightUserRole = await prisma.userRole.findFirst({
                     where: { userId: userId, role: 'OVERSIGHT_ADMIN' },
-                    select: { departmentId: true },
+                    select: { organisationId: true },
                 });
-                oversightDeptIdForCount = oversightUserRole?.departmentId ?? undefined;
+                oversightOrganisationIdForCount = oversightUserRole?.organisationId ?? undefined;
             }
         }
 
@@ -60,12 +60,12 @@ export async function GET(request: NextRequest) {
                     ? prisma.transaction.count({
                         where: { status: TransactionStatus.PENDING },
                     })
-                    : filterDepartmentId
+                    : filterOrganisationId
                     ? prisma.transaction.count({
                         where: {
                             status: TransactionStatus.PENDING,
-                            departmentId: {
-                                in: await getDescendantDepartmentIds(filterDepartmentId)
+                            organisationId: {
+                                in: await getDescendantOrganisationIds(filterOrganisationId)
                             }
                         },
                     })
@@ -81,10 +81,10 @@ export async function GET(request: NextRequest) {
                 ? prisma.publicExpenseRequest.count({
                     where: { status: 'PENDING' },
                 })
-                : isOversightAdmin && oversightDeptIdForCount
+                : isOversightAdmin && oversightOrganisationIdForCount
                 ? prisma.publicExpenseRequest.count({
                     where: {
-                        oversightDeptId: oversightDeptIdForCount,
+                        oversightOrganisationId: oversightOrganisationIdForCount,
                         status: 'PENDING',
                     },
                 })

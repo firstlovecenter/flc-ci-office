@@ -71,14 +71,14 @@ export default function SelectRolePage() {
                             return;
                         }
                     } else if (session.user.roles && session.user.roles.length > 0) {
-                        const fallback = session.user.roles.map(role => ({ role, department: { name: 'Global / System' } }));
+                        const fallback = session.user.roles.map(role => ({ role, organisation: { name: 'Global / System' } }));
                         setDetailedRoles(fallback);
                         if (fallback.length === 1) { router.push('/dashboard'); return; }
                     }
                 }
             } catch {
                 if (session.user.roles) {
-                    setDetailedRoles(session.user.roles.map(role => ({ role, department: null })));
+                    setDetailedRoles(session.user.roles.map(role => ({ role, organisation: null })));
                 }
             } finally {
                 setLoading(false);
@@ -123,7 +123,7 @@ export default function SelectRolePage() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                     {detailedRoles.map((item) => {
                         const role = item.role;
-                        const departmentName = item.department?.name;
+                        const organisationName = item.organisation?.name;
                         const isLoading = selecting === role;
                         const Icon = getRoleIcon(role);
 
@@ -152,9 +152,9 @@ export default function SelectRolePage() {
                                     <p className="text-[0.625rem] font-semibold uppercase tracking-[0.12em] text-primary mb-1">
                                         {formatRole(role)}
                                     </p>
-                                    {departmentName && (
+                                    {organisationName && (
                                         <p className="text-base font-semibold text-foreground tracking-[-0.005em] mb-1">
-                                            {departmentName}
+                                            {organisationName}
                                         </p>
                                     )}
                                     <p className="text-sm text-muted-foreground">

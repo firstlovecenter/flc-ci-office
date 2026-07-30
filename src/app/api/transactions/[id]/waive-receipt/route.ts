@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
-import { hasDepartmentAccess } from '@/lib/departments';
+import { hasOrganisationAccess } from '@/lib/organisations';
 import { createAuditLog } from '@/lib/audit';
 
 export const dynamic = 'force-dynamic';
@@ -46,7 +46,7 @@ export async function POST(
             id: true,
             type: true,
             status: true,
-            departmentId: true,
+            organisationId: true,
             isCharge: true,
             receiptWaived: true,
             files: { select: { id: true } },
@@ -77,9 +77,9 @@ export async function POST(
         return NextResponse.json({ error: 'The receipt requirement has already been waived for this transaction.' }, { status: 400 });
     }
 
-    const hasScopedAccess = await hasDepartmentAccess(
-        { role, departmentId: session.user.departmentId },
-        transaction.departmentId,
+    const hasScopedAccess = await hasOrganisationAccess(
+        { role, organisationId: session.user.organisationId },
+        transaction.organisationId,
     );
 
     if (!hasScopedAccess) {
