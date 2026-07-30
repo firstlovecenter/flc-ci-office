@@ -9,7 +9,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn, formatCurrency } from '@/lib/utils';
 import { isBankAccount } from '@/lib/org-model';
 import { canAdministerOrganisation } from '@/lib/roles';
-import { useColorMode } from '@/app/providers';
+import { useChartTheme } from '@/hooks/useChartTheme';
 import EditOrganisationDialog from '@/components/EditOrganisationDialog';
 import { BarChart, Bar, XAxis, Tooltip, ResponsiveContainer, LabelList } from 'recharts';
 
@@ -28,9 +28,9 @@ function StatCard({ title, amount, currencySymbol, colorClass }: {
 
 export default function OrganisationDashboardPage() {
     const router = useRouter();
-    const { resolvedMode } = useColorMode();
     const { data: session } = useSession();
 
+    const chart = useChartTheme();
     const [organisationId, setOrganisationId] = useState<string | null>(null);
     const [organisation, setOrganisation] = useState<any>(null);
     const [editDialogOpen, setEditDialogOpen] = useState(false);
@@ -137,15 +137,6 @@ export default function OrganisationDashboardPage() {
         return 'text-success';
     };
 
-    const isDark = resolvedMode === 'dark';
-    const chartColors = {
-        income: '#22C55E',
-        expense: '#EF4444',
-        text: isDark ? '#94A3B8' : '#64748B',
-        divider: isDark ? '#1E293B' : '#E2E8F0',
-        bg: isDark ? '#0F172A' : '#FFFFFF',
-        tooltipBg: isDark ? '#1E293B' : '#FFFFFF',
-    };
 
     return (
         <div className="max-w-[1600px] mx-auto">
@@ -214,21 +205,21 @@ export default function OrganisationDashboardPage() {
                     <div className={cn('w-full transition-opacity duration-200', chartLoading && 'opacity-50')} style={{ height: 320 }}>
                         <ResponsiveContainer width="100%" height="100%">
                             <BarChart data={stats.chartData} margin={{ top: 25, right: 10, left: 10, bottom: 5 }}>
-                                <XAxis dataKey="week" tick={{ fill: chartColors.text, fontSize: 12 }} axisLine={{ stroke: chartColors.divider }} tickLine={false} />
+                                <XAxis dataKey="week" tick={{ fill: chart.tick, fontSize: 12 }} axisLine={{ stroke: chart.axis }} tickLine={false} />
                                 <Tooltip
                                     formatter={(value: any, name: any) => {
                                         const formatted = `${stats.currency.symbol}${Number(value).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
                                         return [formatted, name === 'income' ? 'Income' : 'Expense'];
                                     }}
-                                    contentStyle={{ backgroundColor: chartColors.tooltipBg, border: `1px solid ${chartColors.divider}`, borderRadius: 10, fontSize: '0.8125rem' }}
-                                    labelStyle={{ color: isDark ? '#F1F5F9' : '#0F172A', fontWeight: 600 }}
+                                    contentStyle={chart.tooltipStyle}
+                                    labelStyle={chart.labelStyle}
                                 />
-                                <Bar dataKey="income" radius={[6, 6, 0, 0]} barSize={35} fill={chartColors.income}>
-                                    <LabelList dataKey="income" position="top" fill={isDark ? '#94A3B8' : '#475569'} fontSize={11}
+                                <Bar dataKey="income" radius={[6, 6, 0, 0]} barSize={35} fill={chart.income}>
+                                    <LabelList dataKey="income" position="top" fill={chart.tick} fontSize={11}
                                         formatter={(v: any) => `${stats.currency.symbol}${Number(v).toLocaleString()}`} />
                                 </Bar>
-                                <Bar dataKey="expense" radius={[6, 6, 0, 0]} barSize={35} fill={chartColors.expense}>
-                                    <LabelList dataKey="expense" position="top" fill={isDark ? '#94A3B8' : '#475569'} fontSize={11}
+                                <Bar dataKey="expense" radius={[6, 6, 0, 0]} barSize={35} fill={chart.expense}>
+                                    <LabelList dataKey="expense" position="top" fill={chart.tick} fontSize={11}
                                         formatter={(v: any) => `${stats.currency.symbol}${Number(v).toLocaleString()}`} />
                                 </Bar>
                             </BarChart>

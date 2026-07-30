@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { cn, formatCurrency } from '@/lib/utils';
 import { isBankAccount } from '@/lib/org-model';
 import { roundMoney, sumMoney } from '@/lib/format-money';
-import { useColorMode } from '@/app/providers';
+import { useChartTheme } from '@/hooks/useChartTheme';
 import { useToast } from '@/components/ToastProvider';
 import { BarChart, Bar, XAxis, Tooltip, ResponsiveContainer } from 'recharts';
 
@@ -20,8 +20,7 @@ function ReportsPageContent() {
     const deptParam = searchParams?.get('dept');
     const { data: session } = useSession();
     const { showError } = useToast();
-    const { resolvedMode } = useColorMode();
-    const isDark = resolvedMode === 'dark';
+    const chart = useChartTheme();
 
     const [organisations, setOrganisations] = useState<any[]>([]);
     const [selectedOrganisation, setSelectedOrganisation] = useState('');
@@ -164,7 +163,8 @@ function ReportsPageContent() {
         : selectedOrganisation ? organisations.find(d => d.id === selectedOrganisation)?.name || 'All churches'
         : 'All churches';
 
-    const chartColors = { income: '#22C55E', expense: '#EF4444', grid: isDark ? '#1E293B' : '#E2E8F0', text: isDark ? '#94A3B8' : '#64748B', tooltipBg: isDark ? '#1E293B' : '#FFFFFF', tooltipBorder: isDark ? '#334155' : '#E2E8F0' };
+    // Palette comes from the design tokens — this page previously used a slate
+    // ramp unrelated to the app's actual border and muted colours.
 
     return (
         <div>
@@ -194,10 +194,10 @@ function ReportsPageContent() {
                 {chartLoading ? <div className="flex justify-center items-center h-64"><Loader2 className="h-7 w-7 animate-spin text-muted-foreground" /></div> : (
                     <ResponsiveContainer width="100%" height={300}>
                         <BarChart data={chartData} margin={{ top: 10, right: 16, left: 10, bottom: 5 }}>
-                            <XAxis dataKey="week" tick={{ fill: chartColors.text, fontSize: 12 }} axisLine={{ stroke: chartColors.grid }} tickLine={false} />
-                            <Tooltip formatter={(v: any, name: string) => [fmtCurr(v), name === 'income' ? 'Income' : 'Expense']} contentStyle={{ backgroundColor: chartColors.tooltipBg, border: `1px solid ${chartColors.tooltipBorder}`, borderRadius: 10, fontSize: '0.8125rem' }} />
-                            <Bar dataKey="income" name="Income" fill={chartColors.income} radius={[4, 4, 0, 0]} />
-                            <Bar dataKey="expense" name="Expense" fill={chartColors.expense} radius={[4, 4, 0, 0]} />
+                            <XAxis dataKey="week" tick={{ fill: chart.tick, fontSize: 12 }} axisLine={{ stroke: chart.axis }} tickLine={false} />
+                            <Tooltip formatter={(v: any, name: string) => [fmtCurr(v), name === 'income' ? 'Income' : 'Expense']} contentStyle={chart.tooltipStyle} labelStyle={chart.labelStyle} />
+                            <Bar dataKey="income" name="Income" fill={chart.income} radius={[4, 4, 0, 0]} />
+                            <Bar dataKey="expense" name="Expense" fill={chart.expense} radius={[4, 4, 0, 0]} />
                         </BarChart>
                     </ResponsiveContainer>
                 )}

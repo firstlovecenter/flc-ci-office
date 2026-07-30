@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
-import { isOrgUnit } from '@/lib/org-model';
+import { isOrgUnit, isBankAccount } from '@/lib/org-model';
 import { canAdministerOrganisation } from '@/lib/roles';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/components/ToastProvider';
@@ -248,7 +248,12 @@ function OrganisationsPageContent() {
                     const leader = dept.userRoles?.find((ur: any) => ur.role?.includes('LEADER'))?.user;
                     const admin = dept.userRoles?.find((ur: any) => ur.role?.includes('ADMIN'))?.user;
                     const childOrgCount = (dept.children || []).filter((c: any) => isOrgUnit(c.level)).length;
-                    const bankAccountCount = dept.level === 'CAMPUS' ? (dept._count?.children || 0) : 0;
+                    // Count the accounts themselves, not `_count.children` — Prisma's
+                    // _count ignores the include's `isActive` filter, so it counted
+                    // closed rows too (Revival showed 17 accounts instead of 13).
+                    const bankAccountCount = dept.level === 'CAMPUS'
+                        ? (dept.children || []).filter((c: { level: string }) => isBankAccount(c.level)).length
+                        : 0;
                     const childChurchLabel = SUB_CHURCHES[dept.level];
 
                     return (

@@ -245,8 +245,11 @@ function AccountsPageContent() {
                                             </span>
                                         )}
                                     </div>
+                                    {/* Always shown: account names like "Area 4" or "GLGC"
+                                        carry no campus information on their own, so hiding
+                                        this on mobile left the list unreadable. */}
                                     {!campusParam && acct.parent?.name && (
-                                        <p className="hidden md:block text-xs text-muted-foreground mt-0.5">
+                                        <p className="text-xs text-muted-foreground mt-0.5">
                                             {acct.parent.name}
                                         </p>
                                     )}

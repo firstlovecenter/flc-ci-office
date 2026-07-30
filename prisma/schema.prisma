@@ -74,11 +74,42 @@ model Organisation {
   transactions             Transaction[]
   users                    User[]
   userRoles                UserRole[]
+  /// Bank accounts attached to this campus. Only ever populated on CAMPUS rows —
+  /// accounts are not a church-hierarchy level, so they are not `children`.
+  bankAccounts             BankAccount[]              @relation("CampusBankAccounts")
   publicExpenseRequests    PublicExpenseRequest[]     @relation("CampusPublicRequests")
 
   @@index([isActive])
   @@index([level])
   @@index([parentId])
+  @@index([accountType])
+}
+
+/// A bank account. Attached to a campus, but NOT a step in the church
+/// hierarchy — campuses are the lowest church level.
+///
+/// Rows here mirror the legacy `Organisation` rows with level COUNCIL and keep
+/// the same ids, so foreign keys can be re-pointed by copying the value. The
+/// COUNCIL rows remain in place until the application reads exclusively from
+/// this table (expand / migrate / contract).
+model BankAccount {
+  id            String        @id
+  name          String
+  campusId      String
+  accountType   AccountType   @default(OPERATING)
+  isActive      Boolean       @default(true)
+  closedAt      DateTime?
+  closedBy      String?
+  closureReason String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime
+  campus        Organisation  @relation("CampusBankAccounts", fields: [campusId], references: [id])
+  transactions  Transaction[]
+  userRoles     UserRole[]
+  users         User[]
+
+  @@index([campusId])
+  @@index([isActive])
   @@index([accountType])
 }
 
@@ -189,9 +220,13 @@ model Transaction {
   /// credit are provably one movement rather than two coincidental entries.
   transferId           String?
   transferDirection    TransferDirection?
+  /// The account this entry belongs to. Populated during the bank-account
+  /// split; organisationId is retained until the contract step.
+  bankAccountId        String?
   files                File[]
   currency             Currency?              @relation(fields: [currencyId], references: [id])
   organisation         Organisation           @relation(fields: [organisationId], references: [id])
+  bankAccount          BankAccount?           @relation(fields: [bankAccountId], references: [id])
   user                 User                   @relation("Transactions", fields: [userId], references: [id])
   receiptWaivedByUser  User?                  @relation("ReceiptWaivedBy", fields: [receiptWaivedBy], references: [id])
   publicExpenseRequest PublicExpenseRequest?  @relation("PublicExpenseTransaction")
@@ -213,6 +248,10 @@ model User {
   password                      String?
   image                         String?
   organisationId                String?
+  /// Set when the user's home posting is a bank account rather than a church.
+  /// Populated during the bank-account split; organisationId is retained until
+  /// the contract step.
+  bankAccountId                 String?
   createdAt                     DateTime                   @default(now())
   updatedAt                     DateTime
   archived                      Boolean                    @default(false)
@@ -230,6 +269,7 @@ model User {
   activeUserRole                UserRole?                  @relation("ActiveUserRole", fields: [activeUserRoleId], references: [id])
   baseCurrency                  Currency?                  @relation(fields: [baseCurrencyId], references: [id])
   organisation                  Organisation?              @relation(fields: [organisationId], references: [id])
+  bankAccount                   BankAccount?               @relation(fields: [bankAccountId], references: [id])
   userRoles                     UserRole[]                 @relation("UserRoles")
 
   @@index([activeUserRoleId])
@@ -242,14 +282,19 @@ model UserRole {
   userId         String
   role           Role?
   organisationId String
+  /// Set instead of pointing organisationId at a COUNCIL row. Populated during
+  /// the bank-account split; organisationId is retained until the contract step.
+  bankAccountId  String?
   createdAt      DateTime      @default(now())
   updatedAt      DateTime
   activeUsers    User[]        @relation("ActiveUserRole")
   organisation   Organisation  @relation(fields: [organisationId], references: [id])
+  bankAccount    BankAccount?  @relation(fields: [bankAccountId], references: [id])
   user           User          @relation("UserRoles", fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, role, organisationId])
   @@index([organisationId])
+  @@index([bankAccountId])
   @@index([role])
   @@index([userId])
 }
