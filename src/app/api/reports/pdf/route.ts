@@ -135,7 +135,7 @@ export async function POST(request: NextRequest) {
         }
 
         // Get organisation name and level
-        let organisationName = 'All Organisations';
+        let organisationName = 'All churches';
         let organisationLevel = '';
         if (organisationId) {
             const dept = await prisma.organisation.findUnique({
@@ -287,7 +287,7 @@ export async function POST(request: NextRequest) {
         const drawTableHeader = (yPos: number) => {
             page.drawText('Date', { x: colX.date, y: yPos, size: 9, font: boldFont, color: rgb(0, 0, 0) });
             page.drawText('Description', { x: colX.description, y: yPos, size: 9, font: boldFont, color: rgb(0, 0, 0) });
-            page.drawText('Organisation', { x: colX.organisation, y: yPos, size: 9, font: boldFont, color: rgb(0, 0, 0) });
+            page.drawText('Church', { x: colX.organisation, y: yPos, size: 9, font: boldFont, color: rgb(0, 0, 0) });
             drawRightText('Debit', colX.debit + 70, yPos, 9);
             drawRightText('Credit', colX.credit + 70, yPos, 9);
             drawRightText('Balance', colX.balance + 70, yPos, 9);

@@ -105,7 +105,7 @@ export async function POST(
         if (isOrganisationChange) {
             // Step 1: Reverse the original transaction in the old organisation
             const reverseType = originalTransaction.type === 'INCOME' ? 'EXPENSE' : 'INCOME';
-            const reverseDescription = `DEPT TRANSFER: Reversed - moved to ${targetOrganisation.name}. Original: "${originalTransaction.description}". ${reason || 'Organisation correction'} - Ref: ${originalTransaction.id.substring(0, 8)}`;
+            const reverseDescription = `DEPT TRANSFER: Reversed - moved to ${targetOrganisation.name}. Original: "${originalTransaction.description}". ${reason || 'Church correction'} - Ref: ${originalTransaction.id.substring(0, 8)}`;
 
             const reverseAmountInBaseDec = originalTransaction.currencyId && originalTransaction.exchangeRate
                 ? originalAmountDec.mul(toDecimal(originalTransaction.exchangeRate))
@@ -136,7 +136,7 @@ export async function POST(
             });
 
             // Step 2: Create the transaction in the new organisation with the (possibly new) amount
-            const newDescription = `DEPT TRANSFER: From ${originalTransaction.organisation.name}. Original: "${originalTransaction.description}". ${reason || 'Organisation correction'} - Ref: ${originalTransaction.id.substring(0, 8)}`;
+            const newDescription = `DEPT TRANSFER: From ${originalTransaction.organisation.name}. Original: "${originalTransaction.description}". ${reason || 'Church correction'} - Ref: ${originalTransaction.id.substring(0, 8)}`;
 
             const newAmountInBaseDec = originalTransaction.currencyId && originalTransaction.exchangeRate
                 ? newAmountDec.mul(toDecimal(originalTransaction.exchangeRate))
@@ -228,7 +228,7 @@ export async function POST(
                         amount: formatNumber(originalAmount),
                         fromOrganisation: originalTransaction.organisation.name,
                         toOrganisation: targetOrganisation.name,
-                        reason: reason || 'Organisation correction',
+                        reason: reason || 'Church correction',
                         balance: formatNumber(moneyToString(oldBalance)),
                     });
                     if (lr.user.phone) {
@@ -261,7 +261,7 @@ export async function POST(
                         amount: formatNumber(newAmountValue),
                         fromOrganisation: originalTransaction.organisation.name,
                         toOrganisation: targetOrganisation.name,
-                        reason: reason || 'Organisation correction',
+                        reason: reason || 'Church correction',
                         balance: formatNumber(moneyToString(newBalance)),
                     });
                     if (lr.user.phone) {
@@ -286,7 +286,7 @@ export async function POST(
                         amount: formatNumber(newAmountValue),
                         fromOrganisation: originalTransaction.organisation.name,
                         toOrganisation: targetOrganisation.name,
-                        reason: reason || 'Organisation correction',
+                        reason: reason || 'Church correction',
                         balance: formatNumber(moneyToString(adminBalance)),
                     });
                     await sendSms({ to: actingAdmin.phone, message: sms }).catch(() => {});

@@ -34,22 +34,21 @@ export async function GET(request: NextRequest) {
             filterOrganisationId = session.user.activeUserRole.organisationId;
         }
 
-        const isOversightAdmin = userRole === 'OVERSIGHT_ADMIN' || userRoles.includes('OVERSIGHT_ADMIN');
+        const isCampusAdmin = userRole === 'CAMPUS_ADMIN' || userRoles.includes('CAMPUS_ADMIN');
         const isSuperAdmin = userRole === 'SUPERADMIN' || userRoles.includes('SUPERADMIN');
         const isDenominationAdmin = userRole === 'DENOMINATION_ADMIN' || userRoles.includes('DENOMINATION_ADMIN');
 
-        // For oversight admin badge count: resolve the correct oversight organisation.
-        // If the active role is not OVERSIGHT_ADMIN, look up the UserRole record.
-        let oversightOrganisationIdForCount: string | undefined;
-        if (isOversightAdmin && !isSuperAdmin) {
-            if ((session.user.activeUserRole as any)?.role === 'OVERSIGHT_ADMIN') {
-                oversightOrganisationIdForCount = session.user.activeUserRole?.organisationId ?? undefined;
+        // For campus admin badge count: resolve the correct campus organisation.
+        let campusOrganisationIdForCount: string | undefined;
+        if (isCampusAdmin && !isSuperAdmin) {
+            if ((session.user.activeUserRole as any)?.role === 'CAMPUS_ADMIN') {
+                campusOrganisationIdForCount = session.user.activeUserRole?.organisationId ?? undefined;
             } else {
-                const oversightUserRole = await prisma.userRole.findFirst({
-                    where: { userId: userId, role: 'OVERSIGHT_ADMIN' },
+                const campusUserRole = await prisma.userRole.findFirst({
+                    where: { userId: userId, role: 'CAMPUS_ADMIN' },
                     select: { organisationId: true },
                 });
-                oversightOrganisationIdForCount = oversightUserRole?.organisationId ?? undefined;
+                campusOrganisationIdForCount = campusUserRole?.organisationId ?? undefined;
             }
         }
 
@@ -81,10 +80,10 @@ export async function GET(request: NextRequest) {
                 ? prisma.publicExpenseRequest.count({
                     where: { status: 'PENDING' },
                 })
-                : isOversightAdmin && oversightOrganisationIdForCount
+                : isCampusAdmin && campusOrganisationIdForCount
                 ? prisma.publicExpenseRequest.count({
                     where: {
-                        oversightOrganisationId: oversightOrganisationIdForCount,
+                        campusOrganisationId: campusOrganisationIdForCount,
                         status: 'PENDING',
                     },
                 })

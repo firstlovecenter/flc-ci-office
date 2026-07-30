@@ -90,7 +90,7 @@ export async function GET(
             
             if (!filterOrganisationId) {
                 return NextResponse.json(
-                    { error: 'No organisation assigned' },
+                    { error: 'No church assigned' },
                     { status: 403 }
                 );
             }
@@ -101,7 +101,7 @@ export async function GET(
             // Check if user is in admin's organisation hierarchy
             if (user.organisationId && !allowedOrganisationIds.includes(user.organisationId)) {
                 return NextResponse.json(
-                    { error: 'Cannot view users outside your organisation hierarchy' },
+                    { error: 'Cannot view users outside your church hierarchy' },
                     { status: 403 }
                 );
             }
@@ -196,7 +196,7 @@ export async function PUT(
             
             if (!filterOrganisationId) {
                 return NextResponse.json(
-                    { error: 'No organisation assigned' },
+                    { error: 'No church assigned' },
                     { status: 403 }
                 );
             }
@@ -207,7 +207,7 @@ export async function PUT(
             // Check current user's organisation
             if (targetUser.organisationId && !allowedOrganisationIds.includes(targetUser.organisationId)) {
                 return NextResponse.json(
-                    { error: 'Cannot manage users outside your organisation hierarchy' },
+                    { error: 'Cannot manage users outside your church hierarchy' },
                     { status: 403 }
                 );
             }
@@ -217,7 +217,7 @@ export async function PUT(
                 for (const pair of roleOrganisationPairs) {
                     if (!allowedOrganisationIds.includes(pair.organisationId)) {
                         return NextResponse.json(
-                            { error: 'Cannot assign user to a organisation outside your hierarchy' },
+                            { error: 'Cannot assign user to a church outside your hierarchy' },
                             { status: 403 }
                         );
                     }
@@ -400,7 +400,7 @@ export async function PUT(
                     const smsContent = await generateFirstRoleAssignmentSms({
                         userName: name || email || 'User',
                         role: primaryRolePair.role,
-                        organisation: organisation?.name || 'Unknown Organisation',
+                        organisation: organisation?.name || 'Unknown church',
                         resetLink,
                     });
 
@@ -595,7 +595,7 @@ export async function PATCH(
             
             if (!filterOrganisationId) {
                 return NextResponse.json(
-                    { error: 'No organisation assigned' },
+                    { error: 'No church assigned' },
                     { status: 403 }
                 );
             }
@@ -606,7 +606,7 @@ export async function PATCH(
             // Check if user is in admin's organisation hierarchy
             if (targetUser.organisationId && !allowedOrganisationIds.includes(targetUser.organisationId)) {
                 return NextResponse.json(
-                    { error: 'Cannot archive users outside your organisation hierarchy' },
+                    { error: 'Cannot archive users outside your church hierarchy' },
                     { status: 403 }
                 );
             }

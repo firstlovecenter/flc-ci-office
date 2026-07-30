@@ -83,7 +83,7 @@ export default function CorrectTransactionDialog({
         const hasOrganisationChange = newOrganisationId && newOrganisationId !== transaction?.organisationId;
 
         if (!hasAmountChange && !hasOrganisationChange) {
-            setError('Please change the amount, organisation, or both');
+            setError('Please change the amount, church, or both');
             return;
         }
 
@@ -152,7 +152,7 @@ export default function CorrectTransactionDialog({
 
                 <Alert severity="info" sx={{ mb: 3 }}>
                     This will create correction transaction(s) that reference the original. 
-                    You can change the amount, the organisation/church, or both.
+                    You can change the amount, the church, or both.
                     The original transaction will remain unchanged.
                 </Alert>
 
@@ -262,7 +262,7 @@ export default function CorrectTransactionDialog({
                                         transaction?.currency?.symbol
                                     )}
                                 </strong>{' '}
-                                will be created. The organisation leader will receive an SMS notification.
+                                will be created. The church leader will receive an SMS notification.
                             </>
                         )}
                     </Alert>

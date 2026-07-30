@@ -76,14 +76,14 @@ export async function PUT(
             const canAccessSource = await hasOrganisationAccess(session.user, existingTransaction.organisationId);
             if (!canAccessSource) {
                 return NextResponse.json(
-                    { error: 'You do not have access to the transaction\'s current organisation' },
+                    { error: 'You do not have access to the transaction\'s current church' },
                     { status: 403 }
                 );
             }
             const canAccessDest = await hasOrganisationAccess(session.user, organisationId);
             if (!canAccessDest) {
                 return NextResponse.json(
-                    { error: 'You do not have access to the destination organisation' },
+                    { error: 'You do not have access to the destination church' },
                     { status: 403 }
                 );
             }
@@ -264,7 +264,7 @@ export async function PATCH(
             );
 
             if (!hasAccess) {
-                return new NextResponse('You do not have access to this organisation', { status: 403 });
+                return new NextResponse('You do not have access to this church', { status: 403 });
             }
         }
 

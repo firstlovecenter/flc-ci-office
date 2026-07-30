@@ -118,7 +118,7 @@ export default function AuditPage() {
                 <Select value={entityFilter} onValueChange={setEntityFilter}>
                     <SelectTrigger className="w-[150px]"><SelectValue placeholder="Entity" /></SelectTrigger>
                     <SelectContent>
-                        {[['ALL', 'All Entities'], ['Transaction', 'Transaction'], ['User', 'User'], ['Organisation', 'Organisation']].map(([v, l]) => (
+                        {[['ALL', 'All Entities'], ['Transaction', 'Transaction'], ['User', 'User'], ['Organisation', 'Church']].map(([v, l]) => (
                             <SelectItem key={v} value={v}>{l}</SelectItem>
                         ))}
                     </SelectContent>

@@ -83,7 +83,7 @@ export function SearchPageContent() {
                                 <div className="flex-1 min-w-0">
                                     <div className="flex items-center gap-2 justify-between">
                                         <p className="font-semibold text-foreground truncate">{result.title}</p>
-                                        <Badge variant="secondary" className="capitalize text-xs shrink-0">{result.type}</Badge>
+                                        <Badge variant="secondary" className="capitalize text-xs shrink-0">{result.type === 'organisation' ? 'church' : result.type}</Badge>
                                     </div>
                                     <p className="text-sm text-foreground mt-0.5 truncate">{result.subtitle}</p>
                                     {result.status && (

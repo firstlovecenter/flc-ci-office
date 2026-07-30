@@ -8,10 +8,20 @@ import { formatTimeInExpenseWindowTimeZone, getExpenseWindowStatus } from '@/lib
 
 export const dynamic = 'force-dynamic';
 
+async function resolveCampusAdminOrgId(session: any): Promise<string | undefined> {
+    if (session.user.activeUserRole?.role === 'CAMPUS_ADMIN') {
+        return session.user.activeUserRole?.organisationId ?? undefined;
+    }
+    const campusUserRole = await prisma.userRole.findFirst({
+        where: { userId: session.user.id, role: 'CAMPUS_ADMIN' },
+        select: { organisationId: true },
+    });
+    return campusUserRole?.organisationId ?? undefined;
+}
+
 // Auth-protected GET:
-// - OVERSIGHT_ADMIN: requests for own oversight organisation
+// - CAMPUS_ADMIN: requests for own campus
 // - SUPERADMIN: all public expense requests
-// Public POST is below
 export async function GET(request: Request) {
     const session = await getServerSession(authOptions);
     if (!session) return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
@@ -19,33 +29,19 @@ export async function GET(request: Request) {
     const userRoles = Array.isArray(session.user.roles)
         ? session.user.roles.map(role => (typeof role === 'string' ? role.toUpperCase() : ''))
         : [];
-    const isOversightAdmin = session.user.role === 'OVERSIGHT_ADMIN' || userRoles.includes('OVERSIGHT_ADMIN');
+    const isCampusAdmin = session.user.role === 'CAMPUS_ADMIN' || userRoles.includes('CAMPUS_ADMIN');
     const isSuperAdmin = session.user.role === 'SUPERADMIN' || userRoles.includes('SUPERADMIN');
 
-    if (!isOversightAdmin && !isSuperAdmin) {
+    if (!isCampusAdmin && !isSuperAdmin) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    // Resolve the oversight organisation for the admin.
-    // If the active role is OVERSIGHT_ADMIN, use its organisationId directly.
-    // Otherwise (multi-role user with a different active role) look up the
-    // OVERSIGHT_ADMIN UserRole record from the database.
-    let adminOversightDeptId: string | undefined =
-        (session.user.activeUserRole as any)?.role === 'OVERSIGHT_ADMIN'
-            ? session.user.activeUserRole?.organisationId
-            : undefined;
-
-    if (!adminOversightDeptId && isOversightAdmin) {
-        // Active role is not OVERSIGHT_ADMIN — find the right oversight dept from UserRole
-        const oversightUserRole = await prisma.userRole.findFirst({
-            where: { userId: session.user.id, role: 'OVERSIGHT_ADMIN' },
-            select: { organisationId: true },
-        });
-        adminOversightDeptId = oversightUserRole?.organisationId ?? undefined;
-    }
-
-    if (isOversightAdmin && !adminOversightDeptId) {
-        return NextResponse.json({ error: 'No oversight organisation found for your account' }, { status: 400 });
+    let adminCampusId: string | undefined;
+    if (isCampusAdmin && !isSuperAdmin) {
+        adminCampusId = await resolveCampusAdminOrgId(session);
+        if (!adminCampusId) {
+            return NextResponse.json({ error: 'No campus found for your account' }, { status: 400 });
+        }
     }
 
     const { searchParams } = new URL(request.url);
@@ -54,7 +50,7 @@ export async function GET(request: Request) {
     try {
         const requests = await prisma.publicExpenseRequest.findMany({
             where: {
-                ...(isOversightAdmin && adminOversightDeptId ? { oversightOrganisationId: adminOversightDeptId } : {}),
+                ...(adminCampusId ? { campusOrganisationId: adminCampusId } : {}),
                 ...(status ? { status: status as any } : {}),
             },
             orderBy: { createdAt: 'desc' },
@@ -68,7 +64,6 @@ export async function GET(request: Request) {
 }
 
 // Public endpoint — no auth required
-// Accepts expense requests from members of the public
 export async function POST(request: Request) {
     try {
         const expenseWindow = getExpenseWindowStatus();
@@ -84,12 +79,12 @@ export async function POST(request: Request) {
         }
 
         const body = await request.json();
-        const { oversightOrganisationId, requesterName, leaderPhone, churchName, momoName, momoNumber, amount, description } = body;
+        const campusOrganisationId = body.campusOrganisationId || body.oversightOrganisationId;
+        const { requesterName, leaderPhone, churchName, momoName, momoNumber, amount, description } = body;
 
-        // Validate required fields
-        if (!oversightOrganisationId || !requesterName || !leaderPhone || !churchName || !momoName || !momoNumber || !amount || !description) {
+        if (!campusOrganisationId || !requesterName || !leaderPhone || !churchName || !momoName || !momoNumber || !amount || !description) {
             return NextResponse.json(
-                { error: 'All fields are required: oversight church, requester name, leader phone, church name, Momo name, Momo number, amount, and reason.' },
+                { error: 'All fields are required: campus, requester name, leader phone, church name, Momo name, Momo number, amount, and reason.' },
                 { status: 400 }
             );
         }
@@ -98,17 +93,15 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'Amount must be a positive number.' }, { status: 400 });
         }
 
-        // Verify the oversight organisation exists, is active, and has the public form enabled
-        const oversightOrganisation = await prisma.organisation.findUnique({
-            where: { id: oversightOrganisationId, level: 'OVERSIGHT', isActive: true, publicFormEnabled: true },
+        const campus = await prisma.organisation.findUnique({
+            where: { id: campusOrganisationId, level: 'CAMPUS', isActive: true, publicFormEnabled: true },
             select: { id: true, name: true },
         });
 
-        if (!oversightOrganisation) {
-            return NextResponse.json({ error: 'Invalid oversight church selected.' }, { status: 400 });
+        if (!campus) {
+            return NextResponse.json({ error: 'Invalid campus selected.' }, { status: 400 });
         }
 
-        // Create the public expense request
         const publicRequest = await prisma.publicExpenseRequest.create({
             data: {
                 requesterName: requesterName.trim(),
@@ -118,12 +111,11 @@ export async function POST(request: Request) {
                 momoNumber: momoNumber.trim(),
                 amount,
                 description: description.trim(),
-                oversightOrganisationId,
+                campusOrganisationId,
                 updatedAt: new Date(),
             },
         });
 
-        // Send submission confirmation SMS to the leader's phone
         try {
             const submittedSms = generatePublicExpenseLeaderSubmittedSms({
                 requesterName: requesterName.trim(),
@@ -137,12 +129,11 @@ export async function POST(request: Request) {
             console.error('[Notify] Error sending submission SMS to leader:', err);
         }
 
-        // Notify OVERSIGHT_ADMIN(s) of this oversight church
         try {
             const adminRoles = await prisma.userRole.findMany({
                 where: {
-                    role: 'OVERSIGHT_ADMIN',
-                    organisationId: oversightOrganisationId,
+                    role: 'CAMPUS_ADMIN',
+                    organisationId: campusOrganisationId,
                 },
                 include: {
                     user: {
@@ -167,24 +158,23 @@ export async function POST(request: Request) {
                 momoName,
                 momoNumber,
                 description,
-                oversightOrganisationName: oversightOrganisation.name,
+                campusOrganisationName: campus.name,
             });
 
             for (const admin of admins) {
                 try {
                     if (admin.phone) {
                         sendSms({ to: admin.phone, message: smsMessage }).catch((err) => {
-                            console.error('[Notify] SMS failed for oversight admin', admin.phone, err?.message || err);
+                            console.error('[Notify] SMS failed for campus admin', admin.phone, err?.message || err);
                         });
                     } else {
-                        console.warn('[Notify] Oversight admin has no phone number:', admin.email);
+                        console.warn('[Notify] Campus admin has no phone number:', admin.email);
                     }
                 } catch (err) {
-                    console.error('[Notify] Error sending notification to oversight admin:', err);
+                    console.error('[Notify] Error sending notification to campus admin:', err);
                 }
             }
         } catch (notifyError) {
-            // Don't fail the request if notification fails
             console.error('[Notify] Error fetching admins for notification:', notifyError);
         }
 

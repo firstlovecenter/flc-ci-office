@@ -56,8 +56,8 @@ export function formatRole(role: string | null | undefined): string {
 }
 
 /**
- * Format an organisation unit or account label for display
- * (DENOMINATION -> HQ, COUNCIL -> Account). Accounts are bank accounts, not org units.
+ * Format a church unit or account label for display
+ * (DENOMINATION -> HQ, COUNCIL -> Account). Accounts are bank accounts, not church units.
  */
 export function formatOrganisationLevel(level: string | null | undefined): string {
     return formatOrgLevel(level);

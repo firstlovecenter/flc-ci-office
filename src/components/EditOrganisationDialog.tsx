@@ -88,8 +88,8 @@ export default function EditOrganisationDialog({ open, onClose, organisation, or
         try {
             const r = await fetch(`/api/organisations/${organisation.id}/close`);
             if (r.ok) setCloseInfo(await r.json());
-            else { const d = await r.json(); setError(d.error || 'Failed to check organisation closure'); setCloseDialogOpen(false); }
-        } catch { setError('Failed to check organisation closure'); setCloseDialogOpen(false); }
+            else { const d = await r.json(); setError(d.error || 'Failed to check church closure'); setCloseDialogOpen(false); }
+        } catch { setError('Failed to check church closure'); setCloseDialogOpen(false); }
         finally { setCloseLoading(false); }
     };
 
@@ -99,17 +99,17 @@ export default function EditOrganisationDialog({ open, onClose, organisation, or
         try {
             const r = await fetch(`/api/organisations/${organisation.id}/close`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reason: closeReason }) });
             if (r.ok) { setCloseDialogOpen(false); onClose(); if (onOrganisationClosed) onOrganisationClosed(); else onSave(); }
-            else { const d = await r.json(); setError(d.error || 'Failed to close organisation'); }
-        } catch { setError('Failed to close organisation'); }
+            else { const d = await r.json(); setError(d.error || 'Failed to close church'); }
+        } catch { setError('Failed to close church'); }
         finally { setClosingOrganisation(false); }
     };
 
     const handleSave = async () => {
-        if (!name.trim()) { setError(editingAccount ? 'Account name is required' : 'Organisation name is required'); return; }
+        if (!name.trim()) { setError(editingAccount ? 'Account name is required' : 'Church name is required'); return; }
         setSaving(true); setError('');
         try {
-            const r = await fetch(`/api/organisations/${organisation.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, level: editingAccount ? 'COUNCIL' : level, parentId: parentId || null, leaderId: leaderId || undefined, adminId: !editingAccount && ADMIN_LEVELS.includes(level) ? (adminId || null) : undefined, publicFormEnabled: level === 'OVERSIGHT' ? publicFormEnabled : undefined, accountType: editingAccount ? accountType : null }) });
-            if (!r.ok) { const d = await r.json(); throw new Error(d.error || (editingAccount ? 'Failed to update account' : 'Failed to update organisation')); }
+            const r = await fetch(`/api/organisations/${organisation.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, level: editingAccount ? 'COUNCIL' : level, parentId: parentId || null, leaderId: leaderId || undefined, adminId: !editingAccount && ADMIN_LEVELS.includes(level) ? (adminId || null) : undefined, publicFormEnabled: level === 'CAMPUS' ? publicFormEnabled : undefined, accountType: editingAccount ? accountType : null }) });
+            if (!r.ok) { const d = await r.json(); throw new Error(d.error || (editingAccount ? 'Failed to update account' : 'Failed to update church')); }
             onSave(); onClose();
         } catch (e: any) { setError(e.message || 'Error saving'); }
         finally { setSaving(false); }
@@ -119,11 +119,11 @@ export default function EditOrganisationDialog({ open, onClose, organisation, or
         <>
             <Dialog open={open} onOpenChange={v => { if (!v) onClose(); }}>
                 <DialogContent className="max-w-sm max-h-[90vh] overflow-y-auto">
-                    <DialogHeader><DialogTitle>{editingAccount ? 'Edit account' : 'Edit organisation'}</DialogTitle></DialogHeader>
+                    <DialogHeader><DialogTitle>{editingAccount ? 'Edit account' : 'Edit church'}</DialogTitle></DialogHeader>
                     <div className="flex flex-col gap-4 py-2">
                         {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
 
-                        <div className="space-y-1.5"><Label>{editingAccount ? 'Account name' : 'Organisation name'} <span className="text-destructive">*</span></Label><Input value={name} onChange={e => setName(e.target.value)} /></div>
+                        <div className="space-y-1.5"><Label>{editingAccount ? 'Account name' : 'Church name'} <span className="text-destructive">*</span></Label><Input value={name} onChange={e => setName(e.target.value)} /></div>
 
                         {!editingAccount && (
                             <div className="space-y-1.5">
@@ -154,7 +154,7 @@ export default function EditOrganisationDialog({ open, onClose, organisation, or
                         )}
 
                         <div className="space-y-1.5">
-                            <Label>{editingAccount ? 'Campus' : 'Parent organisation'}</Label>
+                            <Label>{editingAccount ? 'Campus' : 'Parent church'}</Label>
                             <Select value={parentId || "none"} onValueChange={(v) => setParentId(v === "none" ? "" : v)} disabled={availableParents.length === 0}>
                                 <SelectTrigger><SelectValue placeholder={editingAccount ? 'Select campus' : 'None (Top Level)'} /></SelectTrigger>
                                 <SelectContent>
@@ -165,7 +165,7 @@ export default function EditOrganisationDialog({ open, onClose, organisation, or
                         </div>
 
                         <div className="space-y-1.5">
-                            <Label>{editingAccount ? 'Account holder' : 'Organisation leader'}</Label>
+                            <Label>{editingAccount ? 'Account holder' : 'Church leader'}</Label>
                             <Select value={leaderId} onValueChange={setLeaderId} disabled={usersLoading}>
                                 <SelectTrigger><SelectValue placeholder={editingAccount ? 'Select account holder' : 'Select leader'} /></SelectTrigger>
                                 <SelectContent>
@@ -178,7 +178,7 @@ export default function EditOrganisationDialog({ open, onClose, organisation, or
 
                         {!editingAccount && ADMIN_LEVELS.includes(level) && (
                             <div className="space-y-1.5">
-                                <Label>Organisation manager (Optional)</Label>
+                                <Label>Church manager (Optional)</Label>
                                 <Select value={adminId || "none"} onValueChange={(v) => setAdminId(v === "none" ? "" : v)} disabled={usersLoading}>
                                     <SelectTrigger><SelectValue placeholder="No manager" /></SelectTrigger>
                                     <SelectContent>
@@ -190,11 +190,11 @@ export default function EditOrganisationDialog({ open, onClose, organisation, or
                             </div>
                         )}
 
-                        {level === 'OVERSIGHT' && !editingAccount && (
+                        {level === 'CAMPUS' && !editingAccount && (
                             <div className="flex items-center justify-between rounded-lg border p-3">
                                 <div className="space-y-0.5">
                                     <Label>Public withdrawal form</Label>
-                                    <p className="text-xs text-muted-foreground">Allow members of the public to submit withdrawal requests to this oversight.</p>
+                                    <p className="text-xs text-muted-foreground">Allow public expense requests to be submitted to this campus.</p>
                                 </div>
                                 <Switch checked={publicFormEnabled} onCheckedChange={setPublicFormEnabled} />
                             </div>
@@ -203,8 +203,8 @@ export default function EditOrganisationDialog({ open, onClose, organisation, or
                         {/* Danger zone */}
                         <div className="rounded-xl border border-destructive/30 bg-destructive/8 p-4 mt-2">
                             <p className="text-[0.6875rem] font-semibold uppercase tracking-[0.08em] text-destructive mb-2">Danger zone</p>
-                            <Button variant="destructive" className="w-full mb-2" onClick={handleOpenCloseDialog}><Ban className="mr-2 h-4 w-4" />{editingAccount ? 'Close account' : 'Close organisation'}</Button>
-                            <p className="text-xs text-destructive/80">{editingAccount ? 'Closing an account removes holder access but preserves transaction history.' : 'Closing an organisation removes all user access but preserves transaction history.'}</p>
+                            <Button variant="destructive" className="w-full mb-2" onClick={handleOpenCloseDialog}><Ban className="mr-2 h-4 w-4" />{editingAccount ? 'Close account' : 'Close church'}</Button>
+                            <p className="text-xs text-destructive/80">{editingAccount ? 'Closing an account removes holder access but preserves transaction history.' : 'Closing a church removes all user access but preserves transaction history.'}</p>
                         </div>
                     </div>
                     <DialogFooter className="gap-2">
@@ -217,7 +217,7 @@ export default function EditOrganisationDialog({ open, onClose, organisation, or
             {/* Close confirmation */}
             <Dialog open={closeDialogOpen} onOpenChange={v => { if (!v) { setCloseDialogOpen(false); setCloseInfo(null); setCloseReason(''); } }}>
                 <DialogContent className="max-w-sm">
-                    <DialogHeader><DialogTitle className="flex items-center gap-2 text-destructive"><Ban className="h-5 w-5" />{editingAccount ? 'Close account' : 'Close organisation'}</DialogTitle></DialogHeader>
+                    <DialogHeader><DialogTitle className="flex items-center gap-2 text-destructive"><Ban className="h-5 w-5" />{editingAccount ? 'Close account' : 'Close church'}</DialogTitle></DialogHeader>
                     <div className="py-2">
                         {closeLoading ? <div className="flex justify-center py-8"><Loader2 className="h-7 w-7 animate-spin text-muted-foreground" /></div> : closeInfo ? (
                             <div className="flex flex-col gap-4">
@@ -247,7 +247,7 @@ export default function EditOrganisationDialog({ open, onClose, organisation, or
                                 {closeInfo.canClose && (
                                     <div className="space-y-1.5">
                                         <Label>Reason for closing (optional)</Label>
-                                        <Textarea rows={2} value={closeReason} onChange={e => setCloseReason(e.target.value)} placeholder={editingAccount ? 'e.g., Account closed, merged…' : 'e.g., Organisation merged, no longer active…'} />
+                                        <Textarea rows={2} value={closeReason} onChange={e => setCloseReason(e.target.value)} placeholder={editingAccount ? 'e.g., Account closed, merged…' : 'e.g., Church merged, no longer active…'} />
                                     </div>
                                 )}
                             </div>

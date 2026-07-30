@@ -129,7 +129,7 @@ function ReportsPageContent() {
     const handleDownload = () => {
         const sym = baseCurrency?.code || 'GHS';
         let bal = openingBalance;
-        const headers = `Date,Description,Organisation,Debit (${sym}),Credit (${sym}),Balance (${sym})\n`;
+        const headers = `Date,Description,Church,Debit (${sym}),Credit (${sym}),Balance (${sym})\n`;
         const rows = transactions.map(tx => {
             const debit = tx.type === 'EXPENSE' ? Number(tx.amountInBase || tx.amount) : 0;
             const credit = tx.type === 'INCOME' ? Number(tx.amountInBase || tx.amount) : 0;
@@ -156,9 +156,9 @@ function ReportsPageContent() {
     const fmtCurr = (v: number) => baseCurrency ? formatCurrency(v, baseCurrency.code, baseCurrency.symbol) : formatCurrency(v);
 
     const deptName = fixedOrganisation ? `${fixedOrganisation.name} (${formatOrganisationLevel(fixedOrganisation.level)})`
-        : isLeader ? userOrganisationName || 'My Organisation'
-        : selectedOrganisation ? organisations.find(d => d.id === selectedOrganisation)?.name || 'All Organisations'
-        : 'All Organisations';
+        : isLeader ? userOrganisationName || 'My church'
+        : selectedOrganisation ? organisations.find(d => d.id === selectedOrganisation)?.name || 'All churches'
+        : 'All churches';
 
     const chartColors = { income: '#22C55E', expense: '#EF4444', grid: isDark ? '#1E293B' : '#E2E8F0', text: isDark ? '#94A3B8' : '#64748B', tooltipBg: isDark ? '#1E293B' : '#FFFFFF', tooltipBorder: isDark ? '#334155' : '#E2E8F0' };
 
@@ -206,11 +206,11 @@ function ReportsPageContent() {
                     {!fixedOrganisation && !isLeader && hasSubOrganisations && (
                         <>
                             <div className="space-y-1.5 w-full sm:w-auto">
-                                <Label>Organisation (Optional)</Label>
+                                <Label>Church (Optional)</Label>
                                 <Select value={selectedOrganisation || "none"} onValueChange={(v) => setSelectedOrganisation(v === "none" ? "" : v)}>
-                                    <SelectTrigger className="w-full sm:w-64"><SelectValue placeholder="All Organisations" /></SelectTrigger>
+                                    <SelectTrigger className="w-full sm:w-64"><SelectValue placeholder="All churches" /></SelectTrigger>
                                     <SelectContent>
-                                        <SelectItem value="none">All Organisations</SelectItem>
+                                        <SelectItem value="none">All churches</SelectItem>
                                         {organisations.map(d => <SelectItem key={d.id} value={d.id}>{d.name} ({formatOrganisationLevel(d.level)})</SelectItem>)}
                                     </SelectContent>
                                 </Select>
@@ -221,8 +221,8 @@ function ReportsPageContent() {
                                     <Select value={includeSubOrganisations ? 'include' : 'exact'} onValueChange={v => setIncludeSubOrganisations(v === 'include')}>
                                         <SelectTrigger className="w-full sm:w-56"><SelectValue /></SelectTrigger>
                                         <SelectContent>
-                                            <SelectItem value="include">Include Lower Organisations</SelectItem>
-                                            <SelectItem value="exact">Selected Organisation Only</SelectItem>
+                                            <SelectItem value="include">Include related churches</SelectItem>
+                                            <SelectItem value="exact">Selected church only</SelectItem>
                                         </SelectContent>
                                     </Select>
                                 </div>
@@ -310,7 +310,7 @@ function ReportsPageContent() {
                         <div className="hidden md:block overflow-x-auto">
                             <table className="w-full text-sm">
                                 <thead className="bg-primary text-white">
-                                    <tr>{['Date', 'Description', 'Organisation', 'Debit', 'Credit', 'Balance'].map((h, i) => <th key={h} className={cn('py-3 px-4 font-bold', i >= 3 ? 'text-right' : 'text-left')}>{h}</th>)}</tr>
+                                    <tr>{['Date', 'Description', 'Church', 'Debit', 'Credit', 'Balance'].map((h, i) => <th key={h} className={cn('py-3 px-4 font-bold', i >= 3 ? 'text-right' : 'text-left')}>{h}</th>)}</tr>
                                 </thead>
                                 <tbody>
                                     {(() => { let bal = openingBalance; return transactions.map((tx, i) => {

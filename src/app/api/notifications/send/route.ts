@@ -187,7 +187,7 @@ async function handleSMSRequest(body: any) {
         .filter(r => r.phone || r.email);
     } else if (recipientType === 'organisation') {
       if (!organisationId) {
-        return NextResponse.json({ error: 'Organisation is required' }, { status: 400 });
+        return NextResponse.json({ error: 'Church is required' }, { status: 400 });
       }
 
       // Get all users in this organisation (via UserRoles for multi-role support)

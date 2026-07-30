@@ -74,7 +74,7 @@ model Organisation {
   transactions             Transaction[]
   users                    User[]
   userRoles                UserRole[]
-  publicExpenseRequests    PublicExpenseRequest[]     @relation("OversightPublicRequests")
+  publicExpenseRequests    PublicExpenseRequest[]     @relation("CampusPublicRequests")
 
   @@index([isActive])
   @@index([level])
@@ -318,24 +318,24 @@ enum TransactionType {
 }
 
 model PublicExpenseRequest {
-  id                      String                     @id @default(uuid())
-  requesterName           String
-  churchName              String
-  momoName                String
-  momoNumber              String
-  leaderPhone             String?
-  amount                  Decimal                    @db.Decimal(14, 2)
-  description             String
-  status                  PublicExpenseRequestStatus @default(PENDING)
-  oversightOrganisationId String
-  transactionId           String?                    @unique
-  createdAt               DateTime                   @default(now())
-  updatedAt               DateTime
+  id                   String                     @id @default(uuid())
+  requesterName        String
+  churchName           String
+  momoName             String
+  momoNumber           String
+  leaderPhone          String?
+  amount               Decimal                    @db.Decimal(14, 2)
+  description          String
+  status               PublicExpenseRequestStatus @default(PENDING)
+  campusOrganisationId String
+  transactionId        String?                    @unique
+  createdAt            DateTime                   @default(now())
+  updatedAt            DateTime
 
-  oversightOrganisation Organisation  @relation("OversightPublicRequests", fields: [oversightOrganisationId], references: [id])
-  transaction           Transaction?  @relation("PublicExpenseTransaction", fields: [transactionId], references: [id])
+  campusOrganisation Organisation  @relation("CampusPublicRequests", fields: [campusOrganisationId], references: [id])
+  transaction        Transaction?  @relation("PublicExpenseTransaction", fields: [transactionId], references: [id])
 
-  @@index([oversightOrganisationId])
+  @@index([campusOrganisationId])
   @@index([status])
 }
 

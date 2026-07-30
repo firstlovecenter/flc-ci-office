@@ -146,13 +146,13 @@ export async function POST(request: Request) {
         const { name, level, parentId, leaderId, adminId, accountType } = body;
 
         if (!level) {
-            return NextResponse.json({ error: 'Organisation level is required' }, { status: 400 });
+            return NextResponse.json({ error: 'Church level is required' }, { status: 400 });
         }
 
         // Validate required leader
         if (!leaderId) {
             return NextResponse.json(
-                { error: 'A leader must be selected for the organisation' },
+                { error: 'A leader must be selected for the church' },
                 { status: 400 }
             );
         }
@@ -214,7 +214,7 @@ export async function POST(request: Request) {
             return NextResponse.json(
                 { error: level === 'COUNCIL'
                     ? 'You do not have permission to open accounts'
-                    : 'You do not have permission to create organisations at this level' },
+                    : 'You do not have permission to create churches at this level' },
                 { status: 403 }
             );
         }
@@ -227,7 +227,7 @@ export async function POST(request: Request) {
             
             if (!allowedIds.includes(parentId)) {
                 return NextResponse.json(
-                    { error: 'You do not have access to the selected parent organisation' },
+                    { error: 'You do not have access to the selected parent church' },
                     { status: 403 }
                 );
             }
@@ -241,7 +241,7 @@ export async function POST(request: Request) {
                 select: { level: true, isActive: true },
             });
             if (!parent || !parent.isActive) {
-                return NextResponse.json({ error: 'Parent organisation not found or inactive' }, { status: 400 });
+                return NextResponse.json({ error: 'Parent church not found or inactive' }, { status: 400 });
             }
             parentLevel = parent.level;
         }

@@ -259,13 +259,16 @@ interface PublicExpenseRequestSmsParams {
     momoName: string;
     momoNumber: string;
     description: string;
-    oversightOrganisationName: string;
+    campusOrganisationName: string;
+    /** @deprecated use campusOrganisationName */
+    oversightOrganisationName?: string;
 }
 
 export function generatePublicExpenseRequestSms(params: PublicExpenseRequestSmsParams): string {
-    const { requesterName, churchName, amount, momoNumber, description, oversightOrganisationName } = params;
+    const { requesterName, churchName, amount, momoNumber, description } = params;
+    const campusName = params.campusOrganisationName || params.oversightOrganisationName || 'your campus';
     const shortDesc = description.length > 30 ? description.substring(0, 30) + '...' : description;
-    return `New public expense request for ${oversightOrganisationName}. From: ${requesterName} (${churchName}), GHS${amount}. Momo: ${momoNumber}. Reason: ${shortDesc}. Please log in to review.`;
+    return `New public expense request for ${campusName}. From: ${requesterName} (${churchName}), GHS${amount}. Momo: ${momoNumber}. Reason: ${shortDesc}. Please log in to review.`;
 }
 
 interface TransactionEditNotificationSmsParams {

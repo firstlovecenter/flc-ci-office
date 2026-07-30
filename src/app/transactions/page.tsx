@@ -152,7 +152,7 @@ function TransactionsPageContent() {
                         <h1 className="text-[1.625rem] sm:text-[1.875rem] font-semibold tracking-[-0.025em] text-foreground">
                             {organisation?.name ? `${organisation.name}${organisation.level ? ` ${formatOrganisationLevel(organisation.level)}` : ''}` : 'Transaction history'}
                         </h1>
-                        <p className="text-sm text-muted-foreground mt-0.5">{organisation ? 'Including sub-organisations.' : 'Every entry, recorded and reconciled.'}</p>
+                        <p className="text-sm text-muted-foreground mt-0.5">{organisation ? 'Including related churches.' : 'Every entry, recorded and reconciled.'}</p>
                     </div>
                 </div>
                 <Button asChild><Link href={deptParam ? `/transactions/new?dept=${deptParam}` : '/transactions/new'}><Plus className="mr-1.5 h-4 w-4" />{isLeader ? 'Request withdrawal' : 'New transaction'}</Link></Button>
@@ -291,7 +291,7 @@ function TransactionsPageContent() {
                                     <div><p className="text-xs text-muted-foreground mb-0.5">Amount</p><p className={cn('text-xl font-bold', tx.type === 'INCOME' ? 'text-success' : 'text-destructive')}>{tx.type === 'INCOME' ? '+' : '−'}{fmtAmt(tx)}</p></div>
                                     <div><p className="text-xs text-muted-foreground mb-1">Status</p><Badge variant={statusBadgeVariant(tx.status)}>{tx.status}</Badge></div>
                                 </div>
-                                <div><p className="text-xs text-muted-foreground mb-0.5">Organisation</p><p className="text-foreground">{tx.organisation?.name}</p></div>
+                                <div><p className="text-xs text-muted-foreground mb-0.5">Church</p><p className="text-foreground">{tx.organisation?.name}</p></div>
                                 <div><p className="text-xs text-muted-foreground mb-0.5">Submitted By</p><p className="text-foreground font-medium">{tx.user?.name}</p><p className="text-xs text-muted-foreground">{tx.user?.email}</p></div>
                                 <div><p className="text-xs text-muted-foreground mb-0.5">Date</p><p className="text-foreground">{new Date(tx.createdAt).toLocaleString()}</p></div>
                                 {tx.type === 'EXPENSE' && !tx.isCharge && (

@@ -118,7 +118,7 @@ export async function GET(request: Request) {
                 type: 'organisation',
                 id: d.id,
                 title: d.name,
-                subtitle: d.level || 'Organisation',
+                subtitle: d.level || 'Church',
                 url: `/organisations/${d.id}/dashboard`
             })),
             ...transactions.map(t => ({

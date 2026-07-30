@@ -125,7 +125,7 @@ export default function AnalyticsPage() {
                 <div>
                     <p className="text-[0.6875rem] font-medium uppercase tracking-[0.10em] text-muted-foreground mb-0.5">Insights</p>
                     <h1 className="text-[1.625rem] sm:text-[1.875rem] font-semibold tracking-[-0.025em] text-foreground">Analytics</h1>
-                    <p className="text-sm text-muted-foreground mt-0.5">Approval rates, status breakdown, and organisational performance.</p>
+                    <p className="text-sm text-muted-foreground mt-0.5">Approval rates, status breakdown, and church performance.</p>
                 </div>
             </div>
 
@@ -166,7 +166,7 @@ export default function AnalyticsPage() {
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                         <SecondaryKpi label="Pending" value={overview?.pendingCount} Icon={Clock} colorClass="text-warning" />
                         <SecondaryKpi label="Approved" value={overview?.approvedCount} Icon={CheckCircle} colorClass="text-success" />
-                        <SecondaryKpi label="Active Depts" value={overview?.activeOrganisations} Icon={Building2} colorClass="text-primary" />
+                        <SecondaryKpi label="Active churches" value={overview?.activeOrganisations} Icon={Building2} colorClass="text-primary" />
                         <SecondaryKpi label="Active Users" value={overview?.activeUsers} Icon={Users} colorClass="text-blue-500" />
                     </div>
 
@@ -202,7 +202,7 @@ export default function AnalyticsPage() {
                     {/* Bar chart + Line chart */}
                     <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
                         <div className="lg:col-span-3 rounded-xl border border-border bg-card p-4 sm:p-5">
-                            <p className="font-semibold text-foreground mb-4">Top Organisations by Volume</p>
+                            <p className="font-semibold text-foreground mb-4">Top churches by volume</p>
                             <ResponsiveContainer width="100%" height={320}>
                                 <BarChart data={organisations}>
                                     <CartesianGrid strokeDasharray="3 3" stroke={chartColors.grid} />

@@ -12,7 +12,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { getExpenseWindowStatus, formatTimeInExpenseWindowTimeZone, getMsUntilExpenseWindowOpens } from '@/lib/expense-window';
 
-interface OversightOption { id: string; name: string; }
+interface CampusOption { id: string; name: string; oversightName?: string | null; }
+
+const emptyForm = {
+    campusOrganisationId: '', requesterName: '', leaderPhone: '', churchName: '',
+    momoName: '', momoNumber: '', amount: '', description: '',
+};
 
 function PageShell({ children }: { children: React.ReactNode }) {
     return (
@@ -39,23 +44,20 @@ function PageShell({ children }: { children: React.ReactNode }) {
 }
 
 export default function PublicExpensePage() {
-    const [oversights, setOversights] = useState<OversightOption[]>([]);
-    const [loadingOversights, setLoadingOversights] = useState(true);
-    const [form, setForm] = useState({
-        oversightOrganisationId: '', requesterName: '', leaderPhone: '', churchName: '',
-        momoName: '', momoNumber: '', amount: '', description: '',
-    });
+    const [campuses, setCampuses] = useState<CampusOption[]>([]);
+    const [loadingCampuses, setLoadingCampuses] = useState(true);
+    const [form, setForm] = useState(emptyForm);
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState('');
     const [submitted, setSubmitted] = useState(false);
     const [referenceId, setReferenceId] = useState<string | null>(null);
 
     useEffect(() => {
-        fetch('/api/public-expense/oversights')
+        fetch('/api/public-expense/campuses')
             .then(r => r.json())
-            .then(d => setOversights(Array.isArray(d) ? d : []))
-            .catch(() => setOversights([]))
-            .finally(() => setLoadingOversights(false));
+            .then(d => setCampuses(Array.isArray(d) ? d : []))
+            .catch(() => setCampuses([]))
+            .finally(() => setLoadingCampuses(false));
     }, []);
 
     const set = (field: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -67,10 +69,10 @@ export default function PublicExpensePage() {
         const win = getExpenseWindowStatus();
         if (!win.isOpen) { setError(win.isSunday ? 'Expense requests are not accepted on Sundays.' : `Expense requests can only be made between ${win.timeRange}.`); return; }
         const amount = parseFloat(form.amount);
-        if (!form.oversightOrganisationId) return setError('Please select your oversight church.');
+        if (!form.campusOrganisationId) return setError('Please select your campus.');
         if (!form.requesterName.trim()) return setError('Please enter your name.');
         if (!form.leaderPhone.trim()) return setError('Please enter the leader phone number.');
-        if (!form.churchName.trim()) return setError('Please enter the name of your church.');
+        if (!form.churchName.trim()) return setError('Please enter your church or fellowship name.');
         if (!form.momoName.trim()) return setError('Please enter the Momo account name.');
         if (!form.momoNumber.trim()) return setError('Please enter the Momo number.');
         if (!form.amount || isNaN(amount) || amount <= 0) return setError('Please enter a valid amount greater than zero.');
@@ -79,7 +81,16 @@ export default function PublicExpensePage() {
         try {
             const res = await fetch('/api/public-expense', {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ oversightOrganisationId: form.oversightOrganisationId, requesterName: form.requesterName.trim(), leaderPhone: form.leaderPhone.trim(), churchName: form.churchName.trim(), momoName: form.momoName.trim(), momoNumber: form.momoNumber.trim(), amount, description: form.description.trim() }),
+                body: JSON.stringify({
+                    campusOrganisationId: form.campusOrganisationId,
+                    requesterName: form.requesterName.trim(),
+                    leaderPhone: form.leaderPhone.trim(),
+                    churchName: form.churchName.trim(),
+                    momoName: form.momoName.trim(),
+                    momoNumber: form.momoNumber.trim(),
+                    amount,
+                    description: form.description.trim(),
+                }),
             });
             const data = await res.json();
             if (!res.ok) setError(data.error || 'Failed to submit request. Please try again.');
@@ -88,7 +99,6 @@ export default function PublicExpensePage() {
         finally { setSubmitting(false); }
     };
 
-    // Success state
     if (submitted) {
         return (
             <PageShell>
@@ -99,7 +109,7 @@ export default function PublicExpensePage() {
                     <p className="text-[0.6875rem] font-semibold uppercase tracking-[0.10em] text-muted-foreground mb-2">Request received</p>
                     <h1 className="text-[1.625rem] sm:text-[1.875rem] font-semibold tracking-[-0.025em] text-foreground mb-3">Submitted for review</h1>
                     <p className="text-sm text-muted-foreground mb-6 max-w-[360px] mx-auto">
-                        Your oversight leader will review this and contact you via the Momo number you provided.
+                        Your campus manager will review this and contact you via the Momo number you provided.
                     </p>
                     {referenceId && (
                         <div className="px-6 py-4 mb-6 rounded-xl border border-border bg-background/40">
@@ -108,7 +118,7 @@ export default function PublicExpensePage() {
                             <p className="text-xs text-muted-foreground/60 mt-1">Keep this for your records.</p>
                         </div>
                     )}
-                    <Button variant="outline" className="w-full" onClick={() => { setSubmitted(false); setReferenceId(null); setForm({ oversightOrganisationId: '', requesterName: '', leaderPhone: '', churchName: '', momoName: '', momoNumber: '', amount: '', description: '' }); }}>
+                    <Button variant="outline" className="w-full" onClick={() => { setSubmitted(false); setReferenceId(null); setForm(emptyForm); }}>
                         Submit another request
                     </Button>
                 </div>
@@ -116,7 +126,6 @@ export default function PublicExpensePage() {
         );
     }
 
-    // Window closed state
     const expenseWindow = getExpenseWindowStatus();
     if (!expenseWindow.isOpen) {
         const now = expenseWindow.now;
@@ -148,24 +157,29 @@ export default function PublicExpensePage() {
         );
     }
 
-    // Main form
     return (
         <PageShell>
             <div className="w-full max-w-[540px] rounded-2xl border border-border bg-card p-5 sm:p-8">
                 <div className="mb-5">
                     <p className="text-[0.6875rem] font-semibold uppercase tracking-[0.10em] text-muted-foreground mb-1.5">Public form</p>
                     <h1 className="text-[1.625rem] sm:text-[1.875rem] font-semibold tracking-[-0.025em] text-foreground mb-1.5">Expense request</h1>
-                    <p className="text-sm text-muted-foreground">Submit for review by your oversight leader. You&apos;ll be contacted via the Momo number you provide.</p>
+                    <p className="text-sm text-muted-foreground">Submit for review by your campus manager. You&apos;ll be contacted via the Momo number you provide.</p>
                     <p className="text-xs text-muted-foreground mt-2">Note: requests made on Monday or Tuesday are reviewed by close of day Wednesday.</p>
                 </div>
                 <div className="border-t border-border mb-5" />
                 {error && <Alert variant="destructive" className="mb-4 rounded-xl"><AlertDescription>{error}</AlertDescription></Alert>}
                 <form onSubmit={handleSubmit} className="flex flex-col gap-4">
                     <div className="space-y-1.5">
-                        <Label>Oversight church <span className="text-destructive">*</span></Label>
-                        <Select value={form.oversightOrganisationId} onValueChange={v => { setForm(p => ({ ...p, oversightOrganisationId: v })); setError(''); }} disabled={loadingOversights} required>
-                            <SelectTrigger><SelectValue placeholder={loadingOversights ? 'Loading churches…' : 'Select oversight church'} /></SelectTrigger>
-                            <SelectContent>{oversights.map(o => <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>)}</SelectContent>
+                        <Label>Campus <span className="text-destructive">*</span></Label>
+                        <Select value={form.campusOrganisationId} onValueChange={v => { setForm(p => ({ ...p, campusOrganisationId: v })); setError(''); }} disabled={loadingCampuses} required>
+                            <SelectTrigger><SelectValue placeholder={loadingCampuses ? 'Loading campuses…' : 'Select campus'} /></SelectTrigger>
+                            <SelectContent>
+                                {campuses.map(c => (
+                                    <SelectItem key={c.id} value={c.id}>
+                                        {c.name}{c.oversightName ? ` (${c.oversightName})` : ''}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
                         </Select>
                     </div>
                     <div className="space-y-1.5"><Label>Leader&apos;s full name <span className="text-destructive">*</span></Label><Input required value={form.requesterName} onChange={set('requesterName')} placeholder="e.g. Daniel Adansie" /></div>
@@ -174,7 +188,10 @@ export default function PublicExpensePage() {
                         <Input required type="tel" inputMode="tel" value={form.leaderPhone} onChange={set('leaderPhone')} placeholder="e.g. 0241234567" />
                         <p className="text-xs text-muted-foreground">SMS notifications will be sent to this number</p>
                     </div>
-                    <div className="space-y-1.5"><Label>Your campus <span className="text-destructive">*</span></Label><Input required value={form.churchName} onChange={set('churchName')} placeholder="e.g. FL Cape Coast" /></div>
+                    <div className="space-y-1.5">
+                        <Label>Church / fellowship name <span className="text-destructive">*</span></Label>
+                        <Input required value={form.churchName} onChange={set('churchName')} placeholder="e.g. FL Cape Coast" />
+                    </div>
 
                     <div className="flex items-center gap-3 my-1">
                         <div className="flex-1 border-t border-border" />

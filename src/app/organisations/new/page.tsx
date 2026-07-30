@@ -147,7 +147,7 @@ function NewOrganisationForm() {
         setLoading(true);
         setError('');
         if (!leaderId) {
-            setError(creatingAccount ? 'An account holder must be selected' : 'A leader must be selected for the organisation');
+            setError(creatingAccount ? 'An account holder must be selected' : 'A leader must be selected for the church');
             setLoading(false);
             return;
         }
@@ -171,14 +171,14 @@ function NewOrganisationForm() {
             });
             if (!res.ok) {
                 const data = await res.json();
-                throw new Error(data.error || (creatingAccount ? 'Failed to open account' : 'Failed to create organisation'));
+                throw new Error(data.error || (creatingAccount ? 'Failed to open account' : 'Failed to create church'));
             }
             router.push(creatingAccount
                 ? (parentParam ? `/accounts?campus=${parentParam}` : '/accounts')
                 : (parentParam ? `/organisations?parent=${parentParam}` : '/organisations'));
             router.refresh();
         } catch (err: any) {
-            setError(err.message || (creatingAccount ? 'Error opening account' : 'Error creating organisation'));
+            setError(err.message || (creatingAccount ? 'Error opening account' : 'Error creating church'));
         } finally {
             setLoading(false);
         }
@@ -188,7 +188,7 @@ function NewOrganisationForm() {
         return (
             <div className="max-w-lg mx-auto">
                 <Alert variant="warning"><AlertDescription>
-                    You do not have permission to create organisations or open accounts. Only managers can do this.
+                    You do not have permission to create churches or open accounts. Only managers can do this.
                 </AlertDescription></Alert>
             </div>
         );
@@ -201,15 +201,15 @@ function NewOrganisationForm() {
         <div className="max-w-lg mx-auto">
             <div className="mb-8 pb-6 border-b border-border">
                 <p className="text-[0.6875rem] font-medium uppercase tracking-[0.10em] text-muted-foreground mb-1">
-                    {creatingAccount ? 'Banking' : 'Organisation'}
+                    {creatingAccount ? 'Banking' : 'Church'}
                 </p>
                 <h1 className="text-[1.625rem] sm:text-[1.875rem] font-semibold tracking-[-0.025em] text-foreground">
-                    {creatingAccount ? 'New account' : 'New organisation'}
+                    {creatingAccount ? 'New account' : 'New church'}
                 </h1>
                 <p className="text-sm text-muted-foreground mt-1">
                     {creatingAccount
                         ? 'Open a bank account under a campus. Accounts hold money; campuses do not.'
-                        : 'Add an organisation unit: HQ, Oversight, or Campus.'}
+                        : 'Add a church unit: HQ, Oversight, or Campus.'}
                 </p>
             </div>
 
@@ -220,7 +220,7 @@ function NewOrganisationForm() {
                     )}
 
                     <div className="space-y-1.5">
-                        <Label htmlFor="name">{creatingAccount ? 'Account name' : 'Organisation name'}</Label>
+                        <Label htmlFor="name">{creatingAccount ? 'Account name' : 'Church name'}</Label>
                         <Input id="name" required value={name} onChange={e => setName(e.target.value)} />
                     </div>
 
@@ -257,7 +257,7 @@ function NewOrganisationForm() {
                     )}
 
                     <div className="space-y-1.5">
-                        <Label>{creatingAccount ? 'Campus' : 'Parent organisation'}</Label>
+                        <Label>{creatingAccount ? 'Campus' : 'Parent church'}</Label>
                         <Select value={parentId || "none"} onValueChange={(v) => setParentId(v === "none" ? "" : v)} disabled={availableParents.length === 0}>
                             <SelectTrigger><SelectValue placeholder={creatingAccount ? 'Select campus' : 'None'} /></SelectTrigger>
                             <SelectContent>
@@ -272,7 +272,7 @@ function NewOrganisationForm() {
                     </div>
 
                     <div className="space-y-1.5">
-                        <Label>{creatingAccount ? 'Account holder' : 'Organisation leader'} <span className="text-destructive">*</span></Label>
+                        <Label>{creatingAccount ? 'Account holder' : 'Church leader'} <span className="text-destructive">*</span></Label>
                         <Select value={leaderId} onValueChange={setLeaderId} disabled={usersLoading || users.length === 0} required>
                             <SelectTrigger><SelectValue placeholder={usersLoading ? 'Loading...' : creatingAccount ? 'Select account holder' : 'Select a leader'} /></SelectTrigger>
                             <SelectContent>
@@ -287,7 +287,7 @@ function NewOrganisationForm() {
 
                     {!creatingAccount && ADMIN_SUPPORTED_LEVELS.includes(level) && (
                         <div className="space-y-1.5">
-                            <Label>Organisation manager (Optional)</Label>
+                            <Label>Church manager (Optional)</Label>
                             <Select value={adminId || "none"} onValueChange={(v) => setAdminId(v === "none" ? "" : v)} disabled={usersLoading || users.length === 0}>
                                 <SelectTrigger><SelectValue placeholder="No manager" /></SelectTrigger>
                                 <SelectContent>
@@ -309,7 +309,7 @@ function NewOrganisationForm() {
                         <Button type="submit" disabled={submitDisabled}>
                             {loading
                                 ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />{creatingAccount ? 'Opening…' : 'Creating…'}</>
-                                : creatingAccount ? 'Open account' : 'Create organisation'}
+                                : creatingAccount ? 'Open account' : 'Create church'}
                         </Button>
                     </div>
                 </form>

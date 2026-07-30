@@ -111,8 +111,8 @@ async function seedTemplates() {
         },
         {
             key: 'department_alert',
-            name: 'Organisation Alert',
-            description: 'Sent for organisation-wide announcements',
+            name: 'Church alert',
+            description: 'Sent for church-wide announcements',
             template: 'CI Office - {{organisationName}}: {{message}}',
             variables: ['organisationName', 'message'],
         },

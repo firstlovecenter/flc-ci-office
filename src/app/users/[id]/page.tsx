@@ -105,7 +105,7 @@ export default function UserDetailPage() {
                     <InfoTile label="Full Name"><p className="font-semibold text-foreground">{user.name || '—'}</p></InfoTile>
                     <InfoTile label="Phone Number" fullWidth><p className="font-semibold text-foreground">{user.phone || '—'}</p></InfoTile>
                     <InfoTile label="Email Address" fullWidth><p className="font-semibold text-foreground">{user.email}</p></InfoTile>
-                    {user.organisation && <InfoTile label="Organisation" fullWidth><p className="font-semibold text-foreground">{user.organisation.name}</p></InfoTile>}
+                    {user.organisation && <InfoTile label="Church" fullWidth><p className="font-semibold text-foreground">{user.organisation.name}</p></InfoTile>}
                 </div>
 
                 {/* User history */}

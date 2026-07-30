@@ -303,9 +303,9 @@ export default function ModernDashboardLayout({ children }: { children: React.Re
       title: 'Management',
       items: [
         { text: 'Approvals', icon: ClipboardList, path: '/approvals', show: !!(isAdmin || isSuperAdmin), badge: pendingCounts.approvals },
-        { text: 'Public Requests', icon: Inbox, path: '/public-requests', show: normalizedRole === 'OVERSIGHT_ADMIN', badge: pendingCounts.publicRequests },
+        { text: 'Public Requests', icon: Inbox, path: '/public-requests', show: normalizedRole === 'CAMPUS_ADMIN', badge: pendingCounts.publicRequests },
         { text: 'Users', icon: Users, path: '/users', show: !!(isAdmin || isSuperAdmin), badge: 0 },
-        { text: 'Organisation', icon: Building2, path: '/organisations', show: canSeeOrganisation, badge: 0 },
+        { text: 'Churches', icon: Building2, path: '/organisations', show: canSeeOrganisation, badge: 0 },
         { text: 'Accounts', icon: Wallet, path: '/accounts', show: canSeeAccounts, badge: 0 },
       ],
     },

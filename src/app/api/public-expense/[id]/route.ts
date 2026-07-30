@@ -12,7 +12,25 @@ import { getOrganisationApprovedBalance } from '@/lib/balance';
 
 export const dynamic = 'force-dynamic';
 
-// Auth-protected: OVERSIGHT_ADMIN can process or reject public expense requests
+async function resolveCampusAdminOrgId(session: any): Promise<string | undefined> {
+    if (session.user.activeUserRole?.role === 'CAMPUS_ADMIN') {
+        return session.user.activeUserRole?.organisationId ?? undefined;
+    }
+    const campusUserRole = await prisma.userRole.findFirst({
+        where: { userId: session.user.id, role: 'CAMPUS_ADMIN' },
+        select: { organisationId: true },
+    });
+    return campusUserRole?.organisationId ?? undefined;
+}
+
+function hasCampusAdminAccess(session: any): boolean {
+    const userRoles = Array.isArray(session.user.roles)
+        ? session.user.roles.map((r: string) => (typeof r === 'string' ? r.toUpperCase() : ''))
+        : [];
+    return (session.user.role || '').toUpperCase() === 'CAMPUS_ADMIN' || userRoles.includes('CAMPUS_ADMIN');
+}
+
+// Auth-protected: CAMPUS_ADMIN can process or reject public expense requests
 export async function PATCH(
     request: Request,
     { params }: { params: Promise<{ id: string }> }
@@ -23,15 +41,8 @@ export async function PATCH(
         return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
     }
 
-    const userRoles = Array.isArray(session.user.roles)
-        ? session.user.roles.map(r => (typeof r === 'string' ? r.toUpperCase() : ''))
-        : [];
-    const isOversightAdmin =
-        (session.user.role || '').toUpperCase() === 'OVERSIGHT_ADMIN' ||
-        userRoles.includes('OVERSIGHT_ADMIN');
-
-    if (!isOversightAdmin) {
-        return NextResponse.json({ error: 'Only Oversight Admins can process public expense requests' }, { status: 403 });
+    if (!hasCampusAdminAccess(session)) {
+        return NextResponse.json({ error: 'Only Campus managers can process public expense requests' }, { status: 403 });
     }
 
     const { id } = await params;
@@ -43,10 +54,9 @@ export async function PATCH(
     }
 
     try {
-        // Fetch the public request
         const publicRequest = await prisma.publicExpenseRequest.findUnique({
             where: { id },
-            include: { oversightOrganisation: { select: { id: true, name: true } } },
+            include: { campusOrganisation: { select: { id: true, name: true } } },
         });
 
         if (!publicRequest) {
@@ -57,23 +67,10 @@ export async function PATCH(
             return NextResponse.json({ error: 'This request has already been processed.' }, { status: 400 });
         }
 
-        // Resolve the oversight organisation.
-        // If the active role is OVERSIGHT_ADMIN use its organisationId; otherwise look it up.
-        let adminOversightDeptId: string | undefined =
-            (session.user.activeUserRole as any)?.role === 'OVERSIGHT_ADMIN'
-                ? session.user.activeUserRole?.organisationId
-                : undefined;
+        const adminCampusId = await resolveCampusAdminOrgId(session);
 
-        if (!adminOversightDeptId) {
-            const oversightUserRole = await prisma.userRole.findFirst({
-                where: { userId: session.user.id, role: 'OVERSIGHT_ADMIN' },
-                select: { organisationId: true },
-            });
-            adminOversightDeptId = oversightUserRole?.organisationId ?? undefined;
-        }
-
-        if (!adminOversightDeptId || publicRequest.oversightOrganisationId !== adminOversightDeptId) {
-            return NextResponse.json({ error: 'You can only process requests for your own oversight church.' }, { status: 403 });
+        if (!adminCampusId || publicRequest.campusOrganisationId !== adminCampusId) {
+            return NextResponse.json({ error: 'You can only process requests for your own campus.' }, { status: 403 });
         }
 
         if (action === 'reject') {
@@ -82,7 +79,6 @@ export async function PATCH(
                 data: { status: 'REJECTED', updatedAt: new Date() },
             });
 
-            // Notify the leader that their request was declined
             if (publicRequest.leaderPhone) {
                 try {
                     const declinedSms = generatePublicExpenseLeaderDeclinedSms({
@@ -101,24 +97,29 @@ export async function PATCH(
             return NextResponse.json({ success: true });
         }
 
-        // action === 'process'
         if (!organisationId) {
-            return NextResponse.json({ error: 'A organisation/church account must be selected to process this request.' }, { status: 400 });
+            return NextResponse.json({ error: 'An account must be selected to process this request.' }, { status: 400 });
         }
 
-        // Verify the selected organisation is within this oversight's hierarchy
-        const allowedDeptIds = await getDescendantOrganisationIds(adminOversightDeptId);
+        const allowedDeptIds = await getDescendantOrganisationIds(adminCampusId);
         if (!allowedDeptIds.includes(organisationId)) {
-            return NextResponse.json({ error: 'Selected organisation is not within your oversight hierarchy.' }, { status: 403 });
+            return NextResponse.json({ error: 'Selected account is not within your campus.' }, { status: 403 });
         }
 
-        // Check that the selected organisation has sufficient balance (Decimal arithmetic)
+        const selectedOrg = await prisma.organisation.findUnique({
+            where: { id: organisationId },
+            select: { level: true },
+        });
+        if (selectedOrg?.level !== 'COUNCIL') {
+            return NextResponse.json({ error: 'Public requests must be processed against a bank account.' }, { status: 400 });
+        }
+
         const balance = await getOrganisationApprovedBalance(organisationId);
         const requestAmountDec = toDecimal(publicRequest.amount);
 
         if (!isPositive(balance)) {
             return NextResponse.json(
-                { error: 'The selected church does not have a positive balance. Expense requests cannot be made for churches without a positive balance.' },
+                { error: 'The selected account does not have a positive balance. Withdrawals cannot be made without a positive balance.' },
                 { status: 400 }
             );
         }
@@ -130,12 +131,10 @@ export async function PATCH(
             );
         }
 
-        // Build the transaction description using the public request details
         const description = `Public Request — Requester: ${publicRequest.requesterName} | Church: ${publicRequest.churchName} | Momo: ${publicRequest.momoName} (${publicRequest.momoNumber}) | ${publicRequest.description}`;
 
         const { weekNumber, year } = getCurrentWeek();
 
-        // Create the formal EXPENSE transaction attributed to the oversight admin
         const transaction = await prisma.transaction.create({
             data: {
                 id: crypto.randomUUID(),
@@ -148,7 +147,7 @@ export async function PATCH(
                 weekNumber,
                 year,
                 locked: false,
-                status: 'PENDING', // Leader-created, needs admin approval
+                status: 'PENDING',
                 updatedAt: new Date(),
             },
             include: { organisation: { select: { id: true, name: true, level: true } },
@@ -156,7 +155,6 @@ export async function PATCH(
             },
         });
 
-        // Mark the public request as processed
         await prisma.publicExpenseRequest.update({
             where: { id },
             data: {
@@ -166,7 +164,6 @@ export async function PATCH(
             },
         });
 
-        // Notify the requester's leader that their request was approved
         if (publicRequest.leaderPhone) {
             try {
                 const approvedSms = generatePublicExpenseLeaderApprovedSms({
@@ -182,7 +179,6 @@ export async function PATCH(
             }
         }
 
-        // Notify the organisation leader of the deduction and remaining balance
         try {
             const deptLevel = transaction.organisation?.level;
             if (deptLevel) {
@@ -197,7 +193,7 @@ export async function PATCH(
                     const leaderSms = generateDebitAlertSms({
                         currency: 'GH\u20B5',
                         amount: formatNumber(moneyToString(requestAmountDec)),
-                        organisationName: transaction.organisation?.name || 'your organisation',
+                        organisationName: transaction.organisation?.name || 'your church',
                         description: ref,
                         balance: formatNumber(moneyToString(remainingBalance)),
                     });
@@ -208,7 +204,6 @@ export async function PATCH(
             console.error('[Notify] SMS to organisation leader failed:', err);
         }
 
-        // Audit log
         await prisma.auditLog.create({
             data: {
                 id: crypto.randomUUID(),
@@ -221,39 +216,16 @@ export async function PATCH(
             },
         });
 
-        // Notify campus admins that a pending transaction needs approval
         try {
-            const dept = await prisma.organisation.findUnique({
-                where: { id: organisationId },
-                include: {
-                    parent: {
-                        include: {
-                            parent: { include: { parent: true } },
-                        },
-                    },
-                },
-            });
-
-            const organisationHierarchy: string[] = [];
-            if (dept) {
-                organisationHierarchy.push(dept.id);
-                let current: any = dept.parent;
-                while (current) {
-                    organisationHierarchy.push(current.id);
-                    if (current.level === 'CAMPUS') break;
-                    current = current.parent;
-                }
-            }
-
             const campusAdminRoles = await prisma.userRole.findMany({
-                where: { role: 'CAMPUS_ADMIN', organisationId: { in: organisationHierarchy } },
+                where: { role: 'CAMPUS_ADMIN', organisationId: adminCampusId },
                 include: {
                     user: { select: { phone: true, email: true, name: true, archived: true } },
                 },
             });
 
             const campusAdmins = campusAdminRoles
-                .filter(ur => !ur.user.archived)
+                .filter(ur => !ur.user.archived && ur.userId !== session.user.id)
                 .reduce((acc: { phone: string | null; email: string; name: string | null }[], ur) => {
                     if (!acc.find(a => a.email === ur.user.email)) {
                         acc.push({ phone: ur.user.phone, email: ur.user.email, name: ur.user.name });
@@ -263,7 +235,7 @@ export async function PATCH(
 
             if (campusAdmins.length > 0) {
                 const smsMessage = generatePendingApprovalRequestSms({
-                    userName: session.user.name || 'Oversight Admin',
+                    userName: session.user.name || 'Campus manager',
                     transactionType: 'expense',
                     currency: '',
                     amount: formatNumber(moneyToString(requestAmountDec)),
@@ -291,7 +263,6 @@ export async function PATCH(
     }
 }
 
-// Get a single public expense request (for the oversight admin)
 export async function GET(
     request: Request,
     { params }: { params: Promise<{ id: string }> }
@@ -299,14 +270,7 @@ export async function GET(
     const session = await getServerSession(authOptions);
     if (!session) return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
 
-    const getRouteRoles = Array.isArray(session.user.roles)
-        ? session.user.roles.map(r => (typeof r === 'string' ? r.toUpperCase() : ''))
-        : [];
-    const getIsOversightAdmin =
-        (session.user.role || '').toUpperCase() === 'OVERSIGHT_ADMIN' ||
-        getRouteRoles.includes('OVERSIGHT_ADMIN');
-
-    if (!getIsOversightAdmin) {
+    if (!hasCampusAdminAccess(session)) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
@@ -319,21 +283,9 @@ export async function GET(
 
         if (!publicRequest) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
-        // Resolve the oversight organisation for this admin
-        let adminOversightDeptId: string | undefined =
-            (session.user.activeUserRole as any)?.role === 'OVERSIGHT_ADMIN'
-                ? session.user.activeUserRole?.organisationId
-                : undefined;
+        const adminCampusId = await resolveCampusAdminOrgId(session);
 
-        if (!adminOversightDeptId) {
-            const oversightUserRole = await prisma.userRole.findFirst({
-                where: { userId: session.user.id, role: 'OVERSIGHT_ADMIN' },
-                select: { organisationId: true },
-            });
-            adminOversightDeptId = oversightUserRole?.organisationId ?? undefined;
-        }
-
-        if (!adminOversightDeptId || publicRequest.oversightOrganisationId !== adminOversightDeptId) {
+        if (!adminCampusId || publicRequest.campusOrganisationId !== adminCampusId) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 

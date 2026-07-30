@@ -228,7 +228,7 @@ export default function ApprovalsPage() {
                             <th className="py-3 px-4 text-left">
                                 <input type="checkbox" className="rounded" ref={el => { if (el) el.indeterminate = selectedIds.size > 0 && selectedIds.size < transactions.length; }} checked={transactions.length > 0 && selectedIds.size === transactions.length} onChange={toggleSelectAll} />
                             </th>
-                            {['Date', 'Description', 'Organisation', 'Submitted By', 'Type', 'Amount', 'Status', 'Actions'].map(h => <th key={h} className="py-3 px-4 text-left font-semibold text-foreground">{h}</th>)}
+                            {['Date', 'Description', 'Church', 'Submitted By', 'Type', 'Amount', 'Status', 'Actions'].map(h => <th key={h} className="py-3 px-4 text-left font-semibold text-foreground">{h}</th>)}
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-border">
@@ -343,7 +343,7 @@ export default function ApprovalsPage() {
                                 { label: 'Amount', value: fmtAmt(selectedTransaction.amount, selectedTransaction.currency?.symbol) },
                                 ...(selectedTransaction.requestedAmount ? [{ label: 'Originally Requested', value: fmtAmt(selectedTransaction.requestedAmount, selectedTransaction.currency?.symbol) }] : []),
                                 { label: 'Type', value: selectedTransaction.type },
-                                { label: 'Organisation', value: selectedTransaction.organisation.name },
+                                { label: 'Church', value: selectedTransaction.organisation.name },
                                 { label: 'Submitted By', value: `${selectedTransaction.user.name} · ${selectedTransaction.user.email}` },
                                 { label: 'Date', value: fmtDate(selectedTransaction.createdAt) },
                             ].map(({ label, value }) => (

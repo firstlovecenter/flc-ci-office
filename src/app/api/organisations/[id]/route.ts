@@ -78,7 +78,7 @@ export async function GET(
         });
 
         if (!organisation) {
-            return new NextResponse('Organisation not found', { status: 404 });
+            return new NextResponse('Church not found', { status: 404 });
         }
 
         return NextResponse.json(organisation);
@@ -113,7 +113,7 @@ export async function PUT(
 
         if (!hasAccess) {
             return NextResponse.json(
-                { error: 'You do not have permission to edit this organisation' },
+                { error: 'You do not have permission to edit this church' },
                 { status: 403 }
             );
         }
@@ -137,7 +137,7 @@ export async function PUT(
         });
 
         if (!currentOrganisation) {
-            return NextResponse.json({ error: 'Organisation not found' }, { status: 404 });
+            return NextResponse.json({ error: 'Church not found' }, { status: 404 });
         }
 
         // Separate leader and admin roles
@@ -164,7 +164,7 @@ export async function PUT(
                 select: { level: true, isActive: true },
             });
             if (!parent || !parent.isActive) {
-                return NextResponse.json({ error: 'Parent organisation not found or inactive' }, { status: 400 });
+                return NextResponse.json({ error: 'Parent church not found or inactive' }, { status: 400 });
             }
             parentLevel = parent.level;
         }
@@ -575,7 +575,7 @@ export async function DELETE(
         // Only superadmin can delete organisations
         if (session.user.role !== 'SUPERADMIN') {
             return NextResponse.json(
-                { error: 'Only superadmin can delete organisations' },
+                { error: 'Only superadmin can delete churches' },
                 { status: 403 }
             );
         }
@@ -587,7 +587,7 @@ export async function DELETE(
 
         if (children.length > 0) {
             return NextResponse.json(
-                { error: 'Cannot delete organisation with child organisations' },
+                { error: 'Cannot delete church with child churches' },
                 { status: 400 }
             );
         }
@@ -599,7 +599,7 @@ export async function DELETE(
 
         if (users.length > 0) {
             return NextResponse.json(
-                { error: 'Cannot delete organisation with assigned users' },
+                { error: 'Cannot delete church with assigned users' },
                 { status: 400 }
             );
         }

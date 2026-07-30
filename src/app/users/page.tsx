@@ -181,7 +181,7 @@ function UsersPageContent() {
                                     </div>
                                     <p className="text-sm text-muted-foreground truncate">
                                         {user.userRoles?.[0]?.role ? `${user.userRoles[0].role} — ` : ''}
-                                        {user.userRoles?.[0]?.organisation?.name || user.organisation?.name || 'No organisation'}
+                                        {user.userRoles?.[0]?.organisation?.name || user.organisation?.name || 'No church'}
                                         {user.userRoles?.length > 1 ? ` (+${user.userRoles.length - 1} more)` : ''}
                                     </p>
                                 </div>

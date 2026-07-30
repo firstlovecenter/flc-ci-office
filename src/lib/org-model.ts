@@ -82,7 +82,7 @@ export function formatOrgLevel(level: string | null | undefined): string {
 /** Label for an entity kind — org unit vs bank account. */
 export function formatEntityKind(level: string | null | undefined): string {
     if (isBankAccount(level)) return 'Account';
-    return formatOrgLevel(level) || 'Organisation';
+    return formatOrgLevel(level) || 'Church';
 }
 
 export function formatAccountType(type: string | null | undefined): string {
@@ -170,7 +170,7 @@ export function validateParentChild(
     parentLevel: OrganisationLevel | null | undefined,
 ): { ok: true } | { ok: false; error: string } {
     if (childLevel === 'STREAM') {
-        return { ok: false, error: 'Stream organisations can no longer be created or used as a level.' };
+        return { ok: false, error: 'Stream churches can no longer be created or used as a level.' };
     }
 
     if (childLevel === 'COUNCIL') {

@@ -93,7 +93,7 @@ function OrganisationsPageContent() {
     };
 
     const handleSaveEdit = () => {
-        showSuccess('Organisation updated successfully');
+        showSuccess('Church updated successfully');
         fetchOrganisations(parentParam);
         fetchAllOrganisations();
     };
@@ -136,15 +136,15 @@ function OrganisationsPageContent() {
                     </div>
                     <div className="min-w-0">
                         <p className="text-[0.6875rem] font-medium uppercase tracking-[0.10em] text-muted-foreground mb-0.5">
-                            {parentOrganisation ? 'Organisation units' : 'Hierarchy'}
+                            {parentOrganisation ? 'Churches' : 'Hierarchy'}
                         </p>
                         <h1 className="text-[1.625rem] sm:text-[1.875rem] font-semibold tracking-[-0.025em] text-foreground">
                             {parentOrganisation
                                 ? `${parentOrganisation.name} ${SUB_LEVEL[parentOrganisation.level] || ''}`
-                                : 'Organisation'}
+                                : 'Churches'}
                         </h1>
                         <p className="text-sm text-muted-foreground mt-1">
-                            {organisations.length} {organisations.length === 1 ? 'unit' : 'units'}
+                            {organisations.length} {organisations.length === 1 ? 'church' : 'churches'}
                             {parentLeader ? ` · Leader: ${parentLeader.name || parentLeader.email}` : ''}
                             {parentAdmin ? ` · Manager: ${parentAdmin.name || parentAdmin.email}` : ''}
                         </p>
@@ -163,7 +163,7 @@ function OrganisationsPageContent() {
                         <Button asChild>
                             <Link href={parentParam ? `/organisations/new?parent=${parentParam}` : '/organisations/new'}>
                                 <Plus className="mr-2 h-4 w-4" />
-                                Add organisation
+                                Add church
                             </Link>
                         </Button>
                     )}
@@ -175,7 +175,7 @@ function OrganisationsPageContent() {
                 <Input
                     placeholder={parentOrganisation
                         ? `Search ${SUB_LEVEL[parentOrganisation.level]} or leaders`
-                        : 'Search organisations or leaders'}
+                        : 'Search churches or leaders'}
                     value={searchQuery}
                     onChange={e => setSearchQuery(e.target.value)}
                     className="pl-9 rounded-full"
@@ -257,7 +257,7 @@ function OrganisationsPageContent() {
 
                 {!loading && filteredOrganisations.length === 0 && (
                     <p className="text-center py-8 text-sm text-muted-foreground">
-                        {organisations.length === 0 ? 'No organisations found' : 'No organisations match your search'}
+                        {organisations.length === 0 ? 'No churches found' : 'No churches match your search'}
                     </p>
                 )}
             </div>

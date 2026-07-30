@@ -294,13 +294,13 @@ export default function DashboardPage() {
 
     const statCards = isSuperAdmin && stats.superAdminStats ? [
         { title: 'Total Users', amount: stats.superAdminStats.users, icon: Users, color: '#6B7280', isBlinking: false },
-        { title: 'Total Organisations', amount: stats.superAdminStats.organisations, icon: Building2, color: '#F59E0B', isBlinking: false },
+        { title: 'Total churches', amount: stats.superAdminStats.organisations, icon: Building2, color: '#F59E0B', isBlinking: false },
         { title: 'Total Transactions', amount: stats.superAdminStats.transactions, icon: Receipt, color: '#3B82F6', isBlinking: false },
         { title: 'Pending Approvals', amount: stats.superAdminStats.pendingApprovals, icon: Clock, color: '#EF4444', isBlinking: stats.superAdminStats.pendingApprovals > 0 },
         { title: "Today's Logins", amount: stats.superAdminStats.todaysLogins, icon: ShieldCheck, color: '#22C55E', isBlinking: false },
         { title: 'Active Currencies', amount: stats.superAdminStats.activeCurrencies, icon: Coins, color: '#6B7280', isBlinking: false },
         { title: 'Critical Errors (Today)', amount: stats.superAdminStats.criticalErrors, icon: AlertCircle, color: '#DC2626', isBlinking: stats.superAdminStats.criticalErrors > 0 },
-        { title: 'Active Organisations', amount: stats.superAdminStats.activeOrganisations, icon: Building2, color: '#6B7280', isBlinking: false },
+        { title: 'Active churches', amount: stats.superAdminStats.activeOrganisations, icon: Building2, color: '#6B7280', isBlinking: false },
     ] : isLeader ? [
         { title: 'Account Balance', amount: stats.balance || 0, icon: Wallet, color: getStatColor('balance', stats.balance), isBlinking: Number(stats.balance || 0) < 5000 },
         { title: "This Week's Income", amount: stats.weeklyIncome || 0, icon: TrendingUp, color: getStatColor('weeklyIncome'), isBlinking: false },
@@ -324,13 +324,13 @@ export default function DashboardPage() {
     const getAdminRoute = (title: string) => {
         switch (title) {
             case 'Total Users': return '/users';
-            case 'Total Organisations': return '/organisations';
+            case 'Total churches': return '/organisations';
             case 'Total Transactions': return '/transactions';
             case 'Pending Approvals': return '/approvals';
             case "Today's Logins": return '/audit';
             case 'Active Currencies': return '/currencies';
             case 'Critical Errors (Today)': return '/audit';
-            case 'Active Organisations': return '/organisations';
+            case 'Active churches': return '/organisations';
             default: return undefined;
         }
     };

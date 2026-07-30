@@ -107,7 +107,7 @@ export default function OrganisationDashboardPage() {
             if (organisation.level === 'CAMPUS') {
                 links.push({ title: 'View accounts', href: `/accounts?campus=${organisationId}` });
             } else {
-                links.push({ title: 'View organisation units', href: `/organisations?parent=${organisationId}` });
+                links.push({ title: 'View churches', href: `/organisations?parent=${organisationId}` });
             }
         }
         return [...links,
@@ -161,11 +161,11 @@ export default function OrganisationDashboardPage() {
                     )}
                     <div className="min-w-0">
                         <p className="text-[0.6875rem] font-medium uppercase tracking-[0.10em] text-muted-foreground mb-0.5">
-                            {organisation?.level === 'COUNCIL' ? 'Account' : 'Organisation'}
+                            {organisation?.level === 'COUNCIL' ? 'Account' : 'Church'}
                         </p>
                         <div className="flex items-center gap-2 flex-wrap">
                             <h1 className="text-[1.625rem] sm:text-[1.875rem] font-semibold tracking-[-0.025em] text-foreground leading-[1.15]">
-                                {organisation?.name || (organisation?.level === 'COUNCIL' ? 'Account dashboard' : 'Organisation dashboard')}
+                                {organisation?.name || (organisation?.level === 'COUNCIL' ? 'Account dashboard' : 'Church dashboard')}
                             </h1>
                             {canEdit && (
                                 <button onClick={() => setEditDialogOpen(true)} className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/20 transition-colors">

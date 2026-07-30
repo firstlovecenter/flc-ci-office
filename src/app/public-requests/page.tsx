@@ -17,7 +17,7 @@ import { sumMoney } from '@/lib/format-money';
 interface PublicRequest {
     id: string; requesterName: string; churchName: string; momoName: string; momoNumber: string;
     amount: string; description: string; status: 'PENDING' | 'PROCESSED' | 'REJECTED';
-    createdAt: string; oversightOrganisationId: string; transactionId: string | null;
+    createdAt: string; campusOrganisationId: string; transactionId: string | null;
 }
 
 const statusBadgeVariant = (s: string): 'success' | 'destructive' | 'warning' => {
@@ -50,8 +50,8 @@ export default function PublicRequestsPage() {
     const normalizedRole = (session?.user?.role || '').toUpperCase();
     const normalizedRoles = ((session?.user as any)?.roles || []).map((r: string) => r.toUpperCase());
     const hasSuperAdminAccess = normalizedRole === 'SUPERADMIN' || normalizedRoles.includes('SUPERADMIN');
-    const hasOversightAdminAccess = normalizedRole === 'OVERSIGHT_ADMIN' || normalizedRoles.includes('OVERSIGHT_ADMIN');
-    const canProcessRequests = hasOversightAdminAccess;
+    const hasCampusAdminAccess = normalizedRole === 'CAMPUS_ADMIN' || normalizedRoles.includes('CAMPUS_ADMIN');
+    const canProcessRequests = hasCampusAdminAccess;
 
     const fetchRequests = useCallback(async () => {
         setLoading(true);
@@ -66,15 +66,20 @@ export default function PublicRequestsPage() {
 
     useEffect(() => {
         if (!session) return;
-        if (!hasOversightAdminAccess && !hasSuperAdminAccess) { router.replace('/dashboard'); return; }
+        if (!hasCampusAdminAccess && !hasSuperAdminAccess) { router.replace('/dashboard'); return; }
         fetchRequests();
-    }, [session, fetchRequests, hasOversightAdminAccess, hasSuperAdminAccess]);
+    }, [session, fetchRequests, hasCampusAdminAccess, hasSuperAdminAccess]);
 
     const fetchOrganisations = async () => {
         if (organisations.length > 0) return;
         setLoadingDepts(true);
-        try { const res = await fetch('/api/organisations'); const d = await res.json(); setOrganisations(Array.isArray(d) ? d : []); }
-        catch { showError('Failed to load organisations.'); }
+        try {
+            const res = await fetch('/api/organisations');
+            const d = await res.json();
+            const accounts = (Array.isArray(d) ? d : []).filter((o: any) => o.level === 'COUNCIL');
+            setOrganisations(accounts);
+        }
+        catch { showError('Failed to load accounts.'); }
         finally { setLoadingDepts(false); }
     };
 
@@ -252,9 +257,9 @@ export default function PublicRequestsPage() {
                             <div className="border-t border-border pt-3">
                                 <p className="text-xs font-semibold uppercase tracking-[0.07em] text-muted-foreground mb-3">Select account to deduct from</p>
                                 <Select value={selectedDeptId} onValueChange={v => { setSelectedDeptId(v); if (v) fetchBalance(v); }} disabled={loadingDepts}>
-                                    <SelectTrigger><SelectValue placeholder={loadingDepts ? 'Loading...' : 'Church / Organisation Account'} /></SelectTrigger>
+                                    <SelectTrigger><SelectValue placeholder={loadingDepts ? 'Loading...' : 'Bank account'} /></SelectTrigger>
                                     <SelectContent>
-                                        {organisations.map(d => <SelectItem key={d.id} value={d.id}>{d.name} ({d.level})</SelectItem>)}
+                                        {organisations.map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
                                     </SelectContent>
                                 </Select>
                             </div>
@@ -263,7 +268,7 @@ export default function PublicRequestsPage() {
                                 deptBalance !== null ? (
                                     <Alert variant={noBalance || insufficientBalance ? 'destructive' : 'default'}>
                                         <AlertDescription>
-                                            {noBalance ? 'This organisation has no positive balance. Cannot process this request.'
+                                            {noBalance ? 'This account has no positive balance. Cannot process this request.'
                                                 : insufficientBalance ? `Insufficient balance. Available: GH₵ ${formatNumber(deptBalance)}. Requested: GH₵ ${formatNumber(requestAmount)}.`
                                                 : `Available balance: GH₵ ${formatNumber(deptBalance)}`}
                                         </AlertDescription>

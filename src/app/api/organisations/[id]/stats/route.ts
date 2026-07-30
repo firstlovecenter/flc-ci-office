@@ -41,7 +41,7 @@ export async function GET(
         });
 
         if (!organisation) {
-            return new NextResponse('Organisation not found', { status: 404 });
+            return new NextResponse('Church not found', { status: 404 });
         }
 
         const baseCurrency = await getAppCurrency();

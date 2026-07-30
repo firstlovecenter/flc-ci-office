@@ -286,7 +286,7 @@ export async function POST(request: Request) {
         });
 
         if (!organisation) {
-            return NextResponse.json({ error: 'Organisation not found' }, { status: 404 });
+            return NextResponse.json({ error: 'Church not found' }, { status: 404 });
         }
 
         const moneyError = assertMoneyBearingOrganisation(organisation.level);

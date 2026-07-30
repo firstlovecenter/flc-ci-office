@@ -59,11 +59,11 @@ export async function POST(
         });
 
         if (!organisation) {
-            return NextResponse.json({ error: 'Organisation not found' }, { status: 404 });
+            return NextResponse.json({ error: 'Church not found' }, { status: 404 });
         }
 
         if (!organisation.isActive) {
-            return NextResponse.json({ error: 'Organisation is already closed' }, { status: 400 });
+            return NextResponse.json({ error: 'Church is already closed' }, { status: 400 });
         }
 
         // Check for active child organisations
@@ -180,7 +180,7 @@ export async function POST(
 
         return NextResponse.json({ 
             success: true,
-            message: `Organisation "${organisation.name}" has been closed`,
+            message: `Church "${organisation.name}" has been closed`,
             affectedUsers: affectedUsers.length,
         });
     } catch (error) {
@@ -227,7 +227,7 @@ export async function GET(
         });
 
         if (!organisation) {
-            return NextResponse.json({ error: 'Organisation not found' }, { status: 404 });
+            return NextResponse.json({ error: 'Church not found' }, { status: 404 });
         }
 
         const canClose = organisation.isActive && organisation.children.length === 0;
@@ -235,7 +235,7 @@ export async function GET(
         const blockers: string[] = [];
 
         if (!organisation.isActive) {
-            blockers.push('Organisation is already closed');
+            blockers.push('Church is already closed');
         }
 
         if (organisation.children.length > 0) {

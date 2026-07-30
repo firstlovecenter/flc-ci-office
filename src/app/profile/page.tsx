@@ -196,7 +196,7 @@ export default function ProfilePage() {
                     </InfoTile>
 
                     {profile.organisation && (
-                        <InfoTile label="Organisation" fullWidth>
+                        <InfoTile label="Church" fullWidth>
                             <p className="font-semibold text-foreground">{profile.organisation.name}</p>
                         </InfoTile>
                     )}
