@@ -2,7 +2,7 @@
 
 import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { Search, Wallet, Plus } from 'lucide-react';
+import { Search, Wallet, Plus, Pencil } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
@@ -11,8 +11,20 @@ import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
 import { isBankAccount } from '@/lib/org-model';
+import { canAdministerOrganisation } from '@/lib/roles';
+import { cn } from '@/lib/utils';
 import { useToast } from '@/components/ToastProvider';
 import EditOrganisationDialog from '@/components/EditOrganisationDialog';
+
+/** A bank-account row as returned by /api/organisations, with the relations it expands. */
+type AccountRow = {
+    id: string;
+    name: string;
+    level: string;
+    parentId: string | null;
+    parent?: { id: string; name: string } | null;
+    userRoles?: { role?: string | null; user?: { id: string; name?: string | null; email?: string | null; image?: string | null } | null }[];
+};
 
 function AccountsPageContent() {
     const { data: session } = useSession();
@@ -108,6 +120,19 @@ function AccountsPageContent() {
         session?.user?.role?.includes('OVERSIGHT_ADMIN') ||
         session?.user?.role?.includes('DENOMINATION_ADMIN')
     );
+    // Mirrors the server-side gate on PUT /api/organisations/[id]. Scope is
+    // still enforced there — this only decides whether to show the affordance.
+    const canAdminister = canAdministerOrganisation(session?.user?.role);
+
+    const openEditDialog = (account: AccountRow) => {
+        setSelectedAccount(account);
+        setEditDialogOpen(true);
+    };
+
+    const openAccount = (acct: AccountRow) => {
+        document.cookie = `activeOrganisationId=${acct.id}; path=/; max-age=86400; SameSite=Strict${window.location.protocol === 'https:' ? '; Secure' : ''}`;
+        router.push('/organisations/dashboard');
+    };
 
     return (
         <div>
@@ -169,13 +194,18 @@ function AccountsPageContent() {
                     const manager = acct.userRoles?.find((ur: any) => ur.role?.includes('ADMIN'))?.user;
 
                     return (
-                        <button
+                        <div
                             key={acct.id}
-                            onClick={() => {
-                                document.cookie = `activeOrganisationId=${acct.id}; path=/; max-age=86400; SameSite=Strict${window.location.protocol === 'https:' ? '; Secure' : ''}`;
-                                router.push('/organisations/dashboard');
+                            role="button"
+                            tabIndex={0}
+                            onClick={() => openAccount(acct)}
+                            onKeyDown={e => {
+                                if (e.key === 'Enter' || e.key === ' ') {
+                                    e.preventDefault();
+                                    openAccount(acct);
+                                }
                             }}
-                            className="group text-left rounded-xl border border-border bg-card hover:border-foreground/20 hover:bg-foreground/[0.02] transition-colors duration-150 py-3 md:py-4 px-3 md:px-5"
+                            className="group cursor-pointer text-left rounded-xl border border-border bg-card hover:border-foreground/20 hover:bg-foreground/[0.02] transition-colors duration-150 py-3 md:py-4 px-3 md:px-5 outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
                         >
                             <div className="flex items-center gap-3 md:gap-5">
                                 <Avatar className="w-10 h-10 md:w-12 md:h-12 shrink-0 border border-primary/20 bg-primary/10">
@@ -210,8 +240,25 @@ function AccountsPageContent() {
                                         </p>
                                     )}
                                 </div>
+                                {canAdminister && (
+                                    <button
+                                        type="button"
+                                        aria-label={`Edit ${acct.name}`}
+                                        title={`Edit ${acct.name}`}
+                                        onClick={e => { e.stopPropagation(); openEditDialog(acct); }}
+                                        className={cn(
+                                            'shrink-0 p-2 rounded-md text-muted-foreground transition-colors',
+                                            'hover:text-foreground hover:bg-accent',
+                                            'outline-none focus-visible:ring-2 focus-visible:ring-ring/50',
+                                            // Always visible on touch — hover-reveal is unreachable there.
+                                            'md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100',
+                                        )}
+                                    >
+                                        <Pencil className="h-4 w-4" />
+                                    </button>
+                                )}
                             </div>
-                        </button>
+                        </div>
                     );
                 })}
 

@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn, formatCurrency } from '@/lib/utils';
 import { isBankAccount } from '@/lib/org-model';
+import { canAdministerOrganisation } from '@/lib/roles';
 import { useColorMode } from '@/app/providers';
 import EditOrganisationDialog from '@/components/EditOrganisationDialog';
 import { BarChart, Bar, XAxis, Tooltip, ResponsiveContainer, LabelList } from 'recharts';
@@ -123,8 +124,9 @@ export default function OrganisationDashboardPage() {
         </div>
     );
 
-    const isLeader = session?.user?.role?.includes('LEADER');
-    const canEdit = !isLeader;
+    // Mirrors the server-side gate on PUT /api/organisations/[id]. The previous
+    // `!isLeader` substring test admitted any role that merely lacked "LEADER".
+    const canEdit = canAdministerOrganisation(session?.user?.role);
     const userRole = session?.user?.role;
     const isAdvancedView = userRole && (userRole === 'SUPERADMIN' || userRole.includes('ADMIN') || ['DENOMINATION_LEADER', 'OVERSIGHT_LEADER'].includes(userRole));
 
@@ -169,7 +171,13 @@ export default function OrganisationDashboardPage() {
                                 {organisation?.name || (isBankAccount(organisation?.level) ? 'Account dashboard' : 'Church dashboard')}
                             </h1>
                             {canEdit && (
-                                <button onClick={() => setEditDialogOpen(true)} className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/20 transition-colors">
+                                <button
+                                    type="button"
+                                    aria-label={`Edit ${organisation?.name || 'this record'}`}
+                                    title={`Edit ${organisation?.name || 'this record'}`}
+                                    onClick={() => setEditDialogOpen(true)}
+                                    className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+                                >
                                     <Pencil className="h-4 w-4" />
                                 </button>
                             )}

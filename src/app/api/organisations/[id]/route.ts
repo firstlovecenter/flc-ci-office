@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { hasOrganisationAccess, getLeaderRoleForLevel, getAdminRoleForLevel } from '@/lib/organisations';
+import { canAdministerOrganisation } from '@/lib/roles';
 import { validateParentChild, validateAccountTypeForLevel } from '@/lib/org-model';
 import { sendSms, formatGhanaPhone } from '@/lib/sms';
 import { generateFirstRoleAssignmentSms } from '@/lib/sms-templates';
@@ -103,9 +104,20 @@ export async function PUT(
         const { name, level, parentId, leaderId, adminId, publicFormEnabled, accountType } = body;
         const organisationId = params.id;
 
+        // Editing is admin-only. Scope alone is not enough: `hasOrganisationAccess`
+        // returns true for a user's own organisation regardless of role, which
+        // would otherwise let a leader rename their church or reassign its
+        // leader and manager to someone else.
+        if (!canAdministerOrganisation(session.user.role)) {
+            return NextResponse.json(
+                { error: 'You do not have permission to edit this church' },
+                { status: 403 }
+            );
+        }
+
         // Check if user has access to this organisation
         const filterOrganisationId = session.user.activeUserRole?.organisationId || session.user.organisationId;
-        
+
         const hasAccess = await hasOrganisationAccess(
             { role: session.user.role, organisationId: filterOrganisationId },
             organisationId

@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { hasOrganisationAccess } from '@/lib/organisations';
+import { canAdministerOrganisation } from '@/lib/roles';
 import crypto from 'crypto';
 
 export async function POST(
@@ -21,9 +22,19 @@ export async function POST(
         const body = await request.json();
         const { reason } = body;
 
-        // Only leaders and admins at or above this organisation level can close it
+        // Closing is admin-only, and only within the caller's own scope. Scope
+        // alone is not enough — `hasOrganisationAccess` is true for a user's own
+        // organisation whatever their role, which would let a leader close the
+        // church they lead.
+        if (!canAdministerOrganisation(session.user.role)) {
+            return NextResponse.json(
+                { error: 'You do not have permission to close this organisation' },
+                { status: 403 }
+            );
+        }
+
         const filterOrganisationId = session.user.activeUserRole?.organisationId || session.user.organisationId;
-        
+
         const hasAccess = await hasOrganisationAccess(
             { role: session.user.role, organisationId: filterOrganisationId },
             organisationId
@@ -205,6 +216,29 @@ export async function GET(
     try {
         const params = await context.params;
         const organisationId = params.id;
+
+        // This preflight returns the names and emails of every user who would
+        // lose access, so it needs the same gate as the close itself.
+        if (!canAdministerOrganisation(session.user.role)) {
+            return NextResponse.json(
+                { error: 'You do not have permission to close this organisation' },
+                { status: 403 }
+            );
+        }
+
+        const filterOrganisationId = session.user.activeUserRole?.organisationId || session.user.organisationId;
+
+        const hasAccess = await hasOrganisationAccess(
+            { role: session.user.role, organisationId: filterOrganisationId },
+            organisationId
+        );
+
+        if (!hasAccess) {
+            return NextResponse.json(
+                { error: 'You do not have permission to close this organisation' },
+                { status: 403 }
+            );
+        }
 
         const organisation = await prisma.organisation.findUnique({
             where: { id: organisationId },

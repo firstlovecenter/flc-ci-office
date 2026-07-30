@@ -25,6 +25,23 @@ export const ORGANISATION_HIERARCHY: Record<string, number> = {
 };
 
 /**
+ * Whether a role may create, edit, or close churches and bank accounts.
+ *
+ * Scope (*which* organisations) is a separate question answered by
+ * `hasOrganisationAccess` — this only answers *whether* the role is allowed to
+ * administer organisations at all. Both checks must pass.
+ *
+ * Deliberately matches the sidebar's existing `endsWith('_ADMIN')` test rather
+ * than an explicit list, so legacy STREAM_ADMIN / COUNCIL_ADMIN holders are not
+ * locked out. Every LEADER role is excluded, which is the point: leaders could
+ * previously reassign their own organisation's leader and manager.
+ */
+export function canAdministerOrganisation(role?: string | null): boolean {
+    if (!role) return false;
+    return role === 'SUPERADMIN' || role.endsWith('_ADMIN');
+}
+
+/**
  * Check if an admin can manage (create/edit/delete) a user based on role hierarchy
  * @param adminRole - The role of the admin performing the action
  * @param targetRole - The role of the user being managed

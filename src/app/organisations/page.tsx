@@ -2,7 +2,7 @@
 
 import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { Search, Building2, Plus, Wallet } from 'lucide-react';
+import { Search, Building2, Plus, Wallet, Pencil } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
@@ -11,6 +11,8 @@ import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
 import { isOrgUnit } from '@/lib/org-model';
+import { canAdministerOrganisation } from '@/lib/roles';
+import { cn } from '@/lib/utils';
 import { useToast } from '@/components/ToastProvider';
 import EditOrganisationDialog from '@/components/EditOrganisationDialog';
 
@@ -21,6 +23,13 @@ type Organisation = {
     parentId: string | null;
     createdAt: Date;
     updatedAt: Date;
+};
+
+/** A church row as returned by /api/organisations, with the relations it expands. */
+type OrganisationRow = Organisation & {
+    userRoles?: { role?: string | null; user?: { id: string; name?: string | null; email?: string | null; image?: string | null } | null }[];
+    children?: { id: string; level: string }[];
+    _count?: { children?: number };
 };
 
 const LEVEL_ORDER: Record<string, number> = { CAMPUS: 3, OVERSIGHT: 2, DENOMINATION: 1 };
@@ -95,11 +104,20 @@ function OrganisationsPageContent() {
         showSuccess('Church updated successfully');
         fetchOrganisations(parentParam);
         fetchAllOrganisations();
+        // The header renders the parent, so refresh it too when it was the one edited.
+        if (parentParam) fetchParentOrganisation();
     };
 
     const handleOrganisationClosed = () => {
-        if (parentParam) router.push('/organisations');
-        else { fetchOrganisations(parentParam); fetchAllOrganisations(); }
+        // Closing the church we're drilled into leaves nothing to show — go up a
+        // level. Closing one of its children just refreshes the list in place.
+        if (parentParam && selectedOrganisation?.id === parentParam) {
+            router.push('/organisations');
+            return;
+        }
+        fetchOrganisations(parentParam);
+        fetchAllOrganisations();
+        if (parentParam) fetchParentOrganisation();
     };
 
     const filteredOrganisations = organisations.filter((dept: any) => {
@@ -115,8 +133,28 @@ function OrganisationsPageContent() {
 
     const parentLeader = parentOrganisation?.userRoles?.find((ur: any) => ur.role?.includes('LEADER'))?.user;
     const parentAdmin = parentOrganisation?.userRoles?.find((ur: any) => ur.role?.includes('ADMIN'))?.user;
-    const isLeader = session?.user?.role?.includes('LEADER');
-    const canCreate = !isLeader;
+    // Mirrors the server-side gate on PUT /api/organisations/[id]. Scope is
+    // still enforced there — this only decides whether to show the affordance.
+    const canAdminister = canAdministerOrganisation(session?.user?.role);
+    const canCreate = canAdminister;
+
+    const openEditDialog = (org: OrganisationRow) => {
+        setSelectedOrganisation(org);
+        setEditDialogOpen(true);
+    };
+
+    const drillInto = (dept: OrganisationRow) => {
+        document.cookie = `activeOrganisationId=${dept.id}; path=/; max-age=86400; SameSite=Strict${window.location.protocol === 'https:' ? '; Secure' : ''}`;
+        if (dept.level === 'DENOMINATION' || dept.level === 'OVERSIGHT') {
+            router.push(`/organisations?parent=${dept.id}`);
+            return;
+        }
+        if (dept.level === 'CAMPUS') {
+            router.push(`/accounts?campus=${dept.id}`);
+            return;
+        }
+        router.push('/organisations/dashboard');
+    };
 
     if (parentOrganisation?.level === 'CAMPUS') {
         return (
@@ -137,11 +175,24 @@ function OrganisationsPageContent() {
                         <p className="text-[0.6875rem] font-medium uppercase tracking-[0.10em] text-muted-foreground mb-0.5">
                             {parentOrganisation ? 'Churches' : 'Church hierarchy'}
                         </p>
-                        <h1 className="text-[1.625rem] sm:text-[1.875rem] font-semibold tracking-[-0.025em] text-foreground">
-                            {parentOrganisation
-                                ? `${parentOrganisation.name} ${SUB_CHURCHES[parentOrganisation.level] || ''}`
-                                : 'Churches'}
-                        </h1>
+                        <div className="flex items-center gap-2 flex-wrap">
+                            <h1 className="text-[1.625rem] sm:text-[1.875rem] font-semibold tracking-[-0.025em] text-foreground">
+                                {parentOrganisation
+                                    ? `${parentOrganisation.name} ${SUB_CHURCHES[parentOrganisation.level] || ''}`
+                                    : 'Churches'}
+                            </h1>
+                            {parentOrganisation && canAdminister && (
+                                <button
+                                    type="button"
+                                    aria-label={`Edit ${parentOrganisation.name}`}
+                                    title={`Edit ${parentOrganisation.name}`}
+                                    onClick={() => openEditDialog(parentOrganisation)}
+                                    className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+                                >
+                                    <Pencil className="h-4 w-4" />
+                                </button>
+                            )}
+                        </div>
                         <p className="text-sm text-muted-foreground mt-1">
                             {organisations.length} {organisations.length === 1 ? 'church' : 'churches'}
                             {!parentOrganisation ? ' · HQ → Oversight → Campus' : ''}
@@ -201,21 +252,18 @@ function OrganisationsPageContent() {
                     const childChurchLabel = SUB_CHURCHES[dept.level];
 
                     return (
-                        <button
+                        <div
                             key={dept.id}
-                            onClick={() => {
-                                document.cookie = `activeOrganisationId=${dept.id}; path=/; max-age=86400; SameSite=Strict${window.location.protocol === 'https:' ? '; Secure' : ''}`;
-                                if (dept.level === 'DENOMINATION' || dept.level === 'OVERSIGHT') {
-                                    router.push(`/organisations?parent=${dept.id}`);
-                                    return;
+                            role="button"
+                            tabIndex={0}
+                            onClick={() => drillInto(dept)}
+                            onKeyDown={e => {
+                                if (e.key === 'Enter' || e.key === ' ') {
+                                    e.preventDefault();
+                                    drillInto(dept);
                                 }
-                                if (dept.level === 'CAMPUS') {
-                                    router.push(`/accounts?campus=${dept.id}`);
-                                    return;
-                                }
-                                router.push('/organisations/dashboard');
                             }}
-                            className="group text-left rounded-xl border border-border bg-card hover:border-foreground/20 hover:bg-foreground/[0.02] transition-colors duration-150 py-3 md:py-4 px-3 md:px-5"
+                            className="group cursor-pointer text-left rounded-xl border border-border bg-card hover:border-foreground/20 hover:bg-foreground/[0.02] transition-colors duration-150 py-3 md:py-4 px-3 md:px-5 outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
                         >
                             <div className="flex items-center gap-3 md:gap-5">
                                 <Avatar className="w-10 h-10 md:w-12 md:h-12 shrink-0 border border-primary/20 bg-primary/10">
@@ -255,8 +303,25 @@ function OrganisationsPageContent() {
                                         </p>
                                     )}
                                 </div>
+                                {canAdminister && (
+                                    <button
+                                        type="button"
+                                        aria-label={`Edit ${dept.name}`}
+                                        title={`Edit ${dept.name}`}
+                                        onClick={e => { e.stopPropagation(); openEditDialog(dept); }}
+                                        className={cn(
+                                            'shrink-0 p-2 rounded-md text-muted-foreground transition-colors',
+                                            'hover:text-foreground hover:bg-accent',
+                                            'outline-none focus-visible:ring-2 focus-visible:ring-ring/50',
+                                            // Always visible on touch — hover-reveal is unreachable there.
+                                            'md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100',
+                                        )}
+                                    >
+                                        <Pencil className="h-4 w-4" />
+                                    </button>
+                                )}
                             </div>
-                        </button>
+                        </div>
                     );
                 })}
 
