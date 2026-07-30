@@ -18,6 +18,7 @@ import { cn } from '@/lib/utils';
 import { isBankAccount } from '@/lib/org-model';
 import { useColorMode } from '@/app/providers';
 import { getExpenseWindowStatus, getMsUntilExpenseWindowOpens } from '@/lib/expense-window';
+import { useWithdrawalEligibility } from '@/hooks/useWithdrawalEligibility';
 
 // ── Animated counter ──────────────────────────────────────────────────────────
 
@@ -60,7 +61,7 @@ function MinimalStatCard({ title, amount, icon: Icon, color, isBlinking, onClick
         >
             <div
                 className="w-9 h-9 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center shrink-0"
-                style={{ backgroundColor: color ? `${color}1A` : 'rgba(107,114,128,0.1)', color: color || 'var(--muted-foreground)' }}
+                style={{ backgroundColor: color ? `${color}1A` : 'rgba(107,114,128,0.1)', color: color || 'hsl(var(--muted-foreground))' }}
             >
                 <Icon className="h-5 w-5 sm:h-6 sm:w-6" />
             </div>
@@ -152,6 +153,7 @@ export default function DashboardPage() {
     const router = useRouter();
     const { resolvedMode } = useColorMode();
     const isDark = resolvedMode === 'dark';
+    const eligibility = useWithdrawalEligibility();
 
     const isSuperAdmin = session?.user?.role === 'SUPERADMIN';
 
@@ -223,12 +225,12 @@ export default function DashboardPage() {
 
         const all = [
             {
-                title: 'Request withdrawal', icon: Clock, href: '/transactions/new?type=EXPENSE',
-                color: '#EF4444',
+                title: 'Request withdrawal', icon: Clock, href: '/transactions?new=expense',
+                color: '#EF4444', gated: true,
                 roles: [Role.DENOMINATION_LEADER, Role.OVERSIGHT_LEADER, Role.CAMPUS_LEADER, Role.STREAM_LEADER, Role.COUNCIL_LEADER] as Role[],
             },
             {
-                title: 'New Transaction', icon: PlusCircle, href: '/transactions/new',
+                title: 'New Transaction', icon: PlusCircle, href: '/transactions?new=1',
                 color: '#22C55E', roles: null as Role[] | null, excludeForLeaders: true,
             },
             {
@@ -238,12 +240,21 @@ export default function DashboardPage() {
             {
                 title: 'Churches', icon: Building2, href: '/organisations',
                 color: '#F59E0B', roles: null as Role[] | null, excludeForLeaders: true,
+                // Campus is the lowest church level and has no child churches —
+                // this would open an empty list. See ModernDashboardLayout.
+                requiresChildChurches: true,
             },
         ];
+
+        const role = (userRole || '') as string;
+        const hasChildChurches = role === 'SUPERADMIN'
+            || role.startsWith('DENOMINATION')
+            || role.startsWith('OVERSIGHT');
 
         return all.filter(link => {
             if (link.roles && !link.roles.includes(userRole)) return false;
             if (isLeader && (link as any).excludeForLeaders) return false;
+            if ((link as any).requiresChildChurches && !hasChildChurches) return false;
             return true;
         });
     }, [session?.user?.role]);
@@ -552,27 +563,43 @@ export default function DashboardPage() {
                         );
                     })()}
 
-                    {quickLinks.map(link => (
-                        <div
-                            key={link.title}
-                            onClick={() => router.push(link.href)}
-                            className="group rounded-xl border border-border bg-card cursor-pointer transition-colors duration-150 hover:bg-foreground/[0.02]"
-                            style={{ '--hover-border': link.color } as React.CSSProperties}
-                        >
-                            <div className="px-4 py-3.5 flex items-center gap-3">
-                                <div
-                                    className="w-9 h-9 rounded-[7px] flex items-center justify-center shrink-0"
-                                    style={{ backgroundColor: `${link.color}14`, color: link.color }}
-                                >
-                                    <link.icon className="h-[18px] w-[18px]" />
+                    {quickLinks.map(link => {
+                        // Blocked leaders see why the action is unavailable rather than
+                        // reaching a form that would refuse them.
+                        const blocked = !!(link as any).gated && !eligibility.loading && !eligibility.canSubmit;
+                        return (
+                            <div
+                                key={link.title}
+                                onClick={blocked ? undefined : () => router.push(link.href)}
+                                aria-disabled={blocked || undefined}
+                                className={cn(
+                                    'group rounded-xl border border-border bg-card transition-colors duration-150',
+                                    blocked ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer hover:bg-foreground/[0.02]',
+                                )}
+                                style={{ '--hover-border': link.color } as React.CSSProperties}
+                            >
+                                <div className="px-4 py-3.5 flex items-center gap-3">
+                                    <div
+                                        className="w-9 h-9 rounded-[7px] flex items-center justify-center shrink-0"
+                                        style={{ backgroundColor: `${link.color}14`, color: link.color }}
+                                    >
+                                        <link.icon className="h-[18px] w-[18px]" />
+                                    </div>
+                                    <div className="min-w-0">
+                                        <span className="block text-[0.9375rem] font-medium text-foreground tracking-[-0.005em]">
+                                            {link.title}
+                                        </span>
+                                        {blocked && eligibility.reason && (
+                                            <span className="block text-xs text-warning font-medium mt-0.5">{eligibility.reason}</span>
+                                        )}
+                                    </div>
+                                    {!blocked && (
+                                        <ChevronRight className="ml-auto h-3 w-3 text-muted-foreground transition-transform duration-150 group-hover:translate-x-1 group-hover:text-foreground" />
+                                    )}
                                 </div>
-                                <span className="text-[0.9375rem] font-medium text-foreground tracking-[-0.005em]">
-                                    {link.title}
-                                </span>
-                                <ChevronRight className="ml-auto h-3 w-3 text-muted-foreground transition-transform duration-150 group-hover:translate-x-1 group-hover:text-foreground" />
                             </div>
-                        </div>
-                    ))}
+                        );
+                    })}
                 </div>
             )}
         </>

@@ -1,0 +1,690 @@
+{
+  "capturedAt": "2026-07-30T19:47:42.893Z",
+  "totals": {
+    "transactions": 2200,
+    "approvedIncome": "7154858.03",
+    "approvedExpense": "6646241.41",
+    "netBalance": "508616.62"
+  },
+  "entries": {
+    "COUNCIL|2nd Corinthians Council|Revival Campus": {
+      "level": "COUNCIL",
+      "name": "2nd Corinthians Council",
+      "parent": "Revival Campus",
+      "isActive": true,
+      "accountType": "OPERATING",
+      "exactIncome": "385952.60",
+      "exactExpense": "382790.72",
+      "exactBalance": "3161.88",
+      "exactTxCount": 145,
+      "recursiveIncome": "385952.60",
+      "recursiveExpense": "382790.72",
+      "recursiveBalance": "3161.88",
+      "recursiveTxCount": 145,
+      "subtree": [
+        "2nd Corinthians Council"
+      ]
+    },
+    "OVERSIGHT|Accra Oversight|UO-FLC190": {
+      "level": "OVERSIGHT",
+      "name": "Accra Oversight",
+      "parent": "UO-FLC190",
+      "isActive": true,
+      "accountType": null,
+      "exactIncome": "0.00",
+      "exactExpense": "0.00",
+      "exactBalance": "0.00",
+      "exactTxCount": 0,
+      "recursiveIncome": "5886844.99",
+      "recursiveExpense": "5465525.95",
+      "recursiveBalance": "421319.04",
+      "recursiveTxCount": 1986,
+      "subtree": [
+        "2nd Corinthians Council",
+        "Accra Oversight",
+        "Anagkazo Council",
+        "Area 4",
+        "Area One Council",
+        "Construction",
+        "Contruction (closed stream)",
+        "Dancing Stars",
+        "Elevation",
+        "Energy Campus",
+        "Energy Main",
+        "Ephesians Council",
+        "FLOC",
+        "Film Stars",
+        "GLGC",
+        "Galatians Council",
+        "Koinonia Campus",
+        "Koinonia Main",
+        "Lovelets",
+        "Lovelets (closed stream)",
+        "Passion Campus",
+        "Passion Main",
+        "Philippians Council",
+        "Revival Area 3 & 4 (closed stream)",
+        "Revival Bishops (closed stream)",
+        "Revival Campus"
+      ]
+    },
+    "COUNCIL|Anagkazo Council|Revival Campus": {
+      "level": "COUNCIL",
+      "name": "Anagkazo Council",
+      "parent": "Revival Campus",
+      "isActive": true,
+      "accountType": "OPERATING",
+      "exactIncome": "829874.98",
+      "exactExpense": "758631.52",
+      "exactBalance": "71243.46",
+      "exactTxCount": 255,
+      "recursiveIncome": "829874.98",
+      "recursiveExpense": "758631.52",
+      "recursiveBalance": "71243.46",
+      "recursiveTxCount": 255,
+      "subtree": [
+        "Anagkazo Council"
+      ]
+    },
+    "COUNCIL|Area 4|Revival Campus": {
+      "level": "COUNCIL",
+      "name": "Area 4",
+      "parent": "Revival Campus",
+      "isActive": true,
+      "accountType": "OPERATING",
+      "exactIncome": "52229.26",
+      "exactExpense": "0.00",
+      "exactBalance": "52229.26",
+      "exactTxCount": 1,
+      "recursiveIncome": "52229.26",
+      "recursiveExpense": "0.00",
+      "recursiveBalance": "52229.26",
+      "recursiveTxCount": 1,
+      "subtree": [
+        "Area 4"
+      ]
+    },
+    "COUNCIL|Area One Council|Revival Campus": {
+      "level": "COUNCIL",
+      "name": "Area One Council",
+      "parent": "Revival Campus",
+      "isActive": true,
+      "accountType": "OPERATING",
+      "exactIncome": "1177221.96",
+      "exactExpense": "1145910.29",
+      "exactBalance": "31311.67",
+      "exactTxCount": 390,
+      "recursiveIncome": "1177221.96",
+      "recursiveExpense": "1145910.29",
+      "recursiveBalance": "31311.67",
+      "recursiveTxCount": 390,
+      "subtree": [
+        "Area One Council"
+      ]
+    },
+    "COUNCIL|Construction|Revival Campus": {
+      "level": "COUNCIL",
+      "name": "Construction",
+      "parent": "Revival Campus",
+      "isActive": true,
+      "accountType": "SPECIAL_PROJECT",
+      "exactIncome": "0.00",
+      "exactExpense": "0.00",
+      "exactBalance": "0.00",
+      "exactTxCount": 0,
+      "recursiveIncome": "0.00",
+      "recursiveExpense": "0.00",
+      "recursiveBalance": "0.00",
+      "recursiveTxCount": 0,
+      "subtree": [
+        "Construction"
+      ]
+    },
+    "STREAM|Contruction (closed stream)|Revival Campus": {
+      "level": "STREAM",
+      "name": "Contruction (closed stream)",
+      "parent": "Revival Campus",
+      "isActive": false,
+      "accountType": null,
+      "exactIncome": "0.00",
+      "exactExpense": "0.00",
+      "exactBalance": "0.00",
+      "exactTxCount": 0,
+      "recursiveIncome": "0.00",
+      "recursiveExpense": "0.00",
+      "recursiveBalance": "0.00",
+      "recursiveTxCount": 0,
+      "subtree": [
+        "Contruction (closed stream)"
+      ]
+    },
+    "COUNCIL|Dancing Stars|Revival Campus": {
+      "level": "COUNCIL",
+      "name": "Dancing Stars",
+      "parent": "Revival Campus",
+      "isActive": true,
+      "accountType": "OPERATING",
+      "exactIncome": "55515.15",
+      "exactExpense": "20699.38",
+      "exactBalance": "34815.77",
+      "exactTxCount": 55,
+      "recursiveIncome": "55515.15",
+      "recursiveExpense": "20699.38",
+      "recursiveBalance": "34815.77",
+      "recursiveTxCount": 55,
+      "subtree": [
+        "Dancing Stars"
+      ]
+    },
+    "CAMPUS|Elevation|Accra Oversight": {
+      "level": "CAMPUS",
+      "name": "Elevation",
+      "parent": "Accra Oversight",
+      "isActive": false,
+      "accountType": null,
+      "exactIncome": "0.00",
+      "exactExpense": "0.00",
+      "exactBalance": "0.00",
+      "exactTxCount": 0,
+      "recursiveIncome": "0.00",
+      "recursiveExpense": "0.00",
+      "recursiveBalance": "0.00",
+      "recursiveTxCount": 0,
+      "subtree": [
+        "Elevation"
+      ]
+    },
+    "CAMPUS|Energy Campus|Accra Oversight": {
+      "level": "CAMPUS",
+      "name": "Energy Campus",
+      "parent": "Accra Oversight",
+      "isActive": true,
+      "accountType": null,
+      "exactIncome": "0.00",
+      "exactExpense": "0.00",
+      "exactBalance": "0.00",
+      "exactTxCount": 0,
+      "recursiveIncome": "238531.72",
+      "recursiveExpense": "234249.56",
+      "recursiveBalance": "4282.16",
+      "recursiveTxCount": 132,
+      "subtree": [
+        "Energy Campus",
+        "Energy Main"
+      ]
+    },
+    "COUNCIL|Energy Main|Energy Campus": {
+      "level": "COUNCIL",
+      "name": "Energy Main",
+      "parent": "Energy Campus",
+      "isActive": true,
+      "accountType": "OPERATING",
+      "exactIncome": "238531.72",
+      "exactExpense": "234249.56",
+      "exactBalance": "4282.16",
+      "exactTxCount": 132,
+      "recursiveIncome": "238531.72",
+      "recursiveExpense": "234249.56",
+      "recursiveBalance": "4282.16",
+      "recursiveTxCount": 132,
+      "subtree": [
+        "Energy Main"
+      ]
+    },
+    "COUNCIL|Ephesians Council|Revival Campus": {
+      "level": "COUNCIL",
+      "name": "Ephesians Council",
+      "parent": "Revival Campus",
+      "isActive": true,
+      "accountType": "OPERATING",
+      "exactIncome": "578306.04",
+      "exactExpense": "577098.44",
+      "exactBalance": "1207.60",
+      "exactTxCount": 167,
+      "recursiveIncome": "578306.04",
+      "recursiveExpense": "577098.44",
+      "recursiveBalance": "1207.60",
+      "recursiveTxCount": 167,
+      "subtree": [
+        "Ephesians Council"
+      ]
+    },
+    "COUNCIL|FLOC|Revival Campus": {
+      "level": "COUNCIL",
+      "name": "FLOC",
+      "parent": "Revival Campus",
+      "isActive": true,
+      "accountType": "OPERATING",
+      "exactIncome": "421247.86",
+      "exactExpense": "397183.81",
+      "exactBalance": "24064.05",
+      "exactTxCount": 110,
+      "recursiveIncome": "421247.86",
+      "recursiveExpense": "397183.81",
+      "recursiveBalance": "24064.05",
+      "recursiveTxCount": 110,
+      "subtree": [
+        "FLOC"
+      ]
+    },
+    "COUNCIL|Film Stars|Revival Campus": {
+      "level": "COUNCIL",
+      "name": "Film Stars",
+      "parent": "Revival Campus",
+      "isActive": true,
+      "accountType": "OPERATING",
+      "exactIncome": "102298.14",
+      "exactExpense": "91416.59",
+      "exactBalance": "10881.55",
+      "exactTxCount": 57,
+      "recursiveIncome": "102298.14",
+      "recursiveExpense": "91416.59",
+      "recursiveBalance": "10881.55",
+      "recursiveTxCount": 57,
+      "subtree": [
+        "Film Stars"
+      ]
+    },
+    "COUNCIL|GLGC|Revival Campus": {
+      "level": "COUNCIL",
+      "name": "GLGC",
+      "parent": "Revival Campus",
+      "isActive": true,
+      "accountType": "OPERATING",
+      "exactIncome": "7252.44",
+      "exactExpense": "0.00",
+      "exactBalance": "7252.44",
+      "exactTxCount": 5,
+      "recursiveIncome": "7252.44",
+      "recursiveExpense": "0.00",
+      "recursiveBalance": "7252.44",
+      "recursiveTxCount": 5,
+      "subtree": [
+        "GLGC"
+      ]
+    },
+    "COUNCIL|Galatians Council|Revival Campus": {
+      "level": "COUNCIL",
+      "name": "Galatians Council",
+      "parent": "Revival Campus",
+      "isActive": true,
+      "accountType": "OPERATING",
+      "exactIncome": "845219.70",
+      "exactExpense": "814807.53",
+      "exactBalance": "30412.17",
+      "exactTxCount": 223,
+      "recursiveIncome": "845219.70",
+      "recursiveExpense": "814807.53",
+      "recursiveBalance": "30412.17",
+      "recursiveTxCount": 223,
+      "subtree": [
+        "Galatians Council"
+      ]
+    },
+    "CAMPUS|Koinonia Campus|Accra Oversight": {
+      "level": "CAMPUS",
+      "name": "Koinonia Campus",
+      "parent": "Accra Oversight",
+      "isActive": true,
+      "accountType": null,
+      "exactIncome": "0.00",
+      "exactExpense": "0.00",
+      "exactBalance": "0.00",
+      "exactTxCount": 0,
+      "recursiveIncome": "289190.71",
+      "recursiveExpense": "265559.98",
+      "recursiveBalance": "23630.73",
+      "recursiveTxCount": 179,
+      "subtree": [
+        "Koinonia Campus",
+        "Koinonia Main"
+      ]
+    },
+    "COUNCIL|Koinonia Main|Koinonia Campus": {
+      "level": "COUNCIL",
+      "name": "Koinonia Main",
+      "parent": "Koinonia Campus",
+      "isActive": true,
+      "accountType": "OPERATING",
+      "exactIncome": "289190.71",
+      "exactExpense": "265559.98",
+      "exactBalance": "23630.73",
+      "exactTxCount": 179,
+      "recursiveIncome": "289190.71",
+      "recursiveExpense": "265559.98",
+      "recursiveBalance": "23630.73",
+      "recursiveTxCount": 179,
+      "subtree": [
+        "Koinonia Main"
+      ]
+    },
+    "COUNCIL|Lovelets|Revival Campus": {
+      "level": "COUNCIL",
+      "name": "Lovelets",
+      "parent": "Revival Campus",
+      "isActive": true,
+      "accountType": "OPERATING",
+      "exactIncome": "118445.74",
+      "exactExpense": "14580.00",
+      "exactBalance": "103865.74",
+      "exactTxCount": 6,
+      "recursiveIncome": "118445.74",
+      "recursiveExpense": "14580.00",
+      "recursiveBalance": "103865.74",
+      "recursiveTxCount": 6,
+      "subtree": [
+        "Lovelets"
+      ]
+    },
+    "STREAM|Lovelets (closed stream)|Revival Campus": {
+      "level": "STREAM",
+      "name": "Lovelets (closed stream)",
+      "parent": "Revival Campus",
+      "isActive": false,
+      "accountType": null,
+      "exactIncome": "0.00",
+      "exactExpense": "0.00",
+      "exactBalance": "0.00",
+      "exactTxCount": 0,
+      "recursiveIncome": "0.00",
+      "recursiveExpense": "0.00",
+      "recursiveBalance": "0.00",
+      "recursiveTxCount": 0,
+      "subtree": [
+        "Lovelets (closed stream)"
+      ]
+    },
+    "COUNCIL|OA - Camp|Outside Accra": {
+      "level": "COUNCIL",
+      "name": "OA - Camp",
+      "parent": "Outside Accra",
+      "isActive": true,
+      "accountType": "OPERATING",
+      "exactIncome": "83341.49",
+      "exactExpense": "83341.49",
+      "exactBalance": "0.00",
+      "exactTxCount": 2,
+      "recursiveIncome": "83341.49",
+      "recursiveExpense": "83341.49",
+      "recursiveBalance": "0.00",
+      "recursiveTxCount": 2,
+      "subtree": [
+        "OA - Camp"
+      ]
+    },
+    "COUNCIL|OA - Midweek|Outside Accra": {
+      "level": "COUNCIL",
+      "name": "OA - Midweek",
+      "parent": "Outside Accra",
+      "isActive": true,
+      "accountType": "OPERATING",
+      "exactIncome": "232017.18",
+      "exactExpense": "179379.77",
+      "exactBalance": "52637.41",
+      "exactTxCount": 52,
+      "recursiveIncome": "232017.18",
+      "recursiveExpense": "179379.77",
+      "recursiveBalance": "52637.41",
+      "recursiveTxCount": 52,
+      "subtree": [
+        "OA - Midweek"
+      ]
+    },
+    "COUNCIL|OA - Sunday|Outside Accra": {
+      "level": "COUNCIL",
+      "name": "OA - Sunday",
+      "parent": "Outside Accra",
+      "isActive": true,
+      "accountType": "OPERATING",
+      "exactIncome": "952654.37",
+      "exactExpense": "917994.20",
+      "exactBalance": "34660.17",
+      "exactTxCount": 115,
+      "recursiveIncome": "952654.37",
+      "recursiveExpense": "917994.20",
+      "recursiveBalance": "34660.17",
+      "recursiveTxCount": 115,
+      "subtree": [
+        "OA - Sunday"
+      ]
+    },
+    "CAMPUS|OA - Sunday Income|Outside Accra Oversight": {
+      "level": "CAMPUS",
+      "name": "OA - Sunday Income",
+      "parent": "Outside Accra Oversight",
+      "isActive": false,
+      "accountType": null,
+      "exactIncome": "0.00",
+      "exactExpense": "0.00",
+      "exactBalance": "0.00",
+      "exactTxCount": 0,
+      "recursiveIncome": "0.00",
+      "recursiveExpense": "0.00",
+      "recursiveBalance": "0.00",
+      "recursiveTxCount": 0,
+      "subtree": [
+        "OA - Sunday Income"
+      ]
+    },
+    "CAMPUS|Outside Accra|Outside Accra Oversight": {
+      "level": "CAMPUS",
+      "name": "Outside Accra",
+      "parent": "Outside Accra Oversight",
+      "isActive": true,
+      "accountType": null,
+      "exactIncome": "0.00",
+      "exactExpense": "0.00",
+      "exactBalance": "0.00",
+      "exactTxCount": 0,
+      "recursiveIncome": "1268013.04",
+      "recursiveExpense": "1180715.46",
+      "recursiveBalance": "87297.58",
+      "recursiveTxCount": 169,
+      "subtree": [
+        "OA - Camp",
+        "OA - Midweek",
+        "OA - Sunday",
+        "Outside Accra"
+      ]
+    },
+    "OVERSIGHT|Outside Accra Oversight|UO-FLC190": {
+      "level": "OVERSIGHT",
+      "name": "Outside Accra Oversight",
+      "parent": "UO-FLC190",
+      "isActive": true,
+      "accountType": null,
+      "exactIncome": "0.00",
+      "exactExpense": "0.00",
+      "exactBalance": "0.00",
+      "exactTxCount": 0,
+      "recursiveIncome": "1268013.04",
+      "recursiveExpense": "1180715.46",
+      "recursiveBalance": "87297.58",
+      "recursiveTxCount": 169,
+      "subtree": [
+        "OA - Camp",
+        "OA - Midweek",
+        "OA - Sunday",
+        "OA - Sunday Income",
+        "Outside Accra",
+        "Outside Accra Oversight"
+      ]
+    },
+    "CAMPUS|Passion Campus|Accra Oversight": {
+      "level": "CAMPUS",
+      "name": "Passion Campus",
+      "parent": "Accra Oversight",
+      "isActive": true,
+      "accountType": null,
+      "exactIncome": "0.00",
+      "exactExpense": "0.00",
+      "exactBalance": "0.00",
+      "exactTxCount": 0,
+      "recursiveIncome": "149456.26",
+      "recursiveExpense": "133194.92",
+      "recursiveBalance": "16261.34",
+      "recursiveTxCount": 86,
+      "subtree": [
+        "Passion Campus",
+        "Passion Main"
+      ]
+    },
+    "COUNCIL|Passion Main|Passion Campus": {
+      "level": "COUNCIL",
+      "name": "Passion Main",
+      "parent": "Passion Campus",
+      "isActive": true,
+      "accountType": "OPERATING",
+      "exactIncome": "149456.26",
+      "exactExpense": "133194.92",
+      "exactBalance": "16261.34",
+      "exactTxCount": 86,
+      "recursiveIncome": "149456.26",
+      "recursiveExpense": "133194.92",
+      "recursiveBalance": "16261.34",
+      "recursiveTxCount": 86,
+      "subtree": [
+        "Passion Main"
+      ]
+    },
+    "COUNCIL|Philippians Council|Revival Campus": {
+      "level": "COUNCIL",
+      "name": "Philippians Council",
+      "parent": "Revival Campus",
+      "isActive": true,
+      "accountType": "OPERATING",
+      "exactIncome": "636102.43",
+      "exactExpense": "629403.21",
+      "exactBalance": "6699.22",
+      "exactTxCount": 175,
+      "recursiveIncome": "636102.43",
+      "recursiveExpense": "629403.21",
+      "recursiveBalance": "6699.22",
+      "recursiveTxCount": 175,
+      "subtree": [
+        "Philippians Council"
+      ]
+    },
+    "STREAM|Revival Area 3 & 4 (closed stream)|Revival Campus": {
+      "level": "STREAM",
+      "name": "Revival Area 3 & 4 (closed stream)",
+      "parent": "Revival Campus",
+      "isActive": false,
+      "accountType": null,
+      "exactIncome": "0.00",
+      "exactExpense": "0.00",
+      "exactBalance": "0.00",
+      "exactTxCount": 0,
+      "recursiveIncome": "0.00",
+      "recursiveExpense": "0.00",
+      "recursiveBalance": "0.00",
+      "recursiveTxCount": 0,
+      "subtree": [
+        "Revival Area 3 & 4 (closed stream)"
+      ]
+    },
+    "STREAM|Revival Bishops (closed stream)|Revival Campus": {
+      "level": "STREAM",
+      "name": "Revival Bishops (closed stream)",
+      "parent": "Revival Campus",
+      "isActive": false,
+      "accountType": null,
+      "exactIncome": "0.00",
+      "exactExpense": "0.00",
+      "exactBalance": "0.00",
+      "exactTxCount": 0,
+      "recursiveIncome": "0.00",
+      "recursiveExpense": "0.00",
+      "recursiveBalance": "0.00",
+      "recursiveTxCount": 0,
+      "subtree": [
+        "Revival Bishops (closed stream)"
+      ]
+    },
+    "CAMPUS|Revival Campus|Accra Oversight": {
+      "level": "CAMPUS",
+      "name": "Revival Campus",
+      "parent": "Accra Oversight",
+      "isActive": true,
+      "accountType": null,
+      "exactIncome": "0.00",
+      "exactExpense": "0.00",
+      "exactBalance": "0.00",
+      "exactTxCount": 0,
+      "recursiveIncome": "5209666.30",
+      "recursiveExpense": "4832521.49",
+      "recursiveBalance": "377144.81",
+      "recursiveTxCount": 1589,
+      "subtree": [
+        "2nd Corinthians Council",
+        "Anagkazo Council",
+        "Area 4",
+        "Area One Council",
+        "Construction",
+        "Contruction (closed stream)",
+        "Dancing Stars",
+        "Ephesians Council",
+        "FLOC",
+        "Film Stars",
+        "GLGC",
+        "Galatians Council",
+        "Lovelets",
+        "Lovelets (closed stream)",
+        "Philippians Council",
+        "Revival Area 3 & 4 (closed stream)",
+        "Revival Bishops (closed stream)",
+        "Revival Campus"
+      ]
+    },
+    "DENOMINATION|UO-FLC190|-": {
+      "level": "DENOMINATION",
+      "name": "UO-FLC190",
+      "parent": null,
+      "isActive": true,
+      "accountType": null,
+      "exactIncome": "0.00",
+      "exactExpense": "0.00",
+      "exactBalance": "0.00",
+      "exactTxCount": 0,
+      "recursiveIncome": "7154858.03",
+      "recursiveExpense": "6646241.41",
+      "recursiveBalance": "508616.62",
+      "recursiveTxCount": 2155,
+      "subtree": [
+        "2nd Corinthians Council",
+        "Accra Oversight",
+        "Anagkazo Council",
+        "Area 4",
+        "Area One Council",
+        "Construction",
+        "Contruction (closed stream)",
+        "Dancing Stars",
+        "Elevation",
+        "Energy Campus",
+        "Energy Main",
+        "Ephesians Council",
+        "FLOC",
+        "Film Stars",
+        "GLGC",
+        "Galatians Council",
+        "Koinonia Campus",
+        "Koinonia Main",
+        "Lovelets",
+        "Lovelets (closed stream)",
+        "OA - Camp",
+        "OA - Midweek",
+        "OA - Sunday",
+        "OA - Sunday Income",
+        "Outside Accra",
+        "Outside Accra Oversight",
+        "Passion Campus",
+        "Passion Main",
+        "Philippians Council",
+        "Revival Area 3 & 4 (closed stream)",
+        "Revival Bishops (closed stream)",
+        "Revival Campus",
+        "UO-FLC190"
+      ]
+    }
+  }
+}

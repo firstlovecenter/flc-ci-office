@@ -185,6 +185,10 @@ model Transaction {
   receiptWaivedAt      DateTime?
   receiptWaivedBy      String?
   receiptWaivedReason  String?
+  /// Shared by the two legs of an account-to-account transfer, so the debit and
+  /// credit are provably one movement rather than two coincidental entries.
+  transferId           String?
+  transferDirection    TransferDirection?
   files                File[]
   currency             Currency?              @relation(fields: [currencyId], references: [id])
   organisation         Organisation           @relation(fields: [organisationId], references: [id])
@@ -199,6 +203,7 @@ model Transaction {
   @@index([status])
   @@index([type])
   @@index([userId])
+  @@index([transferId])
 }
 
 model User {
@@ -267,6 +272,13 @@ enum ActionType {
   IMPERSONATE
   STOP_IMPERSONATION
   RECEIPT_WAIVED
+}
+
+/// Which leg of a transfer a transaction represents. OUT is the debit on the
+/// source account, IN the matching credit on the destination.
+enum TransferDirection {
+  OUT
+  IN
 }
 
 enum AuditSeverity {

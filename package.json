@@ -8,7 +8,11 @@
     "start": "next start -H 0.0.0.0",
     "lint": "eslint",
     "db:seed": "node prisma/seed.js",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "snapshot:capture": "node scripts/scope-snapshot.mjs capture",
+    "snapshot:verify": "node scripts/scope-snapshot.mjs verify"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",
@@ -65,6 +69,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@types/web-push": "^3.6.4",
+    "@vitest/coverage-v8": "^4.1.10",
     "babel-plugin-react-compiler": "1.0.0",
     "baseline-browser-mapping": "^2.9.19",
     "dotenv": "^17.3.1",
@@ -74,6 +79,7 @@
     "ts-node": "^10.9.2",
     "tsx": "^4.20.6",
     "typescript": "^5",
+    "vitest": "^4.1.10",
     "workbox-window": "^7.4.0"
   }
 }

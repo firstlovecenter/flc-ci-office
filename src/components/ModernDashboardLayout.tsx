@@ -21,6 +21,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
 import ImpersonationBanner from './ImpersonationBanner';
 import PullToRefresh from './PullToRefresh';
 import RoleSwitcher from './RoleSwitcher';
+import { useWithdrawalEligibility, resetWithdrawalEligibility } from '@/hooks/useWithdrawalEligibility';
 
 const SIDEBAR_WIDTH = 256;
 const SIDEBAR_MINI_WIDTH = 60;
@@ -31,6 +32,9 @@ interface NavItem {
   path: string;
   show: boolean;
   badge: number;
+  /** Rendered inert with an explanation instead of navigating to a dead end. */
+  disabled?: boolean;
+  disabledReason?: string | null;
 }
 interface NavSection {
   title: string | null;
@@ -135,29 +139,38 @@ function SidebarBody({
                 const NavIcon = item.icon;
                 const btn = (
                   <button
-                    onClick={() => navigate(item.path)}
+                    onClick={item.disabled ? undefined : () => navigate(item.path)}
+                    disabled={item.disabled}
+                    aria-disabled={item.disabled || undefined}
                     className={cn(
                       'flex items-center w-full rounded-lg transition-colors text-sm font-medium',
                       showLabels ? 'gap-2.5 px-2 py-1.5' : 'justify-center py-2',
-                      active ? 'bg-accent text-foreground' : 'text-muted-foreground hover:text-foreground hover:bg-accent/60'
+                      item.disabled
+                        ? 'text-muted-foreground/50 cursor-not-allowed'
+                        : active ? 'bg-accent text-foreground' : 'text-muted-foreground hover:text-foreground hover:bg-accent/60'
                     )}
                   >
                     <div className="relative shrink-0">
-                      <NavIcon className={cn('size-[18px]', active && 'text-foreground')} />
+                      <NavIcon className={cn('size-[18px]', active && !item.disabled && 'text-foreground')} />
                       {item.badge > 0 && (
                         <span className="absolute -top-1.5 -right-1.5 flex items-center justify-center size-4 text-[9px] font-bold bg-destructive text-destructive-foreground rounded-full">
                           {item.badge > 9 ? '9+' : item.badge}
                         </span>
                       )}
                     </div>
-                    {showLabels && <span className={cn('truncate', active && 'font-semibold')}>{item.text}</span>}
+                    {showLabels && <span className={cn('truncate', active && !item.disabled && 'font-semibold')}>{item.text}</span>}
                   </button>
                 );
-                return !showLabels ? (
+                // Collapsed rail and disabled items both need a tooltip — the
+                // latter to explain why the action is unavailable.
+                const tip = !showLabels ? item.text : item.disabled ? item.disabledReason : null;
+                return tip ? (
                   <TooltipProvider key={item.path} delayDuration={0}>
                     <Tooltip>
-                      <TooltipTrigger asChild>{btn}</TooltipTrigger>
-                      <TooltipContent side="right">{item.text}</TooltipContent>
+                      <TooltipTrigger asChild>
+                        <span className={cn('block', item.disabled && 'cursor-not-allowed')}>{btn}</span>
+                      </TooltipTrigger>
+                      <TooltipContent side="right">{tip}</TooltipContent>
                     </Tooltip>
                   </TooltipProvider>
                 ) : (
@@ -246,6 +259,7 @@ export default function ModernDashboardLayout({ children }: { children: React.Re
   const [mobileOpen, setMobileOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const eligibility = useWithdrawalEligibility();
 
   useEffect(() => {
     if (session?.user) {
@@ -276,9 +290,12 @@ export default function ModernDashboardLayout({ children }: { children: React.Re
   const isLeader = normalizedRole && normalizedRole.endsWith('_LEADER');
   const hasAnalytics = isAdmin || isSuperAdmin || ['DENOMINATION_LEADER', 'OVERSIGHT_LEADER', 'CAMPUS_LEADER'].includes(normalizedRole);
   const isAccountHolder = normalizedRole === 'COUNCIL_LEADER' || normalizedRole === 'STREAM_LEADER';
+  // Campus is the lowest church level — it has no child churches, only bank
+  // accounts. A campus role opening /organisations gets an empty list, so the
+  // item is hidden for them; they manage Accounts and Users instead.
   const canSeeOrganisation =
     isSuperAdmin ||
-    ['DENOMINATION', 'OVERSIGHT', 'CAMPUS'].some((lvl) => normalizedRole.includes(lvl));
+    ['DENOMINATION', 'OVERSIGHT'].some((lvl) => normalizedRole.startsWith(lvl));
   // Account holders only use their own account — don't show the accounts directory.
   const canSeeAccounts = !!(isSuperAdmin || isAdmin || (
     isLeaderOrAdmin && !isAccountHolder
@@ -298,7 +315,7 @@ export default function ModernDashboardLayout({ children }: { children: React.Re
       title: null,
       items: [
         { text: 'Home', icon: Home, path: '/dashboard', show: true, badge: 0 },
-        { text: 'Request withdrawal', icon: PlusCircle, path: '/transactions/new?type=EXPENSE', show: !isSuperAdmin && !!isLeader, badge: 0 },
+        { text: 'Request withdrawal', icon: PlusCircle, path: '/transactions?new=expense', show: !isSuperAdmin && !!isLeader, badge: 0, disabled: !eligibility.loading && !eligibility.canSubmit, disabledReason: eligibility.reason },
         { text: 'Transaction history', icon: Receipt, path: '/transactions', show: true, badge: pendingCounts.transactions },
       ],
     },
@@ -328,6 +345,7 @@ export default function ModernDashboardLayout({ children }: { children: React.Re
 
   const handleLogout = () => {
     setMobileOpen(false);
+    resetWithdrawalEligibility();
     signOut({ callbackUrl: '/auth/login' });
   };
 

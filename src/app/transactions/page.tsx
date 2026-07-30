@@ -2,8 +2,7 @@
 
 import { useState, useEffect, Suspense, useMemo } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { Plus, Search, Pencil, Trash2, Paperclip, Receipt, TrendingUp, Wallet, Loader2 } from 'lucide-react';
-import Link from 'next/link';
+import { Plus, Search, Pencil, Trash2, Paperclip, Receipt, TrendingUp, Wallet, ArrowLeftRight } from 'lucide-react';
 import { useSession } from 'next-auth/react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -16,7 +15,9 @@ import { isBankAccount } from '@/lib/org-model';
 import { formatMoney } from '@/lib/format-money';
 import { APP_CURRENCY } from '@/lib/currency-constants';
 import { useToast } from '@/components/ToastProvider';
+import { useWithdrawalEligibility } from '@/hooks/useWithdrawalEligibility';
 import EditTransactionDialog from '@/components/EditTransactionDialog';
+import NewTransactionDialog from '@/components/NewTransactionDialog';
 import ReceiptUpload from '@/components/ReceiptUpload';
 import WaiveReceiptDialog from '@/components/WaiveReceiptDialog';
 
@@ -29,6 +30,8 @@ type TransactionWithDetails = {
     user: { id: string; name: string; email: string };
     files: { id: string; fileName: string; fileUrl: string; fileMime: string; fileSize: number | null; uploadedAt: string; uploadedBy: string; uploader?: { id: string; name: string | null; email: string } }[];
     currency?: { id: string; code: string; symbol: string; name: string } | null;
+    transferId?: string | null;
+    transferDirection?: 'OUT' | 'IN' | null;
     receiptWaived?: boolean;
     receiptWaivedAt?: string | null;
     receiptWaivedReason?: string | null;
@@ -61,8 +64,12 @@ function SummaryCard({ title, value, symbol, Icon, colorClass }: { title: string
 function TransactionsPageContent() {
     const { showSuccess, showError } = useToast();
     const { data: session } = useSession();
+    const router = useRouter();
     const searchParams = useSearchParams();
     const deptParam = searchParams?.get('dept');
+    // The create form is URL-driven so the four entry points remain deep links
+    // and the browser back button closes it.
+    const newParam = searchParams?.get('new');
 
     const [transactions, setTransactions] = useState<TransactionWithDetails[]>([]);
     const [summary, setSummary] = useState({ income: '0', expense: '0', balance: '0' });
@@ -84,6 +91,18 @@ function TransactionsPageContent() {
     const canUploadReceiptAsAdmin = session?.user?.role === 'SUPERADMIN' || session?.user?.role?.endsWith('_ADMIN') || false;
     const isLeader = session?.user?.role?.includes('LEADER') || false;
     const baseCurrency = APP_CURRENCY;
+    const eligibility = useWithdrawalEligibility();
+
+    const newOpen = newParam === '1' || newParam === 'expense' || newParam === 'income';
+    const newDefaultType = newParam === 'expense' ? 'EXPENSE' : newParam === 'income' ? 'INCOME' : null;
+
+    const setNewOpen = (open: boolean, type?: 'expense' | 'income') => {
+        const params = new URLSearchParams(searchParams?.toString() ?? '');
+        if (open) params.set('new', type ?? '1');
+        else params.delete('new');
+        const qs = params.toString();
+        router.replace(qs ? `/transactions?${qs}` : '/transactions', { scroll: false });
+    };
 
     useEffect(() => {
         fetchTransactions(); fetchSummary();
@@ -162,7 +181,22 @@ function TransactionsPageContent() {
                         </p>
                     </div>
                 </div>
-                <Button asChild><Link href={deptParam ? `/transactions/new?dept=${deptParam}` : '/transactions/new'}><Plus className="mr-1.5 h-4 w-4" />{isLeader ? 'Request withdrawal' : 'New transaction'}</Link></Button>
+                {/* Gated at the trigger: a blocked leader is told why up front
+                    instead of opening a form only to be refused on submit. */}
+                <div className="flex flex-col items-start sm:items-end gap-1.5">
+                    <Button
+                        disabled={eligibility.loading || !eligibility.canSubmit}
+                        onClick={() => setNewOpen(true, isLeader ? 'expense' : undefined)}
+                    >
+                        <Plus className="mr-1.5 h-4 w-4" />
+                        {isLeader ? 'Request withdrawal' : 'New transaction'}
+                    </Button>
+                    {!eligibility.loading && eligibility.reason && (
+                        <p className="text-xs text-warning font-medium max-w-[260px] sm:text-right">
+                            {eligibility.reason}
+                        </p>
+                    )}
+                </div>
             </div>
 
             {/* Summary */}
@@ -246,6 +280,12 @@ function TransactionsPageContent() {
                                                     <p className="font-semibold text-foreground">{tx.description}</p>
                                                     <div className="flex flex-wrap items-center gap-1 mt-0.5">
                                                         {!isLeader && <p className="text-xs text-muted-foreground">{tx.organisation.name}</p>}
+                                                        {tx.transferId && (
+                                                            <Badge variant="outline" className="h-4 text-[0.6rem] gap-0.5">
+                                                                <ArrowLeftRight className="h-2.5 w-2.5" />
+                                                                {tx.transferDirection === 'OUT' ? 'Transfer out' : 'Transfer in'}
+                                                            </Badge>
+                                                        )}
                                                         {tx.files?.length > 0 && <Badge variant="outline" className="h-4 text-[0.6rem] gap-0.5"><Paperclip className="h-2.5 w-2.5" />Receipt</Badge>}
                                                     </div>
                                                     {tx.user?.email !== 'skaduteye@gmail.com' && <p className="text-xs text-muted-foreground">By: {tx.user?.name || tx.user?.email}</p>}
@@ -360,6 +400,15 @@ function TransactionsPageContent() {
                     <DialogFooter><Button variant="outline" onClick={() => setDetailsDialog({ open: false, transaction: null })}>Close</Button></DialogFooter>
                 </DialogContent>
             </Dialog>
+
+            <NewTransactionDialog
+                open={newOpen}
+                onOpenChange={open => setNewOpen(open)}
+                organisationId={deptParam}
+                defaultType={newDefaultType}
+                isLeader={isLeader}
+                onCreated={() => { fetchTransactions(); fetchSummary(); eligibility.refresh(); }}
+            />
 
             <EditTransactionDialog open={editDialog.open} transaction={editDialog.transaction} onClose={() => setEditDialog({ open: false, transaction: null })} onSave={() => { showSuccess('Transaction updated'); fetchTransactions(); fetchSummary(); }} isSuperAdmin={isSuperAdmin} userRole={session?.user?.role} />
 

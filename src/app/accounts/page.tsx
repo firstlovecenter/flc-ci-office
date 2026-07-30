@@ -2,7 +2,7 @@
 
 import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { Search, Wallet, Plus, Pencil } from 'lucide-react';
+import { Search, Wallet, Plus, Pencil, ArrowLeftRight } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
@@ -15,6 +15,7 @@ import { canAdministerOrganisation } from '@/lib/roles';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/components/ToastProvider';
 import EditOrganisationDialog from '@/components/EditOrganisationDialog';
+import TransferFundsDialog from '@/components/TransferFundsDialog';
 
 /** A bank-account row as returned by /api/organisations, with the relations it expands. */
 type AccountRow = {
@@ -39,6 +40,8 @@ function AccountsPageContent() {
     const [editDialogOpen, setEditDialogOpen] = useState(false);
     const [selectedAccount, setSelectedAccount] = useState<any>(null);
     const [searchQuery, setSearchQuery] = useState('');
+    const [transferOpen, setTransferOpen] = useState(false);
+    const [transferFromId, setTransferFromId] = useState<string | null>(null);
 
     useEffect(() => {
         if (!session) return;
@@ -154,18 +157,26 @@ function AccountsPageContent() {
                         </p>
                     </div>
                 </div>
-                {canCreate && (
-                    <Button asChild>
-                        <Link href={
-                            campusParam
-                                ? `/organisations/new?parent=${campusParam}&kind=account`
-                                : '/organisations/new?kind=account'
-                        }>
-                            <Plus className="mr-2 h-4 w-4" />
-                            Open account
-                        </Link>
-                    </Button>
-                )}
+                <div className="flex items-center gap-2 flex-wrap">
+                    {canAdminister && accounts.length > 1 && (
+                        <Button variant="outline" onClick={() => { setTransferFromId(null); setTransferOpen(true); }}>
+                            <ArrowLeftRight className="mr-2 h-4 w-4" />
+                            Transfer funds
+                        </Button>
+                    )}
+                    {canCreate && (
+                        <Button asChild>
+                            <Link href={
+                                campusParam
+                                    ? `/organisations/new?parent=${campusParam}&kind=account`
+                                    : '/organisations/new?kind=account'
+                            }>
+                                <Plus className="mr-2 h-4 w-4" />
+                                Open account
+                            </Link>
+                        </Button>
+                    )}
+                </div>
             </div>
 
             <div className="relative mb-6 max-w-[480px]">
@@ -240,6 +251,22 @@ function AccountsPageContent() {
                                         </p>
                                     )}
                                 </div>
+                                {canAdminister && accounts.length > 1 && (
+                                    <button
+                                        type="button"
+                                        aria-label={`Transfer funds from ${acct.name}`}
+                                        title={`Transfer funds from ${acct.name}`}
+                                        onClick={e => { e.stopPropagation(); setTransferFromId(acct.id); setTransferOpen(true); }}
+                                        className={cn(
+                                            'shrink-0 p-2 rounded-md text-muted-foreground transition-colors',
+                                            'hover:text-foreground hover:bg-accent',
+                                            'outline-none focus-visible:ring-2 focus-visible:ring-ring/50',
+                                            'md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100',
+                                        )}
+                                    >
+                                        <ArrowLeftRight className="h-4 w-4" />
+                                    </button>
+                                )}
                                 {canAdminister && (
                                     <button
                                         type="button"
@@ -268,6 +295,14 @@ function AccountsPageContent() {
                     </p>
                 )}
             </div>
+
+            <TransferFundsDialog
+                open={transferOpen}
+                onOpenChange={setTransferOpen}
+                accounts={accounts}
+                defaultFromId={transferFromId}
+                onTransferred={fetchAccounts}
+            />
 
             <EditOrganisationDialog
                 open={editDialogOpen}
