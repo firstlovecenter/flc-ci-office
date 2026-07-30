@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { cn, formatRole, formatOrganisationLevel } from '@/lib/utils';
+import { cn } from '@/lib/utils';
 import EditUserDialog from '@/components/EditUserDialog';
 
 interface UserDetail {
@@ -86,16 +86,13 @@ export default function UserDetailPage() {
                     </div>
                 </div>
 
-                {/* Role assignments */}
+                {/* Assignments */}
                 {user.userRoles && user.userRoles.length > 0 && (
                     <div className="text-center mb-4">
-                        {user.userRoles.map((ur: any, i) => (
-                            <div key={ur.id}>
-                                <p className="text-sm text-muted-foreground">{formatRole(ur.role)} : <strong className="text-foreground">{ur.organisation.name}</strong></p>
-                                {user.userRoles!.length > 1 && i < user.userRoles!.length - 1 && (
-                                    <p className="text-sm text-muted-foreground">{formatOrganisationLevel(ur.organisation.level)}</p>
-                                )}
-                            </div>
+                        {user.userRoles.map((ur: any) => (
+                            <p key={ur.id} className="text-sm font-semibold text-foreground">
+                                {ur.organisation.name}
+                            </p>
                         ))}
                     </div>
                 )}
@@ -117,7 +114,7 @@ export default function UserDetailPage() {
                                 <div key={log.id} className="flex items-start gap-3 rounded-lg border border-border bg-card px-3 py-2">
                                     <div className="w-2 h-2 rounded-full bg-primary mt-1.5 shrink-0" />
                                     <div>
-                                        <p className="text-sm font-semibold text-foreground">{log.description || formatRole(log.actionType)}</p>
+                                        <p className="text-sm font-semibold text-foreground">{log.description || log.actionType}</p>
                                         <p className="text-xs text-muted-foreground">
                                             {new Date(log.timestamp).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                                         </p>

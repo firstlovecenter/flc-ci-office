@@ -3,6 +3,7 @@
  * Transaction / report emails are intentionally not restored.
  */
 import { emailLayout } from './email';
+import { formatRoleLabel } from '@/lib/org-model';
 
 type PillColor = 'green' | 'red' | 'blue' | 'amber' | 'slate';
 type BtnStyle = 'primary' | 'success' | 'amber';
@@ -99,7 +100,7 @@ export function generateFirstRoleAssignmentEmail(
   params: FirstRoleAssignmentEmailParams,
 ): { subject: string; html: string } {
   const { userName, role, organisation, resetLink } = params;
-  const roleDisplay = role.replace(/_/g, ' ');
+  const roleDisplay = formatRoleLabel(role);
 
   const content = `
     ${heading(
@@ -110,14 +111,14 @@ export function generateFirstRoleAssignmentEmail(
     ${dataTable([
       ['Full name', userName],
       ['Role', `${pill(roleDisplay, 'blue')}`],
-      ['Organisation', organisation],
+      ['Church', organisation],
     ])}
     ${infoBox('This is your first time signing in. Please set a strong password to secure your account.', 'blue')}
     ${ctaButton('Set Up My Password', resetLink, 'success')}
     ${divider()}
     <p class="helper">
       This link expires in <strong>7 days</strong>. If you didn&rsquo;t expect this invitation, please
-      contact your organisation administrator immediately.
+      contact your administrator immediately.
     </p>`;
 
   return {

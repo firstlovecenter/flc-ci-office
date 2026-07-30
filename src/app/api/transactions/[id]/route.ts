@@ -159,7 +159,7 @@ export async function PUT(
                 if (amountChanged) changesList.push(`Amount: ${moneyToString(existingTransaction.amount)} → ${moneyToString(amount)}`);
                 if (typeChanged) changesList.push(`Type: ${existingTransaction.type} → ${type}`);
                 if (descriptionChanged) changesList.push(`Desc updated`);
-                if (organisationChanged) changesList.push(`Dept changed`);
+                if (organisationChanged) changesList.push(`Church changed`);
                 const changesSummary = changesList.join(', ');
 
                 // Determine the organisation(s) whose leaders need to be notified

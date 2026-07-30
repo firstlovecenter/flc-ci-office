@@ -352,7 +352,7 @@ export async function POST(request: Request) {
         
         // Account holders can only create withdrawal requests, not deposits
         if (isLeader && type === 'INCOME') {
-            return new NextResponse('Account holders cannot record deposits. Please contact a manager.', { status: 403 });
+            return new NextResponse('You cannot record deposits. Please contact a manager.', { status: 403 });
         }
 
         // Balance check for operating accounts only — special projects have no spendable balance.

@@ -6,7 +6,7 @@ import { getUserBaseCurrency } from '@/lib/currency-conversion';
 import { convertToUserBaseCurrency } from '@/lib/currency-conversion';
 import { getDescendantOrganisationIds, hasOrganisationAccess } from '@/lib/organisations';
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
-import { formatCurrency, formatNumber, formatOrganisationLevel } from '@/lib/utils';
+import { formatCurrency, formatNumber } from '@/lib/utils';
 import { Prisma } from '@prisma/client';
 import { toDecimal, moneyToString, type Money } from '@/lib/money';
 
@@ -134,16 +134,14 @@ export async function POST(request: NextRequest) {
             });
         }
 
-        // Get organisation name and level
+        // Get organisation / account name
         let organisationName = 'All churches';
-        let organisationLevel = '';
         if (organisationId) {
             const dept = await prisma.organisation.findUnique({
                 where: { id: organisationId },
             });
             if (dept) {
                 organisationName = dept.name;
-                organisationLevel = formatOrganisationLevel(dept.level);
             }
         }
 
@@ -246,9 +244,7 @@ export async function POST(request: NextRequest) {
         y -= 25;
         drawCenteredText('Bank Statement Report', y, 16, boldFont);
         y -= 20;
-        const deptDisplayName = organisationLevel 
-            ? `${sanitizeText(organisationName)} (${organisationLevel})`
-            : sanitizeText(organisationName);
+        const deptDisplayName = sanitizeText(organisationName);
         drawCenteredText(deptDisplayName, y, 10, font);
         y -= 15;
         drawCenteredText(`Currency: ${userBaseCurrency.code} (${safeCurrencySymbol})`, y, 9, font);

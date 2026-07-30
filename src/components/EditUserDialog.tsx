@@ -133,8 +133,8 @@ export default function EditUserDialog({ open, onClose, user, onSave, onSuccess,
                     {/* Role assignments */}
                     {user?.userRoles && user.userRoles.length > 0 && (
                         <div className="rounded-xl border border-border bg-muted/20 p-3">
-                            <p className="text-xs font-semibold text-muted-foreground mb-2">Assigned Roles:</p>
-                            {user.userRoles.map((ur: any) => <p key={ur.id} className="text-sm text-foreground">· <strong>{ur.role}</strong> — {ur.organisation?.name}</p>)}
+                            <p className="text-xs font-semibold text-muted-foreground mb-2">Assigned to:</p>
+                            {user.userRoles.map((ur: any) => <p key={ur.id} className="text-sm text-foreground">· {ur.organisation?.name}</p>)}
                         </div>
                     )}
 

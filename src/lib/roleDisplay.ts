@@ -1,18 +1,9 @@
 /**
- * Map role enum values to user-friendly display names
+ * Map role enum values to user-friendly display names.
+ * Single source of truth: bank-style labels from org-model.
  */
-export function getDisplayRole(role: string | null | undefined): string {
-    const roleMap: Record<string, string> = {
-        'SUPERADMIN': 'Super Admin',
-        'DENOMINATION_ADMIN': 'Denomination Admin',
-        'DENOMINATION_LEADER': 'Lead Pastor',
-        'OVERSIGHT_ADMIN': 'Oversight Admin',
-        'OVERSIGHT_LEADER': 'Oversight Leader',
-        'CAMPUS_ADMIN': 'Campus Admin',
-        'CAMPUS_LEADER': 'Campus Leader',
-        'STREAM_LEADER': 'Stream Leader',
-        'COUNCIL_LEADER': 'Council Leader',
-    };
+import { formatRoleLabel } from '@/lib/org-model';
 
-    return roleMap[role || ''] || (role || '').replace(/_/g, ' ');
+export function getDisplayRole(role: string | null | undefined): string {
+    return formatRoleLabel(role);
 }

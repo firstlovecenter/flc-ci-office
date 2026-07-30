@@ -233,7 +233,7 @@ export async function POST(request: Request) {
             }
         }
 
-        // Server-side hierarchy: Campus → Account (no STREAM). Enforced here, not only in UI.
+        // Accounts attach under Campus (not a church hierarchy step; STREAM removed).
         let parentLevel: OrganisationLevel | null = null;
         if (parentId) {
             const parent = await prisma.organisation.findUnique({

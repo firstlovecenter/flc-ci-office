@@ -18,7 +18,6 @@ import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet';
 import { Separator } from '@/components/ui/separator';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { getDisplayRole } from '@/lib/roleDisplay';
 import ImpersonationBanner from './ImpersonationBanner';
 import PullToRefresh from './PullToRefresh';
 import RoleSwitcher from './RoleSwitcher';
@@ -276,10 +275,14 @@ export default function ModernDashboardLayout({ children }: { children: React.Re
   const isAdmin = normalizedRole && normalizedRole.endsWith('_ADMIN');
   const isLeader = normalizedRole && normalizedRole.endsWith('_LEADER');
   const hasAnalytics = isAdmin || isSuperAdmin || ['DENOMINATION_LEADER', 'OVERSIGHT_LEADER', 'CAMPUS_LEADER'].includes(normalizedRole);
+  const isAccountHolder = normalizedRole === 'COUNCIL_LEADER' || normalizedRole === 'STREAM_LEADER';
   const canSeeOrganisation =
     isSuperAdmin ||
     ['DENOMINATION', 'OVERSIGHT', 'CAMPUS'].some((lvl) => normalizedRole.includes(lvl));
-  const canSeeAccounts = !!(isSuperAdmin || isLeaderOrAdmin);
+  // Account holders only use their own account — don't show the accounts directory.
+  const canSeeAccounts = !!(isSuperAdmin || isAdmin || (
+    isLeaderOrAdmin && !isAccountHolder
+  ));
 
   const isActive = (path: string) => {
     const clean = path.split('?')[0];
@@ -296,7 +299,7 @@ export default function ModernDashboardLayout({ children }: { children: React.Re
       items: [
         { text: 'Home', icon: Home, path: '/dashboard', show: true, badge: 0 },
         { text: 'Request withdrawal', icon: PlusCircle, path: '/transactions/new?type=EXPENSE', show: !isSuperAdmin && !!isLeader, badge: 0 },
-        { text: 'Transaction History', icon: Receipt, path: '/transactions', show: true, badge: pendingCounts.transactions },
+        { text: 'Transaction history', icon: Receipt, path: '/transactions', show: true, badge: pendingCounts.transactions },
       ],
     },
     {
@@ -337,7 +340,7 @@ export default function ModernDashboardLayout({ children }: { children: React.Re
   const userName = session?.user?.name || 'User';
   const userInitial = userName[0]?.toUpperCase() || 'U';
   const userImage = session?.user?.image || undefined;
-  const userRole = getDisplayRole(session?.user?.role);
+  const userRole = session?.user?.organisationName || '';
   const sidebarWidth = sidebarOpen ? SIDEBAR_WIDTH : SIDEBAR_MINI_WIDTH;
 
   const sharedSidebarProps: Omit<SidebarBodyProps, 'isMobile'> = {

@@ -142,8 +142,8 @@ function LoginForm() {
                         className="text-[0.9375rem] leading-relaxed max-w-[460px]"
                         style={{ color: 'rgba(241,243,245,0.65)' }}
                     >
-                        A unified ledger across denomination, oversight, campus, stream, and council &mdash;
-                        with multi&#8209;currency, approval workflow, and audit trail built in.
+                        A unified ledger for church hierarchy (HQ → oversight → campus) and campus bank accounts &mdash;
+                        with approval workflow and audit trail built in.
                     </p>
                 </div>
 
@@ -282,7 +282,7 @@ function LoginForm() {
                         <div className="flex items-center gap-4 mt-3 pt-4 border-t border-border">
                             <div className="flex-1">
                                 <p className="text-xs text-muted-foreground mb-0.5">
-                                    Council leader outside Accra?
+                                    Need to request funds for a church outside Accra?
                                 </p>
                                 <Link
                                     href="/public-expense"

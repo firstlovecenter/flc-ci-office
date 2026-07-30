@@ -1,13 +1,13 @@
 /**
  * Organisation units vs bank accounts.
  *
- * Org units (hierarchy only — no money):
+ * Church hierarchy (org units only — no money):
  *   HQ (DENOMINATION) → Oversight → Campus
+ *   Campus is the lowest organisation / church level.
  *
- * Bank accounts (money only — not org units):
+ * Bank accounts (money only — NOT organisation units):
  *   Sit under a Campus. Stored as Organisation rows with level COUNCIL
- *   for now (DB legacy), but product language must never treat them as
- *   organisation units.
+ *   for now (DB legacy). Never present them as a church hierarchy step.
  *
  * STREAM is deprecated.
  *
@@ -35,7 +35,7 @@ export const ORG_UNIT_HIERARCHY: Record<'DENOMINATION' | 'OVERSIGHT' | 'CAMPUS',
     CAMPUS: 3,
 };
 
-/** @deprecated Prefer ORG_UNIT_HIERARCHY. Kept for callers that still walk COUNCIL. */
+/** @deprecated Prefer ORG_UNIT_HIERARCHY. COUNCIL here is only for legacy permission walks — accounts are not church levels. */
 export const ORG_HIERARCHY: Record<Exclude<OrganisationLevel, 'STREAM'>, number> = {
     ...ORG_UNIT_HIERARCHY,
     COUNCIL: 4,
@@ -61,6 +61,11 @@ export function isBankAccount(level: string | null | undefined): boolean {
     return level === 'COUNCIL';
 }
 
+/**
+ * Display label for a DB level.
+ * Org units → church tier (HQ / Oversight / Campus).
+ * Bank accounts → never shown as a hierarchy step; use account type when known.
+ */
 export function formatOrgLevel(level: string | null | undefined): string {
     if (!level) return '';
     switch (level) {
@@ -71,12 +76,26 @@ export function formatOrgLevel(level: string | null | undefined): string {
         case 'CAMPUS':
             return 'Campus';
         case 'COUNCIL':
-            return 'Account';
+            // Not a church level — callers should prefer formatAccountType.
+            return 'Bank account';
         case 'STREAM':
             return 'Stream (deprecated)';
         default:
             return level.charAt(0) + level.slice(1).toLowerCase();
     }
+}
+
+/**
+ * Label beside a name in lists: church tier, or operating / special-project for accounts.
+ */
+export function formatEntityLabel(
+    level: string | null | undefined,
+    accountType?: string | null,
+): string {
+    if (isBankAccount(level)) {
+        return formatAccountType(accountType) || 'Bank account';
+    }
+    return formatOrgLevel(level);
 }
 
 /** Label for an entity kind — org unit vs bank account. */

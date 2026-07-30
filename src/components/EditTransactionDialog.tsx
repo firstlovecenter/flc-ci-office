@@ -10,7 +10,8 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { formatNumber, formatOrganisationLevel, formatTransactionType } from '@/lib/utils';
+import { formatNumber, formatTransactionType } from '@/lib/utils';
+import { isBankAccount } from '@/lib/org-model';
 import { APP_CURRENCY } from '@/lib/currency-constants';
 
 type TransactionType = 'INCOME' | 'EXPENSE';
@@ -99,7 +100,7 @@ export default function EditTransactionDialog({ open, transaction, onClose, onSa
                         <Label>Account <span className="text-destructive">*</span></Label>
                         <Select value={organisationId} onValueChange={setOrganisationId} disabled={locked} required>
                             <SelectTrigger><SelectValue placeholder="Select account" /></SelectTrigger>
-                            <SelectContent>{organisations.map(d => <SelectItem key={d.id} value={d.id}>{d.name} ({formatOrganisationLevel(d.level)})</SelectItem>)}</SelectContent>
+                            <SelectContent>{organisations.filter(d => isBankAccount(d.level)).map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}</SelectContent>
                         </Select>
                     </div>
 

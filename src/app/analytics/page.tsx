@@ -140,7 +140,7 @@ export default function AnalyticsPage() {
                             <SelectContent><SelectItem value="daily">Daily</SelectItem><SelectItem value="weekly">Weekly</SelectItem><SelectItem value="monthly">Monthly</SelectItem></SelectContent>
                         </Select>
                     </div>
-                    <div className="space-y-1.5"><Label className="text-xs">Top Depts</Label>
+                    <div className="space-y-1.5"><Label className="text-xs">Top churches</Label>
                         <Select value={String(departmentLimit)} onValueChange={v => setOrganisationLimit(Number(v))}>
                             <SelectTrigger className="w-full sm:w-28 h-9 text-sm"><SelectValue /></SelectTrigger>
                             <SelectContent><SelectItem value="5">Top 5</SelectItem><SelectItem value="10">Top 10</SelectItem><SelectItem value="20">Top 20</SelectItem></SelectContent>

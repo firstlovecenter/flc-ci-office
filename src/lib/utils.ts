@@ -46,7 +46,7 @@ export function isWeekLocked(weekNumber: number, year: number): boolean {
     return false;
 }
 
-import { formatOrgLevel, formatMoneyMovement, formatRoleLabel } from '@/lib/org-model';
+import { formatOrgLevel, formatMoneyMovement, formatRoleLabel, formatEntityLabel } from '@/lib/org-model';
 
 /**
  * Format a role enum value for display (bank-style manager/holder labels)
@@ -56,12 +56,16 @@ export function formatRole(role: string | null | undefined): string {
 }
 
 /**
- * Format a church unit or account label for display
- * (DENOMINATION -> HQ, COUNCIL -> Account). Accounts are bank accounts, not church units.
+ * Format a church unit label (HQ / Oversight / Campus).
+ * For bank accounts returns "Bank account" — Campus is the lowest church level;
+ * accounts are not part of the church hierarchy. Prefer formatEntityLabel when
+ * accountType is available.
  */
 export function formatOrganisationLevel(level: string | null | undefined): string {
     return formatOrgLevel(level);
 }
+
+export { formatEntityLabel };
 
 /**
  * Format transaction status for display (e.g., PENDING -> Pending)

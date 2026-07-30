@@ -8,7 +8,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { cn, formatOrganisationLevel, formatCurrency } from '@/lib/utils';
+import { cn, formatCurrency } from '@/lib/utils';
+import { isBankAccount } from '@/lib/org-model';
 import { roundMoney, sumMoney } from '@/lib/format-money';
 import { useColorMode } from '@/app/providers';
 import { useToast } from '@/components/ToastProvider';
@@ -155,7 +156,10 @@ function ReportsPageContent() {
 
     const fmtCurr = (v: number) => baseCurrency ? formatCurrency(v, baseCurrency.code, baseCurrency.symbol) : formatCurrency(v);
 
-    const deptName = fixedOrganisation ? `${fixedOrganisation.name} (${formatOrganisationLevel(fixedOrganisation.level)})`
+    const isAccountHolder = session?.user?.role === 'COUNCIL_LEADER';
+    const deptName = fixedOrganisation
+        ? fixedOrganisation.name
+        : isAccountHolder ? userOrganisationName || 'My account'
         : isLeader ? userOrganisationName || 'My church'
         : selectedOrganisation ? organisations.find(d => d.id === selectedOrganisation)?.name || 'All churches'
         : 'All churches';
@@ -175,7 +179,11 @@ function ReportsPageContent() {
                         {fixedOrganisation ? `${fixedOrganisation.name} trends` : 'Trends'}
                     </h1>
                     <p className="text-sm text-muted-foreground mt-0.5">
-                        {fixedOrganisation ? 'Financial trends for this church and its sub-churches.' : 'Income and expense movements over time.'}
+                        {fixedOrganisation
+                            ? (isBankAccount(fixedOrganisation.level)
+                                ? 'Deposits and withdrawals for this account.'
+                                : 'Financial trends for this church and its sub-churches.')
+                            : 'Income and expense movements over time.'}
                     </p>
                 </div>
             </div>
@@ -211,7 +219,7 @@ function ReportsPageContent() {
                                     <SelectTrigger className="w-full sm:w-64"><SelectValue placeholder="All churches" /></SelectTrigger>
                                     <SelectContent>
                                         <SelectItem value="none">All churches</SelectItem>
-                                        {organisations.map(d => <SelectItem key={d.id} value={d.id}>{d.name} ({formatOrganisationLevel(d.level)})</SelectItem>)}
+                                        {organisations.map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
                                     </SelectContent>
                                 </Select>
                             </div>

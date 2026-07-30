@@ -2,7 +2,6 @@
 
 import { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { formatMoney } from '@/lib/format-money';
-import { getDisplayRole } from '@/lib/roleDisplay';
 import {
     TrendingUp, TrendingDown, Wallet, PlusCircle, Receipt, Building2,
     Users, Coins, Clock, ChevronRight, ChevronLeft,
@@ -13,10 +12,10 @@ import { useRouter } from 'next/navigation';
 import { Role } from '@prisma/client';
 import { BarChart, Bar, XAxis, Tooltip, ResponsiveContainer, LabelList } from 'recharts';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
+import { isBankAccount } from '@/lib/org-model';
 import { useColorMode } from '@/app/providers';
 import { getExpenseWindowStatus, getMsUntilExpenseWindowOpens } from '@/lib/expense-window';
 
@@ -224,7 +223,7 @@ export default function DashboardPage() {
 
         const all = [
             {
-                title: 'Request Expense', icon: Clock, href: '/transactions/new?type=EXPENSE',
+                title: 'Request withdrawal', icon: Clock, href: '/transactions/new?type=EXPENSE',
                 color: '#EF4444',
                 roles: [Role.DENOMINATION_LEADER, Role.OVERSIGHT_LEADER, Role.CAMPUS_LEADER, Role.STREAM_LEADER, Role.COUNCIL_LEADER] as Role[],
             },
@@ -233,7 +232,7 @@ export default function DashboardPage() {
                 color: '#22C55E', roles: null as Role[] | null, excludeForLeaders: true,
             },
             {
-                title: 'Transactions History', icon: Receipt, href: '/transactions',
+                title: 'Transaction history', icon: Receipt, href: '/transactions',
                 color: '#3B82F6', roles: null as Role[] | null,
             },
             {
@@ -277,6 +276,9 @@ export default function DashboardPage() {
     const userRole = session?.user?.role as Role;
     const leaderRoles = [Role.DENOMINATION_LEADER, Role.OVERSIGHT_LEADER, Role.CAMPUS_LEADER, Role.STREAM_LEADER, Role.COUNCIL_LEADER] as Role[];
     const isLeader = userRole && leaderRoles.includes(userRole);
+    const isAccountHolder = userRole === Role.COUNCIL_LEADER || isBankAccount(session?.user?.organisationLevel);
+    const holdingOwnAccount = isAccountHolder && organisationLeader?.name && session?.user?.name
+        && organisationLeader.name === session.user.name;
 
     const getStatColor = (type: string, balance?: number | string): string => {
         const b = balance !== undefined ? Number(balance) : undefined;
@@ -357,28 +359,29 @@ export default function DashboardPage() {
                     )}
                     <div className="min-w-0">
                         <p className="text-[0.6875rem] font-medium uppercase tracking-[0.10em] text-muted-foreground mb-1">
-                            {isSuperAdmin ? 'Administration' : isLeader ? 'Leader overview' : 'Account overview'}
+                            {isSuperAdmin
+                                ? 'Administration'
+                                : isAccountHolder
+                                    ? 'Your account'
+                                    : isLeader
+                                        ? 'Leader overview'
+                                        : 'Account overview'}
                         </p>
                         <div className="flex items-baseline gap-3 flex-wrap">
                             <h1 className="text-[1.625rem] sm:text-[1.875rem] md:text-[2.25rem] font-medium tracking-[-0.02em] leading-[1.15] text-foreground">
                                 {isSuperAdmin
                                     ? 'System management'
-                                    : session?.user?.organisationName && session?.user?.organisationLevel
-                                        ? `${session.user.organisationName} ${session.user.organisationLevel}`
-                                        : session?.user?.organisationName || 'Dashboard'}
+                                    : session?.user?.organisationName || 'Dashboard'}
                             </h1>
-                            {session?.user?.role && (
-                                <Badge variant="outline" className="text-[0.625rem] uppercase tracking-[0.10em] font-medium h-[22px]">
-                                    {getDisplayRole(session.user.role)}
-                                </Badge>
-                            )}
                         </div>
                         <p className="text-sm text-muted-foreground mt-1.5 max-w-[580px]">
                             {isSuperAdmin
                                 ? 'Manage every part of the system from one place.'
-                                : organisationLeader
-                                    ? `Led by ${organisationLeader.name}`
-                                    : "Here's what's happening with your finances today."}
+                                : holdingOwnAccount
+                                    ? 'Request withdrawals and track your account balance.'
+                                    : organisationLeader
+                                        ? `Led by ${organisationLeader.name}`
+                                        : "Here's what's happening with your finances today."}
                         </p>
                     </div>
                 </div>

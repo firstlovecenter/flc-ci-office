@@ -180,7 +180,6 @@ function UsersPageContent() {
                                         {user.archived && <Badge variant="warning" className="text-[0.688rem]">Archived</Badge>}
                                     </div>
                                     <p className="text-sm text-muted-foreground truncate">
-                                        {user.userRoles?.[0]?.role ? `${user.userRoles[0].role} — ` : ''}
                                         {user.userRoles?.[0]?.organisation?.name || user.organisation?.name || 'No church'}
                                         {user.userRoles?.length > 1 ? ` (+${user.userRoles.length - 1} more)` : ''}
                                     </p>

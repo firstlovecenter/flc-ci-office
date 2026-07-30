@@ -10,10 +10,15 @@ import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { cn, formatNumber, formatOrganisationLevel, formatTransactionType } from '@/lib/utils';
+import { cn, formatNumber, formatTransactionType } from '@/lib/utils';
+import {
+    isBankAccount,
+    canRecordDeposit,
+    hasAccountBalance,
+    isExpenseWindowExempt,
+} from '@/lib/org-model';
 import { useToast } from '@/components/ToastProvider';
 import { getExpenseWindowStatus, formatTimeInExpenseWindowTimeZone, EXPENSE_WINDOW_CLOSE_HOUR, EXPENSE_WINDOW_CLOSE_MINUTE } from '@/lib/expense-window';
-import { canRecordDeposit, hasAccountBalance, isExpenseWindowExempt } from '@/lib/org-model';
 import { APP_CURRENCY } from '@/lib/currency-constants';
 
 type TransactionType = 'INCOME' | 'EXPENSE';
@@ -57,7 +62,7 @@ function NewTransactionForm() {
     const showBalance = type === 'EXPENSE' && hasAccountBalance(selectedAccountType as any);
     const windowExempt = isExpenseWindowExempt(selectedAccountType as any);
     const allowDeposit = canRecordDeposit(selectedAccountType as any);
-    const moneyAccounts = organisations.filter((o) => o.level === 'COUNCIL');
+    const moneyAccounts = organisations.filter((o) => isBankAccount(o.level));
 
     useEffect(() => {
         if (sessionStatus === 'loading') return;
@@ -286,7 +291,7 @@ function NewTransactionForm() {
                             <Label>Account <span className="text-destructive">*</span></Label>
                             <Select value={organisationId} onValueChange={setOrganisationId} required>
                                 <SelectTrigger><SelectValue placeholder="Select an account" /></SelectTrigger>
-                                <SelectContent>{moneyAccounts.map(d => <SelectItem key={d.id} value={d.id}>{d.name} {formatOrganisationLevel(d.level)}</SelectItem>)}</SelectContent>
+                                <SelectContent>{moneyAccounts.map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}</SelectContent>
                             </Select>
                         </div>
                     )}

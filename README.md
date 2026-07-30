@@ -57,15 +57,15 @@ This project has extensive documentation organized by topic. For developers join
 ## Features Overview
 
 ### Core Functionality
-- **Multi-Level Department Hierarchy**: Denomination → Oversight → Campus → Stream → Council (5 levels) (see [Multi-Department Migration](./docs/migrations/multi-department-migration.md))
-- **Role-Based Access Control (RBAC)**: 11 role levels (SUPERADMIN + 10 admin/leader roles) with granular permissions (see [Role Management](./docs/roles/role-management.md))
-- **Transaction Management**: Income and expense tracking with file attachments
-- **Transaction Approval Workflow**: Leaders submit requests, admins approve/reject (see [Approval Workflow](./docs/features/approval-workflow.md))
+- **Church hierarchy**: HQ → Oversight → Campus (campus is the lowest church level). Bank accounts attach under campuses and are not a church level (see [Multi-Department Migration](./docs/migrations/multi-department-migration.md))
+- **Role-Based Access Control (RBAC)**: Managers, holders, and account holders with granular permissions (see [Role Management](./docs/roles/role-management.md))
+- **Transaction Management**: Deposit and withdrawal tracking with file attachments
+- **Transaction Approval Workflow**: Account holders submit withdrawal requests, managers approve/reject (see [Approval Workflow](./docs/features/approval-workflow.md))
 - **Multi-Currency Support**: Track transactions in multiple currencies with automatic conversion (see [Multi-Currency User Guide](./docs/guides/multi-currency-user-guide.md))
 - **Weekly Locking**: Automatic locking of past weeks' transactions
-- **Recursive Permissions**: Admins can view/manage child departments
+- **Recursive Permissions**: Managers can view/manage churches and accounts in their scope
 - **Audit Trail**: Complete logging of all system actions (see [Audit Logging](./docs/features/audit-logging.md))
-- **Financial Reports**: Generate reports by department
+- **Financial Reports**: Generate reports by church or account
 - **Dashboard Analytics**: Real-time financial statistics
 - **Push Notifications**: Real-time PWA notifications for transaction approvals (see [Push Notifications](./docs/features/push-notifications.md))
 - **Offline Support**: Progressive Web App with offline capabilities
@@ -159,8 +159,8 @@ This project has extensive documentation organized by topic. For developers join
 After seeding, you can log in with:
 
 - **SuperAdmin**: `admin@flc.org` / `password123`
-- **Campus Admin**: `campus.admin@flc.org` / `password123`
-- **Council Leader**: `council.leader@flc.org` / `password123`
+- **Campus Manager**: `campus.admin@flc.org` / `password123`
+- **Account Holder**: `council.leader@flc.org` / `password123`
 
 > **🔒 For role information**, see [Role Management](./docs/roles/role-management.md) and [Multiple Admins](./docs/roles/multiple-admins.md)
 
@@ -200,20 +200,23 @@ flc-accounts/
 
 ## Key Features Explained
 
-### Department Hierarchy
-The system supports a 5-level hierarchy:
-1. **Denomination** - Top-level organization (denominational headquarters)
+### Church hierarchy
+Churches only — no money at these levels:
+1. **HQ** - Denominational headquarters
 2. **Oversight** - Oversight regions or zones
-3. **Campus** - Individual campuses or locations
-4. **Stream** - Ministry streams or departments
-5. **Council** - Smallest ministry unit (councils, groups, or teams)
+3. **Campus** - Lowest church / organisation level
+
+### Bank accounts
+Accounts sit under a campus. They are not churches and not part of the hierarchy ladder.
+- **Operating** — deposits + withdrawals, balance, expense window
+- **Special project** — withdrawals only, receipt-gated
 
 ### Roles and Permissions
 - **SuperAdmin**: Full system access (email-locked to primary admin)
-- **Admins** (Denomination, Oversight, Campus, Stream, Council): Can manage their department and all child departments
-  - Multiple admins allowed per department (except SUPERADMIN and DENOMINATION_ADMIN)
-- **Leaders** (Denomination, Oversight, Campus, Stream, Council): Can submit expense requests for approval
-- **Multiple Roles**: Users can have multiple role-department combinations and switch between them
+- **Managers** (HQ, Oversight, Campus): Can manage churches and accounts in their scope
+- **Holders** (HQ, Oversight, Campus): Church-level holders for their unit
+- **Account holders**: Request withdrawals / track balance on their bank account
+- **Multiple Roles**: Users can have multiple role–church combinations and switch between them
 
 > **📖 See**: [Role Management](./docs/roles/role-management.md) | [Multiple Admins](./docs/roles/multiple-admins.md) | [Multiple Roles](./docs/roles/multiple-roles.md)
 

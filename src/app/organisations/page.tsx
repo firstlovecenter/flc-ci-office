@@ -10,7 +10,6 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
-import { formatOrganisationLevel } from '@/lib/utils';
 import { isOrgUnit } from '@/lib/org-model';
 import { useToast } from '@/components/ToastProvider';
 import EditOrganisationDialog from '@/components/EditOrganisationDialog';
@@ -25,10 +24,10 @@ type Organisation = {
 };
 
 const LEVEL_ORDER: Record<string, number> = { CAMPUS: 3, OVERSIGHT: 2, DENOMINATION: 1 };
-const SUB_LEVEL: Record<string, string> = {
+/** Child church units under a parent. Campus has no child churches — only bank accounts. */
+const SUB_CHURCHES: Record<string, string> = {
     DENOMINATION: 'Oversights',
     OVERSIGHT: 'Campuses',
-    CAMPUS: 'Accounts',
 };
 
 function OrganisationsPageContent() {
@@ -136,15 +135,16 @@ function OrganisationsPageContent() {
                     </div>
                     <div className="min-w-0">
                         <p className="text-[0.6875rem] font-medium uppercase tracking-[0.10em] text-muted-foreground mb-0.5">
-                            {parentOrganisation ? 'Churches' : 'Hierarchy'}
+                            {parentOrganisation ? 'Churches' : 'Church hierarchy'}
                         </p>
                         <h1 className="text-[1.625rem] sm:text-[1.875rem] font-semibold tracking-[-0.025em] text-foreground">
                             {parentOrganisation
-                                ? `${parentOrganisation.name} ${SUB_LEVEL[parentOrganisation.level] || ''}`
+                                ? `${parentOrganisation.name} ${SUB_CHURCHES[parentOrganisation.level] || ''}`
                                 : 'Churches'}
                         </h1>
                         <p className="text-sm text-muted-foreground mt-1">
                             {organisations.length} {organisations.length === 1 ? 'church' : 'churches'}
+                            {!parentOrganisation ? ' · HQ → Oversight → Campus' : ''}
                             {parentLeader ? ` · Leader: ${parentLeader.name || parentLeader.email}` : ''}
                             {parentAdmin ? ` · Manager: ${parentAdmin.name || parentAdmin.email}` : ''}
                         </p>
@@ -174,7 +174,7 @@ function OrganisationsPageContent() {
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
                 <Input
                     placeholder={parentOrganisation
-                        ? `Search ${SUB_LEVEL[parentOrganisation.level]} or leaders`
+                        ? `Search ${SUB_CHURCHES[parentOrganisation.level] || 'churches'} or leaders`
                         : 'Search churches or leaders'}
                     value={searchQuery}
                     onChange={e => setSearchQuery(e.target.value)}
@@ -197,9 +197,8 @@ function OrganisationsPageContent() {
                     const leader = dept.userRoles?.find((ur: any) => ur.role?.includes('LEADER'))?.user;
                     const admin = dept.userRoles?.find((ur: any) => ur.role?.includes('ADMIN'))?.user;
                     const childOrgCount = (dept.children || []).filter((c: any) => isOrgUnit(c.level)).length;
-                    const accountCount = dept.level === 'CAMPUS'
-                        ? (dept._count?.children || 0)
-                        : childOrgCount;
+                    const bankAccountCount = dept.level === 'CAMPUS' ? (dept._count?.children || 0) : 0;
+                    const childChurchLabel = SUB_CHURCHES[dept.level];
 
                     return (
                         <button
@@ -208,6 +207,10 @@ function OrganisationsPageContent() {
                                 document.cookie = `activeOrganisationId=${dept.id}; path=/; max-age=86400; SameSite=Strict${window.location.protocol === 'https:' ? '; Secure' : ''}`;
                                 if (dept.level === 'DENOMINATION' || dept.level === 'OVERSIGHT') {
                                     router.push(`/organisations?parent=${dept.id}`);
+                                    return;
+                                }
+                                if (dept.level === 'CAMPUS') {
+                                    router.push(`/accounts?campus=${dept.id}`);
                                     return;
                                 }
                                 router.push('/organisations/dashboard');
@@ -224,9 +227,6 @@ function OrganisationsPageContent() {
                                 <div className="flex-1 min-w-0">
                                     <p className="font-bold text-foreground truncate text-[0.95rem] md:text-[1.05rem] mb-0.5 leading-tight">
                                         {dept.name}
-                                        <span className="text-muted-foreground font-medium text-xs ml-1.5 opacity-80">
-                                            {formatOrganisationLevel(dept.level)}
-                                        </span>
                                     </p>
                                     <div className="flex flex-wrap items-center gap-1">
                                         {leader ? (
@@ -244,9 +244,14 @@ function OrganisationsPageContent() {
                                             </span>
                                         )}
                                     </div>
-                                    {accountCount > 0 && (
+                                    {dept.level === 'CAMPUS' && (
                                         <p className="hidden md:block text-xs text-muted-foreground mt-0.5">
-                                            {accountCount} {SUB_LEVEL[dept.level]}
+                                            {bankAccountCount} bank {bankAccountCount === 1 ? 'account' : 'accounts'}
+                                        </p>
+                                    )}
+                                    {childChurchLabel && childOrgCount > 0 && (
+                                        <p className="hidden md:block text-xs text-muted-foreground mt-0.5">
+                                            {childOrgCount} {childChurchLabel.toLowerCase()}
                                         </p>
                                     )}
                                 </div>

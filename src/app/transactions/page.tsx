@@ -11,7 +11,8 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { cn, formatCurrency, formatOrganisationLevel, isWeekLocked } from '@/lib/utils';
+import { cn, formatCurrency, isWeekLocked } from '@/lib/utils';
+import { isBankAccount } from '@/lib/org-model';
 import { formatMoney } from '@/lib/format-money';
 import { APP_CURRENCY } from '@/lib/currency-constants';
 import { useToast } from '@/components/ToastProvider';
@@ -150,9 +151,15 @@ function TransactionsPageContent() {
                     <div className="min-w-0">
                         <p className="text-[0.6875rem] font-medium uppercase tracking-[0.10em] text-muted-foreground mb-0.5">Ledger</p>
                         <h1 className="text-[1.625rem] sm:text-[1.875rem] font-semibold tracking-[-0.025em] text-foreground">
-                            {organisation?.name ? `${organisation.name}${organisation.level ? ` ${formatOrganisationLevel(organisation.level)}` : ''}` : 'Transaction history'}
+                            {organisation?.name || 'Transaction history'}
                         </h1>
-                        <p className="text-sm text-muted-foreground mt-0.5">{organisation ? 'Including related churches.' : 'Every entry, recorded and reconciled.'}</p>
+                        <p className="text-sm text-muted-foreground mt-0.5">
+                            {organisation
+                                ? (isBankAccount(organisation.level)
+                                    ? 'Entries on this bank account.'
+                                    : 'Including related churches.')
+                                : 'Every entry, recorded and reconciled.'}
+                        </p>
                     </div>
                 </div>
                 <Button asChild><Link href={deptParam ? `/transactions/new?dept=${deptParam}` : '/transactions/new'}><Plus className="mr-1.5 h-4 w-4" />{isLeader ? 'Request withdrawal' : 'New transaction'}</Link></Button>

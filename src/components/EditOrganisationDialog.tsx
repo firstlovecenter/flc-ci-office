@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
-import { formatOrganisationLevel, formatRole } from '@/lib/utils';
+import { formatOrganisationLevel } from '@/lib/utils';
 import { formatAccountType, isBankAccount } from '@/lib/org-model';
 
 type OrganisationLevel = 'DENOMINATION' | 'OVERSIGHT' | 'CAMPUS' | 'STREAM' | 'COUNCIL';
@@ -159,15 +159,15 @@ export default function EditOrganisationDialog({ open, onClose, organisation, or
                                 <SelectTrigger><SelectValue placeholder={editingAccount ? 'Select campus' : 'None (Top Level)'} /></SelectTrigger>
                                 <SelectContent>
                                     {!editingAccount && <SelectItem value="none">None (Top Level)</SelectItem>}
-                                    {availableParents.map((d: any) => <SelectItem key={d.id} value={d.id}>{d.name}{!editingAccount ? ` (${formatOrganisationLevel(d.level)})` : ''}</SelectItem>)}
+                                    {availableParents.map((d: any) => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
                                 </SelectContent>
                             </Select>
                         </div>
 
                         <div className="space-y-1.5">
-                            <Label>{editingAccount ? 'Account holder' : 'Church leader'}</Label>
+                            <Label>{editingAccount ? 'Holder' : 'Leader'}</Label>
                             <Select value={leaderId} onValueChange={setLeaderId} disabled={usersLoading}>
-                                <SelectTrigger><SelectValue placeholder={editingAccount ? 'Select account holder' : 'Select leader'} /></SelectTrigger>
+                                <SelectTrigger><SelectValue placeholder={editingAccount ? 'Select holder' : 'Select leader'} /></SelectTrigger>
                                 <SelectContent>
                                     {currentLeader && <SelectItem value={currentLeader.id}>{currentLeader.name || currentLeader.email} (Current)</SelectItem>}
                                     {users.filter(u => u.id !== currentLeader?.id).map((u: any) => <SelectItem key={u.id} value={u.id}>{u.name || u.email} {u.title ? `(${u.title})` : ''} — {u.phone}</SelectItem>)}
@@ -240,7 +240,7 @@ export default function EditOrganisationDialog({ open, onClose, organisation, or
                                 {closeInfo.affectedUsers?.length > 0 && closeInfo.canClose && (
                                     <div>
                                         <p className="text-sm font-semibold text-foreground mb-2">Users who will lose access:</p>
-                                        {closeInfo.affectedUsers.map((u: any) => <div key={u.id} className="flex items-center gap-2 text-sm mb-1"><UserX className="h-4 w-4 text-muted-foreground shrink-0" /><p className="text-foreground">{u.name || 'Unknown'} <span className="text-muted-foreground">— {formatRole(u.role)}</span></p></div>)}
+                                        {closeInfo.affectedUsers.map((u: any) => <div key={u.id} className="flex items-center gap-2 text-sm mb-1"><UserX className="h-4 w-4 text-muted-foreground shrink-0" /><p className="text-foreground">{u.name || 'Unknown'}</p></div>)}
                                     </div>
                                 )}
 

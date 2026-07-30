@@ -6,6 +6,8 @@
  * Database templates (SmsTemplate model) are for manual superadmin-initiated SMS only.
  */
 
+import { formatRoleLabel, formatMoneyMovement } from '@/lib/org-model';
+
 interface PasswordResetSmsParams {
     resetCode: string;
     expirationMinutes?: number;
@@ -40,7 +42,7 @@ interface RoleAssignmentSmsParams {
 
 export function generateRoleAssignmentSms(params: RoleAssignmentSmsParams): string {
     const { userName, role, organisation } = params;
-    const roleDisplay = role.replace(/_/g, ' ');
+    const roleDisplay = formatRoleLabel(role);
     return `Hello ${userName}, your role has been updated to ${roleDisplay} for ${organisation}.`;
 }
 
@@ -53,7 +55,7 @@ interface TransactionNotificationSmsParams {
 
 export function generateTransactionNotificationSms(params: TransactionNotificationSmsParams): string {
     const { userName, type, amount, status } = params;
-    const action = type === 'INCOME' ? 'Income' : 'Expense';
+    const action = formatMoneyMovement(type) || type;
     return `${userName}, your ${action} transaction of ${amount} is now ${status}.`;
 }
 

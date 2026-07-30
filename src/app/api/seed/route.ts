@@ -16,68 +16,60 @@ export async function POST(request: Request) {
     }
 
     try {
-
-        // Create organisations - new 5-level hierarchy
-        const denominationDept = await prisma.organisation.upsert({
+        // Churches: HQ → Oversight → Campus (lowest). Then a bank account under campus.
+        const hq = await prisma.organisation.upsert({
             where: { id: 'denomination-1' },
-            update: {},
+            update: { name: 'HQ', level: 'DENOMINATION' },
             create: {
                 id: 'denomination-1',
-                name: 'Global Church Denomination',
+                name: 'HQ',
                 level: 'DENOMINATION',
                 updatedAt: new Date(),
             },
         });
 
-        const oversightOrganisation = await prisma.organisation.upsert({
+        const oversight = await prisma.organisation.upsert({
             where: { id: 'oversight-1' },
-            update: {},
+            update: { name: 'Regional Oversight', level: 'OVERSIGHT', parentId: hq.id },
             create: {
                 id: 'oversight-1',
                 name: 'Regional Oversight',
                 level: 'OVERSIGHT',
-                parentId: denominationDept.id,
+                parentId: hq.id,
                 updatedAt: new Date(),
             },
         });
 
-        const campusDept = await prisma.organisation.upsert({
+        const campus = await prisma.organisation.upsert({
             where: { id: 'campus-1' },
-            update: {},
+            update: { name: 'Sample Campus', level: 'CAMPUS', parentId: oversight.id },
             create: {
                 id: 'campus-1',
-                name: 'Los Angeles Campus',
+                name: 'Sample Campus',
                 level: 'CAMPUS',
-                parentId: oversightOrganisation.id,
+                parentId: oversight.id,
                 updatedAt: new Date(),
             },
         });
 
-        const streamDept = await prisma.organisation.upsert({
-            where: { id: 'stream-1' },
-            update: {},
-            create: {
-                id: 'stream-1',
-                name: 'Youth Stream',
-                level: 'STREAM',
-                parentId: campusDept.id,
-                updatedAt: new Date(),
-            },
-        });
-
-        const councilDept = await prisma.organisation.upsert({
+        const account = await prisma.organisation.upsert({
             where: { id: 'council-1' },
-            update: {},
+            update: {
+                name: 'Sample Campus Operating',
+                level: 'COUNCIL',
+                accountType: 'OPERATING',
+                parentId: campus.id,
+            },
             create: {
                 id: 'council-1',
-                name: 'Youth Council A',
+                name: 'Sample Campus Operating',
                 level: 'COUNCIL',
-                parentId: streamDept.id,
+                accountType: 'OPERATING',
+                parentId: campus.id,
                 updatedAt: new Date(),
             },
         });
 
-        // Create users
         const hashedPassword = await bcrypt.hash('password123', 10);
 
         const superAdmin = await prisma.user.upsert({
@@ -94,12 +86,14 @@ export async function POST(request: Request) {
             },
         });
 
-        await prisma.userRole.create({
-            data: {
+        await prisma.userRole.upsert({
+            where: { id: 'superadmin-role-1' },
+            update: { role: 'SUPERADMIN', organisationId: hq.id },
+            create: {
                 id: 'superadmin-role-1',
                 userId: superAdmin.id,
                 role: 'SUPERADMIN',
-                organisationId: denominationDept.id,
+                organisationId: hq.id,
                 updatedAt: new Date(),
             },
         });
@@ -110,46 +104,54 @@ export async function POST(request: Request) {
             create: {
                 id: 'campus-admin-1',
                 email: 'campus.admin@flc.org',
-                name: 'Campus Admin',
+                name: 'Campus Manager',
                 phone: '0501234568',
                 password: hashedPassword,
                 activeRole: 'CAMPUS_ADMIN',
-                organisationId: campusDept.id,
+                organisationId: campus.id,
                 updatedAt: new Date(),
             },
         });
 
-        await prisma.userRole.create({
-            data: {
+        await prisma.userRole.upsert({
+            where: { id: 'campus-admin-role-1' },
+            update: { role: 'CAMPUS_ADMIN', organisationId: campus.id },
+            create: {
                 id: 'campus-admin-role-1',
                 userId: campusAdmin.id,
                 role: 'CAMPUS_ADMIN',
-                organisationId: campusDept.id,
+                organisationId: campus.id,
                 updatedAt: new Date(),
             },
         });
 
-        const councilLeader = await prisma.user.upsert({
+        const accountHolder = await prisma.user.upsert({
             where: { email: 'council.leader@flc.org' },
-            update: {},
+            update: {
+                name: 'Account Holder',
+                activeRole: 'COUNCIL_LEADER',
+                organisationId: account.id,
+            },
             create: {
                 id: 'council-leader-1',
                 email: 'council.leader@flc.org',
-                name: 'Council Leader',
+                name: 'Account Holder',
                 phone: '0501234569',
                 password: hashedPassword,
                 activeRole: 'COUNCIL_LEADER',
-                organisationId: councilDept.id,
+                organisationId: account.id,
                 updatedAt: new Date(),
             },
         });
 
-        await prisma.userRole.create({
-            data: {
+        await prisma.userRole.upsert({
+            where: { id: 'council-leader-role-1' },
+            update: { role: 'COUNCIL_LEADER', organisationId: account.id },
+            create: {
                 id: 'council-leader-role-1',
-                userId: councilLeader.id,
+                userId: accountHolder.id,
                 role: 'COUNCIL_LEADER',
-                organisationId: councilDept.id,
+                organisationId: account.id,
                 updatedAt: new Date(),
             },
         });
@@ -159,8 +161,8 @@ export async function POST(request: Request) {
             message: 'Database seeded successfully',
             credentials: {
                 superAdmin: 'admin@flc.org / password123',
-                campusAdmin: 'campus.admin@flc.org / password123',
-                councilLeader: 'council.leader@flc.org / password123',
+                campusManager: 'campus.admin@flc.org / password123',
+                accountHolder: 'council.leader@flc.org / password123',
             },
         });
     } catch (error: any) {

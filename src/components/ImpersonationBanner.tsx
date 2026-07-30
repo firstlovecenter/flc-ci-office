@@ -28,7 +28,8 @@ export default function ImpersonationBanner() {
             <div className="flex items-center gap-2 min-w-0">
                 <UserCheck className="h-4 w-4 text-warning shrink-0" />
                 <p className="text-sm text-warning-foreground truncate">
-                    Impersonating <strong>{session.user.name || session.user.email}</strong> as <strong>{session.user.role}</strong>
+                    Impersonating <strong>{session.user.name || session.user.email}</strong>
+                    {session.user.organisationName ? <> · {session.user.organisationName}</> : null}
                 </p>
             </div>
             <button onClick={handleStop} disabled={stopping} className="flex items-center gap-1.5 text-xs font-semibold text-warning px-3 py-1.5 rounded-lg border border-warning/40 hover:bg-warning/20 transition-colors shrink-0 disabled:opacity-60">

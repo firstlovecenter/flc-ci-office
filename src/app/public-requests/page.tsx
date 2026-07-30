@@ -257,7 +257,7 @@ export default function PublicRequestsPage() {
                             <div className="border-t border-border pt-3">
                                 <p className="text-xs font-semibold uppercase tracking-[0.07em] text-muted-foreground mb-3">Select account to deduct from</p>
                                 <Select value={selectedDeptId} onValueChange={v => { setSelectedDeptId(v); if (v) fetchBalance(v); }} disabled={loadingDepts}>
-                                    <SelectTrigger><SelectValue placeholder={loadingDepts ? 'Loading...' : 'Bank account'} /></SelectTrigger>
+                                    <SelectTrigger><SelectValue placeholder={loadingDepts ? 'Loading...' : 'Select account'} /></SelectTrigger>
                                     <SelectContent>
                                         {organisations.map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
                                     </SelectContent>

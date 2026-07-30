@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import { ArrowLeftRight, Check, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -13,7 +12,7 @@ import {
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { cn, formatRole } from '@/lib/utils';
+import { cn } from '@/lib/utils';
 
 interface UserRoleOption {
     id: string;
@@ -63,7 +62,6 @@ export default function RoleSwitcher() {
         setSwitching(true);
 
         try {
-            // Persist the active role in the database…
             const response = await fetch('/api/users/select-role', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -72,11 +70,9 @@ export default function RoleSwitcher() {
 
             if (!response.ok) throw new Error('Failed to switch role');
 
-            // …then refresh the session so the JWT picks up the new active role.
             await update();
             await new Promise((resolve) => setTimeout(resolve, 200));
 
-            // Full reload so every page re-fetches data scoped to the new role.
             window.location.reload();
         } catch (error) {
             console.error('Failed to switch role:', error);
@@ -84,19 +80,18 @@ export default function RoleSwitcher() {
         }
     };
 
-    // Only render for users who actually have more than one role to switch between.
     if (userRoles.length <= 1) return null;
 
     return (
         <DropdownMenu>
             <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon-sm" disabled={switching} aria-label="Switch role" title="Switch role">
+                <Button variant="ghost" size="icon-sm" disabled={switching} aria-label="Switch context" title="Switch context">
                     {switching ? <Loader2 className="size-4.5 animate-spin" /> : <ArrowLeftRight className="size-4.5" />}
                 </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" sideOffset={4} className="w-72">
                 <DropdownMenuLabel className="text-[0.625rem] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-                    Switch role
+                    Switch context
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 {userRoles.map((userRole) => {
@@ -109,12 +104,7 @@ export default function RoleSwitcher() {
                             className="gap-2 py-2"
                         >
                             <Check className={cn('size-4 shrink-0', active ? 'opacity-100 text-primary' : 'opacity-0')} />
-                            <div className="flex flex-col min-w-0">
-                                <Badge variant={active ? 'default' : 'secondary'} className="w-fit text-[0.65rem]">
-                                    {formatRole(userRole.role)}
-                                </Badge>
-                                <span className="text-xs text-muted-foreground truncate mt-1">{userRole.organisationName}</span>
-                            </div>
+                            <span className="text-sm font-medium truncate">{userRole.organisationName}</span>
                         </DropdownMenuItem>
                     );
                 })}

@@ -2,6 +2,7 @@ import { PrismaClient, ActionType, AuditSeverity } from '@prisma/client';
 import { headers } from 'next/headers';
 import { prisma } from '@/lib/prisma';
 import crypto from 'crypto';
+import { formatRoleLabel } from '@/lib/org-model';
 
 interface AuditLogData {
   userId: string;
@@ -94,11 +95,11 @@ function generateDescription(
     case 'RESTORE':
       return `Restored ${entity}${metadata?.name ? ` "${metadata.name}"` : ''}`;
     case 'LOGIN':
-      return `User logged in${metadata?.role ? ` as ${metadata.role}` : ''}`;
+      return `User logged in${metadata?.role ? ` as ${formatRoleLabel(metadata.role)}` : ''}`;
     case 'LOGOUT':
       return `User logged out`;
     case 'ROLE_CHANGE':
-      return `Changed role from ${metadata?.oldRole || 'N/A'} to ${metadata?.newRole || 'N/A'}`;
+      return `Changed role from ${metadata?.oldRole ? formatRoleLabel(metadata.oldRole) : 'N/A'} to ${metadata?.newRole ? formatRoleLabel(metadata.newRole) : 'N/A'}`;
     case 'LOCK_OVERRIDE':
       return `Override lock on ${entity}${metadata?.reason ? ` - Reason: ${metadata.reason}` : ''}`;
     case 'FILE_UPLOAD':

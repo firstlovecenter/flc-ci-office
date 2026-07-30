@@ -6,25 +6,12 @@ import { useRouter } from 'next/navigation';
 import { Building2, Users, ShieldCheck, Loader2, ArrowRight, Landmark } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
-import { formatRole } from '@/lib/utils';
 
 const getRoleIcon = (role: string) => {
     if (role === 'SUPERADMIN') return ShieldCheck;
     if (role.includes('ADMIN') || role.includes('DENOMINATION')) return Landmark;
     if (role.includes('LEADER')) return Building2;
     return Users;
-};
-
-const roleDescriptions: Record<string, string> = {
-    SUPERADMIN: 'Full system access and control',
-    DENOMINATION_ADMIN: 'Denomination-level finances and operations',
-    DENOMINATION_LEADER: 'Denomination-level initiatives',
-    OVERSIGHT_ADMIN: 'Oversight finances and approvals',
-    OVERSIGHT_LEADER: 'Oversight-level operations',
-    CAMPUS_ADMIN: 'Campus finances and approvals',
-    CAMPUS_LEADER: 'Campus-level operations',
-    STREAM_LEADER: 'Stream-level activities',
-    COUNCIL_LEADER: 'Council-level activities',
 };
 
 export default function SelectRolePage() {
@@ -149,16 +136,17 @@ export default function SelectRolePage() {
                                 </div>
 
                                 <div className="flex-1">
-                                    <p className="text-[0.625rem] font-semibold uppercase tracking-[0.12em] text-primary mb-1">
-                                        {formatRole(role)}
-                                    </p>
-                                    {organisationName && (
+                                    {organisationName ? (
                                         <p className="text-base font-semibold text-foreground tracking-[-0.005em] mb-1">
                                             {organisationName}
                                         </p>
+                                    ) : (
+                                        <p className="text-base font-semibold text-foreground tracking-[-0.005em] mb-1">
+                                            Continue
+                                        </p>
                                     )}
                                     <p className="text-sm text-muted-foreground">
-                                        {roleDescriptions[role] || 'Manage your responsibilities'}
+                                        Open this workspace
                                     </p>
                                 </div>
 

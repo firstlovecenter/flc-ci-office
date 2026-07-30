@@ -11,7 +11,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { cn, formatOrganisationLevel, formatNumber } from '@/lib/utils';
+import { cn, formatNumber } from '@/lib/utils';
 import { sumMoney } from '@/lib/format-money';
 import { useToast } from '@/components/ToastProvider';
 import WaiveReceiptDialog from '@/components/WaiveReceiptDialog';
@@ -245,7 +245,7 @@ export default function ApprovalsPage() {
                                 <td className="py-3 px-4"><input type="checkbox" className="rounded" checked={selectedIds.has(t.id)} onChange={() => toggleSelect(t.id)} /></td>
                                 <td className="py-3 px-4 text-muted-foreground">{fmtDate(t.createdAt)}</td>
                                 <td className="py-3 px-4 font-medium text-foreground max-w-[200px] truncate">{t.description}</td>
-                                <td className="py-3 px-4"><p className="font-medium text-foreground">{t.organisation.name}</p><p className="text-xs text-muted-foreground">{formatOrganisationLevel(t.organisation.level)}</p></td>
+                                <td className="py-3 px-4"><p className="font-medium text-foreground">{t.organisation.name}</p></td>
                                 <td className="py-3 px-4 text-foreground">{t.user.name}</td>
                                 <td className="py-3 px-4"><Badge variant="outline" className={t.type === 'INCOME' ? 'bg-success/10 text-success border-success/25' : 'bg-destructive/10 text-destructive border-destructive/25'}>{t.type}</Badge></td>
                                 <td className="py-3 px-4 font-semibold text-foreground text-right">{fmtAmt(t.amount, t.currency?.symbol)}</td>

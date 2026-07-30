@@ -13,13 +13,15 @@ export const ROLE_HIERARCHY: Record<string, number> = {
     COUNCIL_LEADER: 11,
 };
 
-// Organisation hierarchy — STREAM deprecated; Campus → Account is one step
+// Church hierarchy: HQ → Oversight → Campus (lowest org / church level).
+// COUNCIL is a bank account under a Campus — not a church level. Kept in the
+// map only so campus managers can manage attached accounts.
 export const ORGANISATION_HIERARCHY: Record<string, number> = {
     DENOMINATION: 1,
     OVERSIGHT: 2,
     CAMPUS: 3,
     STREAM: 3.5, // legacy only
-    COUNCIL: 4,
+    COUNCIL: 4, // bank account under campus — not an org unit
 };
 
 /**

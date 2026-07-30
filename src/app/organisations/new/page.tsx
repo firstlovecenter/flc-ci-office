@@ -147,7 +147,7 @@ function NewOrganisationForm() {
         setLoading(true);
         setError('');
         if (!leaderId) {
-            setError(creatingAccount ? 'An account holder must be selected' : 'A leader must be selected for the church');
+            setError(creatingAccount ? 'A holder must be selected' : 'A leader must be selected for the church');
             setLoading(false);
             return;
         }
@@ -264,7 +264,7 @@ function NewOrganisationForm() {
                                 {!creatingAccount && <SelectItem value="none">None</SelectItem>}
                                 {availableParents.map((dept: any) => (
                                     <SelectItem key={dept.id} value={dept.id}>
-                                        {dept.name}{!creatingAccount ? ` (${formatOrganisationLevel(dept.level)})` : ''}
+                                        {dept.name}
                                     </SelectItem>
                                 ))}
                             </SelectContent>
@@ -272,9 +272,9 @@ function NewOrganisationForm() {
                     </div>
 
                     <div className="space-y-1.5">
-                        <Label>{creatingAccount ? 'Account holder' : 'Church leader'} <span className="text-destructive">*</span></Label>
+                        <Label>{creatingAccount ? 'Holder' : 'Leader'} <span className="text-destructive">*</span></Label>
                         <Select value={leaderId} onValueChange={setLeaderId} disabled={usersLoading || users.length === 0} required>
-                            <SelectTrigger><SelectValue placeholder={usersLoading ? 'Loading...' : creatingAccount ? 'Select account holder' : 'Select a leader'} /></SelectTrigger>
+                            <SelectTrigger><SelectValue placeholder={usersLoading ? 'Loading...' : creatingAccount ? 'Select holder' : 'Select a leader'} /></SelectTrigger>
                             <SelectContent>
                                 {users.map((user: any) => (
                                     <SelectItem key={user.id} value={user.id}>

@@ -7,6 +7,7 @@ import { useSession } from 'next-auth/react';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn, formatCurrency } from '@/lib/utils';
+import { isBankAccount } from '@/lib/org-model';
 import { useColorMode } from '@/app/providers';
 import EditOrganisationDialog from '@/components/EditOrganisationDialog';
 import { BarChart, Bar, XAxis, Tooltip, ResponsiveContainer, LabelList } from 'recharts';
@@ -53,7 +54,7 @@ export default function OrganisationDashboardPage() {
         };
         const id = getCookie('activeOrganisationId');
         if (id) setOrganisationId(id);
-        else router.push('/organisations');
+        else router.push('/dashboard');
     }, [router]);
 
     useEffect(() => {
@@ -161,11 +162,11 @@ export default function OrganisationDashboardPage() {
                     )}
                     <div className="min-w-0">
                         <p className="text-[0.6875rem] font-medium uppercase tracking-[0.10em] text-muted-foreground mb-0.5">
-                            {organisation?.level === 'COUNCIL' ? 'Account' : 'Church'}
+                            {isBankAccount(organisation?.level) ? 'Account' : 'Church'}
                         </p>
                         <div className="flex items-center gap-2 flex-wrap">
                             <h1 className="text-[1.625rem] sm:text-[1.875rem] font-semibold tracking-[-0.025em] text-foreground leading-[1.15]">
-                                {organisation?.name || (organisation?.level === 'COUNCIL' ? 'Account dashboard' : 'Church dashboard')}
+                                {organisation?.name || (isBankAccount(organisation?.level) ? 'Account dashboard' : 'Church dashboard')}
                             </h1>
                             {canEdit && (
                                 <button onClick={() => setEditDialogOpen(true)} className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/20 transition-colors">
@@ -174,7 +175,13 @@ export default function OrganisationDashboardPage() {
                             )}
                         </div>
                         <p className="text-sm text-muted-foreground mt-0.75">
-                            {organisationLeader ? `Led by ${organisationLeader.name}` : "Here's what's happening with your finances today."}
+                            {isBankAccount(organisation?.level) && organisationLeader
+                                ? (organisationLeader.name === session?.user?.name
+                                    ? 'You hold this account.'
+                                    : `Held by ${organisationLeader.name}`)
+                                : organisationLeader
+                                    ? `Led by ${organisationLeader.name}`
+                                    : "Here's what's happening with your finances today."}
                         </p>
                     </div>
                 </div>
@@ -252,7 +259,7 @@ export default function OrganisationDashboardPage() {
                 organisation={organisation}
                 organisations={allOrganisations}
                 onSave={async () => { await fetchOrganisation(); await fetchStats(); setEditDialogOpen(false); }}
-                onOrganisationClosed={() => router.push('/organisations')}
+                onOrganisationClosed={() => router.push('/dashboard')}
             />
         </div>
     );

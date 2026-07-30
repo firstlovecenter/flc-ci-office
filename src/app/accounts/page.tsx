@@ -10,8 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
-import { formatOrganisationLevel } from '@/lib/utils';
-import { formatAccountType, isBankAccount } from '@/lib/org-model';
+import { isBankAccount } from '@/lib/org-model';
 import { useToast } from '@/components/ToastProvider';
 import EditOrganisationDialog from '@/components/EditOrganisationDialog';
 
@@ -126,7 +125,7 @@ function AccountsPageContent() {
                         </h1>
                         <p className="text-sm text-muted-foreground mt-1">
                             {accounts.length} {accounts.length === 1 ? 'account' : 'accounts'}
-                            {campus ? ' under this campus' : ' · Bank accounts sit under campuses'}
+                            {campus ? ` under ${campus.name}` : ''}
                         </p>
                     </div>
                 </div>
@@ -188,9 +187,6 @@ function AccountsPageContent() {
                                 <div className="flex-1 min-w-0">
                                     <p className="font-bold text-foreground truncate text-[0.95rem] md:text-[1.05rem] mb-0.5 leading-tight">
                                         {acct.name}
-                                        <span className="text-muted-foreground font-medium text-xs ml-1.5 opacity-80">
-                                            {formatAccountType(acct.accountType) || formatOrganisationLevel(acct.level)}
-                                        </span>
                                     </p>
                                     <div className="flex flex-wrap items-center gap-1">
                                         {holder ? (

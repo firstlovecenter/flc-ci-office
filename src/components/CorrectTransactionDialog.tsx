@@ -17,7 +17,8 @@ import {
     Select,
     MenuItem,
 } from '@mui/material';
-import { formatCurrency, formatOrganisationLevel } from '@/lib/utils';
+import { formatCurrency } from '@/lib/utils';
+import { isBankAccount } from '@/lib/org-model';
 
 interface CorrectTransactionDialogProps {
     open: boolean;
@@ -172,26 +173,26 @@ export default function CorrectTransactionDialog({
                             {transaction.description}
                         </Typography>
                         <Typography variant="caption" display="block" color="text.secondary">
-                            Church: {transaction.organisation?.name}
+                            Account: {transaction.organisation?.name}
                         </Typography>
                     </Box>
                 )}
 
                 <FormControl fullWidth sx={{ mb: 3 }}>
-                    <InputLabel>Change Church (Optional)</InputLabel>
+                    <InputLabel>Change account (Optional)</InputLabel>
                     <Select
                         value={newOrganisationId}
-                        label="Change Church (Optional)"
+                        label="Change account (Optional)"
                         onChange={(e) => setNewOrganisationId(e.target.value)}
                     >
                         <MenuItem value="">
                             <em>Keep original ({transaction?.organisation?.name})</em>
                         </MenuItem>
                         {organisations
-                            .filter(d => d.id !== transaction?.organisationId)
+                            .filter(d => isBankAccount(d.level) && d.id !== transaction?.organisationId)
                             .map((dept) => (
                                 <MenuItem key={dept.id} value={dept.id}>
-                                    {dept.name} {formatOrganisationLevel(dept.level)}
+                                    {dept.name}
                                 </MenuItem>
                             ))}
                     </Select>
@@ -199,7 +200,7 @@ export default function CorrectTransactionDialog({
 
                 <TextField
                     fullWidth
-                    label="New Amount (Optional if changing church)"
+                    label="New Amount (Optional if changing account)"
                     type="number"
                     value={newAmount}
                     onChange={(e) => setNewAmount(e.target.value)}
