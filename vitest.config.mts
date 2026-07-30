@@ -1,5 +1,5 @@
 import { defineConfig } from 'vitest/config';
-// __dirname is unavailable in native ESM config loading.
+import { fileURLToPath } from 'node:url';
 
 export default defineConfig({
     test: {
@@ -8,6 +8,8 @@ export default defineConfig({
         globals: true,
     },
     resolve: {
-        alias: { '@': new URL('./src', import.meta.url).pathname },
+        // fileURLToPath, not URL.pathname — the latter yields "/C:/..." on
+        // Windows, which does not resolve.
+        alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) },
     },
 });

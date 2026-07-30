@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
@@ -36,6 +37,23 @@ export async function GET(request: Request) {
     const endDate = searchParams.get('endDate');
     const exactOrganisation = searchParams.get('exactOrganisation') === 'true';
     const status = searchParams.get('status');
+
+    // Pagination is opt-in via ?page. Without it the response stays a plain
+    // array, so the approvals and reports pages are unaffected.
+    //
+    // Only the *list* is paged. Totals come from /api/transactions/summary,
+    // which aggregates the whole scope and is deliberately left uncapped —
+    // a page of rows must never change the reported balance.
+    // Filtering must happen server-side once the list is paged — a client-side
+    // filter would only ever search the rows already loaded.
+    const typeFilter = searchParams.get('type');
+    const search = (searchParams.get('search') || '').trim();
+
+    const pageParam = searchParams.get('page');
+    const paginate = pageParam !== null;
+    const pageNum = Math.max(1, Number(pageParam) || 1);
+    const pageSize = Math.min(Math.max(Number(searchParams.get('pageSize')) || 50, 1), 200);
+    const skip = (pageNum - 1) * pageSize;
 
     try {
         const whereClause: any = {};
@@ -113,6 +131,18 @@ export async function GET(request: Request) {
             }
         }
 
+        if (typeFilter === 'INCOME' || typeFilter === 'EXPENSE') {
+            whereClause.type = typeFilter;
+        }
+
+        if (search) {
+            whereClause.OR = [
+                { description: { contains: search, mode: 'insensitive' } },
+                { organisation: { name: { contains: search, mode: 'insensitive' } } },
+                { user: { name: { contains: search, mode: 'insensitive' } } },
+            ];
+        }
+
         // Add date filtering
         if (startDate || endDate) {
             whereClause.createdAt = {};
@@ -178,16 +208,67 @@ export async function GET(request: Request) {
                     },
                 },
             },
-            orderBy: {
-                createdAt: 'desc',
-            },
-            take: 500, // Limit results for performance
+            orderBy: [
+                { createdAt: 'desc' },
+                // Stable tiebreak — without it, rows sharing a timestamp can
+                // reshuffle between pages and be shown twice or skipped.
+                { id: 'desc' },
+            ],
+            skip: paginate ? skip : 0,
+            // Unpaginated callers keep the historical 500-row cap.
+            take: paginate ? pageSize : 500,
         });
+
+        /**
+         * Balance carried into this page.
+         *
+         * The running-balance column accumulates upward from the oldest row on
+         * screen, so a page needs to know what came before it. Computed as the
+         * net of every APPROVED entry older than the page's oldest row — an
+         * aggregate over the same scope, never a sum of the fetched rows.
+         */
+        const computeOpeningBalance = async (rows: { id: string; createdAt: Date }[]): Promise<string> => {
+            const oldest = rows[rows.length - 1];
+            if (!oldest) return '0';
+
+            // Compare on the FULL sort key, not createdAt alone. Transactions
+            // are commonly backdated to midnight from the date picker, so many
+            // share a timestamp — 51 such collisions on one account. A plain
+            // `createdAt <` dropped every same-timestamp sibling and the pages
+            // stopped chaining, leaving the running balance visibly wrong.
+            const idsInScope = whereClause.organisationId;
+            const scopeFilter = idsInScope
+                ? Prisma.sql`AND "organisationId" ${typeof idsInScope === 'string'
+                    ? Prisma.sql`= ${idsInScope}`
+                    : Prisma.sql`IN (${Prisma.join(idsInScope.in as string[])})`}`
+                : Prisma.empty;
+
+            const [row] = await prisma.$queryRaw<Array<{ net: Prisma.Decimal | null }>>`
+                SELECT COALESCE(SUM(
+                    CASE WHEN type = 'INCOME' THEN COALESCE("amountInBase", amount)
+                         ELSE -COALESCE("amountInBase", amount) END
+                ), 0) AS net
+                FROM "Transaction"
+                WHERE status = 'APPROVED'
+                  AND ("createdAt", id) < (${oldest.createdAt}, ${oldest.id})
+                  ${scopeFilter}
+            `;
+            return new Prisma.Decimal(row?.net ?? 0).toFixed(2);
+        };
 
         // Get user's base currency and exchange rates
         const userBaseCurrency = await getUserBaseCurrency(session.user.id);
-        
+
         if (!userBaseCurrency) {
+            if (paginate) {
+                return NextResponse.json({
+                    items: transactions,
+                    total: await prisma.transaction.count({ where: whereClause }),
+                    page: pageNum,
+                    pageSize,
+                    openingBalance: await computeOpeningBalance(transactions),
+                });
+            }
             return NextResponse.json(transactions);
         }
 
@@ -214,6 +295,16 @@ export async function GET(request: Request) {
                 amountInBase: moneyToString(convertedAmount),
             };
         });
+
+        if (paginate) {
+            return NextResponse.json({
+                items: transactionsWithConversion,
+                total: await prisma.transaction.count({ where: whereClause }),
+                page: pageNum,
+                pageSize,
+                openingBalance: await computeOpeningBalance(transactions),
+            });
+        }
 
         return NextResponse.json(transactionsWithConversion);
     } catch (error) {

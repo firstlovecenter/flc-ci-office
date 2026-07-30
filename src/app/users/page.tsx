@@ -16,6 +16,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/components/ToastProvider';
 import EditUserDialog from '@/components/EditUserDialog';
+import PageHeader from '@/components/ui/PageHeader';
 
 function UsersPageContent() {
     const { data: session, update } = useSession();
@@ -132,22 +133,15 @@ function UsersPageContent() {
 
     return (
         <div>
-            {/* Header */}
-            <div className="flex items-start sm:items-end justify-between gap-4 flex-wrap mb-8 pb-6 border-b border-border">
-                <div className="flex items-center gap-4 min-w-0 flex-1">
-                    <div className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0 bg-secondary text-muted-foreground">
-                        <Users className="h-5 w-5" />
-                    </div>
-                    <div className="min-w-0">
-                        <p className="text-[0.6875rem] font-medium uppercase tracking-[0.10em] text-muted-foreground mb-0.5">People</p>
-                        <h1 className="text-[1.625rem] sm:text-[1.875rem] font-semibold tracking-[-0.025em] text-foreground">Users</h1>
-                        <p className="text-sm text-muted-foreground mt-0.5">{users.length} {users.length === 1 ? 'person' : 'people'} in your scope.</p>
-                    </div>
-                </div>
-                {canCreateUsers && (
+            <PageHeader
+                eyebrow="People"
+                title="Users"
+                subtitle={`${users.length} ${users.length === 1 ? 'person' : 'people'} in your scope.`}
+                icon={<Users className="h-5 w-5" />}
+                actions={canCreateUsers && (
                     <Button onClick={() => setOpen(true)}><Plus className="mr-1.5 h-4 w-4" />Add user</Button>
                 )}
-            </div>
+            />
 
             {/* Search */}
             <div className="relative mb-6 max-w-[480px]">

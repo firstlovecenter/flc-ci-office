@@ -44,3 +44,9 @@ next-env.d.ts
 /src/generated/prisma
 
 claude skills
+
+# Scope baseline — a point-in-time snapshot of every account balance and the
+# organisation's net position. Never commit: the deploy flow makes this repo
+# public, and it is a migration-window artifact, not source. Regenerate with
+# `npm run snapshot:capture` at the start of a window.
+scripts/scope-baseline.json

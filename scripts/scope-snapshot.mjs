@@ -24,7 +24,19 @@ import path from 'path';
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 const MODE = process.argv[2] || 'capture';
-const BASELINE = path.resolve(process.cwd(), 'scripts', 'scope-baseline.json');
+
+/**
+ * Written outside the repository by default.
+ *
+ * The baseline holds every account's balance and the organisation's net
+ * position. The deploy flow makes this repo public, so a snapshot of the
+ * financial position must not live inside it. It is also a migration-window
+ * artifact rather than source — regenerate it, don't version it.
+ *
+ * Override with SCOPE_BASELINE_PATH if you need it elsewhere.
+ */
+const BASELINE = process.env.SCOPE_BASELINE_PATH
+    ?? path.resolve(process.cwd(), '..', 'flc-accounts-db-backups', 'scope-baseline.json');
 
 const money = (v) => Number(v ?? 0).toFixed(2);
 

@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { useSession } from 'next-auth/react';
 
 interface EditUserDialogProps {
@@ -28,6 +29,8 @@ export default function EditUserDialog({ open, onClose, user, onSave, onSuccess,
     const [image, setImage] = useState('');
     const [uploading, setUploading] = useState(false);
     const [deleting, setDeleting] = useState(false);
+    const [confirmDelete, setConfirmDelete] = useState(false);
+    const [confirmArchive, setConfirmArchive] = useState(false);
     const [archiving, setArchiving] = useState(false);
     const [error, setError] = useState('');
     const [saving, setSaving] = useState(false);
@@ -53,7 +56,6 @@ export default function EditUserDialog({ open, onClose, user, onSave, onSuccess,
 
     const handleDeleteUser = async () => {
         if (!user?.id || !onDelete) return;
-        if (!confirm('Are you sure you want to permanently delete this user? This action cannot be undone.')) return;
         setDeleting(true);
         try { await onDelete(user.id); onClose(); }
         catch (e: any) { setError(e.message || 'Failed to delete user'); }
@@ -63,7 +65,6 @@ export default function EditUserDialog({ open, onClose, user, onSave, onSuccess,
     const handleArchiveUser = async () => {
         if (!user || !onArchive) return;
         const action = user.archived ? 'unarchive' : 'archive';
-        if (!confirm(`Are you sure you want to ${action} this user?`)) return;
         setArchiving(true);
         try { await onArchive(user); onClose(); }
         catch (e: any) { setError(e.message || `Failed to ${action} user`); }
@@ -116,12 +117,12 @@ export default function EditUserDialog({ open, onClose, user, onSave, onSuccess,
                     {(canDelete || (canArchive && onArchive)) && (
                         <div className="flex flex-col gap-2">
                             {canArchive && onArchive && (
-                                <Button variant="outline" className={user?.archived ? 'text-success border-success/30' : 'text-warning border-warning/30'} onClick={handleArchiveUser} disabled={busy}>
+                                <Button variant="outline" className={user?.archived ? 'text-success border-success/30' : 'text-warning border-warning/30'} onClick={() => setConfirmArchive(true)} disabled={busy}>
                                     {archiving ? <><Loader2 className="mr-1.5 h-4 w-4 animate-spin" />{user?.archived ? 'Unarchiving…' : 'Archiving…'}</> : user?.archived ? 'Unarchive User' : 'Archive User'}
                                 </Button>
                             )}
                             {canDelete && onDelete && (
-                                <Button variant="destructive" onClick={handleDeleteUser} disabled={busy}>
+                                <Button variant="destructive" onClick={() => setConfirmDelete(true)} disabled={busy}>
                                     {deleting ? <><Loader2 className="mr-1.5 h-4 w-4 animate-spin" />Deleting…</> : <><Trash2 className="mr-1.5 h-4 w-4" />Delete User</>}
                                 </Button>
                             )}

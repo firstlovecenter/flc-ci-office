@@ -22,6 +22,7 @@ import ImpersonationBanner from './ImpersonationBanner';
 import PullToRefresh from './PullToRefresh';
 import RoleSwitcher from './RoleSwitcher';
 import { useWithdrawalEligibility, resetWithdrawalEligibility } from '@/hooks/useWithdrawalEligibility';
+import { usePermissions } from '@/hooks/usePermissions';
 
 const SIDEBAR_WIDTH = 256;
 const SIDEBAR_MINI_WIDTH = 60;
@@ -276,30 +277,14 @@ export default function ModernDashboardLayout({ children }: { children: React.Re
     } catch {}
   };
 
-  const normalizedRole = (session?.user?.role || '').toUpperCase();
-  const normalizedRoles = (session?.user?.roles || []).map((r: string) => r.toUpperCase());
-  const isSuperAdmin = normalizedRole === 'SUPERADMIN' || normalizedRoles.includes('SUPERADMIN');
-  const leaderAndAdminRoles = [
-    'DENOMINATION_ADMIN', 'DENOMINATION_LEADER',
-    'OVERSIGHT_ADMIN', 'OVERSIGHT_LEADER',
-    'CAMPUS_ADMIN', 'CAMPUS_LEADER',
-    'STREAM_LEADER', 'COUNCIL_LEADER',
-  ];
-  const isLeaderOrAdmin = normalizedRole && leaderAndAdminRoles.includes(normalizedRole);
-  const isAdmin = normalizedRole && normalizedRole.endsWith('_ADMIN');
-  const isLeader = normalizedRole && normalizedRole.endsWith('_LEADER');
-  const hasAnalytics = isAdmin || isSuperAdmin || ['DENOMINATION_LEADER', 'OVERSIGHT_LEADER', 'CAMPUS_LEADER'].includes(normalizedRole);
-  const isAccountHolder = normalizedRole === 'COUNCIL_LEADER' || normalizedRole === 'STREAM_LEADER';
-  // Campus is the lowest church level — it has no child churches, only bank
-  // accounts. A campus role opening /organisations gets an empty list, so the
-  // item is hidden for them; they manage Accounts and Users instead.
-  const canSeeOrganisation =
-    isSuperAdmin ||
-    ['DENOMINATION', 'OVERSIGHT'].some((lvl) => normalizedRole.startsWith(lvl));
-  // Account holders only use their own account — don't show the accounts directory.
-  const canSeeAccounts = !!(isSuperAdmin || isAdmin || (
-    isLeaderOrAdmin && !isAccountHolder
-  ));
+  // Single source of truth — see hooks/usePermissions.ts. These booleans were
+  // previously derived here and re-derived in seven other files.
+  const {
+    isSuperAdmin, isLeader,
+    canApprove, canManageUsers,
+    canSeeChurches, canSeeAccounts, canSeeAnalytics,
+    role: normalizedRole,
+  } = usePermissions();
 
   const isActive = (path: string) => {
     const clean = path.split('?')[0];
@@ -322,10 +307,10 @@ export default function ModernDashboardLayout({ children }: { children: React.Re
     {
       title: 'Management',
       items: [
-        { text: 'Approvals', icon: ClipboardList, path: '/approvals', show: !!(isAdmin || isSuperAdmin), badge: pendingCounts.approvals },
+        { text: 'Approvals', icon: ClipboardList, path: '/approvals', show: canApprove, badge: pendingCounts.approvals },
         { text: 'Public Requests', icon: Inbox, path: '/public-requests', show: normalizedRole === 'CAMPUS_ADMIN', badge: pendingCounts.publicRequests },
-        { text: 'Users', icon: Users, path: '/users', show: !!(isAdmin || isSuperAdmin), badge: 0 },
-        { text: 'Churches', icon: Building2, path: '/organisations', show: canSeeOrganisation, badge: 0 },
+        { text: 'Users', icon: Users, path: '/users', show: canManageUsers, badge: 0 },
+        { text: 'Churches', icon: Building2, path: '/organisations', show: canSeeChurches, badge: 0 },
         { text: 'Accounts', icon: Wallet, path: '/accounts', show: canSeeAccounts, badge: 0 },
       ],
     },
@@ -333,7 +318,7 @@ export default function ModernDashboardLayout({ children }: { children: React.Re
       title: 'Analytics',
       items: [
         { text: 'Reports', icon: BarChart2, path: '/reports', show: true, badge: 0 },
-        { text: 'Analytics', icon: TrendingUp, path: '/analytics', show: !!hasAnalytics, badge: 0 },
+        { text: 'Analytics', icon: TrendingUp, path: '/analytics', show: canSeeAnalytics, badge: 0 },
       ],
     },
   ];

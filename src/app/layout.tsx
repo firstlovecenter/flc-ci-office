@@ -7,7 +7,19 @@ const outfit = Outfit({
   subsets: ["latin"],
   display: "swap",
   weight: ["300", "400", "500", "600", "700"],
+  // Exposes --font-outfit, which globals.css feeds into --font-sans. Without it
+  // the `font-sans` utility silently resolved to system-ui.
+  variable: "--font-outfit",
 });
+
+/**
+ * Applies the stored theme before first paint.
+ *
+ * ThemeManager sets `.dark` in an effect, which runs after hydration — so
+ * dark-mode users saw a white flash on every hard load. This runs synchronously
+ * in <head>, ahead of any rendering.
+ */
+const THEME_INIT = `(function(){try{var m=localStorage.getItem('themeMode')||'system';var d=m==='dark'||(m==='system'&&window.matchMedia('(prefers-color-scheme: dark)').matches);if(d)document.documentElement.classList.add('dark')}catch(e){}})();`;
 
 export const viewport: Viewport = {
   themeColor: [
@@ -48,7 +60,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={outfit.className}>
+    <html lang="en" className={`${outfit.variable} ${outfit.className}`} suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_INIT }} />
+      </head>
       <body>
         <Providers>{children}</Providers>
       </body>

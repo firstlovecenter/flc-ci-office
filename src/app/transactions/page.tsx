@@ -2,7 +2,7 @@
 
 import { useState, useEffect, Suspense, useMemo } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { Plus, Search, Pencil, Trash2, Paperclip, Receipt, TrendingUp, Wallet, ArrowLeftRight } from 'lucide-react';
+import { Plus, Search, Pencil, Trash2, Paperclip, Receipt, TrendingUp, Wallet, ArrowLeftRight, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useSession } from 'next-auth/react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,12 +14,15 @@ import { cn, formatCurrency, isWeekLocked } from '@/lib/utils';
 import { isBankAccount } from '@/lib/org-model';
 import { formatMoney } from '@/lib/format-money';
 import { APP_CURRENCY } from '@/lib/currency-constants';
+import { transactionStatusLabel, TOTALS_IN_LABEL, TOTALS_OUT_LABEL, BALANCE_LABEL } from '@/lib/labels';
 import { useToast } from '@/components/ToastProvider';
 import { useWithdrawalEligibility } from '@/hooks/useWithdrawalEligibility';
 import EditTransactionDialog from '@/components/EditTransactionDialog';
 import NewTransactionDialog from '@/components/NewTransactionDialog';
 import ReceiptUpload from '@/components/ReceiptUpload';
 import WaiveReceiptDialog from '@/components/WaiveReceiptDialog';
+import ConfirmDialog from '@/components/ui/ConfirmDialog';
+import EmptyState from '@/components/ui/EmptyState';
 
 type TransactionWithDetails = {
     id: string; description: string; amount: number; currencyId?: string | null;
@@ -82,6 +85,13 @@ function TransactionsPageContent() {
     const [detailsDialog, setDetailsDialog] = useState<{ open: boolean; transaction: any }>({ open: false, transaction: null });
     const [receiptDialog, setReceiptDialog] = useState<{ open: boolean; transactionId: string | null }>({ open: false, transactionId: null });
     const [waiveDialog, setWaiveDialog] = useState<{ open: boolean; transactionId: string | null }>({ open: false, transactionId: null });
+    const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; transaction: TransactionWithDetails | null }>({ open: false, transaction: null });
+    const [debouncedSearch, setDebouncedSearch] = useState('');
+    const [page, setPage] = useState(1);
+    const [pageSize] = useState(50);
+    const [totalCount, setTotalCount] = useState(0);
+    // Balance carried in from entries older than this page, supplied by the API.
+    const [openingBalance, setOpeningBalance] = useState(0);
 
     const isSuperAdmin = session?.user?.role === 'SUPERADMIN';
     const isAdmin = session?.user?.role && ['SUPERADMIN', 'DENOMINATION_ADMIN', 'OVERSIGHT_ADMIN', 'CAMPUS_ADMIN'].includes(session.user.role);
@@ -110,14 +120,37 @@ function TransactionsPageContent() {
         const onVisible = () => { if (document.visibilityState === 'visible') { fetchTransactions(); fetchSummary(); } };
         document.addEventListener('visibilitychange', onVisible);
         return () => document.removeEventListener('visibilitychange', onVisible);
-    }, [deptParam, session?.user?.role]);
+    }, [deptParam, session?.user?.role, page, typeFilter, approvalFilter, debouncedSearch]);
+
+    // Any filter change invalidates the current page offset.
+    useEffect(() => { setPage(1); }, [typeFilter, approvalFilter, debouncedSearch, deptParam]);
+
+    // Debounce so typing does not fire a request per keystroke.
+    useEffect(() => {
+        const t = setTimeout(() => setDebouncedSearch(searchTerm), 300);
+        return () => clearTimeout(t);
+    }, [searchTerm]);
 
     const fetchOrganisation = async () => { try { const r = await fetch(`/api/organisations/${deptParam}`); if (r.ok) setOrganisation(await r.json()); } catch {} };
-    const fetchTransactions = async () => { try { const url = deptParam ? `/api/transactions?organisationId=${deptParam}` : '/api/transactions'; const r = await fetch(url); if (r.ok) setTransactions(await r.json()); } catch {} finally { setLoading(false); } };
+    const fetchTransactions = async () => {
+        try {
+            const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
+            if (deptParam) params.set('organisationId', deptParam);
+            if (typeFilter !== 'ALL') params.set('type', typeFilter);
+            if (approvalFilter !== 'ALL') params.set('status', approvalFilter);
+            if (debouncedSearch.trim()) params.set('search', debouncedSearch.trim());
+            const r = await fetch(`/api/transactions?${params}`, { cache: 'no-store' });
+            if (r.ok) {
+                const d = await r.json();
+                setTransactions(d.items ?? []);
+                setTotalCount(d.total ?? 0);
+                setOpeningBalance(Number(d.openingBalance ?? 0));
+            }
+        } catch {} finally { setLoading(false); }
+    };
     const fetchSummary = async () => { try { const url = deptParam ? `/api/transactions/summary?organisationId=${deptParam}` : '/api/transactions/summary'; const r = await fetch(url, { cache: 'no-store' }); if (r.ok) { const d = await r.json(); setSummary({ income: String(d.income ?? '0'), expense: String(d.expense ?? '0'), balance: String(d.balance ?? '0') }); } } catch {} };
 
-    const handleDelete = async (id: string, desc: string) => {
-        if (!confirm(`Delete "${desc}"? This cannot be undone.`)) return;
+    const performDelete = async (id: string) => {
         try {
             const r = await fetch(`/api/transactions/${id}`, { method: 'DELETE' });
             if (r.ok) { showSuccess('Transaction deleted'); fetchTransactions(); fetchSummary(); }
@@ -133,13 +166,8 @@ function TransactionsPageContent() {
         return true;
     };
 
-    const filteredTransactions = useMemo(() => {
-        let filtered = [...transactions];
-        if (searchTerm) filtered = filtered.filter(tx => tx.description.toLowerCase().includes(searchTerm.toLowerCase()) || tx.organisation.name.toLowerCase().includes(searchTerm.toLowerCase()) || tx.user?.name?.toLowerCase().includes(searchTerm.toLowerCase()));
-        if (typeFilter !== 'ALL') filtered = filtered.filter(tx => tx.type === typeFilter);
-        if (approvalFilter !== 'ALL') filtered = filtered.filter(tx => tx.status === approvalFilter);
-        return filtered.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-    }, [transactions, searchTerm, typeFilter, approvalFilter]);
+    // Filtering and ordering are server-side now, so the page is the result.
+    const filteredTransactions = transactions;
 
     const runningBalanceById = useMemo(() => {
         const map = new Map<string, number>();
@@ -155,7 +183,7 @@ function TransactionsPageContent() {
         const openingCents = summaryCents - windowCents[0];
         for (let i = 0; i < transactions.length; i++) map.set(transactions[i].id, (windowCents[i] + openingCents) / 100);
         return map;
-    }, [transactions, summary.balance]);
+    }, [transactions, openingBalance]);
 
     const balance = Number(summary.balance);
     const balanceColor = balance < 0 ? 'text-destructive' : balance < 5000 ? 'text-warning' : 'text-success';
@@ -201,9 +229,9 @@ function TransactionsPageContent() {
 
             {/* Summary */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
-                <SummaryCard title="Account balance" value={Number(summary.balance).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} symbol={baseCurrency.symbol} Icon={Wallet} colorClass={balanceColor} />
-                <SummaryCard title="Total inflows" value={Number(summary.income).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} symbol={baseCurrency.symbol} Icon={TrendingUp} colorClass="text-success" />
-                <SummaryCard title="Total expense" value={Number(summary.expense).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} symbol={baseCurrency.symbol} Icon={TrendingUp} colorClass="text-destructive" />
+                <SummaryCard title={BALANCE_LABEL} value={Number(summary.balance).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} symbol={baseCurrency.symbol} Icon={Wallet} colorClass={balanceColor} />
+                <SummaryCard title={TOTALS_IN_LABEL} value={Number(summary.income).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} symbol={baseCurrency.symbol} Icon={TrendingUp} colorClass="text-success" />
+                <SummaryCard title={TOTALS_OUT_LABEL} value={Number(summary.expense).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} symbol={baseCurrency.symbol} Icon={TrendingUp} colorClass="text-destructive" />
             </div>
 
             {/* Filters */}
@@ -244,12 +272,16 @@ function TransactionsPageContent() {
                                         <p className={cn('font-bold text-sm', tx.type === 'INCOME' ? 'text-success' : 'text-destructive')}>
                                             {tx.type === 'INCOME' ? '+' : '−'}{fmtAmt(tx)}
                                         </p>
-                                        <Badge variant={statusBadgeVariant(tx.status)} className="text-[0.65rem] h-4 mt-0.5">{tx.status}</Badge>
+                                        <Badge variant={statusBadgeVariant(tx.status)} className="text-[0.65rem] h-4 mt-0.5">{transactionStatusLabel(tx.status)}</Badge>
                                     </div>
                                 </div>
                             </button>
                         ))}
-                        {filteredTransactions.length === 0 && <p className="text-center py-8 text-sm text-muted-foreground">No transactions found</p>}
+                        {filteredTransactions.length === 0 && (
+                            <EmptyState bare icon={<Receipt />} title="No transactions found"
+                                description={searchTerm || typeFilter !== 'ALL' || approvalFilter !== 'ALL' ? 'No entries match the current filters.' : 'Nothing has been recorded on this account yet.'}
+                                action={(searchTerm || typeFilter !== 'ALL' || approvalFilter !== 'ALL') ? <Button variant="outline" size="sm" onClick={() => { setSearchTerm(''); setTypeFilter('ALL'); setApprovalFilter('ALL'); }}>Clear filters</Button> : undefined} />
+                        )}
                     </div>
 
                     {/* Desktop table */}
@@ -302,7 +334,7 @@ function TransactionsPageContent() {
                                                                 <button onClick={() => setEditDialog({ open: true, transaction: tx })} className="p-1 rounded text-primary hover:bg-primary/10 transition-colors" title="Edit"><Pencil className="h-3.5 w-3.5" /></button>
                                                             )}
                                                             {isSuperAdmin && (
-                                                                <button onClick={() => handleDelete(tx.id, tx.description)} className="p-1 rounded text-destructive hover:bg-destructive/10 transition-colors" title="Delete"><Trash2 className="h-3.5 w-3.5" /></button>
+                                                                <button onClick={() => setDeleteDialog({ open: true, transaction: tx })} className="p-1 rounded text-destructive hover:bg-destructive/10 transition-colors" title="Delete"><Trash2 className="h-3.5 w-3.5" /></button>
                                                             )}
                                                         </div>
                                                     </td>
@@ -311,13 +343,38 @@ function TransactionsPageContent() {
                                         );
                                     })}
                                     {filteredTransactions.length === 0 && (
-                                        <tr><td colSpan={isAdmin ? 6 : 5} className="text-center py-12 text-muted-foreground">No transactions found</td></tr>
+                                        <tr><td colSpan={isAdmin ? 6 : 5}>
+                                            <EmptyState bare icon={<Receipt />} title="No transactions found"
+                                                description={searchTerm || typeFilter !== 'ALL' || approvalFilter !== 'ALL' ? 'No entries match the current filters.' : 'Nothing has been recorded on this account yet.'}
+                                                action={(searchTerm || typeFilter !== 'ALL' || approvalFilter !== 'ALL') ? <Button variant="outline" size="sm" onClick={() => { setSearchTerm(''); setTypeFilter('ALL'); setApprovalFilter('ALL'); }}>Clear filters</Button> : undefined} />
+                                        </td></tr>
                                     )}
                                 </tbody>
                             </table>
                         </div>
                     </div>
                 </>
+            )}
+
+            {!loading && totalCount > pageSize && (
+                <div className="flex items-center justify-between gap-3 mt-4 flex-wrap">
+                    <p className="text-xs text-muted-foreground tabular-nums">
+                        Showing {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, totalCount)} of {totalCount.toLocaleString()}
+                    </p>
+                    <div className="flex items-center gap-2">
+                        <Button variant="outline" size="sm" disabled={page === 1}
+                            onClick={() => { setPage(p => Math.max(1, p - 1)); setLoading(true); }}>
+                            <ChevronLeft className="h-4 w-4 mr-1" />Newer
+                        </Button>
+                        <span className="text-xs text-muted-foreground tabular-nums min-w-[70px] text-center">
+                            Page {page} of {Math.max(1, Math.ceil(totalCount / pageSize))}
+                        </span>
+                        <Button variant="outline" size="sm" disabled={page >= Math.ceil(totalCount / pageSize)}
+                            onClick={() => { setPage(p => p + 1); setLoading(true); }}>
+                            Older<ChevronRight className="h-4 w-4 ml-1" />
+                        </Button>
+                    </div>
+                </div>
             )}
 
             {/* Details dialog */}
@@ -336,7 +393,7 @@ function TransactionsPageContent() {
                                 <div><p className="text-xs text-muted-foreground mb-0.5">Description</p><p className="font-semibold text-foreground">{tx.description}</p></div>
                                 <div className="grid grid-cols-2 gap-4">
                                     <div><p className="text-xs text-muted-foreground mb-0.5">Amount</p><p className={cn('text-xl font-bold', tx.type === 'INCOME' ? 'text-success' : 'text-destructive')}>{tx.type === 'INCOME' ? '+' : '−'}{fmtAmt(tx)}</p></div>
-                                    <div><p className="text-xs text-muted-foreground mb-1">Status</p><Badge variant={statusBadgeVariant(tx.status)}>{tx.status}</Badge></div>
+                                    <div><p className="text-xs text-muted-foreground mb-1">Status</p><Badge variant={statusBadgeVariant(tx.status)}>{transactionStatusLabel(tx.status)}</Badge></div>
                                 </div>
                                 <div><p className="text-xs text-muted-foreground mb-0.5">Church</p><p className="text-foreground">{tx.organisation?.name}</p></div>
                                 <div><p className="text-xs text-muted-foreground mb-0.5">Submitted By</p><p className="text-foreground font-medium">{tx.user?.name}</p><p className="text-xs text-muted-foreground">{tx.user?.email}</p></div>
@@ -391,7 +448,7 @@ function TransactionsPageContent() {
                                 {isAdmin && (
                                     <div className="flex gap-2 pt-3 border-t border-border">
                                         {canEditTransaction(tx) && <Button variant="outline" className="flex-1" onClick={() => { setDetailsDialog({ open: false, transaction: null }); setEditDialog({ open: true, transaction: tx }); }}>Edit Transaction</Button>}
-                                        {isSuperAdmin && <Button variant="destructive" className="flex-1" onClick={() => { setDetailsDialog({ open: false, transaction: null }); handleDelete(tx.id, tx.description); }}>Delete</Button>}
+                                        {isSuperAdmin && <Button variant="destructive" className="flex-1" onClick={() => { setDetailsDialog({ open: false, transaction: null }); setDeleteDialog({ open: true, transaction: tx }); }}>Delete</Button>}
                                     </div>
                                 )}
                             </div>
@@ -400,6 +457,24 @@ function TransactionsPageContent() {
                     <DialogFooter><Button variant="outline" onClick={() => setDetailsDialog({ open: false, transaction: null })}>Close</Button></DialogFooter>
                 </DialogContent>
             </Dialog>
+
+            <ConfirmDialog
+                open={deleteDialog.open}
+                onOpenChange={o => setDeleteDialog(p => ({ ...p, open: o }))}
+                destructive
+                title="Delete this transaction?"
+                description="This permanently removes the entry from the ledger and cannot be undone."
+                detail={deleteDialog.transaction && (
+                    <div>
+                        <p className="font-medium">{deleteDialog.transaction.description}</p>
+                        <p className="text-muted-foreground text-xs mt-0.5">
+                            {deleteDialog.transaction.organisation?.name} · {fmtAmt(deleteDialog.transaction)}
+                        </p>
+                    </div>
+                )}
+                confirmLabel="Delete transaction"
+                onConfirm={() => deleteDialog.transaction ? performDelete(deleteDialog.transaction.id) : undefined}
+            />
 
             <NewTransactionDialog
                 open={newOpen}

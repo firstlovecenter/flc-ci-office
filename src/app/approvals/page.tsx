@@ -13,8 +13,10 @@ import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { cn, formatNumber } from '@/lib/utils';
 import { sumMoney } from '@/lib/format-money';
+import { transactionStatusLabel, transactionTypeLabel, decisionLabel } from '@/lib/labels';
 import { useToast } from '@/components/ToastProvider';
 import WaiveReceiptDialog from '@/components/WaiveReceiptDialog';
+import PageHeader from '@/components/ui/PageHeader';
 
 interface ReceiptFile {
     id: string; fileName: string; fileUrl: string; fileMime: string; fileSize: number | null;
@@ -107,7 +109,7 @@ export default function ApprovalsPage() {
 
     const handleApproveReject = async () => {
         if (!selectedTransaction) return;
-        if (actionType === 'reject' && !rejectionReason.trim()) { setError('Please provide a reason for rejection'); return; }
+        if (actionType === 'reject' && !rejectionReason.trim()) { setError('Please give a reason for declining'); return; }
         setProcessing(true); setError('');
         try {
             const r = await fetch(`/api/transactions/${selectedTransaction.id}`, {
@@ -126,11 +128,39 @@ export default function ApprovalsPage() {
     const handleBulkApprove = async () => {
         if (selectedIds.size === 0) return;
         setBulkProcessing(true); setError('');
+        const ids = Array.from(selectedIds);
         try {
-            await Promise.all(Array.from(selectedIds).map(id => fetch(`/api/transactions/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'APPROVED' }) })));
-            showSuccess(`${selectedIds.size} transaction${selectedIds.size > 1 ? 's' : ''} approved`);
-            setSelectedIds(new Set()); fetchPendingTransactions(); fetchHistoricalTransactions();
-        } catch { showErrorToast('Failed to bulk approve some transactions'); }
+            // Each response is checked individually. Previously this awaited
+            // Promise.all without inspecting `ok`, so a batch where several
+            // requests 403'd still reported "N approved".
+            const results = await Promise.all(ids.map(async id => {
+                try {
+                    const r = await fetch(`/api/transactions/${id}`, {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ status: 'APPROVED' }),
+                    });
+                    return { id, ok: r.ok };
+                } catch {
+                    return { id, ok: false };
+                }
+            }));
+
+            const approved = results.filter(r => r.ok);
+            const failed = results.filter(r => !r.ok);
+
+            if (failed.length === 0) {
+                showSuccess(`${approved.length} transaction${approved.length > 1 ? 's' : ''} approved`);
+                setSelectedIds(new Set());
+            } else if (approved.length === 0) {
+                showErrorToast(`None of the ${failed.length} transactions could be approved`);
+            } else {
+                showErrorToast(`${approved.length} approved · ${failed.length} failed — the failed ones are still selected`);
+                // Keep only the failures selected so they can be retried.
+                setSelectedIds(new Set(failed.map(r => r.id)));
+            }
+            fetchPendingTransactions(); fetchHistoricalTransactions();
+        } catch { showErrorToast('Failed to bulk approve transactions'); }
         finally { setBulkProcessing(false); }
     };
 
@@ -141,17 +171,16 @@ export default function ApprovalsPage() {
 
     return (
         <div>
-            {/* Header */}
-            <div className="flex items-start gap-4 flex-wrap mb-8 pb-6 border-b border-border">
-                <div className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0 bg-warning/10 text-warning">
-                    <Clock className="h-5 w-5" />
-                </div>
-                <div>
-                    <p className="text-[0.6875rem] font-medium uppercase tracking-[0.10em] text-muted-foreground mb-0.5">Review queue</p>
-                    <h1 className="text-[1.625rem] sm:text-[1.875rem] font-semibold tracking-[-0.025em] text-foreground">Withdrawal approvals</h1>
-                    <p className="text-sm text-muted-foreground mt-0.5">Review and decide on pending transactions.</p>
-                </div>
-            </div>
+            <PageHeader
+                eyebrow="Review queue"
+                title="Withdrawal approvals"
+                subtitle="Review and decide on pending requests."
+                avatar={(
+                    <div className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0 bg-warning/10 text-warning">
+                        <Clock className="h-5 w-5" />
+                    </div>
+                )}
+            />
 
             {error && <Alert variant="destructive" className="mb-4"><AlertDescription>{error}</AlertDescription></Alert>}
 
@@ -208,13 +237,13 @@ export default function ApprovalsPage() {
                                 </div>
                                 <div className="text-right shrink-0">
                                     <p className={cn('text-sm font-bold', t.type === 'INCOME' ? 'text-success' : 'text-destructive')}>{fmtAmt(t.amount, t.currency?.symbol)}</p>
-                                    <Badge variant="outline" className={cn('mt-1 text-[0.65rem]', t.type === 'INCOME' ? 'bg-success/10 text-success border-success/25' : 'bg-destructive/10 text-destructive border-destructive/25')}>{t.type}</Badge>
+                                    <Badge variant="outline" className={cn('mt-1 text-[0.65rem]', t.type === 'INCOME' ? 'bg-success/10 text-success border-success/25' : 'bg-destructive/10 text-destructive border-destructive/25')}>{transactionTypeLabel(t.type)}</Badge>
                                 </div>
                             </div>
                         </button>
                         <div className="flex gap-2 px-4 pb-3 pt-2 border-t border-border">
                             <Button size="sm" className="flex-1 bg-success text-success-foreground hover:bg-success/90 text-xs" onClick={() => handleOpenApprovalDialog(t, 'approve')}><CheckCircle className="mr-1 h-3.5 w-3.5" />Approve</Button>
-                            <Button size="sm" variant="outline" className="flex-1 text-destructive border-destructive/30 hover:bg-destructive/8 text-xs" onClick={() => handleOpenApprovalDialog(t, 'reject')}><XCircle className="mr-1 h-3.5 w-3.5" />Reject</Button>
+                            <Button size="sm" variant="outline" className="flex-1 text-destructive border-destructive/30 hover:bg-destructive/8 text-xs" onClick={() => handleOpenApprovalDialog(t, 'reject')}><XCircle className="mr-1 h-3.5 w-3.5" />Decline</Button>
                         </div>
                     </div>
                 ))}
@@ -247,14 +276,14 @@ export default function ApprovalsPage() {
                                 <td className="py-3 px-4 font-medium text-foreground max-w-[200px] truncate">{t.description}</td>
                                 <td className="py-3 px-4"><p className="font-medium text-foreground">{t.organisation.name}</p></td>
                                 <td className="py-3 px-4 text-foreground">{t.user.name}</td>
-                                <td className="py-3 px-4"><Badge variant="outline" className={t.type === 'INCOME' ? 'bg-success/10 text-success border-success/25' : 'bg-destructive/10 text-destructive border-destructive/25'}>{t.type}</Badge></td>
+                                <td className="py-3 px-4"><Badge variant="outline" className={t.type === 'INCOME' ? 'bg-success/10 text-success border-success/25' : 'bg-destructive/10 text-destructive border-destructive/25'}>{transactionTypeLabel(t.type)}</Badge></td>
                                 <td className="py-3 px-4 font-semibold text-foreground text-right">{fmtAmt(t.amount, t.currency?.symbol)}</td>
-                                <td className="py-3 px-4"><Badge variant="outline" className={statusBadgeClass(t.status)}>{t.status}</Badge></td>
+                                <td className="py-3 px-4"><Badge variant="outline" className={statusBadgeClass(t.status)}>{transactionStatusLabel(t.status)}</Badge></td>
                                 <td className="py-3 px-4">
                                     <div className="flex gap-1 justify-center">
                                         <button title="View Details" className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground" onClick={() => { setSelectedTransaction(t); setDetailsOpen(true); }}><Eye className="h-4 w-4" /></button>
                                         <button title="Approve" className="p-1.5 rounded-lg hover:bg-success/10 text-success" onClick={() => handleOpenApprovalDialog(t, 'approve')}><CheckCircle className="h-4 w-4" /></button>
-                                        <button title="Reject" className="p-1.5 rounded-lg hover:bg-destructive/10 text-destructive" onClick={() => handleOpenApprovalDialog(t, 'reject')}><XCircle className="h-4 w-4" /></button>
+                                        <button title="Decline" className="p-1.5 rounded-lg hover:bg-destructive/10 text-destructive" onClick={() => handleOpenApprovalDialog(t, 'reject')}><XCircle className="h-4 w-4" /></button>
                                     </div>
                                 </td>
                             </tr>
@@ -287,7 +316,7 @@ export default function ApprovalsPage() {
                                     {t.requestedAmount && (
                                         <p className="text-[0.65rem] text-muted-foreground">was {fmtAmt(t.requestedAmount, t.currency?.symbol)}</p>
                                     )}
-                                    <Badge variant="outline" className={cn('mt-1 text-[0.65rem]', statusBadgeClass(t.status))}>{t.status}</Badge>
+                                    <Badge variant="outline" className={cn('mt-1 text-[0.65rem]', statusBadgeClass(t.status))}>{transactionStatusLabel(t.status)}</Badge>
                                 </div>
                             </div>
                         </button>
@@ -315,7 +344,7 @@ export default function ApprovalsPage() {
                                         <p className="font-semibold text-foreground">{t.user.name}</p>
                                         <p className="text-xs text-muted-foreground flex items-center gap-1"><Building2 className="h-3 w-3" />{t.organisation.name}</p>
                                     </td>
-                                    <td className="py-3 px-4"><Badge variant="outline" className={statusBadgeClass(t.status)}>{t.status}</Badge></td>
+                                    <td className="py-3 px-4"><Badge variant="outline" className={statusBadgeClass(t.status)}>{transactionStatusLabel(t.status)}</Badge></td>
                                     <td className="py-3 px-4 font-semibold text-foreground">
                                         {fmtAmt(t.amount, t.currency?.symbol)}
                                         {t.requestedAmount && (
@@ -342,7 +371,7 @@ export default function ApprovalsPage() {
                                 { label: 'Description', value: selectedTransaction.description },
                                 { label: 'Amount', value: fmtAmt(selectedTransaction.amount, selectedTransaction.currency?.symbol) },
                                 ...(selectedTransaction.requestedAmount ? [{ label: 'Originally Requested', value: fmtAmt(selectedTransaction.requestedAmount, selectedTransaction.currency?.symbol) }] : []),
-                                { label: 'Type', value: selectedTransaction.type },
+                                { label: 'Type', value: transactionTypeLabel(selectedTransaction.type) },
                                 { label: 'Church', value: selectedTransaction.organisation.name },
                                 { label: 'Submitted By', value: `${selectedTransaction.user.name} · ${selectedTransaction.user.email}` },
                                 { label: 'Date', value: fmtDate(selectedTransaction.createdAt) },
@@ -405,7 +434,7 @@ export default function ApprovalsPage() {
                         <Button variant="outline" onClick={() => setDetailsOpen(false)}>Close</Button>
                         {selectedTransaction?.status === 'PENDING' && (
                             <>
-                                <Button variant="outline" className="text-destructive border-destructive/30" onClick={() => { setDetailsOpen(false); handleOpenApprovalDialog(selectedTransaction, 'reject'); }}>Reject</Button>
+                                <Button variant="outline" className="text-destructive border-destructive/30" onClick={() => { setDetailsOpen(false); handleOpenApprovalDialog(selectedTransaction, 'reject'); }}>Decline</Button>
                                 <Button className="bg-success text-success-foreground hover:bg-success/90" onClick={() => { setDetailsOpen(false); handleOpenApprovalDialog(selectedTransaction, 'approve'); }}>Approve</Button>
                             </>
                         )}
@@ -416,7 +445,7 @@ export default function ApprovalsPage() {
             {/* Approve/Reject Dialog */}
             <Dialog open={approvalDialogOpen} onOpenChange={setApprovalDialogOpen}>
                 <DialogContent className="max-w-md">
-                    <DialogHeader><DialogTitle>{actionType === 'approve' ? 'Approve Transaction' : 'Reject Transaction'}</DialogTitle></DialogHeader>
+                    <DialogHeader><DialogTitle>{actionType === 'approve' ? 'Approve withdrawal' : 'Decline withdrawal'}</DialogTitle></DialogHeader>
                     {selectedTransaction && (
                         <div className="flex flex-col gap-4 py-2">
                             {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
@@ -456,20 +485,20 @@ export default function ApprovalsPage() {
 
                             {actionType === 'reject' && (
                                 <div className="space-y-1.5">
-                                    <Label>Reason for Rejection <span className="text-destructive">*</span></Label>
+                                    <Label>Reason for declining <span className="text-destructive">*</span></Label>
                                     <Textarea rows={3} value={rejectionReason} onChange={e => setRejectionReason(e.target.value)} />
                                 </div>
                             )}
 
                             <Alert variant={actionType === 'approve' ? 'default' : 'warning'}>
-                                <AlertDescription>{actionType === 'approve' ? 'Are you sure you want to approve this transaction?' : 'Are you sure you want to reject this transaction? This action cannot be undone.'}</AlertDescription>
+                                <AlertDescription>{actionType === 'approve' ? 'Are you sure you want to approve this transaction?' : 'Are you sure you want to decline this request? This cannot be undone.'}</AlertDescription>
                             </Alert>
                         </div>
                     )}
                     <DialogFooter className="gap-2">
                         <Button variant="outline" onClick={() => setApprovalDialogOpen(false)} disabled={processing}>Cancel</Button>
                         <Button disabled={processing} onClick={handleApproveReject} className={actionType === 'approve' ? 'bg-success text-success-foreground hover:bg-success/90' : 'bg-destructive text-destructive-foreground hover:bg-destructive/90'}>
-                            {processing ? <><Loader2 className="mr-1.5 h-4 w-4 animate-spin" />Processing…</> : actionType === 'approve' ? 'Approve' : 'Reject'}
+                            {processing ? <><Loader2 className="mr-1.5 h-4 w-4 animate-spin" />Processing…</> : decisionLabel(actionType)}
                         </Button>
                     </DialogFooter>
                 </DialogContent>
