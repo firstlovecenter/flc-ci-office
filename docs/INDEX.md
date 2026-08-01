@@ -37,6 +37,14 @@ Welcome to the FLC Accounts documentation. This index provides quick access to a
 - UI components and filters
 - **Related**: [Audit Logging](./features/audit-logging.md), [Push Notifications](./features/push-notifications.md)
 
+### Account Closure
+**[Closing an account](./features/account-closure.md)**
+- Funds disposition — transfer the remaining balance or withdraw it
+- Blockers (pending transactions) and warnings (overdrawn accounts)
+- Atomic sweep + closure, and the BankAccount mirror write
+- Preflight and close endpoints, audit entries
+- **Related**: [Bank-account split](./migrations/bank-account-split.md), [Audit Logging](./features/audit-logging.md)
+
 ### Audit Logging
 **[Audit Logging System](./features/audit-logging.md)**
 - Enhanced audit log schema

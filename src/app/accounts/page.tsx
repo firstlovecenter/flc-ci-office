@@ -98,6 +98,7 @@ function AccountsPageContent() {
     };
 
     const handleAccountClosed = () => {
+        showSuccess('Account closed');
         fetchAccounts();
         fetchAllOrganisations();
     };
