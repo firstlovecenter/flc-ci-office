@@ -42,6 +42,20 @@ export function canAdministerOrganisation(role?: string | null): boolean {
 }
 
 /**
+ * Whether a role may reopen a closed bank account.
+ *
+ * Deliberately narrower than `canAdministerOrganisation`. Campus managers open
+ * accounts and close them, but reopening one is a review of that decision — it
+ * restores a money-bearing account that someone deliberately retired — so it
+ * sits with oversight and HQ. Scope still applies on top: the reopener must
+ * control the campus the account hangs off.
+ */
+export function canReopenAccount(role?: string | null): boolean {
+    if (!role) return false;
+    return role === 'SUPERADMIN' || role === 'DENOMINATION_ADMIN' || role === 'OVERSIGHT_ADMIN';
+}
+
+/**
  * Check if an admin can manage (create/edit/delete) a user based on role hierarchy
  * @param adminRole - The role of the admin performing the action
  * @param targetRole - The role of the user being managed

@@ -49,8 +49,11 @@ export async function GET(request: Request) {
             if (session.user.role === 'SUPERADMIN') {
                 // Superadmin can see all organisations (whereClause already has isActive filter)
             } else if (filterOrganisationId) {
-                // Others see their organisation and descendants
-                const allowedIds = await getDescendantOrganisationIds(filterOrganisationId);
+                // Others see their organisation and descendants. Closed rows are
+                // pruned from the active walk, so asking for them means walking
+                // the inactive tree too — otherwise `includeClosed` returns
+                // nothing extra for anyone but a superadmin.
+                const allowedIds = await getDescendantOrganisationIds(filterOrganisationId, includeClosed);
                 whereClause.id = { in: allowedIds };
             } else {
                 // Non-superadmin users without organisation assignment return empty
@@ -61,8 +64,8 @@ export async function GET(request: Request) {
             if (session.user.role === 'SUPERADMIN') {
                 // Superadmin can see all organisations (whereClause already has isActive filter)
             } else if (filterOrganisationId) {
-                const allowedIds = await getDescendantOrganisationIds(filterOrganisationId);
-                
+                const allowedIds = await getDescendantOrganisationIds(filterOrganisationId, includeClosed);
+
                 // Remove the user's own organisation from the list
                 const filteredIds = allowedIds.filter(id => id !== filterOrganisationId);
                 

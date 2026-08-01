@@ -42,7 +42,9 @@ Welcome to the FLC Accounts documentation. This index provides quick access to a
 - Funds disposition — transfer the remaining balance or withdraw it
 - Blockers (pending transactions) and warnings (overdrawn accounts)
 - Atomic sweep + closure, and the BankAccount mirror write
-- Preflight and close endpoints, audit entries
+- Closed accounts stay listed, faded and at the bottom
+- Reopening — oversight and HQ only, never the campus that closed it
+- Preflight, close and reopen endpoints, audit entries
 - **Related**: [Bank-account split](./migrations/bank-account-split.md), [Audit Logging](./features/audit-logging.md)
 
 ### Audit Logging

@@ -60,6 +60,42 @@ covers `Transaction` / `UserRole` / `User` only, so closure state would
 otherwise drift between the two tables. See
 [Bank-account split](../migrations/bank-account-split.md).
 
+## After closure
+
+A closed account stays in the accounts list — faded, struck through, badged
+`Closed`, and sorted below every open account, with the closing date and reason
+where the holder's name would be. Removing it from the list would hide the fact
+that money was once banked there, which is exactly what someone auditing a
+campus needs to see.
+
+The row is inert: no click-through to a dashboard, no edit, no transfer. It
+holds nothing and nobody holds it. The list fetches
+`/api/organisations?all=true&includeClosed=true`; that flag now also widens the
+scope walk to the inactive tree, since closed rows are pruned from the active
+one and non-superadmins would otherwise get nothing extra back.
+
+## Reopening
+
+Campus managers open accounts and close them. **Reopening is oversight and HQ
+only** (`canReopenAccount` — `OVERSIGHT_ADMIN`, `DENOMINATION_ADMIN`,
+`SUPERADMIN`), because it restores a money-bearing account someone deliberately
+retired. Scope applies on top: the reopener must control the campus the account
+hangs off.
+
+`POST /api/organisations/[id]/reopen` clears `isActive` / `closedAt` /
+`closedBy` / `closureReason` on both the `Organisation` and `BankAccount` rows
+and writes a `RESTORE` audit entry. It refuses a church, an account that is
+already open, and an account whose campus is closed — that account would be
+unreachable the moment it came back.
+
+The account returns **empty and unheld**. The closing sweep is history, not
+something reopening reverses, and the holder's role was deleted at closure, so
+someone has to be assigned again before it can be used.
+
+Note the scope check runs against the **campus**, not the account:
+`hasOrganisationAccess` walks active descendants only, so asking it about a
+closed account always answers no.
+
 ## Endpoints
 
 **`GET /api/organisations/[id]/close`** — preflight. Returns `canClose`,
@@ -67,6 +103,9 @@ otherwise drift between the two tables. See
 `requiresFundsDisposition`, `pendingTransactionCount`, and
 `destinationOptions` (the open operating accounts in the caller's scope). Gated
 identically to the close itself, because it discloses who would lose access.
+
+**`POST /api/organisations/[id]/reopen`** — reopens a closed account. No body.
+Oversight/HQ role plus scope over the campus.
 
 **`POST /api/organisations/[id]/close`** — closes it.
 
