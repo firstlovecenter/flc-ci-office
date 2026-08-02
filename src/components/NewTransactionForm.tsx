@@ -17,7 +17,7 @@ import {
     isExpenseWindowExempt,
 } from '@/lib/org-model';
 import { useToast } from '@/components/ToastProvider';
-import { getExpenseWindowStatus, EXPENSE_WINDOW_CLOSE_HOUR, EXPENSE_WINDOW_CLOSE_MINUTE } from '@/lib/expense-window';
+import { getExpenseWindowStatus, EXPENSE_WINDOW_CLOSE_HOUR, EXPENSE_WINDOW_CLOSE_MINUTE, EXPENSE_WINDOW_CLOSE_LABEL } from '@/lib/expense-window';
 import { APP_CURRENCY } from '@/lib/currency-constants';
 import type { AccountType } from '@prisma/client';
 
@@ -122,7 +122,7 @@ export default function NewTransactionForm({
         setLoading(true);
 
         // Kept as a client-side guard even though the trigger is gated and the
-        // API re-checks: a form can sit open across the 3:30 PM boundary.
+        // API re-checks: a form can sit open across the closing boundary.
         if (type === 'EXPENSE' && isLeader && !windowExempt) {
             const win = getExpenseWindowStatus();
             if (!win.isOpen) {
@@ -199,7 +199,7 @@ export default function NewTransactionForm({
             <div className="flex items-center gap-2 px-3 py-2 rounded-xl border border-warning/30 bg-warning/8">
                 <div className="w-2 h-2 rounded-full shrink-0 bg-warning animate-pulse" />
                 <p className="text-xs font-semibold text-warning">
-                    Submissions close at 3:30 PM · {minutesLeft} min remaining
+                    Submissions close at {EXPENSE_WINDOW_CLOSE_LABEL} · {minutesLeft} min remaining
                 </p>
             </div>
         );

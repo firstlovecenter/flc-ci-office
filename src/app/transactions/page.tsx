@@ -15,6 +15,7 @@ import { isBankAccount } from '@/lib/org-model';
 import { formatMoney } from '@/lib/format-money';
 import { APP_CURRENCY } from '@/lib/currency-constants';
 import { transactionStatusLabel, TOTALS_IN_LABEL, TOTALS_OUT_LABEL, BALANCE_LABEL } from '@/lib/labels';
+import { runningBalances, canShowRunningBalance } from '@/lib/ledger';
 import { useToast } from '@/components/ToastProvider';
 import { useWithdrawalEligibility } from '@/hooks/useWithdrawalEligibility';
 import EditTransactionDialog from '@/components/EditTransactionDialog';
@@ -169,21 +170,18 @@ function TransactionsPageContent() {
     // Filtering and ordering are server-side now, so the page is the result.
     const filteredTransactions = transactions;
 
-    const runningBalanceById = useMemo(() => {
-        const map = new Map<string, number>();
-        if (!transactions.length) return map;
-        const windowCents = new Array<number>(transactions.length);
-        let acc = 0;
-        for (let i = transactions.length - 1; i >= 0; i--) {
-            const tx = transactions[i];
-            if (tx.status === 'APPROVED') { const c = Math.round(Number(tx.amountInBase ?? tx.amount) * 100); acc += tx.type === 'INCOME' ? c : -c; }
-            windowCents[i] = acc;
-        }
-        const summaryCents = Math.round(Number(summary.balance) * 100);
-        const openingCents = summaryCents - windowCents[0];
-        for (let i = 0; i < transactions.length; i++) map.set(transactions[i].id, (windowCents[i] + openingCents) / 100);
-        return map;
-    }, [transactions, openingBalance]);
+    // Anchored on the API's opening balance for this page, never on the account
+    // total — see lib/ledger.ts for why that distinction matters.
+    const runningBalanceMeaningful = canShowRunningBalance({
+        type: typeFilter,
+        status: approvalFilter,
+        search: debouncedSearch,
+    });
+
+    const runningBalanceById = useMemo(
+        () => runningBalances(transactions, openingBalance),
+        [transactions, openingBalance],
+    );
 
     const balance = Number(summary.balance);
     const balanceColor = balance < 0 ? 'text-destructive' : balance < 5000 ? 'text-warning' : 'text-success';
@@ -324,8 +322,10 @@ function TransactionsPageContent() {
                                                 </td>
                                                 <td className="px-4 py-2.5 text-right font-bold text-destructive">{tx.type === 'EXPENSE' && tx.status === 'APPROVED' ? fmtAmt(tx) : '—'}</td>
                                                 <td className="px-4 py-2.5 text-right font-bold text-success">{tx.type === 'INCOME' && tx.status === 'APPROVED' ? fmtAmt(tx) : '—'}</td>
-                                                <td className={cn('px-4 py-2.5 text-right font-bold', runBalance >= 0 ? 'text-success' : 'text-destructive')}>
-                                                    {formatCurrency(runBalance, baseCurrency.code, baseCurrency.symbol)}
+                                                <td className={cn('px-4 py-2.5 text-right font-bold', !runningBalanceMeaningful ? 'text-muted-foreground' : runBalance >= 0 ? 'text-success' : 'text-destructive')}>
+                                                    {runningBalanceMeaningful
+                                                        ? formatCurrency(runBalance, baseCurrency.code, baseCurrency.symbol)
+                                                        : <span title="Running balance is only shown on the unfiltered ledger">—</span>}
                                                 </td>
                                                 {isAdmin && (
                                                     <td className="px-4 py-2.5">

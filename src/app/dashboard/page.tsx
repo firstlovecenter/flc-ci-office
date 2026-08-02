@@ -17,7 +17,12 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import { isBankAccount } from '@/lib/org-model';
 import { useColorMode } from '@/app/providers';
-import { getExpenseWindowStatus, getMsUntilExpenseWindowOpens } from '@/lib/expense-window';
+import {
+    getExpenseWindowStatus,
+    getMsUntilExpenseWindowOpens,
+    EXPENSE_WINDOW_OPEN_LABEL,
+    EXPENSE_WINDOW_CLOSE_LABEL,
+} from '@/lib/expense-window';
 import { useWithdrawalEligibility } from '@/hooks/useWithdrawalEligibility';
 
 // ── Animated counter ──────────────────────────────────────────────────────────
@@ -554,10 +559,10 @@ export default function DashboardPage() {
                                     win.isOpen ? 'text-success' : 'text-warning',
                                 )}>
                                     {win.isOpen
-                                        ? 'Expense submissions open · Closes at 3:30 PM'
+                                        ? `Expense submissions open · Closes at ${EXPENSE_WINDOW_CLOSE_LABEL}`
                                         : win.isSunday
-                                            ? 'Submissions closed on Sundays · Opens Monday 6:00 AM'
-                                            : `Submissions closed · Opens at 6:00 AM (in ~${hoursUntilOpen}h)`}
+                                            ? `Submissions closed on Sundays · Opens Monday ${EXPENSE_WINDOW_OPEN_LABEL}`
+                                            : `Submissions closed · Opens at ${EXPENSE_WINDOW_OPEN_LABEL} (in ~${hoursUntilOpen}h)`}
                                 </span>
                             </div>
                         );

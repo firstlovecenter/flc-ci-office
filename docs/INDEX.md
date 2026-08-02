@@ -47,6 +47,14 @@ Welcome to the FLC Accounts documentation. This index provides quick access to a
 - Preflight, close and reopen endpoints, audit entries
 - **Related**: [Bank-account split](./migrations/bank-account-split.md), [Audit Logging](./features/audit-logging.md)
 
+### Ledger Pagination
+**[Ledger pagination and where balances come from](./features/ledger-pagination.md)**
+- A page of rows is never the source of a balance
+- The 500-row cap on the unpaginated transactions endpoint
+- Opening balance per page, compared on the full sort key
+- When the running-balance column is hidden, and why
+- **Related**: [Approval Workflow](./features/approval-workflow.md)
+
 ### Audit Logging
 **[Audit Logging System](./features/audit-logging.md)**
 - Enhanced audit log schema

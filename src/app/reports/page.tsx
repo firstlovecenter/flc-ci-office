@@ -15,6 +15,17 @@ import { useChartTheme } from '@/hooks/useChartTheme';
 import { useToast } from '@/components/ToastProvider';
 import { BarChart, Bar, XAxis, Tooltip, ResponsiveContainer } from 'recharts';
 
+/** Only the fields the report totals, sorts and prints. */
+interface ReportTransaction {
+    id: string;
+    type: 'INCOME' | 'EXPENSE';
+    amount: string;
+    amountInBase?: string | null;
+    createdAt: string;
+    description: string;
+    organisation: { name: string };
+}
+
 function ReportsPageContent() {
     const searchParams = useSearchParams();
     const deptParam = searchParams?.get('dept');
@@ -95,34 +106,67 @@ function ReportsPageContent() {
         catch {} finally { setChartLoading(false); }
     };
 
+    const reportParams = (extra: Record<string, string> = {}) => {
+        const params = new URLSearchParams({ status: 'APPROVED', ...extra });
+        if (selectedOrganisation) {
+            params.set('organisationId', selectedOrganisation);
+            if (!includeSubOrganisations) params.set('exactOrganisation', 'true');
+        }
+        return params;
+    };
+
+    /**
+     * Every matching entry, not the first page of them.
+     *
+     * The unpaginated form of this endpoint is capped at 500 rows, and a report
+     * sums what it receives — so on any account past that many approved entries
+     * the totals, the closing balance and the CSV were all silently short. The
+     * opening-balance query is the one most likely to blow the cap, since it
+     * reaches back over the account's whole history.
+     */
+    const fetchAllTransactions = async (params: URLSearchParams): Promise<ReportTransaction[]> => {
+        const pageSize = 200;
+        const rows: ReportTransaction[] = [];
+        // 100 pages = 20k entries. Past that a statement belongs in the PDF,
+        // which aggregates server-side rather than shipping every row.
+        for (let page = 1; page <= 100; page++) {
+            params.set('page', String(page));
+            params.set('pageSize', String(pageSize));
+            const r = await fetch(`/api/transactions?${params}`, { cache: 'no-store' });
+            if (!r.ok) break;
+            const d = await r.json();
+            const items: ReportTransaction[] = d.items ?? [];
+            rows.push(...items);
+            if (items.length < pageSize || rows.length >= (d.total ?? rows.length)) break;
+        }
+        return rows;
+    };
+
     const generateReport = async () => {
         setLoading(true);
         try {
             let opening = 0;
             if (startDate) {
-                let openUrl = '/api/transactions?status=APPROVED&';
-                if (selectedOrganisation) { openUrl += `organisationId=${selectedOrganisation}&`; if (!includeSubOrganisations) openUrl += `exactOrganisation=true&`; }
-                openUrl += `endDate=${new Date(new Date(startDate).getTime() - 86400000).toISOString().split('T')[0]}`;
-                const or = await fetch(openUrl);
-                if (or.ok) { const od = await or.json(); opening = roundMoney(sumMoney(od.filter((t: any) => t.type === 'INCOME').map((t: any) => t.amountInBase || t.amount)) - sumMoney(od.filter((t: any) => t.type === 'EXPENSE').map((t: any) => t.amountInBase || t.amount))); }
+                const priorEnd = new Date(new Date(startDate).getTime() - 86400000).toISOString().split('T')[0];
+                const prior = await fetchAllTransactions(reportParams({ endDate: priorEnd }));
+                opening = roundMoney(
+                    sumMoney(prior.filter((t: any) => t.type === 'INCOME').map((t: any) => t.amountInBase || t.amount))
+                    - sumMoney(prior.filter((t: any) => t.type === 'EXPENSE').map((t: any) => t.amountInBase || t.amount))
+                );
             }
             setOpeningBalance(opening);
 
-            let url = '/api/transactions?status=APPROVED&';
-            if (selectedOrganisation) { url += `organisationId=${selectedOrganisation}&`; if (!includeSubOrganisations) url += `exactOrganisation=true&`; }
-            if (startDate) url += `startDate=${startDate}&`;
-            if (endDate) url += `endDate=${endDate}&`;
+            const range: Record<string, string> = {};
+            if (startDate) range.startDate = startDate;
+            if (endDate) range.endDate = endDate;
 
-            const r = await fetch(url);
-            if (r.ok) {
-                const data = await r.json();
-                const sorted = [...data].sort((a: any, b: any) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
-                setTransactions(sorted);
-                const income = sumMoney(data.filter((t: any) => t.type === 'INCOME').map((t: any) => t.amountInBase || t.amount));
-                const expense = sumMoney(data.filter((t: any) => t.type === 'EXPENSE').map((t: any) => t.amountInBase || t.amount));
-                setClosingBalance(roundMoney(opening + income - expense));
-                setStats({ income, expense, balance: roundMoney(income - expense) });
-            }
+            const data = await fetchAllTransactions(reportParams(range));
+            const sorted = [...data].sort((a: any, b: any) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+            setTransactions(sorted);
+            const income = sumMoney(data.filter((t: any) => t.type === 'INCOME').map((t: any) => t.amountInBase || t.amount));
+            const expense = sumMoney(data.filter((t: any) => t.type === 'EXPENSE').map((t: any) => t.amountInBase || t.amount));
+            setClosingBalance(roundMoney(opening + income - expense));
+            setStats({ income, expense, balance: roundMoney(income - expense) });
         } catch {} finally { setLoading(false); }
     };
 
