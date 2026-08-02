@@ -47,6 +47,39 @@ entries in the middle, so the column shows `—` instead of a number that would
 disagree with the account. Filtering by status is safe at `ALL` or `APPROVED`:
 pending and declined entries never move the balance.
 
+## Exports
+
+Three of them, and they must agree with the screen and with each other.
+
+| Export | Source | Capped? |
+| --- | --- | --- |
+| CSV (reports page) | pages through `?page=` until the set is complete | no |
+| PDF statement (`/api/reports/pdf`) | queries Prisma directly, server-side | no |
+| On-screen report | same fetch as the CSV | no |
+
+There is no Excel (`.xlsx`) export — the CSV is what people open in Excel, which
+is why it is built through `lib/csv.ts` rather than by joining strings:
+
+- **Every text field is quoted.** Descriptions are free text and routinely
+  contain commas. An unquoted one shifts every column after it, so the debit
+  lands in the credit column and the balance somewhere else again. The file
+  still opens; the numbers are just wrong.
+- **Formula-leading text is defused.** Excel evaluates a cell whose text starts
+  `=`, `+`, `-`, `@`, tab or CR — quoted or not — so such values get Excel's own
+  apostrophe text-marker. Numbers are emitted bare, so a negative amount is
+  never mistaken for a formula and columns stay summable.
+- **The file is BOM-marked UTF-8.** Without it Excel reads the local codepage
+  and mangles em dashes (transfer and closure descriptions contain them),
+  accented names and the cedi sign.
+- **It carries opening and closing balance rows.** The running column is
+  meaningless if you cannot see what it started from; with them the export
+  reconciles against the account on its own.
+- **Dates are ISO.** `toLocaleDateString()` produced `8/2/2026` or `02/08/2026`
+  depending on who pressed the button.
+
+The running balance accumulates in integer minor units, so a long statement
+cannot drift a cent the way repeated float addition does.
+
 ## Known equivalence
 
 The opening-balance SQL sums `COALESCE("amountInBase", amount)`, while the rows

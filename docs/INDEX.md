@@ -54,6 +54,7 @@ Welcome to the FLC Accounts documentation. This index provides quick access to a
 - The 500-row cap on the unpaginated transactions endpoint
 - Opening balance per page, compared on the full sort key
 - When the running-balance column is hidden, and why
+- CSV/PDF exports — quoting, formula defusing, opening and closing balances
 - **Related**: [Approval Workflow](./features/approval-workflow.md)
 
 ### Audit Logging

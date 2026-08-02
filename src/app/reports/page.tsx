@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { cn, formatCurrency } from '@/lib/utils';
 import { isBankAccount } from '@/lib/org-model';
 import { roundMoney, sumMoney } from '@/lib/format-money';
+import { buildStatementCsv, csvDate } from '@/lib/csv';
 import { useChartTheme } from '@/hooks/useChartTheme';
 import { useToast } from '@/components/ToastProvider';
 import { BarChart, Bar, XAxis, Tooltip, ResponsiveContainer } from 'recharts';
@@ -171,16 +172,24 @@ function ReportsPageContent() {
     };
 
     const handleDownload = () => {
-        const sym = baseCurrency?.code || 'GHS';
-        let bal = openingBalance;
-        const headers = `Date,Description,Church,Debit (${sym}),Credit (${sym}),Balance (${sym})\n`;
-        const rows = transactions.map(tx => {
-            const debit = tx.type === 'EXPENSE' ? Number(tx.amountInBase || tx.amount) : 0;
-            const credit = tx.type === 'INCOME' ? Number(tx.amountInBase || tx.amount) : 0;
-            bal = roundMoney(bal + credit - debit);
-            return `${new Date(tx.createdAt).toLocaleDateString()},${tx.description},${tx.organisation.name},${debit || ''},${credit || ''},${bal}`;
-        }).join('\n');
-        const blob = new Blob([headers + rows], { type: 'text/csv' });
+        // Built through lib/csv so the statement survives Excel: fields are
+        // quoted (a comma in a description used to shift the balance into the
+        // wrong column), the file is BOM-marked UTF-8, and it carries the
+        // opening and closing balances the running column is checked against.
+        const csv = buildStatementCsv({
+            entries: transactions.map(tx => ({
+                date: csvDate(tx.createdAt),
+                description: tx.description,
+                organisationName: tx.organisation?.name || '',
+                amount: Number(tx.amountInBase || tx.amount),
+                type: tx.type,
+            })),
+            openingBalance,
+            currencyCode: baseCurrency?.code || 'GHS',
+            accountLabel: 'Account',
+        });
+
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
         const url = URL.createObjectURL(blob); const a = document.createElement('a');
         a.href = url; a.download = `full-report-${new Date().toISOString().split('T')[0]}.csv`; a.click(); URL.revokeObjectURL(url);
     };
