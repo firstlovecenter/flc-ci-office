@@ -1,5 +1,6 @@
 /**
- * Resend Email Service — auth only (password reset / first login setup).
+ * Resend Email Service — auth and access changes only (password reset, first
+ * login setup, losing access to a closed account).
  * Do not use for transaction or report notifications.
  */
 

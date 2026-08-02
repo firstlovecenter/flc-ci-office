@@ -12,7 +12,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn, formatNumber } from '@/lib/utils';
 import { useToast } from '@/components/ToastProvider';
-import { sumMoney } from '@/lib/format-money';
 
 interface PublicRequest {
     id: string; requesterName: string; churchName: string; momoName: string; momoNumber: string;
@@ -83,12 +82,22 @@ export default function PublicRequestsPage() {
         finally { setLoadingDepts(false); }
     };
 
+    /**
+     * Ask the server for the balance instead of summing the ledger here.
+     *
+     * This used to fetch the account's transactions and add them up, which
+     * quietly meant "the most recent 500 of them" — the list endpoint is
+     * capped. An approver deciding whether an account can cover a request was
+     * being shown a partial balance on any account with a longer history.
+     */
     const fetchBalance = async (deptId: string) => {
         setLoadingBalance(true); setDeptBalance(null);
         try {
-            const res = await fetch(`/api/transactions?organisationId=${deptId}&exactOrganisation=true&status=APPROVED`);
-            const txs = await res.json();
-            if (Array.isArray(txs)) setDeptBalance(sumMoney(txs.map((tx: any) => { const a = Number(tx.amountInBase || tx.amount); return tx.type === 'INCOME' ? a : -a; })));
+            const res = await fetch(`/api/organisations/${deptId}/stats?exactLevel=true`, { cache: 'no-store' });
+            if (res.ok) {
+                const d = await res.json();
+                setDeptBalance(d?.balance != null ? Number(d.balance) : null);
+            }
         } catch { setDeptBalance(null); }
         finally { setLoadingBalance(false); }
     };

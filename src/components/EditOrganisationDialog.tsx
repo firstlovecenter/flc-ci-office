@@ -12,6 +12,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { formatOrganisationLevel } from '@/lib/utils';
 import { formatAccountType, isBankAccount } from '@/lib/org-model';
+import { APP_CURRENCY } from '@/lib/currency-constants';
+import type { FundsDisposition } from '@/lib/account-closure';
 
 type OrganisationLevel = 'DENOMINATION' | 'OVERSIGHT' | 'CAMPUS' | 'STREAM' | 'COUNCIL';
 type AccountTypeOption = 'OPERATING' | 'SPECIAL_PROJECT';
@@ -24,6 +26,12 @@ interface EditOrganisationDialogProps {
 const ORG_UNIT_LEVELS: OrganisationLevel[] = ['DENOMINATION', 'OVERSIGHT', 'CAMPUS'];
 const ORG_UNIT_RANK: Record<string, number> = { DENOMINATION: 1, OVERSIGHT: 2, CAMPUS: 3 };
 const ADMIN_LEVELS: OrganisationLevel[] = ['DENOMINATION', 'OVERSIGHT', 'CAMPUS'];
+
+/** An account offered as the destination for a closing balance. */
+type DestinationOption = { id: string; name: string; campusName?: string | null };
+
+const fmtMoney = (v: number | string) =>
+    Number(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 export default function EditOrganisationDialog({ open, onClose, organisation, organisations, onSave, onOrganisationClosed }: EditOrganisationDialogProps) {
     const [name, setName] = useState('');
@@ -45,6 +53,12 @@ export default function EditOrganisationDialog({ open, onClose, organisation, or
     const [closeLoading, setCloseLoading] = useState(false);
     const [closingOrganisation, setClosingOrganisation] = useState(false);
     const [closeReason, setCloseReason] = useState('');
+    // What happens to money still sitting in the account being closed.
+    const [disposition, setDisposition] = useState<FundsDisposition>('NONE');
+    const [destinationId, setDestinationId] = useState('');
+    // Kept apart from `error`, which renders in the edit dialog underneath and
+    // would be invisible while the close confirmation is on top.
+    const [closeError, setCloseError] = useState('');
 
     const editingAccount = isBankAccount(organisation?.level) || isBankAccount(level);
 
@@ -82,9 +96,15 @@ export default function EditOrganisationDialog({ open, onClose, organisation, or
 
     const fetchUsers = async () => { setUsersLoading(true); try { const r = await fetch('/api/users?available=true'); if (r.ok) setUsers(await r.json()); } catch {} finally { setUsersLoading(false); } };
 
+    const resetCloseDialog = () => {
+        setCloseDialogOpen(false); setCloseInfo(null); setCloseReason('');
+        setDisposition('NONE'); setDestinationId(''); setCloseError('');
+    };
+
     const handleOpenCloseDialog = async () => {
         if (!organisation) return;
         setCloseLoading(true); setCloseDialogOpen(true);
+        setCloseInfo(null); setDisposition('NONE'); setDestinationId(''); setCloseError('');
         try {
             const r = await fetch(`/api/organisations/${organisation.id}/close`);
             if (r.ok) setCloseInfo(await r.json());
@@ -93,14 +113,30 @@ export default function EditOrganisationDialog({ open, onClose, organisation, or
         finally { setCloseLoading(false); }
     };
 
+    // The account cannot close while it still holds money — the balance has to
+    // be transferred to another account or withdrawn as part of closing.
+    const needsDisposition = !!closeInfo?.requiresFundsDisposition;
+    const dispositionReady =
+        !needsDisposition ||
+        disposition === 'WITHDRAW' ||
+        (disposition === 'TRANSFER' && !!destinationId);
+
     const handleCloseOrganisation = async () => {
         if (!organisation) return;
-        setClosingOrganisation(true); setError('');
+        setClosingOrganisation(true); setCloseError('');
         try {
-            const r = await fetch(`/api/organisations/${organisation.id}/close`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reason: closeReason }) });
-            if (r.ok) { setCloseDialogOpen(false); onClose(); if (onOrganisationClosed) onOrganisationClosed(); else onSave(); }
-            else { const d = await r.json(); setError(d.error || 'Failed to close church'); }
-        } catch { setError('Failed to close church'); }
+            const r = await fetch(`/api/organisations/${organisation.id}/close`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    reason: closeReason,
+                    disposition: needsDisposition ? disposition : 'NONE',
+                    destinationAccountId: needsDisposition && disposition === 'TRANSFER' ? destinationId : undefined,
+                }),
+            });
+            if (r.ok) { resetCloseDialog(); onClose(); if (onOrganisationClosed) onOrganisationClosed(); else onSave(); }
+            else { const d = await r.json().catch(() => null); setCloseError(d?.error || (editingAccount ? 'Failed to close account' : 'Failed to close church')); }
+        } catch { setCloseError(editingAccount ? 'Failed to close account' : 'Failed to close church'); }
         finally { setClosingOrganisation(false); }
     };
 
@@ -204,7 +240,7 @@ export default function EditOrganisationDialog({ open, onClose, organisation, or
                         <div className="rounded-xl border border-destructive/30 bg-destructive/8 p-4 mt-2">
                             <p className="text-[0.6875rem] font-semibold uppercase tracking-[0.08em] text-destructive mb-2">Danger zone</p>
                             <Button variant="destructive" className="w-full mb-2" onClick={handleOpenCloseDialog}><Ban className="mr-2 h-4 w-4" />{editingAccount ? 'Close account' : 'Close church'}</Button>
-                            <p className="text-xs text-destructive/80">{editingAccount ? 'Closing an account removes holder access but preserves transaction history.' : 'Closing a church removes all user access but preserves transaction history.'}</p>
+                            <p className="text-xs text-destructive/80">{editingAccount ? 'Closing an account removes holder access but preserves transaction history. Any remaining balance must be transferred to another account or withdrawn.' : 'Closing a church removes all user access but preserves transaction history.'}</p>
                         </div>
                     </div>
                     <DialogFooter className="gap-2">
@@ -215,12 +251,14 @@ export default function EditOrganisationDialog({ open, onClose, organisation, or
             </Dialog>
 
             {/* Close confirmation */}
-            <Dialog open={closeDialogOpen} onOpenChange={v => { if (!v) { setCloseDialogOpen(false); setCloseInfo(null); setCloseReason(''); } }}>
+            <Dialog open={closeDialogOpen} onOpenChange={v => { if (!v) resetCloseDialog(); }}>
                 <DialogContent className="max-w-sm">
                     <DialogHeader><DialogTitle className="flex items-center gap-2 text-destructive"><Ban className="h-5 w-5" />{editingAccount ? 'Close account' : 'Close church'}</DialogTitle></DialogHeader>
                     <div className="py-2">
                         {closeLoading ? <div className="flex justify-center py-8"><Loader2 className="h-7 w-7 animate-spin text-muted-foreground" /></div> : closeInfo ? (
                             <div className="flex flex-col gap-4">
+                                {closeError && <Alert variant="destructive"><AlertDescription>{closeError}</AlertDescription></Alert>}
+
                                 <Alert variant="warning"><AlertDescription>Are you sure you want to close <strong>{closeInfo.organisation?.name}</strong>? This action cannot be easily undone.</AlertDescription></Alert>
 
                                 {closeInfo.blockers?.length > 0 && (
@@ -244,6 +282,60 @@ export default function EditOrganisationDialog({ open, onClose, organisation, or
                                     </div>
                                 )}
 
+                                {/* Money still on the account has to go somewhere the
+                                    ledger can account for before the account closes. */}
+                                {closeInfo.canClose && needsDisposition && (
+                                    <div className="rounded-xl border border-border bg-muted/20 p-3 space-y-3">
+                                        <div className="flex items-baseline justify-between gap-2">
+                                            <p className="text-sm font-semibold text-foreground">Remaining balance</p>
+                                            <p className="text-base font-semibold text-foreground tabular-nums">
+                                                {closeInfo.currency?.symbol || APP_CURRENCY.symbol}{fmtMoney(closeInfo.balance ?? 0)}
+                                            </p>
+                                        </div>
+                                        <p className="text-xs text-muted-foreground">
+                                            This money must leave the account before it closes. It is posted to the ledger either way.
+                                        </p>
+
+                                        <div className="space-y-1.5">
+                                            <Label>What happens to it <span className="text-destructive">*</span></Label>
+                                            <Select value={disposition === 'NONE' ? '' : disposition} onValueChange={v => { setDisposition(v as FundsDisposition); setDestinationId(''); }}>
+                                                <SelectTrigger><SelectValue placeholder="Choose transfer or withdrawal" /></SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="TRANSFER">Transfer to another account</SelectItem>
+                                                    <SelectItem value="WITHDRAW">Withdraw the money</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+
+                                        {disposition === 'TRANSFER' && (
+                                            <div className="space-y-1.5">
+                                                <Label>Receiving account <span className="text-destructive">*</span></Label>
+                                                <Select value={destinationId} onValueChange={setDestinationId} disabled={!closeInfo.destinationOptions?.length}>
+                                                    <SelectTrigger><SelectValue placeholder={closeInfo.destinationOptions?.length ? 'Select account' : 'No other open account available'} /></SelectTrigger>
+                                                    <SelectContent>
+                                                        {((closeInfo.destinationOptions || []) as DestinationOption[]).map(a => (
+                                                            <SelectItem key={a.id} value={a.id}>
+                                                                {a.name}{a.campusName ? ` · ${a.campusName}` : ''}
+                                                            </SelectItem>
+                                                        ))}
+                                                    </SelectContent>
+                                                </Select>
+                                                {!closeInfo.destinationOptions?.length && (
+                                                    <p className="text-xs text-destructive">
+                                                        There is no other open operating account to receive the balance. Withdraw it instead.
+                                                    </p>
+                                                )}
+                                            </div>
+                                        )}
+
+                                        {disposition === 'WITHDRAW' && (
+                                            <p className="text-xs text-warning">
+                                                Records a withdrawal of {closeInfo.currency?.symbol || APP_CURRENCY.symbol}{fmtMoney(closeInfo.balance ?? 0)} on {closeInfo.organisation?.name}, leaving it at zero.
+                                            </p>
+                                        )}
+                                    </div>
+                                )}
+
                                 {closeInfo.canClose && (
                                     <div className="space-y-1.5">
                                         <Label>Reason for closing (optional)</Label>
@@ -254,8 +346,14 @@ export default function EditOrganisationDialog({ open, onClose, organisation, or
                         ) : null}
                     </div>
                     <DialogFooter className="gap-2">
-                        <Button variant="outline" onClick={() => { setCloseDialogOpen(false); setCloseInfo(null); setCloseReason(''); }} disabled={closingOrganisation}>Cancel</Button>
-                        <Button variant="destructive" onClick={handleCloseOrganisation} disabled={!closeInfo?.canClose || closingOrganisation}>{closingOrganisation ? <><Loader2 className="mr-1.5 h-4 w-4 animate-spin" />Closing…</> : editingAccount ? 'Close account' : 'Close organisation'}</Button>
+                        <Button variant="outline" onClick={resetCloseDialog} disabled={closingOrganisation}>Cancel</Button>
+                        <Button variant="destructive" onClick={handleCloseOrganisation} disabled={!closeInfo?.canClose || !dispositionReady || closingOrganisation}>
+                            {closingOrganisation
+                                ? <><Loader2 className="mr-1.5 h-4 w-4 animate-spin" />Closing…</>
+                                : needsDisposition && disposition === 'TRANSFER' ? 'Transfer & close'
+                                : needsDisposition && disposition === 'WITHDRAW' ? 'Withdraw & close'
+                                : editingAccount ? 'Close account' : 'Close organisation'}
+                        </Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>

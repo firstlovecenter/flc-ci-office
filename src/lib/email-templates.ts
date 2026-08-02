@@ -1,5 +1,6 @@
 /**
- * Auth-only email templates (password reset + first login setup).
+ * Auth and access-change email templates — password reset, first login setup,
+ * and losing access to an account when it is closed.
  * Transaction / report emails are intentionally not restored.
  */
 import { emailLayout } from './email';
@@ -125,6 +126,63 @@ export function generateFirstRoleAssignmentEmail(
     subject: 'Welcome to CI-OFFICE — set up your password',
     html: emailLayout(content, {
       preheader: `Hi ${userName}, you've been added to CI-OFFICE as ${roleDisplay}. Set your password to get started.`,
+    }),
+  };
+}
+
+interface AccountClosureEmailParams {
+  userName: string;
+  accountName: string;
+  campusName?: string | null;
+  /** Where the money went, from `closureFundsSummary`. */
+  fundsSummary: string;
+  reason?: string | null;
+  closedOn: Date;
+  role?: string | null;
+}
+
+/**
+ * Sent to everyone who held a role on an account at the moment it was closed.
+ *
+ * An access change, not a transaction notice: the recipient can no longer reach
+ * the account, and the balance they were responsible for has been moved out.
+ * Both facts are stated plainly, because the first thing someone does on losing
+ * access is ask where the money went.
+ */
+export function generateAccountClosureEmail(
+  params: AccountClosureEmailParams,
+): { subject: string; html: string } {
+  const { userName, accountName, campusName, fundsSummary, reason, closedOn, role } = params;
+
+  const closedOnLabel = closedOn.toLocaleDateString('en-GB', {
+    day: 'numeric', month: 'long', year: 'numeric',
+  });
+
+  const content = `
+    ${heading(
+      'Account closed',
+      `Hi ${userName}, the ${accountName} account has been closed`,
+      'This is a record of what happened to the account and to the money that was in it.',
+    )}
+    ${dataTable([
+      ['Account', accountName],
+      ...(campusName ? [['Campus', campusName] as [string, string]] : []),
+      ...(role ? [['Your role', pill(formatRoleLabel(role), 'slate')] as [string, string]] : []),
+      ['Closed on', closedOnLabel],
+      ['Remaining balance', fundsSummary],
+      ...(reason?.trim() ? [['Reason', reason.trim()] as [string, string]] : []),
+    ])}
+    ${infoBox('Your access to this account has been removed. Transactions already recorded on it are kept for the records and remain auditable.', 'amber')}
+    ${divider()}
+    <p class="helper">
+      If you believe this account was closed in error, contact your oversight manager
+      &mdash; reopening a closed account is done at oversight or HQ level.
+    </p>`;
+
+  return {
+    subject: `Account closed — ${accountName}`,
+    html: emailLayout(content, {
+      preheader: `${accountName} has been closed. ${fundsSummary}.`,
     }),
   };
 }

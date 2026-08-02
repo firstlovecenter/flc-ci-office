@@ -37,6 +37,26 @@ Welcome to the FLC Accounts documentation. This index provides quick access to a
 - UI components and filters
 - **Related**: [Audit Logging](./features/audit-logging.md), [Push Notifications](./features/push-notifications.md)
 
+### Account Closure
+**[Closing an account](./features/account-closure.md)**
+- Funds disposition — transfer the remaining balance or withdraw it
+- Blockers (pending transactions) and warnings (overdrawn accounts)
+- Atomic sweep + closure, and the BankAccount mirror write
+- SMS and email to everyone who loses access, saying where the money went
+- Closed accounts stay listed, faded and at the bottom
+- Reopening — oversight and HQ only, never the campus that closed it
+- Preflight, close and reopen endpoints, audit entries
+- **Related**: [Bank-account split](./migrations/bank-account-split.md), [Audit Logging](./features/audit-logging.md)
+
+### Ledger Pagination
+**[Ledger pagination and where balances come from](./features/ledger-pagination.md)**
+- A page of rows is never the source of a balance
+- The 500-row cap on the unpaginated transactions endpoint
+- Opening balance per page, compared on the full sort key
+- When the running-balance column is hidden, and why
+- CSV/PDF exports — quoting, formula defusing, opening and closing balances
+- **Related**: [Approval Workflow](./features/approval-workflow.md)
+
 ### Audit Logging
 **[Audit Logging System](./features/audit-logging.md)**
 - Enhanced audit log schema
