@@ -11,7 +11,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { cn, formatCurrency } from '@/lib/utils';
 import { isBankAccount } from '@/lib/org-model';
 import { roundMoney, sumMoney } from '@/lib/format-money';
-import { buildStatementCsv, csvDate } from '@/lib/csv';
+import { buildStatementCsv, buildTrendsCsv, csvDate } from '@/lib/csv';
+import { getISOWeek, getISOWeekYear } from 'date-fns';
 import { useChartTheme } from '@/hooks/useChartTheme';
 import { useToast } from '@/components/ToastProvider';
 import { BarChart, Bar, XAxis, Tooltip, ResponsiveContainer } from 'recharts';
@@ -194,6 +195,37 @@ function ReportsPageContent() {
         a.href = url; a.download = `full-report-${new Date().toISOString().split('T')[0]}.csv`; a.click(); URL.revokeObjectURL(url);
     };
 
+    /**
+     * Trends by week, with a balance either side of every period.
+     *
+     * Movements alone do not answer the question a trend is read for — ₵4,000
+     * out in week 31 means one thing on an account holding ₵50,000 and another
+     * on one holding ₵4,100 — so each period opens where the last closed, and
+     * the totals row carries the same opening and closing balance as the
+     * statement.
+     */
+    const handleDownloadTrends = () => {
+        const csv = buildTrendsCsv({
+            entries: transactions.map(tx => {
+                const date = new Date(tx.createdAt);
+                return {
+                    date: csvDate(tx.createdAt),
+                    description: tx.description,
+                    organisationName: tx.organisation?.name || '',
+                    amount: Number(tx.amountInBase || tx.amount),
+                    type: tx.type,
+                    period: `${getISOWeekYear(date)}-W${String(getISOWeek(date)).padStart(2, '0')}`,
+                };
+            }),
+            openingBalance,
+            currencyCode: baseCurrency?.code || 'GHS',
+        });
+
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+        const url = URL.createObjectURL(blob); const a = document.createElement('a');
+        a.href = url; a.download = `trends-${new Date().toISOString().split('T')[0]}.csv`; a.click(); URL.revokeObjectURL(url);
+    };
+
     const handleDownloadPDF = async () => {
         if (isLeader && !userOrganisationId) { showError('Please wait for user data to load, then try again.'); return; }
         const deptToUse = isLeader ? userOrganisationId : selectedOrganisation;
@@ -298,7 +330,8 @@ function ReportsPageContent() {
                 {transactions.length > 0 && (
                     <div className="flex flex-wrap gap-3 mt-5 pt-5 border-t border-border">
                         <Button variant="outline" onClick={() => window.print()}><Printer className="mr-2 h-4 w-4" />Print</Button>
-                        <Button variant="outline" onClick={handleDownload}><Download className="mr-2 h-4 w-4" />Download CSV</Button>
+                        <Button variant="outline" onClick={handleDownload}><Download className="mr-2 h-4 w-4" />Statement CSV</Button>
+                        <Button variant="outline" onClick={handleDownloadTrends}><Download className="mr-2 h-4 w-4" />Trends CSV</Button>
                         <Button onClick={handleDownloadPDF}><Download className="mr-2 h-4 w-4" />Download PDF</Button>
                     </div>
                 )}

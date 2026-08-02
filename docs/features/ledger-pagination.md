@@ -53,9 +53,16 @@ Three of them, and they must agree with the screen and with each other.
 
 | Export | Source | Capped? |
 | --- | --- | --- |
-| CSV (reports page) | pages through `?page=` until the set is complete | no |
-| PDF statement (`/api/reports/pdf`) | queries Prisma directly, server-side | no |
+| Statement CSV (reports page) | pages through `?page=` until the set is complete | no |
+| Trends CSV (reports page) | same rows, bucketed by ISO week | no |
+| PDF statement (`/api/reports/pdf`) | queries Prisma directly, server-side | refuses above 5,000 rows |
 | On-screen report | same fetch as the CSV | no |
+
+**Every export states an opening and a closing balance.** The statement CSV
+brackets its entries with them, the trends CSV gives each period its own pair
+plus a totals row carrying the statement's, and the PDF prints them above and
+below the table. A movement without a balance either side of it cannot be
+reconciled against the account, which is the whole point of an export.
 
 There is no Excel (`.xlsx`) export — the CSV is what people open in Excel, which
 is why it is built through `lib/csv.ts` rather than by joining strings:
@@ -79,6 +86,24 @@ is why it is built through `lib/csv.ts` rather than by joining strings:
 
 The running balance accumulates in integer minor units, so a long statement
 cannot drift a cent the way repeated float addition does.
+
+### The PDF and WinAnsi
+
+pdf-lib's standard fonts encode WinAnsi and **throw** on anything outside it —
+`WinAnsi cannot encode "…"` aborts the request, so one bad character takes down
+the whole export. Two traps:
+
+- `widthOfTextAtSize` throws on tab, newline and carriage return even where
+  `drawText` tolerates them, and every centred, aligned or wrapped string is
+  measured before it is drawn. A description with a line break in it was enough.
+- The 57 unencodable codepoints below 0x100 are exactly the C0 controls and
+  0x7F–0x9F — where Windows-1252 text pasted from Word puts its curly quotes.
+
+`lib/pdf-text.ts` maps what has an equivalent and drops the rest. Its tests feed
+the output back to pdf-lib and assert it never refuses, including every
+codepoint below 0x100 one at a time. The old inline sanitiser stripped
+`[^\x00-\xFF]`, which removed the harmless astral characters and kept every
+dangerous one.
 
 ## Known equivalence
 

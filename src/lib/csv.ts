@@ -112,6 +112,78 @@ export function buildStatementCsv(input: {
     return toCsv(rows);
 }
 
+export interface TrendEntry extends StatementEntry {
+    /** Bucket label, e.g. "2026-W31". Entries must arrive oldest first. */
+    period: string;
+}
+
+/**
+ * Trends by period — deposits, withdrawals and net for each bucket, each one
+ * opening where the previous closed.
+ *
+ * A trend without balances is just a pile of movements: you can see ₵4,000 went
+ * out in week 31 without being able to tell whether the account could afford
+ * it. Every period therefore carries its own opening and closing balance, and
+ * the totals row carries the statement's — the first period opens on the
+ * overall opening balance and the last closes on the overall closing balance.
+ */
+export function buildTrendsCsv(input: {
+    entries: TrendEntry[];
+    openingBalance: number;
+    currencyCode: string;
+}): string {
+    const { entries, openingBalance, currencyCode } = input;
+
+    const rows: CsvValue[][] = [[
+        'Period',
+        `Opening (${currencyCode})`,
+        `Deposits (${currencyCode})`,
+        `Withdrawals (${currencyCode})`,
+        `Net (${currencyCode})`,
+        `Closing (${currencyCode})`,
+    ]];
+
+    // Buckets in the order they first appear, so the periods stay chronological.
+    const buckets = new Map<string, { creditCents: number; debitCents: number }>();
+    for (const entry of entries) {
+        const bucket = buckets.get(entry.period) || { creditCents: 0, debitCents: 0 };
+        const amountCents = Math.round(entry.amount * 100);
+        if (entry.type === 'EXPENSE') bucket.debitCents += amountCents;
+        else bucket.creditCents += amountCents;
+        buckets.set(entry.period, bucket);
+    }
+
+    let cents = Math.round(openingBalance * 100);
+    let totalCredit = 0;
+    let totalDebit = 0;
+
+    for (const [period, bucket] of buckets) {
+        const opening = cents;
+        cents += bucket.creditCents - bucket.debitCents;
+        totalCredit += bucket.creditCents;
+        totalDebit += bucket.debitCents;
+        rows.push([
+            period,
+            opening / 100,
+            bucket.creditCents / 100,
+            bucket.debitCents / 100,
+            (bucket.creditCents - bucket.debitCents) / 100,
+            cents / 100,
+        ]);
+    }
+
+    rows.push([
+        'Total',
+        Math.round(openingBalance * 100) / 100,
+        totalCredit / 100,
+        totalDebit / 100,
+        (totalCredit - totalDebit) / 100,
+        cents / 100,
+    ]);
+
+    return toCsv(rows);
+}
+
 /** ISO date — unambiguous across locales and sortable in a spreadsheet. */
 export function csvDate(value: string | Date): string {
     const date = value instanceof Date ? value : new Date(value);

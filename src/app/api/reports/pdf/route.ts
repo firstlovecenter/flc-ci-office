@@ -9,6 +9,19 @@ import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
 import { formatCurrency, formatNumber } from '@/lib/utils';
 import { Prisma } from '@prisma/client';
 import { toDecimal, moneyToString, type Money } from '@/lib/money';
+import { sanitizePdfText, safePdfCurrencySymbol } from '@/lib/pdf-text';
+
+// Drawing a statement row by row is not fast; the platform default cuts the
+// function off long before a year of entries is laid out, and the caller sees a
+// gateway error rather than a PDF.
+export const maxDuration = 60;
+
+/**
+ * Above this the export is not going to finish inside any request budget, so
+ * say so plainly instead of letting the request die at the gateway with an
+ * error the user cannot act on.
+ */
+const MAX_STATEMENT_ROWS = 5000;
 
 export async function POST(request: NextRequest) {
     try {
@@ -75,6 +88,15 @@ export async function POST(request: NextRequest) {
                 // Only exact organisation match
                 whereClause.organisationId = organisationId;
             }
+        } else if (session.user.role !== 'SUPERADMIN') {
+            // "All churches" means all of *theirs*. Without this the statement
+            // was built with no organisation filter at all, so a campus manager
+            // exporting the unfiltered report got every church in the database.
+            const scopeId = session.user.activeUserRole?.organisationId || session.user.organisationId;
+            if (!scopeId) {
+                return NextResponse.json({ error: 'No organisation access' }, { status: 403 });
+            }
+            whereClause.organisationId = { in: await getDescendantOrganisationIds(scopeId) };
         }
         
         if (startDate && endDate) {
@@ -102,16 +124,23 @@ export async function POST(request: NextRequest) {
             orderBy: { createdAt: 'asc' },
         });
 
+        if (transactions.length > MAX_STATEMENT_ROWS) {
+            return NextResponse.json({
+                error: `This statement covers ${transactions.length.toLocaleString()} entries, which is too many for one PDF. Narrow the date range or pick a single account.`,
+            }, { status: 400 });
+        }
+
         // Calculate opening balance (transactions before start date) with Decimal conversion
         const D = Prisma.Decimal;
         let openingBalance: Money = new D(0);
         if (startDate) {
+            // Exactly the scope the statement rows use. Resolving it a second
+            // time here is how the opening balance came to cover the whole
+            // database while the rows below it were scoped to one campus.
             const priorTransactions = await prisma.transaction.findMany({
                 where: {
                     status: 'APPROVED',
-                    ...(organisationId && includeSubOrganisations
-                        ? { organisationId: { in: await getDescendantOrganisationIds(organisationId) } }
-                        : organisationId ? { organisationId } : {}),
+                    ...(whereClause.organisationId ? { organisationId: whereClause.organisationId } : {}),
                     createdAt: { lt: new Date(startDate) },
                 },
                 include: {
@@ -150,36 +179,11 @@ export async function POST(request: NextRequest) {
         const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
         const boldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
         
-        // Helper to handle currency symbols that aren't supported by WinAnsi encoding (like Cedi)
-        const getSafeSymbol = (symbol: string, code: string) => {
-            // WinAnsi encoding doesn't support Cedi symbol (₵)
-            if (symbol.includes('₵') || code === 'GHS') return 'GHS ';
-            return symbol.replace(/₵/g, 'GHS');
-        };
-
-        // Sanitize text to remove/replace characters not supported by WinAnsi encoding
-        const sanitizeText = (text: string) => {
-            if (!text) return '';
-            return text
-                .replace(/₵/g, 'GHS')
-                .replace(/→/g, '->')
-                .replace(/←/g, '<-')
-                .replace(/↑/g, '^')
-                .replace(/↓/g, 'v')
-                .replace(/•/g, '-')
-                .replace(/…/g, '...')
-                .replace(/–/g, '-')
-                .replace(/—/g, '-')
-                .replace(/'/g, "'")
-                .replace(/'/g, "'")
-                .replace(/"/g, '"')
-                .replace(/"/g, '"')
-                .replace(/€/g, 'EUR')
-                .replace(/£/g, 'GBP')
-                .replace(/¥/g, 'JPY')
-                .replace(/₹/g, 'INR')
-                .replace(/[^\x00-\xFF]/g, ''); // Remove any other non-WinAnsi characters
-        };
+        // Text goes through lib/pdf-text: the standard fonts throw on anything
+        // WinAnsi cannot encode, and *measuring* throws on tab and newline even
+        // where drawing would not. One such character used to abort the export.
+        const sanitizeText = sanitizePdfText;
+        const getSafeSymbol = safePdfCurrencySymbol;
 
         const safeCurrencySymbol = getSafeSymbol(userBaseCurrency.symbol, userBaseCurrency.code);
 

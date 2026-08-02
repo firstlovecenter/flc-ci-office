@@ -6,7 +6,7 @@
  * check the running column against.
  */
 import { describe, it, expect } from 'vitest';
-import { csvCell, toCsv, buildStatementCsv, csvDate, CSV_BOM, type StatementEntry } from './csv';
+import { csvCell, toCsv, buildStatementCsv, buildTrendsCsv, csvDate, CSV_BOM, type StatementEntry } from './csv';
 
 const entry = (over: Partial<StatementEntry> = {}): StatementEntry => ({
     date: '2026-08-02',
@@ -113,6 +113,45 @@ describe('buildStatementCsv', () => {
     it('names the currency in the money headers', () => {
         expect(lines[0]).toContain('Debit (GHS)');
         expect(lines[0]).toContain('Balance (GHS)');
+    });
+});
+
+describe('buildTrendsCsv', () => {
+    const csv = buildTrendsCsv({
+        entries: [
+            { ...entry({ amount: 500, type: 'INCOME' }), period: '2026-W31' },
+            { ...entry({ amount: 200, type: 'EXPENSE' }), period: '2026-W31' },
+            { ...entry({ amount: 300, type: 'EXPENSE' }), period: '2026-W32' },
+        ],
+        openingBalance: 1000,
+        currencyCode: 'GHS',
+    });
+    const lines = csv.split('\r\n');
+
+    it('gives every period an opening and a closing balance', () => {
+        expect(lines[0]).toContain('Opening (GHS)');
+        expect(lines[0]).toContain('Closing (GHS)');
+        expect(lines[1]).toBe('"2026-W31",1000,500,200,300,1300');
+        expect(lines[2]).toBe('"2026-W32",1300,0,300,-300,1000');
+    });
+
+    it('opens each period where the previous one closed', () => {
+        const closingOfFirst = lines[1].split(',').pop();
+        const openingOfSecond = lines[2].split(',')[1];
+        expect(openingOfSecond).toBe(closingOfFirst);
+    });
+
+    it('totals the movements and brackets them with the statement balances', () => {
+        expect(lines[3]).toBe('"Total",1000,500,500,0,1000');
+    });
+
+    it('keeps periods in the order they first appear', () => {
+        expect(lines.slice(1, 3).map(l => l.split(',')[0])).toEqual(['"2026-W31"', '"2026-W32"']);
+    });
+
+    it('reports the opening balance even with nothing in the range', () => {
+        const empty = buildTrendsCsv({ entries: [], openingBalance: 250, currencyCode: 'GHS' });
+        expect(empty.split('\r\n')[1]).toBe('"Total",250,0,0,0,250');
     });
 });
 
