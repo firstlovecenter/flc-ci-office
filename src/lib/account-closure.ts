@@ -158,6 +158,30 @@ export function validateClosurePlan(ctx: ClosureContext, request: ClosureRequest
 }
 
 /**
+ * Wording for the ledger entries a closure posts.
+ *
+ * The two legs of a closing transfer do *not* share a description. The account
+ * being closed records where its money went; the receiving account records what
+ * the money is — on an account opened to replace the closed one, this is the
+ * opening line of its ledger, and "balance brought forward" is what a bookkeeper
+ * expects to read there.
+ */
+export function closureTransferDescriptions(input: {
+    sourceName: string;
+    destinationName: string;
+    note: string;
+}): { out: string; in: string } {
+    return {
+        out: `TRANSFER: Closing balance moved to ${input.destinationName} — ${input.note}`,
+        in: `BALANCE BROUGHT FORWARD: from ${input.sourceName}`,
+    };
+}
+
+export function closureWithdrawalDescription(input: { sourceName: string; note: string }): string {
+    return `CLOSURE WITHDRAWAL: Remaining balance of ${input.sourceName} withdrawn — ${input.note}`;
+}
+
+/**
  * Whether the remaining balance may be moved into `destination`.
  *
  * Same shape of rules as an ordinary transfer: an open operating account that

@@ -22,6 +22,26 @@ APPROVED immediately: this is an administrative reallocation by someone who
 already controls the account, not a spending request, so it does not enter the
 approval queue.
 
+### What each entry reads
+
+The two legs of a closing transfer carry **different** descriptions
+(`closureTransferDescriptions`), because they answer different questions:
+
+| Where | Description |
+| --- | --- |
+| Closing account | `TRANSFER: Closing balance moved to <destination> — <reason>` |
+| Receiving account | `BALANCE BROUGHT FORWARD: from <closed account>` |
+
+The receiving side leads with *what the money is*, not where it came from. On an
+account opened to replace the closed one this is the opening line of its ledger,
+and "balance brought forward" is what a bookkeeper expects to read there. The
+ledger sorts newest-first, so the entry sits at the top of the new account from
+the moment it posts — and on an account with no other activity it is the whole
+ledger.
+
+A withdrawal posts one entry:
+`CLOSURE WITHDRAWAL: Remaining balance of <account> withdrawn — <reason>`.
+
 The sweep legs are flagged `receiptWaived` — a ledger movement made by an
 administrator has no receipt to collect, and without the waiver the closing
 admin would be blocked from filing their own requests 24 hours later.

@@ -10,6 +10,8 @@ import { moneyToString, toDecimal, toMoney2dp, type MoneyInput } from '@/lib/mon
 import {
     accountClosureBlockers,
     accountClosureWarnings,
+    closureTransferDescriptions,
+    closureWithdrawalDescription,
     holdsClosingBalance,
     validateClosurePlan,
     validateTransferDestination,
@@ -248,14 +250,18 @@ export async function POST(
                 };
 
                 if (plan.disposition === 'TRANSFER' && destination) {
-                    const description = `TRANSFER: Closing balance of ${organisation.name} — ${closureNote}`;
+                    const description = closureTransferDescriptions({
+                        sourceName: organisation.name,
+                        destinationName: destination.name,
+                        note: closureNote,
+                    });
                     await tx.transaction.create({
                         data: {
                             ...leg,
                             id: crypto.randomUUID(),
                             organisationId,
                             type: 'EXPENSE',
-                            description,
+                            description: description.out,
                             transferId,
                             transferDirection: 'OUT',
                             // A closing sweep is a ledger movement, not a spending
@@ -272,7 +278,7 @@ export async function POST(
                             id: crypto.randomUUID(),
                             organisationId: destination.id,
                             type: 'INCOME',
-                            description,
+                            description: description.in,
                             transferId,
                             transferDirection: 'IN',
                         },
@@ -284,7 +290,7 @@ export async function POST(
                             id: crypto.randomUUID(),
                             organisationId,
                             type: 'EXPENSE',
-                            description: `CLOSURE WITHDRAWAL: Remaining balance of ${organisation.name} withdrawn — ${closureNote}`,
+                            description: closureWithdrawalDescription({ sourceName: organisation.name, note: closureNote }),
                             receiptWaived: true,
                             receiptWaivedAt: now,
                             receiptWaivedBy: session.user.id,

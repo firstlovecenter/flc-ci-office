@@ -13,6 +13,8 @@ import {
     accountClosureWarnings,
     validateClosurePlan,
     validateTransferDestination,
+    closureTransferDescriptions,
+    closureWithdrawalDescription,
     type ClosureContext,
     type DestinationAccount,
 } from './account-closure';
@@ -147,6 +149,36 @@ describe('validateClosurePlan', () => {
         const result = validateClosurePlan(account({ isAccount: false }), { disposition: 'WITHDRAW' });
         expect(result.ok).toBe(false);
         expect(result.ok === false && result.error).toMatch(/Only bank accounts/);
+    });
+});
+
+describe('closure ledger wording', () => {
+    const legs = closureTransferDescriptions({
+        sourceName: 'Area 4',
+        destinationName: 'Area 4 (New)',
+        note: 'Switched banks',
+    });
+
+    it('leads the receiving account with balance brought forward', () => {
+        // First line of the new account's ledger — it says what the money is,
+        // and names where it came from.
+        expect(legs.in).toBe('BALANCE BROUGHT FORWARD: from Area 4');
+    });
+
+    it('records on the closing account where the money went', () => {
+        expect(legs.out).toContain('Area 4 (New)');
+        expect(legs.out).toContain('Switched banks');
+    });
+
+    it('gives the two legs different descriptions', () => {
+        expect(legs.in).not.toBe(legs.out);
+    });
+
+    it('names the account and reason on a withdrawal', () => {
+        const description = closureWithdrawalDescription({ sourceName: 'Area 4', note: 'Switched banks' });
+        expect(description).toContain('Area 4');
+        expect(description).toContain('Switched banks');
+        expect(description).toMatch(/^CLOSURE WITHDRAWAL:/);
     });
 });
 
