@@ -10,6 +10,7 @@ import { moneyToString, toDecimal, toMoney2dp, type MoneyInput } from '@/lib/mon
 import {
     accountClosureBlockers,
     accountClosureWarnings,
+    closureFundsSummary,
     closureTransferDescriptions,
     closureWithdrawalDescription,
     holdsClosingBalance,
@@ -21,7 +22,9 @@ import {
 import { APP_CURRENCY } from '@/lib/currency-constants';
 import { getCurrentWeek } from '@/lib/utils';
 import { sendSms, formatGhanaPhone } from '@/lib/sms';
-import { generateOrganisationTransferSms } from '@/lib/sms-templates';
+import { generateOrganisationTransferSms, generateAccountClosureSms } from '@/lib/sms-templates';
+import { sendEmail, isEmailConfigured } from '@/lib/email';
+import { generateAccountClosureEmail } from '@/lib/email-templates';
 import crypto from 'crypto';
 import type { Prisma, Role } from '@prisma/client';
 
@@ -114,6 +117,7 @@ export async function POST(
         const organisation = await prisma.organisation.findUnique({
             where: { id: organisationId },
             include: {
+                parent: { select: { id: true, name: true } },
                 children: {
                     where: { isActive: true },
                     select: { id: true, name: true },
@@ -121,7 +125,9 @@ export async function POST(
                 userRoles: {
                     include: {
                         user: {
-                            select: { id: true, name: true, email: true },
+                            // Phone and email are read here, before the roles are
+                            // deleted, so the people losing access can be told.
+                            select: { id: true, name: true, email: true, phone: true },
                         },
                     },
                 },
@@ -222,6 +228,15 @@ export async function POST(
             id: ur.user.id,
             name: ur.user.name,
             email: ur.user.email,
+            role: ur.role,
+        }));
+
+        // Same people, with the contact details needed to tell them. Kept apart
+        // from `affectedUsers` so phone numbers stay out of the audit payload.
+        const notifyTargets = organisation.userRoles.map(ur => ({
+            name: ur.user.name || ur.user.email,
+            email: ur.user.email,
+            phone: ur.user.phone,
             role: ur.role,
         }));
 
@@ -462,6 +477,49 @@ export async function POST(
                 } catch { /* delivery is best-effort */ }
             }
         }
+
+        // Tell everyone who just lost access that the account is gone and where
+        // its money went. Best-effort and after the commit: the closure stands
+        // whether or not a message is delivered, and nobody should be left
+        // wondering about a balance they were responsible for.
+        const fundsSummary = closureFundsSummary({
+            disposition: plan.disposition,
+            amount: fmt(sweptAmount),
+            currencySymbol: APP_CURRENCY.symbol,
+            destinationName: destination?.name,
+        });
+
+        // Accounts only. A church closure removes roles too, but the wording
+        // here is about a balance and where it went, which does not apply.
+        await Promise.allSettled((isAccount ? notifyTargets : []).map(async (target) => {
+            if (target.phone) {
+                try {
+                    await sendSms({
+                        to: formatGhanaPhone(target.phone),
+                        message: generateAccountClosureSms({
+                            accountName: organisation.name,
+                            fundsSummary,
+                            reason,
+                        }),
+                    });
+                } catch { /* delivery is best-effort */ }
+            }
+
+            if (target.email && isEmailConfigured()) {
+                try {
+                    const { subject, html } = generateAccountClosureEmail({
+                        userName: target.name || target.email,
+                        accountName: organisation.name,
+                        campusName: organisation.parent?.name,
+                        fundsSummary,
+                        reason,
+                        closedOn: now,
+                        role: target.role,
+                    });
+                    await sendEmail({ to: target.email, subject, html });
+                } catch { /* delivery is best-effort */ }
+            }
+        }));
 
         const movedLabel = plan.disposition === 'TRANSFER'
             ? ` ${APP_CURRENCY.symbol}${fmt(sweptAmount)} transferred to ${destination?.name}.`

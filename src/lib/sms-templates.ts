@@ -318,3 +318,21 @@ export function generatePublicExpenseLeaderDeclinedSms(params: PublicExpenseLead
     const { requesterName, amount, churchName } = params;
     return `CI Office: Your expense request of GHS${amount} for ${churchName} has been declined. Please contact your oversight leader for details. Ref: ${requesterName}.`;
 }
+
+interface AccountClosureSmsParams {
+    accountName: string;
+    /** Where the money went, from `closureFundsSummary`. */
+    fundsSummary: string;
+    reason?: string | null;
+}
+
+// Sent to everyone who held a role on an account when it was closed — they are
+// losing access, and the money they were responsible for has moved.
+export function generateAccountClosureSms(params: AccountClosureSmsParams): string {
+    const { accountName, fundsSummary, reason } = params;
+    const trimmed = reason?.trim();
+    const shortReason = trimmed
+        ? ` Reason: ${trimmed.length > 30 ? trimmed.substring(0, 30) + '...' : trimmed}.`
+        : '';
+    return `CI Office: The ${accountName} account has been closed. ${fundsSummary}. Your access to it has been removed.${shortReason}`;
+}

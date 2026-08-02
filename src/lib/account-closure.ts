@@ -177,6 +177,29 @@ export function closureTransferDescriptions(input: {
     };
 }
 
+/**
+ * One line saying where the money went, for the people being told the account
+ * closed. Shared by the SMS and the email so the two can never disagree.
+ *
+ * `amount` is already formatted for display (thousands separators, 2dp).
+ */
+export function closureFundsSummary(input: {
+    disposition: FundsDisposition;
+    amount: string;
+    currencySymbol: string;
+    destinationName?: string | null;
+}): string {
+    const value = `${input.currencySymbol}${input.amount}`;
+    switch (input.disposition) {
+        case 'TRANSFER':
+            return `${value} was transferred to ${input.destinationName}`;
+        case 'WITHDRAW':
+            return `${value} was withdrawn`;
+        default:
+            return 'There was no remaining balance';
+    }
+}
+
 export function closureWithdrawalDescription(input: { sourceName: string; note: string }): string {
     return `CLOSURE WITHDRAWAL: Remaining balance of ${input.sourceName} withdrawn — ${input.note}`;
 }

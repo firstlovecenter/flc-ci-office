@@ -80,6 +80,29 @@ covers `Transaction` / `UserRole` / `User` only, so closure state would
 otherwise drift between the two tables. See
 [Bank-account split](../migrations/bank-account-split.md).
 
+## Who gets told
+
+Everyone holding a role on the account when it closed — holder and manager
+alike — gets an **SMS and an email**. They are the people who just lost access
+and who were responsible for the balance, and the first question on losing
+access is where the money went, so both messages carry the same two facts:
+
+- the account is closed, and access to it has been removed
+- what happened to the balance — transferred to a named account, withdrawn, or
+  nothing left to move
+
+The funds line comes from `closureFundsSummary`, shared by both channels so they
+can never say different things. Contact details are read **before** the roles are
+deleted, since afterwards there is nothing linking those people to the account.
+
+Delivery is best-effort and happens after the commit: a closure stands whether
+or not a message goes out, and a failed SMS must never roll back a posted
+transfer. The receiving account's holder separately gets the usual transfer
+alert.
+
+Accounts only. Closing a church removes roles too, but wording about a balance
+and where it went does not apply, so that path is unchanged.
+
 ## After closure
 
 A closed account stays in the accounts list — faded, struck through, badged
