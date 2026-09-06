@@ -383,11 +383,12 @@ function TransactionsPageContent() {
                     <DialogHeader><DialogTitle>Transaction Details</DialogTitle></DialogHeader>
                     {detailsDialog.transaction && (() => {
                         const tx = detailsDialog.transaction;
-                        const receipt = tx.files?.[0];
+                        const receipts = tx.files || [];
+                        const hasReceipt = receipts.length > 0;
                         const isOwner = session?.user?.id === tx.userId;
-                        const canUpload = tx.status === 'APPROVED' && !receipt && !tx.receiptWaived && (isOwner || canUploadReceiptAsAdmin);
+                        const canUpload = tx.status === 'APPROVED' && !tx.receiptWaived && (isOwner || canUploadReceiptAsAdmin);
                         // Only the approving admin (not the requester) may waive the receipt requirement.
-                        const canWaive = tx.status === 'APPROVED' && !receipt && !tx.receiptWaived && canUploadReceiptAsAdmin;
+                        const canWaive = tx.status === 'APPROVED' && !hasReceipt && !tx.receiptWaived && canUploadReceiptAsAdmin;
                         return (
                             <div className="space-y-4 pt-2">
                                 <div><p className="text-xs text-muted-foreground mb-0.5">Description</p><p className="font-semibold text-foreground">{tx.description}</p></div>
@@ -400,21 +401,30 @@ function TransactionsPageContent() {
                                 <div><p className="text-xs text-muted-foreground mb-0.5">Date</p><p className="text-foreground">{new Date(tx.createdAt).toLocaleString()}</p></div>
                                 {tx.type === 'EXPENSE' && !tx.isCharge && (
                                     <div className="pt-3 border-t border-border">
-                                        <p className="text-xs text-muted-foreground mb-2">Receipt</p>
-                                        {receipt ? (
-                                            <div>
-                                                {receipt.fileMime?.startsWith('image/') ? (
-                                                    <a href={receipt.fileUrl} target="_blank" rel="noopener noreferrer">
-                                                        <img src={receipt.fileUrl} alt={receipt.fileName} className="max-w-full max-h-[240px] rounded-lg border border-border cursor-zoom-in" />
-                                                    </a>
-                                                ) : (
-                                                    <a href={receipt.fileUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline">
-                                                        <Paperclip className="h-3.5 w-3.5" />{receipt.fileName}
-                                                    </a>
+                                        <p className="text-xs text-muted-foreground mb-2">Receipt{receipts.length > 1 ? 's' : ''}</p>
+                                        {hasReceipt ? (
+                                            <div className="space-y-3">
+                                                {receipts.map((receipt: any) => (
+                                                    <div key={receipt.id}>
+                                                        {receipt.fileMime?.startsWith('image/') ? (
+                                                            <a href={receipt.fileUrl} target="_blank" rel="noopener noreferrer">
+                                                                <img src={receipt.fileUrl} alt={receipt.fileName} className="max-w-full max-h-[240px] rounded-lg border border-border cursor-zoom-in" />
+                                                            </a>
+                                                        ) : (
+                                                            <a href={receipt.fileUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline">
+                                                                <Paperclip className="h-3.5 w-3.5" />{receipt.fileName}
+                                                            </a>
+                                                        )}
+                                                        <p className="text-xs text-muted-foreground mt-1">
+                                                            Uploaded by {receipt.uploader?.name || receipt.uploader?.email || 'unknown'} · {new Date(receipt.uploadedAt).toLocaleString()}{receipt.fileSize ? ` · ${formatMoney(receipt.fileSize / 1024, 0)} KB` : ''}
+                                                        </p>
+                                                    </div>
+                                                ))}
+                                                {canUpload && (
+                                                    <Button variant="outline" size="sm" onClick={() => { setDetailsDialog({ open: false, transaction: null }); setTimeout(() => setReceiptDialog({ open: true, transactionId: tx.id }), 100); }}>
+                                                        <Paperclip className="mr-1.5 h-3.5 w-3.5" />Add receipts
+                                                    </Button>
                                                 )}
-                                                <p className="text-xs text-muted-foreground mt-1">
-                                                    Uploaded by {receipt.uploader?.name || receipt.uploader?.email || 'unknown'} · {new Date(receipt.uploadedAt).toLocaleString()}{receipt.fileSize ? ` · ${formatMoney(receipt.fileSize / 1024, 0)} KB` : ''}
-                                                </p>
                                             </div>
                                         ) : tx.receiptWaived ? (
                                             <div className="rounded-lg border border-dashed border-border bg-muted/20 p-3">
@@ -427,12 +437,9 @@ function TransactionsPageContent() {
                                         ) : canUpload || canWaive ? (
                                             <div className="flex flex-wrap gap-2">
                                                 {canUpload && (
-                                                    <div>
-                                                        <Button variant="outline" size="sm" onClick={() => { setDetailsDialog({ open: false, transaction: null }); setTimeout(() => setReceiptDialog({ open: true, transactionId: tx.id }), 100); }}>
-                                                            <Paperclip className="mr-1.5 h-3.5 w-3.5" />Upload Receipt
-                                                        </Button>
-                                                        <p className="text-xs text-muted-foreground mt-1">Once uploaded, the receipt cannot be replaced.</p>
-                                                    </div>
+                                                    <Button variant="outline" size="sm" onClick={() => { setDetailsDialog({ open: false, transaction: null }); setTimeout(() => setReceiptDialog({ open: true, transactionId: tx.id }), 100); }}>
+                                                        <Paperclip className="mr-1.5 h-3.5 w-3.5" />Upload receipts
+                                                    </Button>
                                                 )}
                                                 {canWaive && (
                                                     <Button variant="outline" size="sm" onClick={() => { setDetailsDialog({ open: false, transaction: null }); setTimeout(() => setWaiveDialog({ open: true, transactionId: tx.id }), 100); }}>
@@ -492,10 +499,15 @@ function TransactionsPageContent() {
                     open={receiptDialog.open}
                     transactionId={receiptDialog.transactionId}
                     onClose={() => setReceiptDialog({ open: false, transactionId: null })}
-                    onUploaded={file => {
-                        setDetailsDialog(p => p.transaction?.id === receiptDialog.transactionId ? { ...p, transaction: { ...p.transaction, files: [file] } } : p);
-                        setTransactions(p => p.map(t => t.id === receiptDialog.transactionId ? { ...t, files: [file as any] } : t));
-                        showSuccess('Receipt uploaded.');
+                    onUploaded={uploaded => {
+                        const id = receiptDialog.transactionId;
+                        setDetailsDialog(p => p.transaction?.id === id
+                            ? { ...p, transaction: { ...p.transaction, files: [...(p.transaction.files || []), ...uploaded] } }
+                            : p);
+                        setTransactions(p => p.map(t => t.id === id
+                            ? { ...t, files: [...(t.files || []), ...(uploaded as any[])] }
+                            : t));
+                        showSuccess(uploaded.length > 1 ? `${uploaded.length} receipts uploaded.` : 'Receipt uploaded.');
                     }}
                 />
             )}

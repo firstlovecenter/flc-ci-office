@@ -148,7 +148,7 @@ model ExchangeRate {
 
 model File {
   id            String      @id
-  transactionId String      @unique
+  transactionId String
   fileName      String
   fileUrl       String
   fileMime      String
@@ -158,6 +158,7 @@ model File {
   transaction   Transaction @relation(fields: [transactionId], references: [id])
   uploader      User        @relation("FileUploads", fields: [uploadedBy], references: [id])
 
+  @@index([transactionId])
   @@index([uploadedBy])
 }
 

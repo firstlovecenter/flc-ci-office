@@ -382,22 +382,33 @@ export default function ApprovalsPage() {
                                 </div>
                             ))}
                             {selectedTransaction.type === 'EXPENSE' && !selectedTransaction.isCharge && (() => {
-                                const receipt = selectedTransaction.files?.[0];
-                                const canWaive = selectedTransaction.status === 'APPROVED' && !receipt && !selectedTransaction.receiptWaived;
-                                if (receipt) {
+                                const receipts = selectedTransaction.files || [];
+                                const hasReceipt = receipts.length > 0;
+                                const canWaive = selectedTransaction.status === 'APPROVED' && !hasReceipt && !selectedTransaction.receiptWaived;
+                                if (hasReceipt) {
                                     return (
                                         <div>
-                                            <p className="text-[0.7rem] font-semibold uppercase tracking-[0.06em] text-muted-foreground mb-1.5">Receipt</p>
-                                            {receipt.fileMime?.startsWith('image/') ? (
-                                                <a href={receipt.fileUrl} target="_blank" rel="noopener noreferrer">
-                                                    <img src={receipt.fileUrl} alt={receipt.fileName} className="max-h-52 rounded-xl border border-border cursor-zoom-in" />
-                                                </a>
-                                            ) : (
-                                                <a href={receipt.fileUrl} target="_blank" rel="noopener noreferrer">
-                                                    <Button variant="outline" size="sm">{receipt.fileName}</Button>
-                                                </a>
-                                            )}
-                                            <p className="text-xs text-muted-foreground mt-1.5">Uploaded by {receipt.uploader?.name || receipt.uploader?.email || 'unknown'} · {new Date(receipt.uploadedAt).toLocaleString()}</p>
+                                            <p className="text-[0.7rem] font-semibold uppercase tracking-[0.06em] text-muted-foreground mb-1.5">
+                                                Receipt{receipts.length > 1 ? 's' : ''}
+                                            </p>
+                                            <div className="space-y-3">
+                                                {receipts.map((receipt: any) => (
+                                                    <div key={receipt.id}>
+                                                        {receipt.fileMime?.startsWith('image/') ? (
+                                                            <a href={receipt.fileUrl} target="_blank" rel="noopener noreferrer">
+                                                                <img src={receipt.fileUrl} alt={receipt.fileName} className="max-h-52 rounded-xl border border-border cursor-zoom-in" />
+                                                            </a>
+                                                        ) : (
+                                                            <a href={receipt.fileUrl} target="_blank" rel="noopener noreferrer">
+                                                                <Button variant="outline" size="sm">{receipt.fileName}</Button>
+                                                            </a>
+                                                        )}
+                                                        <p className="text-xs text-muted-foreground mt-1.5">
+                                                            Uploaded by {receipt.uploader?.name || receipt.uploader?.email || 'unknown'} · {new Date(receipt.uploadedAt).toLocaleString()}
+                                                        </p>
+                                                    </div>
+                                                ))}
+                                            </div>
                                         </div>
                                     );
                                 }

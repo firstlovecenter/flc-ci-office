@@ -26,7 +26,7 @@ export async function POST(
 
     const transaction = await prisma.transaction.findUnique({
         where: { id: transactionId },
-        select: { id: true, type: true, status: true, userId: true, organisationId: true, isCharge: true },
+        select: { id: true, type: true, status: true, userId: true, organisationId: true, isCharge: true, receiptWaived: true },
     });
 
     if (!transaction) {
@@ -43,6 +43,10 @@ export async function POST(
 
     if (transaction.status !== 'APPROVED') {
         return NextResponse.json({ error: 'Receipts can only be attached after the expense has been approved.' }, { status: 400 });
+    }
+
+    if (transaction.receiptWaived) {
+        return NextResponse.json({ error: 'Receipt requirement was waived for this transaction.' }, { status: 400 });
     }
 
     // The owner may always attach their own receipt. Admins (and SuperAdmin) may
@@ -93,7 +97,7 @@ export async function POST(
     try {
         const uploadResult = await uploadToCloudinary(buffer, {
             folder: 'flc-accounts/receipts',
-            public_id: `${transactionId}-${Date.now()}`,
+            public_id: `${transactionId}-${Date.now()}-${crypto.randomUUID().slice(0, 8)}`,
             resource_type: 'auto',
         });
         secureUrl = uploadResult.secure_url;
@@ -131,19 +135,11 @@ export async function POST(
 
         return NextResponse.json(created, { status: 201 });
     } catch (err: any) {
-        // Unique constraint violation on transactionId — receipt already exists.
-        if (err?.code === 'P2002') {
-            // Roll back the just-uploaded asset so we don't leak orphan blobs.
-            const publicId = publicIdFromCloudinaryUrl(secureUrl);
-            if (publicId) {
-                await destroyCloudinaryAsset(publicId, {
-                    resource_type: file.type === 'application/pdf' ? 'image' : 'image',
-                }).catch(() => {});
-            }
-            return NextResponse.json(
-                { error: 'A receipt is already attached to this transaction. Receipts are write-once.' },
-                { status: 409 },
-            );
+        const publicId = publicIdFromCloudinaryUrl(secureUrl);
+        if (publicId) {
+            await destroyCloudinaryAsset(publicId, {
+                resource_type: 'image',
+            }).catch(() => {});
         }
         return NextResponse.json(
             { error: err instanceof Error ? err.message : 'Failed to save receipt.' },
@@ -167,28 +163,30 @@ export async function DELETE(
 
     const { id: transactionId } = await context.params;
 
-    const existing = await prisma.file.findUnique({
+    const existing = await prisma.file.findMany({
         where: { transactionId },
     });
 
-    if (!existing) {
+    if (!existing.length) {
         return NextResponse.json({ error: 'No receipt attached to this transaction.' }, { status: 404 });
     }
 
-    const publicId = publicIdFromCloudinaryUrl(existing.fileUrl);
-    if (publicId) {
-        await destroyCloudinaryAsset(publicId).catch(() => {});
+    for (const file of existing) {
+        const publicId = publicIdFromCloudinaryUrl(file.fileUrl);
+        if (publicId) {
+            await destroyCloudinaryAsset(publicId).catch(() => {});
+        }
     }
 
-    await prisma.file.delete({ where: { id: existing.id } });
+    await prisma.file.deleteMany({ where: { transactionId } });
 
     await createAuditLog({
         userId: session.user.id,
         actionType: 'DELETE',
         entityType: 'Transaction',
         entityId: transactionId,
-        description: `Removed receipt from transaction`,
-        metadata: { fileName: existing.fileName, fileUrl: existing.fileUrl },
+        description: `Removed receipt(s) from transaction`,
+        metadata: { count: existing.length, files: existing.map((f) => f.fileName) },
         severity: 'CRITICAL',
     });
 
