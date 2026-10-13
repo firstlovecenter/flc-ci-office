@@ -58,11 +58,16 @@ export function canReopenAccount(role?: string | null): boolean {
 /**
  * Whether a role may change a withdrawal-submission window.
  *
- * Each campus keeps its own window, and its campus admin sets it. Which campus
- * is not a question here: the API only ever edits the admin's own campus.
+ * Each campus keeps its own window. Its campus admin sets it, and only theirs;
+ * a super admin may set any campus's (see canEditAnyCampusExpenseWindow).
  */
 export function canEditExpenseWindow(role?: string | null): boolean {
-    return role === 'CAMPUS_ADMIN';
+    return role === 'CAMPUS_ADMIN' || canEditAnyCampusExpenseWindow(role);
+}
+
+/** Whether a role may choose which campus's window to change. Super admins only. */
+export function canEditAnyCampusExpenseWindow(role?: string | null): boolean {
+    return role === 'SUPERADMIN';
 }
 
 /**
