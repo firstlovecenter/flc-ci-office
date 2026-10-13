@@ -54,7 +54,7 @@ export interface Permissions {
     /** May browse the accounts directory (account holders only use their own). */
     canSeeAccounts: boolean;
     canSeeAnalytics: boolean;
-    /** May change their own campus's withdrawal-submission window. Campus admins only. */
+    /** May change a withdrawal-submission window: campus admins their own, super admins any campus's. */
     canEditExpenseWindow: boolean;
     /** Records entries directly rather than submitting them for approval. */
     recordsDirectly: boolean;

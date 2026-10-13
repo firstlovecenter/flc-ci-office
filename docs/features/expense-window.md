@@ -12,6 +12,9 @@ sit under; a public request uses the window of the campus chosen on the form.
 A campus admin edits their own campus's opening and closing times under
 **Settings** in the sidebar. The campus is always the admin's active role's
 campus — never taken from the request — so one campus cannot change another's.
+
+A **super admin** sees every active campus on the same page and picks which one
+to change. No other role can edit a window.
 The change applies to the next request, no deploy. A request at the closing
 time itself is refused (the window is `open ≤ now < close`), and the window
 never spans midnight.
@@ -19,7 +22,8 @@ never spans midnight.
 Every campus starts on **6:00 AM – 3:00 PM**.
 
 Every change is audit-logged (`UPDATE` on the campus `Organisation`, severity
-HIGH, metadata `setting: expense-window`) with the old and new times.
+HIGH, metadata `setting: expense-window` and the editor's role) with the old
+and new times.
 
 ## Where the times live
 
@@ -43,8 +47,8 @@ HIGH, metadata `setting: expense-window`) with the old and new times.
 | Method | Path | Who | |
 | :-- | :-- | :-- | :-- |
 | GET | `/api/expense-window?organisationId=` | Signed in | The window for a campus or account. |
-| GET | `/api/admin/expense-window` | Campus admins | Their own campus's window. |
-| PUT | `/api/admin/expense-window` | Campus admins | `{ openMinutes, closeMinutes }` for their own campus. 400 if invalid, 403 otherwise. |
+| GET | `/api/admin/expense-window` | Campus admins, super admins | `{ canChooseCampus, campuses }` — a campus admin's own campus, or every active campus for a super admin. |
+| PUT | `/api/admin/expense-window` | Campus admins, super admins | `{ openMinutes, closeMinutes }`, plus `campusId` from a super admin. A campus admin always saves to their own campus. 400 if invalid, 403 for other roles. |
 | GET | `/api/public-expense/campuses` | Public | Now includes each campus's `openMinutes` / `closeMinutes`. |
 
 The window is enforced server-side in `POST /api/transactions` (leaders, by the
