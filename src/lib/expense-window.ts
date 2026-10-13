@@ -25,13 +25,13 @@ function getTimePartsInTimeZone(date: Date, timeZone: string) {
 
 export const EXPENSE_WINDOW_OPEN_HOUR = 6;
 export const EXPENSE_WINDOW_CLOSE_HOUR = 16;
-export const EXPENSE_WINDOW_CLOSE_MINUTE = 0;
+export const EXPENSE_WINDOW_CLOSE_MINUTE = 30;
 
 // Labels are derived here rather than typed out at each call site: the closing
 // time has moved twice, and each move left stale copy behind in the
 // dashboard banner and the submission form.
 export const EXPENSE_WINDOW_OPEN_LABEL = '6:00 AM';
-export const EXPENSE_WINDOW_CLOSE_LABEL = '4:00 PM';
+export const EXPENSE_WINDOW_CLOSE_LABEL = '4:30 PM';
 export const EXPENSE_WINDOW_TIME_RANGE = `${EXPENSE_WINDOW_OPEN_LABEL} and ${EXPENSE_WINDOW_CLOSE_LABEL}`;
 
 function isWithinExpenseWindow(hour: number, minute: number): boolean {
