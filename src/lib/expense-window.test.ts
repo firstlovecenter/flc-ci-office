@@ -3,7 +3,7 @@
  *
  * The closing time has moved more than once, and each move risks leaving the
  * boundary and the copy describing it out of step. These pin both: 6:00 AM to
- * 4:30 PM, Monday to Saturday, evaluated in UTC (Ghana time, no offset).
+ * 4:45 PM, Monday to Saturday, evaluated in UTC (Ghana time, no offset).
  */
 import { describe, it, expect } from 'vitest';
 import {
@@ -21,13 +21,13 @@ const saturday = (time: string) => new Date(`2026-08-08T${time}Z`);
 const sunday = (time: string) => new Date(`2026-08-09T${time}Z`);
 
 describe('expense window boundaries', () => {
-    it('closes at 4:30 PM, not 4:00', () => {
+    it('closes at 4:45 PM, not 4:30', () => {
         expect(EXPENSE_WINDOW_CLOSE_HOUR).toBe(16);
-        expect(EXPENSE_WINDOW_CLOSE_MINUTE).toBe(30);
-        // The half hour after the old 4:00 PM close is now inside the window.
-        expect(getExpenseWindowStatus(monday('16:00:00')).isOpen).toBe(true);
-        expect(getExpenseWindowStatus(monday('16:29:59')).isOpen).toBe(true);
-        expect(getExpenseWindowStatus(monday('16:30:00')).isOpen).toBe(false);
+        expect(EXPENSE_WINDOW_CLOSE_MINUTE).toBe(45);
+        // The quarter hour after the old 4:30 PM close is now inside the window.
+        expect(getExpenseWindowStatus(monday('16:30:00')).isOpen).toBe(true);
+        expect(getExpenseWindowStatus(monday('16:44:59')).isOpen).toBe(true);
+        expect(getExpenseWindowStatus(monday('16:45:00')).isOpen).toBe(false);
         expect(getExpenseWindowStatus(monday('16:59:00')).isOpen).toBe(false);
     });
 
@@ -54,8 +54,8 @@ describe('expense window boundaries', () => {
 
 describe('expense window copy', () => {
     it('describes the same closing time the check enforces', () => {
-        expect(EXPENSE_WINDOW_CLOSE_LABEL).toBe('4:30 PM');
-        expect(EXPENSE_WINDOW_TIME_RANGE).toBe('6:00 AM and 4:30 PM');
+        expect(EXPENSE_WINDOW_CLOSE_LABEL).toBe('4:45 PM');
+        expect(EXPENSE_WINDOW_TIME_RANGE).toBe('6:00 AM and 4:45 PM');
         expect(getExpenseWindowStatus(monday('10:00:00')).timeRange).toBe(EXPENSE_WINDOW_TIME_RANGE);
     });
 });
