@@ -53,7 +53,11 @@ client checks are presentation only.
 
 ## Deploying
 
-Apply the migration (`npx prisma migrate deploy`). It adds the columns with the
-6:00 AM – 3:00 PM default to every campus — this moves the close from the
-4:45 PM that was in force before. Until it is applied the app keeps enforcing
-the 6:00 AM – 3:00 PM default and saving from Settings returns an error.
+Production builds apply pending migrations themselves: `npm run build` runs
+`scripts/migrate-on-deploy.mjs` (`prisma migrate deploy`) before `next build`
+when `VERCEL_ENV=production`. Preview and local builds skip it. A failed
+migration fails the build, so the previous deployment stays live.
+
+The migration uses `ADD COLUMN IF NOT EXISTS`, so re-running it never touches
+existing values. It gives every campus 6:00 AM – 3:00 PM, which moves the close
+from the 4:45 PM in force before.
