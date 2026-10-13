@@ -68,6 +68,12 @@ model Organisation {
   closureReason            String?
   isActive                 Boolean                    @default(true)
   publicFormEnabled        Boolean                    @default(true)
+  /// Withdrawal-submission window, minutes after midnight Ghana time (UTC),
+  /// Monday to Saturday. Only read on CAMPUS rows: accounts use their campus's
+  /// window. Edited by the campus admin from Settings.
+  expenseWindowOpenMinutes  Int                       @default(360)
+  expenseWindowCloseMinutes Int                       @default(900)
+  expenseWindowUpdatedAt    DateTime?
   parent                   Organisation?              @relation("OrganisationHierarchy", fields: [parentId], references: [id])
   children                 Organisation[]             @relation("OrganisationHierarchy")
   organisationBaseCurrency OrganisationBaseCurrency?
@@ -402,3 +408,4 @@ enum PublicExpenseRequestStatus {
   PROCESSED
   REJECTED
 }
+

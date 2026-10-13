@@ -2,7 +2,7 @@
 
 import { useMemo } from 'react';
 import { useSession } from 'next-auth/react';
-import { canAdministerOrganisation } from '@/lib/roles';
+import { canAdministerOrganisation, canEditExpenseWindow } from '@/lib/roles';
 
 /**
  * One place that answers "what may this user do?".
@@ -54,6 +54,8 @@ export interface Permissions {
     /** May browse the accounts directory (account holders only use their own). */
     canSeeAccounts: boolean;
     canSeeAnalytics: boolean;
+    /** May change their own campus's withdrawal-submission window. Campus admins only. */
+    canEditExpenseWindow: boolean;
     /** Records entries directly rather than submitting them for approval. */
     recordsDirectly: boolean;
 }
@@ -91,6 +93,7 @@ export function computePermissions(rawRole?: string | null, rawRoles?: string[] 
             canSeeAccounts: isSuperAdmin || isAdmin || (isLeader && !isAccountHolder),
             canSeeAnalytics: isAdmin || isSuperAdmin
                 || ['DENOMINATION_LEADER', 'OVERSIGHT_LEADER', 'CAMPUS_LEADER'].includes(role || ''),
+            canEditExpenseWindow: canEditExpenseWindow(role),
             recordsDirectly: isSuperAdmin,
         };
 }

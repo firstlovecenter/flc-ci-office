@@ -2,11 +2,8 @@
 
 import { useCallback, useEffect, useSyncExternalStore } from 'react';
 import { useSession } from 'next-auth/react';
-import {
-    getExpenseWindowStatus,
-    getMsUntilExpenseWindowOpens,
-    EXPENSE_WINDOW_TIME_RANGE,
-} from '@/lib/expense-window';
+import { getExpenseWindowStatus, getMsUntilExpenseWindowOpens } from '@/lib/expense-window';
+import { useExpenseWindow } from '@/hooks/useExpenseWindow';
 import { isExpenseWindowExempt } from '@/lib/org-model';
 import type { AccountType } from '@prisma/client';
 
@@ -36,6 +33,8 @@ export interface WithdrawalEligibility {
     overdueApprovals: OverdueApproval[];
     /** SPECIAL_PROJECT accounts may submit at any hour. */
     windowExempt: boolean;
+    /** The leader's account; its campus's submission window applies. */
+    organisationId: string | null;
     /** Re-reads eligibility and notifies every mounted consumer. */
     refresh: () => void;
 }
@@ -118,9 +117,11 @@ const getServerSnapshot = () => null;
 export function useWithdrawalEligibility(): WithdrawalEligibility {
     const { data: session, status } = useSession();
     const snapshot = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
-
     const role = session?.user?.role;
     const isLeader = !!role && LEADER_ROLES.includes(role);
+    const organisationId = session?.user?.activeUserRole?.organisationId ?? session?.user?.organisationId ?? null;
+    // Only leaders are gated, so only they need their campus's window.
+    const { config: windowConfig, loaded: windowLoaded } = useExpenseWindow(isLeader ? organisationId : null);
 
     useEffect(() => {
         // Only leaders are gated. Admins and superadmins record entries directly.
@@ -135,7 +136,8 @@ export function useWithdrawalEligibility(): WithdrawalEligibility {
         load(true);
     }, [isLeader]);
 
-    const loading = isLeader && snapshot === null;
+    // Wait for the stored window too, so a reason never quotes the default times.
+    const loading = isLeader && (snapshot === null || !windowLoaded);
     const overdueApprovals = snapshot?.overdueApprovals ?? [];
     const windowExempt = isExpenseWindowExempt(snapshot?.accountType ?? null);
 
@@ -148,20 +150,18 @@ export function useWithdrawalEligibility(): WithdrawalEligibility {
             canSubmit = false;
             reason = `Upload ${n} outstanding receipt${n > 1 ? 's' : ''} first`;
         } else if (!windowExempt) {
-            const win = getExpenseWindowStatus();
+            const win = getExpenseWindowStatus(new Date(), windowConfig);
             if (!win.isOpen) {
                 canSubmit = false;
                 if (win.isSunday) {
-                    reason = 'Closed Sundays · opens Monday 6:00 AM';
+                    reason = `Closed Sundays · opens Monday ${win.openLabel}`;
                 } else {
-                    const hours = Math.ceil(getMsUntilExpenseWindowOpens(win.now) / (1000 * 60 * 60));
-                    reason = `Closed · opens 6:00 AM (in ~${hours}h)`;
+                    const hours = Math.ceil(getMsUntilExpenseWindowOpens(win.now, windowConfig) / (1000 * 60 * 60));
+                    reason = `Closed · opens ${win.openLabel} (in ~${hours}h)`;
                 }
             }
         }
     }
 
-    return { loading, isLeader, canSubmit, reason, overdueApprovals, windowExempt, refresh };
+    return { loading, isLeader, canSubmit, reason, overdueApprovals, windowExempt, organisationId, refresh };
 }
-
-export { EXPENSE_WINDOW_TIME_RANGE };

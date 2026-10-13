@@ -56,6 +56,16 @@ export function canReopenAccount(role?: string | null): boolean {
 }
 
 /**
+ * Whether a role may change a withdrawal-submission window.
+ *
+ * Each campus keeps its own window, and its campus admin sets it. Which campus
+ * is not a question here: the API only ever edits the admin's own campus.
+ */
+export function canEditExpenseWindow(role?: string | null): boolean {
+    return role === 'CAMPUS_ADMIN';
+}
+
+/**
  * Check if an admin can manage (create/edit/delete) a user based on role hierarchy
  * @param adminRole - The role of the admin performing the action
  * @param targetRole - The role of the user being managed

@@ -93,6 +93,12 @@ describe('capability matrix', () => {
         expect(s.canSeeAccounts).toBe(false);
         expect(s.canSeeChurches).toBe(false);
         expect(s.recordsDirectly).toBe(false);
+        expect(s.canEditExpenseWindow).toBe(false);
+    });
+
+    it('lets only campus admins change a submission window', () => {
+        const editors = ALL_ROLES.filter(r => p(r).canEditExpenseWindow);
+        expect(editors).toEqual(['CAMPUS_ADMIN']);
     });
 
     it('is case-insensitive about the incoming claim', () => {

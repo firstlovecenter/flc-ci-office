@@ -5,6 +5,7 @@ import { authOptions } from '@/lib/auth';
 import { sendSms } from '@/lib/sms';
 import { generatePublicExpenseRequestSms, generatePublicExpenseLeaderSubmittedSms } from '@/lib/sms-templates';
 import { formatTimeInExpenseWindowTimeZone, getExpenseWindowStatus } from '@/lib/expense-window';
+import { getExpenseWindowForOrganisation } from '@/lib/expense-window-settings';
 
 export const dynamic = 'force-dynamic';
 
@@ -66,18 +67,6 @@ export async function GET(request: Request) {
 // Public endpoint — no auth required
 export async function POST(request: Request) {
     try {
-        const expenseWindow = getExpenseWindowStatus();
-        if (!expenseWindow.isOpen) {
-            return NextResponse.json(
-                {
-                    error: expenseWindow.isSunday
-                        ? 'Expense requests are not accepted on Sundays. Please try again Monday from 6:00 AM.'
-                        : `Expense requests can only be made between ${expenseWindow.timeRange}. Actual time is ${formatTimeInExpenseWindowTimeZone(expenseWindow.now)}`,
-                },
-                { status: 400 }
-            );
-        }
-
         const body = await request.json();
         const campusOrganisationId = body.campusOrganisationId || body.oversightOrganisationId;
         const { requesterName, leaderPhone, churchName, momoName, momoNumber, amount, description } = body;
@@ -100,6 +89,19 @@ export async function POST(request: Request) {
 
         if (!campus) {
             return NextResponse.json({ error: 'Invalid campus selected.' }, { status: 400 });
+        }
+
+        // Each campus sets its own window.
+        const expenseWindow = getExpenseWindowStatus(new Date(), await getExpenseWindowForOrganisation(campus.id));
+        if (!expenseWindow.isOpen) {
+            return NextResponse.json(
+                {
+                    error: expenseWindow.isSunday
+                        ? `Expense requests are not accepted on Sundays. Please try again Monday from ${expenseWindow.openLabel}.`
+                        : `${campus.name} accepts expense requests between ${expenseWindow.timeRange}. Actual time is ${formatTimeInExpenseWindowTimeZone(expenseWindow.now)}`,
+                },
+                { status: 400 }
+            );
         }
 
         const publicRequest = await prisma.publicExpenseRequest.create({

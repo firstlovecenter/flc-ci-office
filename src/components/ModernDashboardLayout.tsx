@@ -8,7 +8,7 @@ import {
   Home, Receipt, PlusCircle, Building2, Wallet, Sun, Moon, Monitor,
   LogOut, Menu, ChevronLeft, ChevronRight, ChevronDown, X,
   Search, ClipboardList, BarChart2, TrendingUp,
-  Users, Inbox, Bell,
+  Users, Inbox, Bell, Settings,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useColorMode } from '@/app/providers';
@@ -282,7 +282,7 @@ export default function ModernDashboardLayout({ children }: { children: React.Re
   const {
     isSuperAdmin, isLeader,
     canApprove, canManageUsers,
-    canSeeChurches, canSeeAccounts, canSeeAnalytics,
+    canSeeChurches, canSeeAccounts, canSeeAnalytics, canEditExpenseWindow,
     role: normalizedRole,
   } = usePermissions();
 
@@ -312,6 +312,7 @@ export default function ModernDashboardLayout({ children }: { children: React.Re
         { text: 'Users', icon: Users, path: '/users', show: canManageUsers, badge: 0 },
         { text: 'Churches', icon: Building2, path: '/organisations', show: canSeeChurches, badge: 0 },
         { text: 'Accounts', icon: Wallet, path: '/accounts', show: canSeeAccounts, badge: 0 },
+        { text: 'Settings', icon: Settings, path: '/settings', show: canEditExpenseWindow, badge: 0 },
       ],
     },
     {

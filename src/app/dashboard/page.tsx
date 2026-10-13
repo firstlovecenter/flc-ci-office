@@ -17,13 +17,9 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import { isBankAccount } from '@/lib/org-model';
 import { useColorMode } from '@/app/providers';
-import {
-    getExpenseWindowStatus,
-    getMsUntilExpenseWindowOpens,
-    EXPENSE_WINDOW_OPEN_LABEL,
-    EXPENSE_WINDOW_CLOSE_LABEL,
-} from '@/lib/expense-window';
+import { getExpenseWindowStatus, getMsUntilExpenseWindowOpens } from '@/lib/expense-window';
 import { useWithdrawalEligibility } from '@/hooks/useWithdrawalEligibility';
+import { useExpenseWindow } from '@/hooks/useExpenseWindow';
 
 // ── Animated counter ──────────────────────────────────────────────────────────
 
@@ -159,6 +155,7 @@ export default function DashboardPage() {
     const { resolvedMode } = useColorMode();
     const isDark = resolvedMode === 'dark';
     const eligibility = useWithdrawalEligibility();
+    const expenseWindow = useExpenseWindow(eligibility.isLeader ? eligibility.organisationId : null);
 
     const isSuperAdmin = session?.user?.role === 'SUPERADMIN';
 
@@ -540,9 +537,9 @@ export default function DashboardPage() {
             {!isSuperAdmin && (
                 <div className="mt-8 flex flex-col gap-3">
                     {/* Time window banner for leaders */}
-                    {isLeader && (() => {
-                        const win = getExpenseWindowStatus();
-                        const hoursUntilOpen = win.isOpen ? 0 : Math.ceil(getMsUntilExpenseWindowOpens(win.now) / (1000 * 60 * 60));
+                    {isLeader && expenseWindow.loaded && (() => {
+                        const win = getExpenseWindowStatus(new Date(), expenseWindow.config);
+                        const hoursUntilOpen = win.isOpen ? 0 : Math.ceil(getMsUntilExpenseWindowOpens(win.now, expenseWindow.config) / (1000 * 60 * 60));
                         return (
                             <div className={cn(
                                 'px-3 py-2.5 rounded-xl flex items-center gap-2',
@@ -559,10 +556,10 @@ export default function DashboardPage() {
                                     win.isOpen ? 'text-success' : 'text-warning',
                                 )}>
                                     {win.isOpen
-                                        ? `Expense submissions open · Closes at ${EXPENSE_WINDOW_CLOSE_LABEL}`
+                                        ? `Expense submissions open · Closes at ${win.closeLabel}`
                                         : win.isSunday
-                                            ? `Submissions closed on Sundays · Opens Monday ${EXPENSE_WINDOW_OPEN_LABEL}`
-                                            : `Submissions closed · Opens at ${EXPENSE_WINDOW_OPEN_LABEL} (in ~${hoursUntilOpen}h)`}
+                                            ? `Submissions closed on Sundays · Opens Monday ${win.openLabel}`
+                                            : `Submissions closed · Opens at ${win.openLabel} (in ~${hoursUntilOpen}h)`}
                                 </span>
                             </div>
                         );
