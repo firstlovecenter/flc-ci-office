@@ -402,3 +402,14 @@ enum PublicExpenseRequestStatus {
   PROCESSED
   REJECTED
 }
+
+/// The withdrawal-submission window, edited from Settings. A single row with
+/// id "default". Times are minutes after midnight, Ghana time (UTC); the window
+/// runs Monday to Saturday. With no row, lib/expense-window.ts's default applies.
+model ExpenseWindowSetting {
+  id           String   @id @default("default")
+  openMinutes  Int
+  closeMinutes Int
+  updatedById  String?
+  updatedAt    DateTime @updatedAt
+}

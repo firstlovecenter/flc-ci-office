@@ -17,7 +17,8 @@ import {
     isExpenseWindowExempt,
 } from '@/lib/org-model';
 import { useToast } from '@/components/ToastProvider';
-import { getExpenseWindowStatus, EXPENSE_WINDOW_CLOSE_HOUR, EXPENSE_WINDOW_CLOSE_MINUTE, EXPENSE_WINDOW_CLOSE_LABEL } from '@/lib/expense-window';
+import { getExpenseWindowStatus } from '@/lib/expense-window';
+import { useExpenseWindow } from '@/hooks/useExpenseWindow';
 import { APP_CURRENCY } from '@/lib/currency-constants';
 import type { AccountType } from '@prisma/client';
 
@@ -58,6 +59,7 @@ export default function NewTransactionForm({
     onCancel,
 }: NewTransactionFormProps) {
     const { data: session, status: sessionStatus } = useSession();
+    const expenseWindow = useExpenseWindow();
     const { showSuccess, showError } = useToast();
 
     const isLeader = !!session?.user?.role && LEADER_ROLES.includes(session.user.role);
@@ -124,7 +126,7 @@ export default function NewTransactionForm({
         // Kept as a client-side guard even though the trigger is gated and the
         // API re-checks: a form can sit open across the closing boundary.
         if (type === 'EXPENSE' && isLeader && !windowExempt) {
-            const win = getExpenseWindowStatus();
+            const win = getExpenseWindowStatus(new Date(), expenseWindow.config);
             if (!win.isOpen) {
                 setError(win.isSunday
                     ? 'Withdrawal requests are not accepted on Sundays.'
@@ -190,16 +192,16 @@ export default function NewTransactionForm({
         return <div className="flex justify-center items-center py-16"><Loader2 className="h-7 w-7 animate-spin text-muted-foreground" /></div>;
     }
 
-    const closingSoonBanner = isLeader && !windowExempt && (() => {
-        const win = getExpenseWindowStatus();
+    const closingSoonBanner = isLeader && !windowExempt && expenseWindow.loaded && (() => {
+        const win = getExpenseWindowStatus(new Date(), expenseWindow.config);
         if (!win.isOpen) return null;
-        const minutesLeft = (EXPENSE_WINDOW_CLOSE_HOUR - win.hour) * 60 + EXPENSE_WINDOW_CLOSE_MINUTE - win.minute;
+        const minutesLeft = win.minutesUntilClose;
         if (minutesLeft > 60) return null;
         return (
             <div className="flex items-center gap-2 px-3 py-2 rounded-xl border border-warning/30 bg-warning/8">
                 <div className="w-2 h-2 rounded-full shrink-0 bg-warning animate-pulse" />
                 <p className="text-xs font-semibold text-warning">
-                    Submissions close at {EXPENSE_WINDOW_CLOSE_LABEL} · {minutesLeft} min remaining
+                    Submissions close at {win.closeLabel} · {minutesLeft} min remaining
                 </p>
             </div>
         );

@@ -56,6 +56,16 @@ export function canReopenAccount(role?: string | null): boolean {
 }
 
 /**
+ * Whether a role may change the withdrawal-submission window.
+ *
+ * The window applies to every leader in every church at once, so it sits with
+ * HQ rather than with any admin whose scope covers only part of the tree.
+ */
+export function canEditExpenseWindow(role?: string | null): boolean {
+    return role === 'SUPERADMIN' || role === 'DENOMINATION_ADMIN';
+}
+
+/**
  * Check if an admin can manage (create/edit/delete) a user based on role hierarchy
  * @param adminRole - The role of the admin performing the action
  * @param targetRole - The role of the user being managed

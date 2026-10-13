@@ -10,6 +10,7 @@ import { generatePendingApprovalRequestSms, generateCreditAlertSms, generateDebi
 import { getDescendantOrganisationIds, hasOrganisationAccess } from '@/lib/organisations';
 import { getUserBaseCurrency, convertToUserBaseCurrency } from '@/lib/currency-conversion';
 import { formatTimeInExpenseWindowTimeZone, getExpenseWindowStatus } from '@/lib/expense-window';
+import { getExpenseWindowConfig } from '@/lib/expense-window-settings';
 import { toDecimal, gt, isPositive, moneyToString, toMoney2dp } from '@/lib/money';
 import { getOrganisationApprovedBalance } from '@/lib/balance';
 import { getOverdueUnreceiptedApprovals } from '@/lib/receipt-compliance';
@@ -415,13 +416,13 @@ export async function POST(request: Request) {
 
         // Expense time window: leaders only, and never for special projects.
         if (type === 'EXPENSE' && isLeader && !isExpenseWindowExempt(organisation.accountType)) {
-            const expenseWindow = getExpenseWindowStatus();
+            const expenseWindow = getExpenseWindowStatus(new Date(), await getExpenseWindowConfig());
 
             if (!expenseWindow.isOpen) {
                 return NextResponse.json(
                     {
                         error: expenseWindow.isSunday
-                            ? 'Withdrawal requests are not accepted on Sundays. Please try again Monday from 6:00 AM.'
+                            ? `Withdrawal requests are not accepted on Sundays. Please try again Monday from ${expenseWindow.openLabel}.`
                             : `Withdrawal requests can only be made between ${expenseWindow.timeRange}. Actual time is ${formatTimeInExpenseWindowTimeZone(expenseWindow.now)}`,
                     },
                     { status: 400 }

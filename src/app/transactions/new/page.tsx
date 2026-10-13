@@ -9,6 +9,7 @@ import { APP_CURRENCY } from '@/lib/currency-constants';
 import { formatNumber } from '@/lib/utils';
 import { getExpenseWindowStatus, formatTimeInExpenseWindowTimeZone } from '@/lib/expense-window';
 import { useWithdrawalEligibility } from '@/hooks/useWithdrawalEligibility';
+import { useExpenseWindow } from '@/hooks/useExpenseWindow';
 import NewTransactionForm from '@/components/NewTransactionForm';
 
 /**
@@ -28,6 +29,7 @@ function NewTransactionPageContent() {
     const defaultType = typeParam === 'INCOME' || typeParam === 'EXPENSE' ? typeParam : null;
 
     const eligibility = useWithdrawalEligibility();
+    const { config: windowConfig } = useExpenseWindow();
 
     const backToLedger = () => {
         router.push(deptParam ? `/transactions?dept=${deptParam}${exactOrganisation ? '&exact=true' : ''}` : '/transactions');
@@ -60,14 +62,14 @@ function NewTransactionPageContent() {
     }
 
     if (eligibility.isLeader && !eligibility.windowExempt) {
-        const win = getExpenseWindowStatus();
+        const win = getExpenseWindowStatus(new Date(), windowConfig);
         if (!win.isOpen) {
             return (
                 <div className="max-w-sm mx-auto mt-16">
                     <div className="rounded-xl border border-border bg-card p-6">
                         <Alert variant="warning"><AlertDescription>
                             {win.isSunday ? (
-                                <><strong>Closed on Sundays</strong><br />Withdrawal requests are not accepted on Sundays. Please try again Monday from 6:00 AM.</>
+                                <><strong>Closed on Sundays</strong><br />Withdrawal requests are not accepted on Sundays. Please try again Monday from {win.openLabel}.</>
                             ) : (
                                 <>
                                     <strong>Outside operating hours</strong><br />

@@ -13,7 +13,8 @@ function getTimePartsInTimeZone(date: Date, timeZone: string) {
     const getPart = (type: Intl.DateTimeFormatPartTypes) => parts.find((part) => part.type === type)?.value;
 
     const weekday = getPart('weekday');
-    const hour = Number(getPart('hour'));
+    // Some engines render midnight as "24" under hour12: false.
+    const hour = Number(getPart('hour')) % 24;
     const minute = Number(getPart('minute'));
 
     if (!weekday || Number.isNaN(hour) || Number.isNaN(minute)) {
@@ -23,38 +24,96 @@ function getTimePartsInTimeZone(date: Date, timeZone: string) {
     return { weekday, hour, minute };
 }
 
-export const EXPENSE_WINDOW_OPEN_HOUR = 6;
-export const EXPENSE_WINDOW_CLOSE_HOUR = 16;
-export const EXPENSE_WINDOW_CLOSE_MINUTE = 45;
-
-// Labels are derived here rather than typed out at each call site: the closing
-// time has moved twice, and each move left stale copy behind in the
-// dashboard banner and the submission form.
-export const EXPENSE_WINDOW_OPEN_LABEL = '6:00 AM';
-export const EXPENSE_WINDOW_CLOSE_LABEL = '4:45 PM';
-export const EXPENSE_WINDOW_TIME_RANGE = `${EXPENSE_WINDOW_OPEN_LABEL} and ${EXPENSE_WINDOW_CLOSE_LABEL}`;
-
-function isWithinExpenseWindow(hour: number, minute: number): boolean {
-    if (hour < EXPENSE_WINDOW_OPEN_HOUR) return false;
-    if (hour > EXPENSE_WINDOW_CLOSE_HOUR) return false;
-    if (hour === EXPENSE_WINDOW_CLOSE_HOUR && minute >= EXPENSE_WINDOW_CLOSE_MINUTE) return false;
-    return true;
+/**
+ * The withdrawal-submission window, as minutes after midnight in Ghana time
+ * (UTC, no offset). It runs Monday to Saturday; Sundays are always closed.
+ *
+ * The times are edited from the Settings page and stored in the database — see
+ * lib/expense-window-settings.ts. Nothing here reads them itself: every check
+ * and every label takes the config as an argument, so the server check, the
+ * client gate and the copy describing them cannot disagree.
+ */
+export interface ExpenseWindowConfig {
+    openMinutes: number;
+    closeMinutes: number;
 }
 
-export function getExpenseWindowStatus(now: Date = new Date()) {
+/** Used until an admin saves a window, and whenever the stored one cannot be read. */
+export const DEFAULT_EXPENSE_WINDOW: ExpenseWindowConfig = {
+    openMinutes: 6 * 60,
+    closeMinutes: 16 * 60 + 45,
+};
+
+const MINUTES_PER_DAY = 24 * 60;
+
+/** 360 → "6:00 AM", 1005 → "4:45 PM". */
+export function formatWindowTime(minutes: number): string {
+    const h24 = Math.floor(minutes / 60);
+    const m = minutes % 60;
+    const suffix = h24 < 12 ? 'AM' : 'PM';
+    const h12 = h24 % 12 === 0 ? 12 : h24 % 12;
+    return `${h12}:${String(m).padStart(2, '0')} ${suffix}`;
+}
+
+/** "HH:MM" (as an <input type="time"> gives it) → minutes after midnight, or null. */
+export function parseWindowTime(value: string): number | null {
+    const match = /^(\d{1,2}):(\d{2})$/.exec(value.trim());
+    if (!match) return null;
+    const h = Number(match[1]);
+    const m = Number(match[2]);
+    if (h > 23 || m > 59) return null;
+    return h * 60 + m;
+}
+
+/** Minutes after midnight → "HH:MM", the value an <input type="time"> expects. */
+export function toTimeInputValue(minutes: number): string {
+    return `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;
+}
+
+/**
+ * Checks a window before it is stored. Both times must be whole minutes within
+ * the day, and the window must open before it closes — it never spans midnight.
+ */
+export function validateExpenseWindowConfig(
+    input: unknown,
+): { ok: true; config: ExpenseWindowConfig } | { ok: false; error: string } {
+    const { openMinutes, closeMinutes } = (input ?? {}) as Record<string, unknown>;
+    const inDay = (v: unknown): v is number =>
+        typeof v === 'number' && Number.isInteger(v) && v >= 0 && v < MINUTES_PER_DAY;
+
+    if (!inDay(openMinutes) || !inDay(closeMinutes)) {
+        return { ok: false, error: 'Opening and closing times must both be valid times of day.' };
+    }
+    if (closeMinutes <= openMinutes) {
+        return { ok: false, error: 'The closing time must be later than the opening time.' };
+    }
+    return { ok: true, config: { openMinutes, closeMinutes } };
+}
+
+export function describeExpenseWindow(config: ExpenseWindowConfig) {
+    const openLabel = formatWindowTime(config.openMinutes);
+    const closeLabel = formatWindowTime(config.closeMinutes);
+    return { openLabel, closeLabel, timeRange: `${openLabel} and ${closeLabel}` };
+}
+
+export function getExpenseWindowStatus(now: Date = new Date(), config: ExpenseWindowConfig = DEFAULT_EXPENSE_WINDOW) {
     const timeZone = EXPENSE_WINDOW_TIMEZONE;
     const { weekday, hour, minute } = getTimePartsInTimeZone(now, timeZone);
+    const minuteOfDay = hour * 60 + minute;
 
     const isSunday = weekday === 'Sun';
+    const isOpen = !isSunday && minuteOfDay >= config.openMinutes && minuteOfDay < config.closeMinutes;
 
     return {
         now,
         timeZone,
-        timeRange: EXPENSE_WINDOW_TIME_RANGE,
+        ...describeExpenseWindow(config),
         isSunday,
         hour,
         minute,
-        isOpen: !isSunday && isWithinExpenseWindow(hour, minute),
+        isOpen,
+        /** Minutes left before the window closes; 0 when it is not open. */
+        minutesUntilClose: isOpen ? config.closeMinutes - minuteOfDay : 0,
     };
 }
 
@@ -70,9 +129,12 @@ export function formatTimeInExpenseWindowTimeZone(date: Date) {
 
 // Milliseconds until the window next opens, skipping Sunday. `now` is assumed
 // to already be in the expense window's timezone (UTC, i.e. no offset from Ghana time).
-export function getMsUntilExpenseWindowOpens(now: Date = new Date()): number {
+export function getMsUntilExpenseWindowOpens(
+    now: Date = new Date(),
+    config: ExpenseWindowConfig = DEFAULT_EXPENSE_WINDOW,
+): number {
     const candidate = new Date(now.getTime());
-    candidate.setUTCHours(EXPENSE_WINDOW_OPEN_HOUR, 0, 0, 0);
+    candidate.setUTCHours(0, config.openMinutes, 0, 0);
     if (candidate.getTime() <= now.getTime()) candidate.setUTCDate(candidate.getUTCDate() + 1);
 
     while (candidate.getUTCDay() === 0) candidate.setUTCDate(candidate.getUTCDate() + 1);

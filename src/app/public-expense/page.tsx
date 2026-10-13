@@ -11,6 +11,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { getExpenseWindowStatus, formatTimeInExpenseWindowTimeZone, getMsUntilExpenseWindowOpens } from '@/lib/expense-window';
+import { useExpenseWindow } from '@/hooks/useExpenseWindow';
 
 interface CampusOption { id: string; name: string; oversightName?: string | null; }
 
@@ -51,6 +52,7 @@ export default function PublicExpensePage() {
     const [error, setError] = useState('');
     const [submitted, setSubmitted] = useState(false);
     const [referenceId, setReferenceId] = useState<string | null>(null);
+    const storedWindow = useExpenseWindow();
 
     useEffect(() => {
         fetch('/api/public-expense/campuses')
@@ -66,7 +68,7 @@ export default function PublicExpensePage() {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault(); setError('');
-        const win = getExpenseWindowStatus();
+        const win = getExpenseWindowStatus(new Date(), storedWindow.config);
         if (!win.isOpen) { setError(win.isSunday ? 'Expense requests are not accepted on Sundays.' : `Expense requests can only be made between ${win.timeRange}.`); return; }
         const amount = parseFloat(form.amount);
         if (!form.campusOrganisationId) return setError('Please select your campus.');
@@ -126,10 +128,20 @@ export default function PublicExpensePage() {
         );
     }
 
-    const expenseWindow = getExpenseWindowStatus();
+    // Hold the form until the stored window arrives, so nobody is shown times
+    // (or an open form) that the server is about to contradict.
+    if (!storedWindow.loaded) {
+        return (
+            <PageShell>
+                <Loader2 className="h-7 w-7 animate-spin text-muted-foreground" />
+            </PageShell>
+        );
+    }
+
+    const expenseWindow = getExpenseWindowStatus(new Date(), storedWindow.config);
     if (!expenseWindow.isOpen) {
         const now = expenseWindow.now;
-        const ms = getMsUntilExpenseWindowOpens(now);
+        const ms = getMsUntilExpenseWindowOpens(now, storedWindow.config);
         const nextOpen = new Date(now.getTime() + ms);
         const h = Math.floor(ms / (1000 * 60 * 60));
         const m = Math.floor((ms % (1000 * 60 * 60)) / (1000 * 60));
