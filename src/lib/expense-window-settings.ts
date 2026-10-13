@@ -1,32 +1,71 @@
 import { prisma } from '@/lib/prisma';
 import { DEFAULT_EXPENSE_WINDOW, validateExpenseWindowConfig, type ExpenseWindowConfig } from '@/lib/expense-window';
 
-export const EXPENSE_WINDOW_SETTING_ID = 'default';
-
-export interface StoredExpenseWindow extends ExpenseWindowConfig {
-    /** When it was last saved; null while the built-in default is in force. */
+export interface CampusExpenseWindow extends ExpenseWindowConfig {
+    /** The campus whose window this is; null when none could be resolved. */
+    campusId: string | null;
+    campusName: string | null;
+    /** When the campus admin last saved it; null while the starting window applies. */
     updatedAt: Date | null;
 }
 
+// HQ → Oversight → Campus → Account, plus the legacy Stream level between
+// campus and account. Bounds the walk if the data ever contains a cycle.
+const MAX_HOPS = 6;
+
+const windowSelect = {
+    id: true,
+    name: true,
+    level: true,
+    parentId: true,
+    expenseWindowOpenMinutes: true,
+    expenseWindowCloseMinutes: true,
+    expenseWindowUpdatedAt: true,
+} as const;
+
+interface WindowRow {
+    id: string;
+    name: string;
+    level: string | null;
+    parentId: string | null;
+    expenseWindowOpenMinutes: number;
+    expenseWindowCloseMinutes: number;
+    expenseWindowUpdatedAt: Date | null;
+}
+
 /**
- * The window currently in force, read fresh on every call so an edit takes
- * effect on the next request.
+ * The window in force for an organisation: its own if it is a campus,
+ * otherwise its campus's (an account sits under one). Read fresh on every call
+ * so a campus admin's edit applies to the next request.
  *
- * Fails open to the built-in default rather than throwing: a missing row, a
- * migration not yet applied or a database hiccup must not take withdrawal
- * submissions down with it. A stored row that fails validation is ignored the
- * same way, since enforcing it could lock everyone out.
+ * Fails open to the default rather than throwing: an organisation outside any
+ * campus, a database hiccup or a stored window that fails validation must not
+ * take withdrawal submissions down with it.
  */
-export async function getExpenseWindowConfig(): Promise<StoredExpenseWindow> {
+export async function getExpenseWindowForOrganisation(organisationId: string | null | undefined): Promise<CampusExpenseWindow> {
+    const fallback: CampusExpenseWindow = { ...DEFAULT_EXPENSE_WINDOW, campusId: null, campusName: null, updatedAt: null };
+    if (!organisationId) return fallback;
+
     try {
-        const row = await prisma.expenseWindowSetting.findUnique({ where: { id: EXPENSE_WINDOW_SETTING_ID } });
-        if (row) {
-            const checked = validateExpenseWindowConfig(row);
-            if (checked.ok) return { ...checked.config, updatedAt: row.updatedAt };
-            console.error('Stored expense window is invalid; using the default', row);
+        let id: string | null = organisationId;
+        for (let hop = 0; id && hop < MAX_HOPS; hop++) {
+            const org: WindowRow | null = await prisma.organisation.findUnique({ where: { id }, select: windowSelect });
+            if (!org) break;
+            if (org.level === 'CAMPUS') {
+                const checked = validateExpenseWindowConfig({
+                    openMinutes: org.expenseWindowOpenMinutes,
+                    closeMinutes: org.expenseWindowCloseMinutes,
+                });
+                if (!checked.ok) {
+                    console.error(`Campus ${org.id} has an invalid expense window; using the default`);
+                    return { ...fallback, campusId: org.id, campusName: org.name };
+                }
+                return { ...checked.config, campusId: org.id, campusName: org.name, updatedAt: org.expenseWindowUpdatedAt };
+            }
+            id = org.parentId;
         }
     } catch (error) {
         console.error('Could not read the expense window; using the default', error);
     }
-    return { ...DEFAULT_EXPENSE_WINDOW, updatedAt: null };
+    return fallback;
 }

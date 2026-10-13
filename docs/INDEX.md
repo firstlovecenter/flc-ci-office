@@ -51,9 +51,10 @@ Welcome to the FLC Accounts documentation. This index provides quick access to a
 ### Withdrawal Submission Window
 **[Withdrawal submission window](./features/expense-window.md)**
 - Daily window, Monday to Saturday, Ghana time; Sundays closed
-- HQ edit the times under Settings — no deploy needed
-- Stored in `ExpenseWindowSetting`; falls back to the default if unreadable
-- Public read endpoint, HQ-only write endpoint, audit-logged
+- One window per campus; accounts use their campus's
+- Each campus admin edits their own under Settings — no deploy needed
+- Every campus starts on 6:00 AM – 3:00 PM; falls back to that if unreadable
+- Campus-admin-only write endpoint, audit-logged
 - **Related**: [Approval Workflow](./features/approval-workflow.md)
 
 ### Ledger Pagination

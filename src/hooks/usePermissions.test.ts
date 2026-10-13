@@ -96,9 +96,9 @@ describe('capability matrix', () => {
         expect(s.canEditExpenseWindow).toBe(false);
     });
 
-    it('lets only HQ change the submission window', () => {
+    it('lets only campus admins change a submission window', () => {
         const editors = ALL_ROLES.filter(r => p(r).canEditExpenseWindow);
-        expect(editors.sort()).toEqual(['DENOMINATION_ADMIN', 'SUPERADMIN']);
+        expect(editors).toEqual(['CAMPUS_ADMIN']);
     });
 
     it('is case-insensitive about the incoming claim', () => {

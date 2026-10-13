@@ -33,6 +33,8 @@ export interface WithdrawalEligibility {
     overdueApprovals: OverdueApproval[];
     /** SPECIAL_PROJECT accounts may submit at any hour. */
     windowExempt: boolean;
+    /** The leader's account; its campus's submission window applies. */
+    organisationId: string | null;
     /** Re-reads eligibility and notifies every mounted consumer. */
     refresh: () => void;
 }
@@ -115,10 +117,11 @@ const getServerSnapshot = () => null;
 export function useWithdrawalEligibility(): WithdrawalEligibility {
     const { data: session, status } = useSession();
     const snapshot = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
-    const { config: windowConfig, loaded: windowLoaded } = useExpenseWindow();
-
     const role = session?.user?.role;
     const isLeader = !!role && LEADER_ROLES.includes(role);
+    const organisationId = session?.user?.activeUserRole?.organisationId ?? session?.user?.organisationId ?? null;
+    // Only leaders are gated, so only they need their campus's window.
+    const { config: windowConfig, loaded: windowLoaded } = useExpenseWindow(isLeader ? organisationId : null);
 
     useEffect(() => {
         // Only leaders are gated. Admins and superadmins record entries directly.
@@ -160,5 +163,5 @@ export function useWithdrawalEligibility(): WithdrawalEligibility {
         }
     }
 
-    return { loading, isLeader, canSubmit, reason, overdueApprovals, windowExempt, refresh };
+    return { loading, isLeader, canSubmit, reason, overdueApprovals, windowExempt, organisationId, refresh };
 }

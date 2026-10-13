@@ -155,7 +155,7 @@ export default function DashboardPage() {
     const { resolvedMode } = useColorMode();
     const isDark = resolvedMode === 'dark';
     const eligibility = useWithdrawalEligibility();
-    const expenseWindow = useExpenseWindow();
+    const expenseWindow = useExpenseWindow(eligibility.isLeader ? eligibility.organisationId : null);
 
     const isSuperAdmin = session?.user?.role === 'SUPERADMIN';
 

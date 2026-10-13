@@ -1,9 +1,9 @@
 /**
  * The withdrawal-submission window.
  *
- * The window is edited from the Settings page, so the check and the copy
+ * Each campus admin edits their campus's window, so the check and the copy
  * describing it are both derived from one config. These pin the arithmetic
- * against the default (6:00 AM to 4:45 PM) and an arbitrary edited window,
+ * against the default (6:00 AM to 3:00 PM) and an arbitrary edited window,
  * Monday to Saturday, evaluated in UTC (Ghana time, no offset).
  */
 import { describe, it, expect } from 'vitest';
@@ -23,15 +23,15 @@ const saturday = (time: string) => new Date(`2026-08-08T${time}Z`);
 const sunday = (time: string) => new Date(`2026-08-09T${time}Z`);
 
 describe('default window', () => {
-    it('is 6:00 AM to 4:45 PM', () => {
-        expect(DEFAULT_EXPENSE_WINDOW).toEqual({ openMinutes: 360, closeMinutes: 1005 });
+    it('is 6:00 AM to 3:00 PM', () => {
+        expect(DEFAULT_EXPENSE_WINDOW).toEqual({ openMinutes: 360, closeMinutes: 900 });
     });
 
-    it('opens at 6:00 AM and closes at 4:45 PM', () => {
+    it('opens at 6:00 AM and closes at 3:00 PM', () => {
         expect(getExpenseWindowStatus(monday('05:59:59')).isOpen).toBe(false);
         expect(getExpenseWindowStatus(monday('06:00:00')).isOpen).toBe(true);
-        expect(getExpenseWindowStatus(monday('16:44:59')).isOpen).toBe(true);
-        expect(getExpenseWindowStatus(monday('16:45:00')).isOpen).toBe(false);
+        expect(getExpenseWindowStatus(monday('14:59:59')).isOpen).toBe(true);
+        expect(getExpenseWindowStatus(monday('15:00:00')).isOpen).toBe(false);
     });
 
     it('is shut overnight', () => {

@@ -29,7 +29,7 @@ function NewTransactionPageContent() {
     const defaultType = typeParam === 'INCOME' || typeParam === 'EXPENSE' ? typeParam : null;
 
     const eligibility = useWithdrawalEligibility();
-    const { config: windowConfig } = useExpenseWindow();
+    const { config: windowConfig } = useExpenseWindow(eligibility.organisationId);
 
     const backToLedger = () => {
         router.push(deptParam ? `/transactions?dept=${deptParam}${exactOrganisation ? '&exact=true' : ''}` : '/transactions');

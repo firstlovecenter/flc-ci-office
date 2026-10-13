@@ -28,7 +28,8 @@ function getTimePartsInTimeZone(date: Date, timeZone: string) {
  * The withdrawal-submission window, as minutes after midnight in Ghana time
  * (UTC, no offset). It runs Monday to Saturday; Sundays are always closed.
  *
- * The times are edited from the Settings page and stored in the database — see
+ * Each campus has its own window, edited by its campus admin from Settings and
+ * stored on the campus row; accounts use their campus's window — see
  * lib/expense-window-settings.ts. Nothing here reads them itself: every check
  * and every label takes the config as an argument, so the server check, the
  * client gate and the copy describing them cannot disagree.
@@ -38,15 +39,19 @@ export interface ExpenseWindowConfig {
     closeMinutes: number;
 }
 
-/** Used until an admin saves a window, and whenever the stored one cannot be read. */
+/**
+ * The window every campus starts with (6:00 AM – 3:00 PM), and the one applied
+ * when no campus can be resolved or its stored window cannot be read. Keep in
+ * step with the column defaults on Organisation.
+ */
 export const DEFAULT_EXPENSE_WINDOW: ExpenseWindowConfig = {
     openMinutes: 6 * 60,
-    closeMinutes: 16 * 60 + 45,
+    closeMinutes: 15 * 60,
 };
 
 const MINUTES_PER_DAY = 24 * 60;
 
-/** 360 → "6:00 AM", 1005 → "4:45 PM". */
+/** 360 → "6:00 AM", 900 → "3:00 PM". */
 export function formatWindowTime(minutes: number): string {
     const h24 = Math.floor(minutes / 60);
     const m = minutes % 60;

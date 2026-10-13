@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { usePermissions } from '@/hooks/usePermissions';
-import { setExpenseWindowCache } from '@/hooks/useExpenseWindow';
+import { invalidateExpenseWindows } from '@/hooks/useExpenseWindow';
 import {
     describeExpenseWindow,
     parseWindowTime,
@@ -21,7 +21,7 @@ export default function SettingsPage() {
     const { status } = useSession();
     const { canEditExpenseWindow } = usePermissions();
 
-    const [saved, setSaved] = useState<(ExpenseWindowConfig & { updatedAt: string | null }) | null>(null);
+    const [saved, setSaved] = useState<(ExpenseWindowConfig & { campusName: string; updatedAt: string | null }) | null>(null);
     const [openTime, setOpenTime] = useState('');
     const [closeTime, setCloseTime] = useState('');
     const [loading, setLoading] = useState(true);
@@ -30,7 +30,9 @@ export default function SettingsPage() {
     const [success, setSuccess] = useState('');
 
     useEffect(() => {
-        fetch('/api/expense-window', { cache: 'no-store' })
+        if (status === 'loading') return;
+        if (!canEditExpenseWindow) { setLoading(false); return; }
+        fetch('/api/admin/expense-window', { cache: 'no-store' })
             .then(r => (r.ok ? r.json() : Promise.reject()))
             .then(data => {
                 setSaved(data);
@@ -39,7 +41,7 @@ export default function SettingsPage() {
             })
             .catch(() => setError('Could not load the current submission window.'))
             .finally(() => setLoading(false));
-    }, []);
+    }, [status, canEditExpenseWindow]);
 
     const openMinutes = parseWindowTime(openTime);
     const closeMinutes = parseWindowTime(closeTime);
@@ -60,8 +62,9 @@ export default function SettingsPage() {
             const data = await res.json().catch(() => ({}));
             if (!res.ok) throw new Error(data.error || 'Failed to save the submission window.');
             setSaved(data);
-            setExpenseWindowCache({ openMinutes: data.openMinutes, closeMinutes: data.closeMinutes });
-            setSuccess(`Submissions are now accepted between ${describeExpenseWindow(data).timeRange}, Monday to Saturday.`);
+            // Accounts are cached under their own ids, so drop them all.
+            invalidateExpenseWindows();
+            setSuccess(`${data.campusName} now accepts submissions between ${describeExpenseWindow(data).timeRange}, Monday to Saturday.`);
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Failed to save the submission window.');
         } finally {
@@ -76,7 +79,7 @@ export default function SettingsPage() {
     if (!canEditExpenseWindow) {
         return (
             <div className="py-4 max-w-[720px] mx-auto">
-                <Alert variant="destructive"><AlertDescription>Only HQ can change system settings.</AlertDescription></Alert>
+                <Alert variant="destructive"><AlertDescription>Only campus admins can change settings here.</AlertDescription></Alert>
             </div>
         );
     }
@@ -84,9 +87,9 @@ export default function SettingsPage() {
     return (
         <div className="py-2 max-w-[720px] mx-auto">
             <div className="mb-8 pb-6 border-b border-border">
-                <p className="text-[0.6875rem] font-medium uppercase tracking-[0.10em] text-muted-foreground mb-0.5">System</p>
+                <p className="text-[0.6875rem] font-medium uppercase tracking-[0.10em] text-muted-foreground mb-0.5">Campus</p>
                 <h1 className="text-[1.625rem] sm:text-[1.875rem] font-semibold tracking-[-0.025em] text-foreground">Settings</h1>
-                <p className="text-sm text-muted-foreground mt-0.5">These apply to every church and account.</p>
+                <p className="text-sm text-muted-foreground mt-0.5">{saved ? <>For <strong className="text-foreground">{saved.campusName}</strong> and its accounts.</> : 'For your campus and its accounts.'}</p>
             </div>
 
             {error && <Alert variant="destructive" className="mb-3"><AlertDescription>{error}</AlertDescription></Alert>}
@@ -95,8 +98,8 @@ export default function SettingsPage() {
             <div className="rounded-xl border border-border bg-card p-6">
                 <h2 className="text-base font-semibold text-foreground">Withdrawal submission window</h2>
                 <p className="text-sm text-muted-foreground mt-1 mb-5">
-                    When leaders and the public request form may submit withdrawal requests, Monday to Saturday.
-                    Sundays are always closed, and special-project accounts may submit at any hour.
+                    When your campus&apos;s leaders and its public request form may submit withdrawal requests,
+                    Monday to Saturday. Sundays are always closed, and special-project accounts may submit at any hour.
                     Times are Ghana time.
                 </p>
 
@@ -121,7 +124,7 @@ export default function SettingsPage() {
                     <p className="text-xs text-muted-foreground">
                         {saved?.updatedAt
                             ? `Last changed ${new Date(saved.updatedAt).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' })}`
-                            : 'Using the built-in default'}
+                            : 'Not changed yet — the starting window is 6:00 AM to 3:00 PM'}
                     </p>
                     <Button onClick={handleSave} disabled={saving || !draft.ok || unchanged}>
                         {saving ? <><Loader2 className="mr-1.5 h-4 w-4 animate-spin" />Saving…</> : <><Save className="mr-1.5 h-4 w-4" />Save</>}

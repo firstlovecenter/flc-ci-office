@@ -59,7 +59,6 @@ export default function NewTransactionForm({
     onCancel,
 }: NewTransactionFormProps) {
     const { data: session, status: sessionStatus } = useSession();
-    const expenseWindow = useExpenseWindow();
     const { showSuccess, showError } = useToast();
 
     const isLeader = !!session?.user?.role && LEADER_ROLES.includes(session.user.role);
@@ -70,6 +69,8 @@ export default function NewTransactionForm({
     const [description, setDescription] = useState('');
     const [descriptionPreset, setDescriptionPreset] = useState('');
     const [organisationId, setOrganisationId] = useState('');
+    // The account being submitted to; its campus's window applies.
+    const expenseWindow = useExpenseWindow(organisationId || null);
     const [organisations, setOrganisations] = useState<AccountOption[]>([]);
     const [transactionDate, setTransactionDate] = useState(new Date().toISOString().split('T')[0]);
     const [error, setError] = useState('');

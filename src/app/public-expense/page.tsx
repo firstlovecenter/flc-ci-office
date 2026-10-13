@@ -10,10 +10,15 @@ import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { getExpenseWindowStatus, formatTimeInExpenseWindowTimeZone, getMsUntilExpenseWindowOpens } from '@/lib/expense-window';
-import { useExpenseWindow } from '@/hooks/useExpenseWindow';
+import {
+    getExpenseWindowStatus,
+    formatTimeInExpenseWindowTimeZone,
+    getMsUntilExpenseWindowOpens,
+    validateExpenseWindowConfig,
+    DEFAULT_EXPENSE_WINDOW,
+} from '@/lib/expense-window';
 
-interface CampusOption { id: string; name: string; oversightName?: string | null; }
+interface CampusOption { id: string; name: string; oversightName?: string | null; openMinutes?: number; closeMinutes?: number; }
 
 const emptyForm = {
     campusOrganisationId: '', requesterName: '', leaderPhone: '', churchName: '',
@@ -52,7 +57,6 @@ export default function PublicExpensePage() {
     const [error, setError] = useState('');
     const [submitted, setSubmitted] = useState(false);
     const [referenceId, setReferenceId] = useState<string | null>(null);
-    const storedWindow = useExpenseWindow();
 
     useEffect(() => {
         fetch('/api/public-expense/campuses')
@@ -66,12 +70,20 @@ export default function PublicExpensePage() {
         setForm(p => ({ ...p, [field]: e.target.value })); setError('');
     };
 
+    // Each campus sets its own window; the campus list carries it.
+    const selectedCampus = campuses.find(c => c.id === form.campusOrganisationId) ?? null;
+    const campusWindow = (() => {
+        if (!selectedCampus) return null;
+        const checked = validateExpenseWindowConfig({ openMinutes: selectedCampus.openMinutes, closeMinutes: selectedCampus.closeMinutes });
+        return checked.ok ? checked.config : DEFAULT_EXPENSE_WINDOW;
+    })();
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault(); setError('');
-        const win = getExpenseWindowStatus(new Date(), storedWindow.config);
-        if (!win.isOpen) { setError(win.isSunday ? 'Expense requests are not accepted on Sundays.' : `Expense requests can only be made between ${win.timeRange}.`); return; }
         const amount = parseFloat(form.amount);
-        if (!form.campusOrganisationId) return setError('Please select your campus.');
+        if (!form.campusOrganisationId || !campusWindow) return setError('Please select your campus.');
+        const win = getExpenseWindowStatus(new Date(), campusWindow);
+        if (!win.isOpen) { setError(win.isSunday ? 'Expense requests are not accepted on Sundays.' : `Your campus accepts expense requests between ${win.timeRange}.`); return; }
         if (!form.requesterName.trim()) return setError('Please enter your name.');
         if (!form.leaderPhone.trim()) return setError('Please enter the leader phone number.');
         if (!form.churchName.trim()) return setError('Please enter your church or fellowship name.');
@@ -128,20 +140,11 @@ export default function PublicExpensePage() {
         );
     }
 
-    // Hold the form until the stored window arrives, so nobody is shown times
-    // (or an open form) that the server is about to contradict.
-    if (!storedWindow.loaded) {
-        return (
-            <PageShell>
-                <Loader2 className="h-7 w-7 animate-spin text-muted-foreground" />
-            </PageShell>
-        );
-    }
-
-    const expenseWindow = getExpenseWindowStatus(new Date(), storedWindow.config);
-    if (!expenseWindow.isOpen) {
+    // Once a campus is chosen, its window decides whether the form is open.
+    const expenseWindow = campusWindow ? getExpenseWindowStatus(new Date(), campusWindow) : null;
+    if (selectedCampus && campusWindow && expenseWindow && !expenseWindow.isOpen) {
         const now = expenseWindow.now;
-        const ms = getMsUntilExpenseWindowOpens(now, storedWindow.config);
+        const ms = getMsUntilExpenseWindowOpens(now, campusWindow);
         const nextOpen = new Date(now.getTime() + ms);
         const h = Math.floor(ms / (1000 * 60 * 60));
         const m = Math.floor((ms % (1000 * 60 * 60)) / (1000 * 60));
@@ -153,7 +156,7 @@ export default function PublicExpensePage() {
                     <p className="text-sm text-muted-foreground mb-6">
                         {expenseWindow.isSunday
                             ? <>Requests are not accepted on <strong className="text-foreground">Sundays</strong>.</>
-                            : <>Requests are accepted <strong className="text-foreground">Monday to Saturday</strong>, between <strong className="text-foreground">{expenseWindow.timeRange}</strong>.</>}
+                            : <><strong className="text-foreground">{selectedCampus.name}</strong> accepts requests <strong className="text-foreground">Monday to Saturday</strong>, between <strong className="text-foreground">{expenseWindow.timeRange}</strong>.</>}
                     </p>
                     <div className="px-6 py-4 mb-3 rounded-xl border border-warning/30 bg-warning/8">
                         <p className="text-[0.6875rem] font-semibold uppercase tracking-[0.10em] text-muted-foreground mb-1">Current time</p>
@@ -164,6 +167,9 @@ export default function PublicExpensePage() {
                         <p className="text-[1.75rem] sm:text-[2rem] font-semibold tabular-nums tracking-[-0.02em] text-success">{h}h {m}m</p>
                         <p className="text-xs text-muted-foreground/60 mt-0.5">at {formatTimeInExpenseWindowTimeZone(nextOpen)}</p>
                     </div>
+                    <Button variant="outline" className="w-full mt-4" onClick={() => setForm(p => ({ ...p, campusOrganisationId: '' }))}>
+                        Choose another campus
+                    </Button>
                 </div>
             </PageShell>
         );

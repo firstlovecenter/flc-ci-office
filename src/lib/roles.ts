@@ -56,13 +56,13 @@ export function canReopenAccount(role?: string | null): boolean {
 }
 
 /**
- * Whether a role may change the withdrawal-submission window.
+ * Whether a role may change a withdrawal-submission window.
  *
- * The window applies to every leader in every church at once, so it sits with
- * HQ rather than with any admin whose scope covers only part of the tree.
+ * Each campus keeps its own window, and its campus admin sets it. Which campus
+ * is not a question here: the API only ever edits the admin's own campus.
  */
 export function canEditExpenseWindow(role?: string | null): boolean {
-    return role === 'SUPERADMIN' || role === 'DENOMINATION_ADMIN';
+    return role === 'CAMPUS_ADMIN';
 }
 
 /**
