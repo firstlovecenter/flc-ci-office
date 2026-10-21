@@ -217,6 +217,10 @@ model Transaction {
   rejectedAt           DateTime?
   rejectedBy           String?
   rejectionReason      String?
+  /// Set when the requester cancels a still-pending request. Stored as
+  /// status REJECTED so older deployments read it without a new enum value;
+  /// see lib/cancel-request.ts.
+  cancelledAt          DateTime?
   requestedAmount      Decimal?               @db.Decimal(14, 2)
   isCharge             Boolean                @default(false)
   receiptWaived        Boolean                @default(false)

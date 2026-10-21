@@ -25,7 +25,7 @@ interface ReceiptFile {
 
 interface Transaction {
     id: string; description: string; amount: string; requestedAmount?: string | null; type: 'INCOME' | 'EXPENSE';
-    status: 'PENDING' | 'APPROVED' | 'REJECTED'; createdAt: string;
+    status: 'PENDING' | 'APPROVED' | 'REJECTED'; cancelledAt?: string | null; createdAt: string;
     user: { name: string; email: string };
     organisation: { name: string; level: string };
     currency: { code: string; symbol: string } | null;
@@ -98,7 +98,7 @@ export default function ApprovalsPage() {
         setHistoryLoading(true);
         try {
             const r = await fetch('/api/transactions');
-            if (r.ok) { const d = await r.json(); setHistoricalTransactions(d.filter((t: Transaction) => t.type === 'EXPENSE' && (t.status === 'APPROVED' || t.status === 'REJECTED') && !t.description.startsWith('CORRECTION:'))); }
+            if (r.ok) { const d = await r.json(); setHistoricalTransactions(d.filter((t: Transaction) => t.type === 'EXPENSE' && (t.status === 'APPROVED' || (t.status === 'REJECTED' && !t.cancelledAt)) && !t.description.startsWith('CORRECTION:'))); }
         } catch {} finally { setHistoryLoading(false); }
     };
 

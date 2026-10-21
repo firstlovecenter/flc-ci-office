@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth';
 import { Prisma } from '@prisma/client';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { statusWhere } from '@/lib/cancel-request';
 
 // Force dynamic rendering - data is user/role specific
 export const dynamic = 'force-dynamic';
@@ -103,7 +104,7 @@ export async function GET(request: Request) {
                 where: { ...dateFilter, ...transactionDeptFilter, status: 'APPROVED' }
             }),
             prisma.transaction.count({
-                where: { ...dateFilter, ...transactionDeptFilter, status: 'REJECTED' }
+                where: { ...dateFilter, ...transactionDeptFilter, ...statusWhere('REJECTED') }
             }),
         ]);
 
