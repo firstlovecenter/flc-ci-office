@@ -19,7 +19,7 @@ describe('transaction vocabulary', () => {
     });
 
     it('never leaks a raw enum for status', () => {
-        for (const s of ['PENDING', 'APPROVED', 'REJECTED']) {
+        for (const s of ['PENDING', 'APPROVED', 'REJECTED', 'CANCELLED']) {
             const label = transactionStatusLabel(s);
             expect(label).not.toBe(s);
             expect(label).toMatch(/^[A-Z][a-z]+$/);

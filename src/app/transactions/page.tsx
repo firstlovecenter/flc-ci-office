@@ -18,6 +18,7 @@ import { transactionStatusLabel, TOTALS_IN_LABEL, TOTALS_OUT_LABEL, BALANCE_LABE
 import { runningBalances, canShowRunningBalance } from '@/lib/ledger';
 import { useToast } from '@/components/ToastProvider';
 import { useWithdrawalEligibility } from '@/hooks/useWithdrawalEligibility';
+import { canCancelRequest } from '@/lib/cancel-request';
 import EditTransactionDialog from '@/components/EditTransactionDialog';
 import NewTransactionDialog from '@/components/NewTransactionDialog';
 import ReceiptUpload from '@/components/ReceiptUpload';
@@ -27,7 +28,7 @@ import EmptyState from '@/components/ui/EmptyState';
 
 type TransactionWithDetails = {
     id: string; description: string; amount: number; currencyId?: string | null;
-    type: 'INCOME' | 'EXPENSE'; status: 'PENDING' | 'APPROVED' | 'REJECTED'; isCharge?: boolean;
+    type: 'INCOME' | 'EXPENSE'; status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED'; isCharge?: boolean;
     weekLocked?: boolean; locked?: boolean; weekNumber?: number; year?: number;
     organisationId: string; userId: string;
     organisation: { id: string; name: string; level: string };
@@ -44,9 +45,10 @@ type TransactionWithDetails = {
     createdAt: string; updatedAt: string;
 };
 
-function statusBadgeVariant(status: string): 'success' | 'warning' | 'destructive' {
+function statusBadgeVariant(status: string): 'success' | 'warning' | 'destructive' | 'secondary' {
     if (status === 'APPROVED') return 'success';
     if (status === 'PENDING') return 'warning';
+    if (status === 'CANCELLED') return 'secondary';
     return 'destructive';
 }
 
@@ -87,6 +89,7 @@ function TransactionsPageContent() {
     const [receiptDialog, setReceiptDialog] = useState<{ open: boolean; transactionId: string | null }>({ open: false, transactionId: null });
     const [waiveDialog, setWaiveDialog] = useState<{ open: boolean; transactionId: string | null }>({ open: false, transactionId: null });
     const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; transaction: TransactionWithDetails | null }>({ open: false, transaction: null });
+    const [cancelDialog, setCancelDialog] = useState<{ open: boolean; transaction: TransactionWithDetails | null }>({ open: false, transaction: null });
     const [debouncedSearch, setDebouncedSearch] = useState('');
     const [page, setPage] = useState(1);
     const [pageSize] = useState(50);
@@ -157,6 +160,14 @@ function TransactionsPageContent() {
             if (r.ok) { showSuccess('Transaction deleted'); fetchTransactions(); fetchSummary(); }
             else { const d = await r.json(); showError(d.error || 'Failed to delete'); }
         } catch { showError('Error deleting transaction'); }
+    };
+
+    const performCancel = async (id: string) => {
+        try {
+            const r = await fetch(`/api/transactions/${id}/cancel`, { method: 'POST' });
+            if (r.ok) { showSuccess('Withdrawal request cancelled'); fetchTransactions(); fetchSummary(); eligibility.refresh(); }
+            else { const d = await r.json().catch(() => ({})); showError(d.error || 'Failed to cancel request'); fetchTransactions(); }
+        } catch { showError('Error cancelling request'); }
     };
 
     const canEditTransaction = (tx: any) => {
@@ -244,7 +255,7 @@ function TransactionsPageContent() {
                 </Select>
                 <Select value={approvalFilter} onValueChange={setApprovalFilter}>
                     <SelectTrigger className="w-[130px]"><SelectValue placeholder="Status" /></SelectTrigger>
-                    <SelectContent><SelectItem value="ALL">All</SelectItem><SelectItem value="PENDING">Pending</SelectItem><SelectItem value="APPROVED">Approved</SelectItem><SelectItem value="REJECTED">Declined</SelectItem></SelectContent>
+                    <SelectContent><SelectItem value="ALL">All</SelectItem><SelectItem value="PENDING">Pending</SelectItem><SelectItem value="APPROVED">Approved</SelectItem><SelectItem value="REJECTED">Declined</SelectItem><SelectItem value="CANCELLED">Cancelled</SelectItem></SelectContent>
                 </Select>
             </div>
 
@@ -259,6 +270,7 @@ function TransactionsPageContent() {
                                 className={cn('w-full text-left rounded-xl border border-border bg-card px-4 py-3 hover:bg-muted/10 transition-colors',
                                     tx.status === 'PENDING' && 'border-warning/30 bg-warning/5',
                                     tx.status === 'REJECTED' && 'border-destructive/30 bg-destructive/5 opacity-70',
+                                    tx.status === 'CANCELLED' && 'opacity-60',
                                 )}>
                                 <div className="flex justify-between items-center gap-2">
                                     <div className="min-w-0 flex-1">
@@ -301,6 +313,7 @@ function TransactionsPageContent() {
                                                 className={cn('border-t border-border cursor-pointer hover:bg-muted/10 transition-colors',
                                                     tx.status === 'PENDING' && 'bg-warning/5',
                                                     tx.status === 'REJECTED' && 'bg-destructive/5 opacity-70',
+                                                    tx.status === 'CANCELLED' && 'opacity-60',
                                                 )}>
                                                 <td className="px-4 py-2.5">
                                                     <p className="font-semibold text-foreground">{new Date(tx.createdAt).toLocaleDateString()}</p>
@@ -452,6 +465,12 @@ function TransactionsPageContent() {
                                         )}
                                     </div>
                                 )}
+                                {canCancelRequest(tx, session?.user?.id) && (
+                                    <div className="flex flex-col gap-1.5 pt-3 border-t border-border">
+                                        <Button variant="outline" className="w-full text-destructive hover:text-destructive" onClick={() => { setDetailsDialog({ open: false, transaction: null }); setCancelDialog({ open: true, transaction: tx }); }}>Cancel request</Button>
+                                        <p className="text-xs text-muted-foreground">You can cancel this request until a manager approves or declines it.</p>
+                                    </div>
+                                )}
                                 {isAdmin && (
                                     <div className="flex gap-2 pt-3 border-t border-border">
                                         {canEditTransaction(tx) && <Button variant="outline" className="flex-1" onClick={() => { setDetailsDialog({ open: false, transaction: null }); setEditDialog({ open: true, transaction: tx }); }}>Edit Transaction</Button>}
@@ -481,6 +500,25 @@ function TransactionsPageContent() {
                 )}
                 confirmLabel="Delete transaction"
                 onConfirm={() => deleteDialog.transaction ? performDelete(deleteDialog.transaction.id) : undefined}
+            />
+
+            <ConfirmDialog
+                open={cancelDialog.open}
+                onOpenChange={o => setCancelDialog(p => ({ ...p, open: o }))}
+                destructive
+                title="Cancel this withdrawal request?"
+                description="Managers will no longer see it for approval. It stays on your statement as cancelled."
+                detail={cancelDialog.transaction && (
+                    <div>
+                        <p className="font-medium">{cancelDialog.transaction.description}</p>
+                        <p className="text-muted-foreground text-xs mt-0.5">
+                            {cancelDialog.transaction.organisation?.name} · {fmtAmt(cancelDialog.transaction)}
+                        </p>
+                    </div>
+                )}
+                confirmLabel="Cancel request"
+                cancelLabel="Keep request"
+                onConfirm={() => cancelDialog.transaction ? performCancel(cancelDialog.transaction.id) : undefined}
             />
 
             <NewTransactionDialog

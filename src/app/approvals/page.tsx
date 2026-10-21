@@ -25,7 +25,7 @@ interface ReceiptFile {
 
 interface Transaction {
     id: string; description: string; amount: string; requestedAmount?: string | null; type: 'INCOME' | 'EXPENSE';
-    status: 'PENDING' | 'APPROVED' | 'REJECTED'; createdAt: string;
+    status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED'; createdAt: string;
     user: { name: string; email: string };
     organisation: { name: string; level: string };
     currency: { code: string; symbol: string } | null;

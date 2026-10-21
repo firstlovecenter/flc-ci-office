@@ -15,7 +15,7 @@
  */
 
 export type TransactionType = 'INCOME' | 'EXPENSE';
-export type TransactionStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
+export type TransactionStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED';
 
 /** Default user-facing name for a transaction type. */
 export function transactionTypeLabel(type: TransactionType | string): string {
@@ -36,6 +36,7 @@ const STATUS_LABELS: Record<string, string> = {
     PENDING: 'Pending',
     APPROVED: 'Approved',
     REJECTED: 'Declined',
+    CANCELLED: 'Cancelled',
 };
 
 /** Never render the raw enum — "REJECTED" reads as shouting and mismatches the filter. */

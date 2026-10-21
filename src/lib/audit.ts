@@ -106,6 +106,8 @@ function generateDescription(
       return `Uploaded ${metadata?.fileCount || 1} file(s) to ${entity}`;
     case 'RECEIPT_WAIVED':
       return `Waived receipt requirement for ${entity}${metadata?.reason ? ` - Reason: ${metadata.reason}` : ''}`;
+    case 'CANCEL':
+      return `Cancelled ${entity}${metadata?.name ? ` "${metadata.name}"` : ''}`;
     case 'TRANSFER':
       return `Transferred ${entity} from ${metadata?.from || 'N/A'} to ${metadata?.to || 'N/A'}`;
     case 'RECALCULATE':
