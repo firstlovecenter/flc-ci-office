@@ -22,6 +22,7 @@ import {
 } from '@/lib/org-model';
 import { getAppCurrency } from '@/lib/currency';
 import { statusWhere } from '@/lib/cancel-request';
+import { getApprovalAdmins } from '@/lib/approval-admins';
 
 // Force dynamic rendering - data is user/role specific
 export const dynamic = 'force-dynamic';
@@ -507,61 +508,7 @@ export async function POST(request: Request) {
         // Send SMS to campus admins if this is a pending transaction (created by leader or admin)
         if (transaction.status === 'PENDING') {
             try {
-                // Get the organisation with its hierarchy
-                const dept = await prisma.organisation.findUnique({
-                    where: { id: transaction.organisationId },
-                    include: {
-                        parent: {
-                            include: {
-                                parent: {
-                                    include: {
-                                        parent: true
-                                    }
-                                }
-                            }
-                        }
-                    }
-                });
-
-                // Build array of organisation IDs in the hierarchy (from current up to campus level)
-                const organisationHierarchy: string[] = [];
-                if (dept) {
-                    organisationHierarchy.push(dept.id);
-                    let currentOrg: any = dept.parent;
-                    while (currentOrg) {
-                        organisationHierarchy.push(currentOrg.id);
-                        if (currentOrg.level === 'CAMPUS') break; // Stop at campus level
-                        currentOrg = currentOrg.parent;
-                    }
-                }
-
-                // Find all users who have been assigned CAMPUS_ADMIN role for organisations in the hierarchy
-                const campusAdminRoles = await prisma.userRole.findMany({
-                    where: {
-                        role: 'CAMPUS_ADMIN',
-                        organisationId: { in: organisationHierarchy },
-                    },
-                    include: {
-                        user: {
-                            select: {
-                                phone: true,
-                                email: true,
-                                name: true,
-                                archived: true,
-                            },
-                        },
-                    },
-                });
-
-                // Filter to active users and extract unique users
-                const campusAdmins = campusAdminRoles
-                    .filter(ur => !ur.user.archived)
-                    .reduce((acc: { phone: string | null; email: string; name: string | null }[], ur) => {
-                        if (!acc.find(a => a.email === ur.user.email)) {
-                            acc.push({ phone: ur.user.phone, email: ur.user.email, name: ur.user.name });
-                        }
-                        return acc;
-                    }, []);
+                const campusAdmins = await getApprovalAdmins(transaction.organisationId);
 
                 // Send SMS and email to all campus admins
                 if (campusAdmins.length > 0) {

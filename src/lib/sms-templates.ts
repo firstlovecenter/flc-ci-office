@@ -175,6 +175,18 @@ export function generatePendingApprovalRequestSms(params: PendingApprovalRequest
     return `${userName} submitted a ${transactionType} request of ${currency}${amount}. Ref: ${description}. Please review.`;
 }
 
+interface RequestCancelledSmsParams {
+    userName: string;
+    currency: string;
+    amount: string;
+    description: string;
+}
+
+export function generateRequestCancelledSms(params: RequestCancelledSmsParams): string {
+    const { userName, currency, amount, description } = params;
+    return `${userName} cancelled their withdrawal request of ${currency}${amount}. Ref: ${description}. No action needed.`;
+}
+
 interface CorrectionNotificationSmsParams {
     transactionType: string;
     organisationName: string;

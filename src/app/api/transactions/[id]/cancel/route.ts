@@ -5,6 +5,10 @@ import { prisma } from '@/lib/prisma';
 import { createAuditLog } from '@/lib/audit';
 import { moneyToString } from '@/lib/money';
 import { canCancelRequest, displayStatus } from '@/lib/cancel-request';
+import { getApprovalAdmins } from '@/lib/approval-admins';
+import { sendSms } from '@/lib/sms';
+import { generateRequestCancelledSms } from '@/lib/sms-templates';
+import { formatNumber } from '@/lib/utils';
 
 export const dynamic = 'force-dynamic';
 
@@ -26,7 +30,10 @@ export async function POST(
 
     const transaction = await prisma.transaction.findUnique({
         where: { id: transactionId },
-        select: { id: true, type: true, status: true, cancelledAt: true, userId: true, amount: true, description: true },
+        select: {
+            id: true, type: true, status: true, cancelledAt: true, userId: true, amount: true, description: true,
+            organisationId: true, currency: { select: { symbol: true } },
+        },
     });
 
     if (!transaction) {
@@ -69,6 +76,26 @@ export async function POST(
         metadata: { name: transaction.description, amount: moneyToString(transaction.amount), cancelled: true },
         severity: 'MEDIUM',
     });
+
+    // Tell the admins who were notified of the request that it no longer needs
+    // a decision. Never let a delivery failure undo the cancel.
+    try {
+        const admins = await getApprovalAdmins(transaction.organisationId);
+        const message = generateRequestCancelledSms({
+            userName: session.user.name || 'A user',
+            currency: transaction.currency?.symbol || '$',
+            amount: formatNumber(moneyToString(transaction.amount)),
+            description: transaction.description,
+        });
+        for (const admin of admins) {
+            if (admin.phone) {
+                const sent = await sendSms({ to: admin.phone, message }).catch(() => false);
+                console.log(`[SMS] Cancellation notice to ${admin.phone}: ${sent ? 'SUCCESS' : 'FAILED'}`);
+            }
+        }
+    } catch (err) {
+        console.error('[SMS] Error sending cancellation notification:', err);
+    }
 
     const updated = await prisma.transaction.findUnique({ where: { id: transactionId } });
     return NextResponse.json(updated);
