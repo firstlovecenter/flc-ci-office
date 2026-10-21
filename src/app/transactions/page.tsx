@@ -18,7 +18,7 @@ import { transactionStatusLabel, TOTALS_IN_LABEL, TOTALS_OUT_LABEL, BALANCE_LABE
 import { runningBalances, canShowRunningBalance } from '@/lib/ledger';
 import { useToast } from '@/components/ToastProvider';
 import { useWithdrawalEligibility } from '@/hooks/useWithdrawalEligibility';
-import { canCancelRequest } from '@/lib/cancel-request';
+import { canCancelRequest, displayStatus } from '@/lib/cancel-request';
 import EditTransactionDialog from '@/components/EditTransactionDialog';
 import NewTransactionDialog from '@/components/NewTransactionDialog';
 import ReceiptUpload from '@/components/ReceiptUpload';
@@ -28,7 +28,7 @@ import EmptyState from '@/components/ui/EmptyState';
 
 type TransactionWithDetails = {
     id: string; description: string; amount: number; currencyId?: string | null;
-    type: 'INCOME' | 'EXPENSE'; status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED'; isCharge?: boolean;
+    type: 'INCOME' | 'EXPENSE'; status: 'PENDING' | 'APPROVED' | 'REJECTED'; cancelledAt?: string | null; isCharge?: boolean;
     weekLocked?: boolean; locked?: boolean; weekNumber?: number; year?: number;
     organisationId: string; userId: string;
     organisation: { id: string; name: string; level: string };
@@ -269,8 +269,8 @@ function TransactionsPageContent() {
                             <button key={tx.id} onClick={() => setDetailsDialog({ open: true, transaction: tx })}
                                 className={cn('w-full text-left rounded-xl border border-border bg-card px-4 py-3 hover:bg-muted/10 transition-colors',
                                     tx.status === 'PENDING' && 'border-warning/30 bg-warning/5',
-                                    tx.status === 'REJECTED' && 'border-destructive/30 bg-destructive/5 opacity-70',
-                                    tx.status === 'CANCELLED' && 'opacity-60',
+                                    displayStatus(tx) === 'REJECTED' && 'border-destructive/30 bg-destructive/5 opacity-70',
+                                    displayStatus(tx) === 'CANCELLED' && 'opacity-60',
                                 )}>
                                 <div className="flex justify-between items-center gap-2">
                                     <div className="min-w-0 flex-1">
@@ -282,7 +282,7 @@ function TransactionsPageContent() {
                                         <p className={cn('font-bold text-sm', tx.type === 'INCOME' ? 'text-success' : 'text-destructive')}>
                                             {tx.type === 'INCOME' ? '+' : '−'}{fmtAmt(tx)}
                                         </p>
-                                        <Badge variant={statusBadgeVariant(tx.status)} className="text-[0.65rem] h-4 mt-0.5">{transactionStatusLabel(tx.status)}</Badge>
+                                        <Badge variant={statusBadgeVariant(displayStatus(tx))} className="text-[0.65rem] h-4 mt-0.5">{transactionStatusLabel(displayStatus(tx))}</Badge>
                                     </div>
                                 </div>
                             </button>
@@ -312,8 +312,8 @@ function TransactionsPageContent() {
                                             <tr key={tx.id} onClick={() => setDetailsDialog({ open: true, transaction: tx })}
                                                 className={cn('border-t border-border cursor-pointer hover:bg-muted/10 transition-colors',
                                                     tx.status === 'PENDING' && 'bg-warning/5',
-                                                    tx.status === 'REJECTED' && 'bg-destructive/5 opacity-70',
-                                                    tx.status === 'CANCELLED' && 'opacity-60',
+                                                    displayStatus(tx) === 'REJECTED' && 'bg-destructive/5 opacity-70',
+                                                    displayStatus(tx) === 'CANCELLED' && 'opacity-60',
                                                 )}>
                                                 <td className="px-4 py-2.5">
                                                     <p className="font-semibold text-foreground">{new Date(tx.createdAt).toLocaleDateString()}</p>
@@ -407,7 +407,7 @@ function TransactionsPageContent() {
                                 <div><p className="text-xs text-muted-foreground mb-0.5">Description</p><p className="font-semibold text-foreground">{tx.description}</p></div>
                                 <div className="grid grid-cols-2 gap-4">
                                     <div><p className="text-xs text-muted-foreground mb-0.5">Amount</p><p className={cn('text-xl font-bold', tx.type === 'INCOME' ? 'text-success' : 'text-destructive')}>{tx.type === 'INCOME' ? '+' : '−'}{fmtAmt(tx)}</p></div>
-                                    <div><p className="text-xs text-muted-foreground mb-1">Status</p><Badge variant={statusBadgeVariant(tx.status)}>{transactionStatusLabel(tx.status)}</Badge></div>
+                                    <div><p className="text-xs text-muted-foreground mb-1">Status</p><Badge variant={statusBadgeVariant(displayStatus(tx))}>{transactionStatusLabel(displayStatus(tx))}</Badge></div>
                                 </div>
                                 <div><p className="text-xs text-muted-foreground mb-0.5">Church</p><p className="text-foreground">{tx.organisation?.name}</p></div>
                                 <div><p className="text-xs text-muted-foreground mb-0.5">Submitted By</p><p className="text-foreground font-medium">{tx.user?.name}</p><p className="text-xs text-muted-foreground">{tx.user?.email}</p></div>

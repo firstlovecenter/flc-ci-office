@@ -217,7 +217,9 @@ model Transaction {
   rejectedAt           DateTime?
   rejectedBy           String?
   rejectionReason      String?
-  /// Set when the requester cancels a still-pending request.
+  /// Set when the requester cancels a still-pending request. Stored as
+  /// status REJECTED so older deployments read it without a new enum value;
+  /// see lib/cancel-request.ts.
   cancelledAt          DateTime?
   requestedAmount      Decimal?               @db.Decimal(14, 2)
   isCharge             Boolean                @default(false)
@@ -326,7 +328,6 @@ enum ActionType {
   IMPERSONATE
   STOP_IMPERSONATION
   RECEIPT_WAIVED
-  CANCEL
 }
 
 /// Which leg of a transfer a transaction represents. OUT is the debit on the
@@ -377,8 +378,6 @@ enum TransactionStatus {
   PENDING
   APPROVED
   REJECTED
-  /// Withdrawn by the requester before an admin acted on it.
-  CANCELLED
 }
 
 enum TransactionType {

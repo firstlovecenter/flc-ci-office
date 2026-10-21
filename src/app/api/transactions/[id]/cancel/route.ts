@@ -4,14 +4,15 @@ import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { createAuditLog } from '@/lib/audit';
 import { moneyToString } from '@/lib/money';
-import { canCancelRequest } from '@/lib/cancel-request';
+import { canCancelRequest, displayStatus } from '@/lib/cancel-request';
 
 export const dynamic = 'force-dynamic';
 
 // Lets the person who submitted a withdrawal request cancel it while it is
 // still pending. Once an admin has approved or declined it, it can no longer be
-// cancelled. The row is kept (status CANCELLED) so the ledger and audit trail
-// still show that the request existed.
+// cancelled. The row is kept so the ledger and audit trail still show that the
+// request existed: status REJECTED with cancelledAt set (see lib/cancel-request.ts
+// for why not a CANCELLED enum value). rejectedBy stays null — nobody declined it.
 export async function POST(
     _req: NextRequest,
     context: { params: Promise<{ id: string }> },
@@ -25,7 +26,7 @@ export async function POST(
 
     const transaction = await prisma.transaction.findUnique({
         where: { id: transactionId },
-        select: { id: true, type: true, status: true, userId: true, amount: true, description: true },
+        select: { id: true, type: true, status: true, cancelledAt: true, userId: true, amount: true, description: true },
     });
 
     if (!transaction) {
@@ -42,30 +43,30 @@ export async function POST(
 
     // Fast path for a stale page; the conditional update below is what actually guards.
     if (!canCancelRequest(transaction, session.user.id)) {
-        return alreadyDecided(transaction.status);
+        return alreadyDecided(transaction);
     }
 
     // Conditional on PENDING so an approval landing at the same moment wins
     // cleanly instead of being overwritten.
     const { count } = await prisma.transaction.updateMany({
         where: { id: transactionId, status: 'PENDING' },
-        data: { status: 'CANCELLED', cancelledAt: new Date(), updatedAt: new Date() },
+        data: { status: 'REJECTED', cancelledAt: new Date(), updatedAt: new Date() },
     });
 
     if (count === 0) {
-        const current = await prisma.transaction.findUnique({ where: { id: transactionId }, select: { status: true } });
-        return alreadyDecided(current?.status);
+        const current = await prisma.transaction.findUnique({ where: { id: transactionId }, select: { status: true, cancelledAt: true } });
+        return alreadyDecided(current);
     }
 
     await createAuditLog({
         userId: session.user.id,
-        actionType: 'CANCEL',
+        actionType: 'UPDATE',
         entityType: 'Transaction',
         entityId: transactionId,
         description: 'Cancelled pending withdrawal request',
         beforeData: { status: 'PENDING' },
-        afterData: { status: 'CANCELLED' },
-        metadata: { name: transaction.description, amount: moneyToString(transaction.amount) },
+        afterData: { status: 'REJECTED', cancelled: true },
+        metadata: { name: transaction.description, amount: moneyToString(transaction.amount), cancelled: true },
         severity: 'MEDIUM',
     });
 
@@ -73,7 +74,8 @@ export async function POST(
     return NextResponse.json(updated);
 }
 
-function alreadyDecided(status: string | undefined) {
+function alreadyDecided(tx: { status: string; cancelledAt: Date | null } | null) {
+    const status = tx ? displayStatus(tx) : null;
     const state = status === 'APPROVED' ? 'approved' : status === 'REJECTED' ? 'declined' : 'cancelled';
     return NextResponse.json(
         { error: `This request has already been ${state} and can no longer be cancelled.` },

@@ -21,6 +21,7 @@ import {
     isExpenseWindowExempt,
 } from '@/lib/org-model';
 import { getAppCurrency } from '@/lib/currency';
+import { statusWhere } from '@/lib/cancel-request';
 
 // Force dynamic rendering - data is user/role specific
 export const dynamic = 'force-dynamic';
@@ -161,7 +162,7 @@ export async function GET(request: Request) {
 
         // Add status filtering
         if (status) {
-            whereClause.status = status;
+            Object.assign(whereClause, statusWhere(status));
         }
 
         const transactions = await prisma.transaction.findMany({

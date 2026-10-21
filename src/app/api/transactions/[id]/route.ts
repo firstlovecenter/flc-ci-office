@@ -245,7 +245,8 @@ export async function PATCH(
 
         // Check if transaction is already approved or declined
         if (transaction.status !== 'PENDING') {
-            return new NextResponse(`Transaction already ${transaction.status.toLowerCase()}`, { status: 400 });
+            const state = transaction.cancelledAt ? 'cancelled by the requester' : transaction.status.toLowerCase();
+            return new NextResponse(`Transaction already ${state}`, { status: 400 });
         }
 
         // Check if user has permission (must be admin role)

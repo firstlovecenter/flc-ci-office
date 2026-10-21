@@ -190,7 +190,7 @@ export async function GET(request: Request) {
                 TO_CHAR(DATE_TRUNC('month', "createdAt"), 'YYYY-MM') as month,
                 SUM(CASE WHEN status = 'PENDING' THEN 1 ELSE 0 END) as pending,
                 SUM(CASE WHEN status = 'APPROVED' THEN 1 ELSE 0 END) as approved,
-                SUM(CASE WHEN status = 'REJECTED' THEN 1 ELSE 0 END) as rejected
+                SUM(CASE WHEN status = 'REJECTED' AND "cancelledAt" IS NULL THEN 1 ELSE 0 END) as rejected
             FROM "Transaction"
             WHERE "createdAt" >= ${new Date(new Date().setMonth(new Date().getMonth() - 12))}
             ${finalFilter}
