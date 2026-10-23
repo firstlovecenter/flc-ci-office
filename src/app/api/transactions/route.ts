@@ -399,7 +399,7 @@ export async function POST(request: Request) {
         // enforcement start date that is more than 24 hours old and still has no
         // uploaded receipt are blocked from submitting new requests.
         if (isLeader) {
-            const overdueApprovals = await getOverdueUnreceiptedApprovals(session.user.id);
+            const overdueApprovals = await getOverdueUnreceiptedApprovals(session.user.id, organisationId);
 
             if (overdueApprovals.length > 0) {
                 const list = overdueApprovals

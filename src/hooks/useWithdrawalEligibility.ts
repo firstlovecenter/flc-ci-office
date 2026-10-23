@@ -46,6 +46,8 @@ export interface WithdrawalEligibility {
 // the sidebar's disabled state, not just the caller's.
 
 interface Snapshot {
+    /** The account the overdue list was read for. */
+    organisationId: string | null;
     overdueApprovals: OverdueApproval[];
     accountType: AccountType | null;
     loadedAt: number;
@@ -61,9 +63,10 @@ function notify() {
     subscribers.forEach(fn => fn());
 }
 
-async function fetchSnapshot(): Promise<Snapshot> {
+async function fetchSnapshot(organisationId: string | null): Promise<Snapshot> {
+    const query = organisationId ? `?organisationId=${encodeURIComponent(organisationId)}` : '';
     const [overdue, me] = await Promise.all([
-        fetch('/api/transactions/overdue-receipts', { cache: 'no-store' })
+        fetch(`/api/transactions/overdue-receipts${query}`, { cache: 'no-store' })
             .then(r => (r.ok ? r.json() : null))
             .catch(() => null),
         fetch('/api/users/me', { cache: 'no-store' })
@@ -72,16 +75,21 @@ async function fetchSnapshot(): Promise<Snapshot> {
     ]);
     const org = me?.activeUserRole?.organisation ?? me?.organisation;
     return {
+        organisationId,
         overdueApprovals: overdue?.overdueApprovals ?? [],
         accountType: (org?.accountType as AccountType) ?? null,
         loadedAt: Date.now(),
     };
 }
 
-function load(force = false): Promise<Snapshot> {
-    if (!force && cache && Date.now() - cache.loadedAt < TTL_MS) return Promise.resolve(cache);
-    if (!force && inflight) return inflight;
-    inflight = fetchSnapshot()
+let inflightFor: string | null = null;
+
+function load(organisationId: string | null, force = false): Promise<Snapshot> {
+    const fresh = cache && cache.organisationId === organisationId && Date.now() - cache.loadedAt < TTL_MS;
+    if (!force && fresh) return Promise.resolve(cache as Snapshot);
+    if (!force && inflight && inflightFor === organisationId) return inflight;
+    inflightFor = organisationId;
+    inflight = fetchSnapshot(organisationId)
         .then(snap => { cache = snap; return snap; })
         .finally(() => { inflight = null; });
     const p = inflight;
@@ -114,13 +122,18 @@ const getServerSnapshot = () => null;
  * rather than after filling it in. The API remains authoritative — this is a
  * presentation concern only.
  */
-export function useWithdrawalEligibility(): WithdrawalEligibility {
+export function useWithdrawalEligibility(targetOrganisationId?: string | null): WithdrawalEligibility {
     const { data: session, status } = useSession();
-    const snapshot = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
+    const cached = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
     const role = session?.user?.role;
     const isLeader = !!role && LEADER_ROLES.includes(role);
     const organisationId = session?.user?.activeUserRole?.organisationId ?? session?.user?.organisationId ?? null;
     // Only leaders are gated, so only they need their campus's window.
+    // Receipts are checked against the account being requested on, which is the
+    // explicit target when the caller has one, else the active account.
+    const receiptOrganisationId = targetOrganisationId ?? organisationId;
+    // Ignore a snapshot read for a different account.
+    const snapshot = cached && cached.organisationId === receiptOrganisationId ? cached : null;
     const { config: windowConfig, loaded: windowLoaded } = useExpenseWindow(isLeader ? organisationId : null);
 
     useEffect(() => {
@@ -128,13 +141,13 @@ export function useWithdrawalEligibility(): WithdrawalEligibility {
         if (status === 'loading' || !isLeader) return;
         // No setState here: `load` writes to the store and notifies subscribers,
         // which is what useSyncExternalStore is reading.
-        load();
-    }, [status, isLeader]);
+        load(receiptOrganisationId);
+    }, [status, isLeader, receiptOrganisationId]);
 
     const refresh = useCallback(() => {
         if (!isLeader) return;
-        load(true);
-    }, [isLeader]);
+        load(receiptOrganisationId, true);
+    }, [isLeader, receiptOrganisationId]);
 
     // Wait for the stored window too, so a reason never quotes the default times.
     const loading = isLeader && (snapshot === null || !windowLoaded);

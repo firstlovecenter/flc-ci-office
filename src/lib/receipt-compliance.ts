@@ -8,6 +8,10 @@
 // approver, not a receipted expense request, so they can't have a receipt.
 // Transactions the approving admin has explicitly waived (receiptWaived) are
 // also excluded — the requirement no longer applies to them.
+//
+// The block is per account: a leader who holds several accounts is only blocked
+// from requesting on an account that itself has an outstanding receipt, so
+// callers pass the account being requested on.
 import { prisma } from '@/lib/prisma';
 
 export const RECEIPT_ENFORCEMENT_START_DATE = new Date('2026-07-08T00:00:00Z');
@@ -22,11 +26,13 @@ export interface OverdueReceiptTransaction {
 
 export async function getOverdueUnreceiptedApprovals(
     userId: string,
+    organisationId?: string | null,
     now: Date = new Date(),
 ): Promise<OverdueReceiptTransaction[]> {
     const transactions = await prisma.transaction.findMany({
         where: {
             userId,
+            ...(organisationId ? { organisationId } : {}),
             type: 'EXPENSE',
             isCharge: false,
             receiptWaived: false,

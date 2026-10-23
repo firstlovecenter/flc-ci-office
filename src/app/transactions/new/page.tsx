@@ -28,7 +28,7 @@ function NewTransactionPageContent() {
     const exactOrganisation = searchParams?.get('exact') === 'true';
     const defaultType = typeParam === 'INCOME' || typeParam === 'EXPENSE' ? typeParam : null;
 
-    const eligibility = useWithdrawalEligibility();
+    const eligibility = useWithdrawalEligibility(deptParam);
     const { config: windowConfig } = useExpenseWindow(eligibility.organisationId);
 
     const backToLedger = () => {
