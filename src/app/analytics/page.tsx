@@ -179,7 +179,7 @@ export default function AnalyticsPage() {
                                     <CartesianGrid strokeDasharray="3 3" stroke={chartColors.grid} />
                                     <XAxis dataKey="month" tick={axisStyle} axisLine={{ stroke: chartColors.grid }} tickLine={false} />
                                     <YAxis tick={axisStyle} axisLine={{ stroke: chartColors.grid }} tickLine={false} tickFormatter={v => formatCurrency(v)} />
-                                    <Tooltip formatter={(v: number) => formatCurrency(v)} contentStyle={tooltipStyle} labelStyle={labelStyle} />
+                                    <Tooltip formatter={(v) => formatCurrency(Number(v))} contentStyle={tooltipStyle} labelStyle={labelStyle} />
                                     <Legend />
                                     <Area type="monotone" dataKey="income" stroke={chartColors.income} fill={chartColors.incomeLight} name="Income" />
                                     <Area type="monotone" dataKey="expense" stroke={chartColors.expense} fill={chartColors.expenseLight} name="Expense" />
@@ -208,7 +208,7 @@ export default function AnalyticsPage() {
                                     <CartesianGrid strokeDasharray="3 3" stroke={chartColors.grid} />
                                     <XAxis dataKey="name" tick={axisStyle} angle={-45} textAnchor="end" height={100} axisLine={{ stroke: chartColors.grid }} tickLine={false} />
                                     <YAxis tick={axisStyle} axisLine={{ stroke: chartColors.grid }} tickLine={false} tickFormatter={v => formatCurrency(v)} />
-                                    <Tooltip formatter={(v: number) => formatCurrency(v)} contentStyle={tooltipStyle} labelStyle={labelStyle} />
+                                    <Tooltip formatter={(v) => formatCurrency(Number(v))} contentStyle={tooltipStyle} labelStyle={labelStyle} />
                                     <Legend />
                                     <Bar dataKey="income" fill={chartColors.income} name="Income" radius={[4, 4, 0, 0]} />
                                     <Bar dataKey="expense" fill={chartColors.expense} name="Expense" radius={[4, 4, 0, 0]} />
@@ -222,7 +222,7 @@ export default function AnalyticsPage() {
                                     <CartesianGrid strokeDasharray="3 3" stroke={chartColors.grid} />
                                     <XAxis dataKey="period" tick={axisStyle} axisLine={{ stroke: chartColors.grid }} tickLine={false} />
                                     <YAxis tick={axisStyle} axisLine={{ stroke: chartColors.grid }} tickLine={false} tickFormatter={v => formatCurrency(v)} />
-                                    <Tooltip formatter={(v: number) => formatCurrency(v)} contentStyle={tooltipStyle} labelStyle={labelStyle} />
+                                    <Tooltip formatter={(v) => formatCurrency(Number(v))} contentStyle={tooltipStyle} labelStyle={labelStyle} />
                                     <Line type="monotone" dataKey="net" stroke={chartColors.net} strokeWidth={2} name="Net Flow" dot={false} />
                                 </LineChart>
                             </ResponsiveContainer>
@@ -238,7 +238,7 @@ export default function AnalyticsPage() {
                                     <CartesianGrid strokeDasharray="3 3" stroke={chartColors.grid} />
                                     <XAxis type="number" tick={axisStyle} axisLine={{ stroke: chartColors.grid }} tickLine={false} />
                                     <YAxis type="category" dataKey="currency" width={80} tick={axisStyle} axisLine={{ stroke: chartColors.grid }} tickLine={false} />
-                                    <Tooltip formatter={(v: number) => v.toLocaleString()} contentStyle={tooltipStyle} labelStyle={labelStyle} />
+                                    <Tooltip formatter={(v) => Number(v).toLocaleString()} contentStyle={tooltipStyle} labelStyle={labelStyle} />
                                     <Bar dataKey="count" name="Transactions" radius={[0, 4, 4, 0]}>
                                         {currencyDistribution.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
                                     </Bar>

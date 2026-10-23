@@ -280,7 +280,7 @@ function ReportsPageContent() {
                     <ResponsiveContainer width="100%" height={300}>
                         <BarChart data={chartData} margin={{ top: 10, right: 16, left: 10, bottom: 5 }}>
                             <XAxis dataKey="week" tick={{ fill: chart.tick, fontSize: 12 }} axisLine={{ stroke: chart.axis }} tickLine={false} />
-                            <Tooltip formatter={(v: any, name: string) => [fmtCurr(v), name === 'income' ? 'Income' : 'Expense']} contentStyle={chart.tooltipStyle} labelStyle={chart.labelStyle} />
+                            <Tooltip formatter={(v, name) => [fmtCurr(Number(v)), name === 'income' ? 'Income' : 'Expense']} contentStyle={chart.tooltipStyle} labelStyle={chart.labelStyle} />
                             <Bar dataKey="income" name="Income" fill={chart.income} radius={[4, 4, 0, 0]} />
                             <Bar dataKey="expense" name="Expense" fill={chart.expense} radius={[4, 4, 0, 0]} />
                         </BarChart>
