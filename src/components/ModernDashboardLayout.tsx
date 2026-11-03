@@ -24,6 +24,7 @@ import { CommandPaletteProvider, useCommandPalette, useShortcutLabel } from './C
 import { useWithdrawalEligibility, resetWithdrawalEligibility } from '@/hooks/useWithdrawalEligibility';
 import { usePermissions } from '@/hooks/usePermissions';
 import { isNavItemActive, visibleNav, type NavBadgeKey, type NavItem } from '@/lib/nav-config';
+import { PENDING_COUNTS_EVENT } from '@/lib/pending-counts';
 
 type PendingCounts = Record<NavBadgeKey, number>;
 
@@ -259,7 +260,14 @@ function Shell({ children }: { children: React.ReactNode }) {
     };
     load();
     const id = setInterval(load, 60000);
-    return () => clearInterval(id);
+    // Pages announce changes (a decision, a new request) so badges don't lag.
+    window.addEventListener(PENDING_COUNTS_EVENT, load);
+    window.addEventListener('focus', load);
+    return () => {
+      clearInterval(id);
+      window.removeEventListener(PENDING_COUNTS_EVENT, load);
+      window.removeEventListener('focus', load);
+    };
   }, [session]);
 
   return (

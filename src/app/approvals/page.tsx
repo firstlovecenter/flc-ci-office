@@ -13,7 +13,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { cn, formatNumber } from '@/lib/utils';
 import { sumMoney } from '@/lib/format-money';
 import { decisionLabel } from '@/lib/labels';
-import { useToast } from '@/components/ToastProvider';
+import { toast } from '@/lib/toast';
+import { refreshPendingCounts } from '@/lib/pending-counts';
 import WaiveReceiptDialog from '@/components/WaiveReceiptDialog';
 import PageHeader from '@/components/ui/PageHeader';
 import EmptyState from '@/components/ui/EmptyState';
@@ -71,7 +72,6 @@ function waited(from: string, now: number) {
 function ApprovalsQueue() {
     const { data: session } = useSession();
     const router = useRouter();
-    const { showSuccess, showError } = useToast();
 
     const [tab, setTab] = useUrlState('status', 'PENDING');
     const [openId, setOpenId] = useUrlState('id');
@@ -156,13 +156,19 @@ function ApprovalsQueue() {
             });
             if (!r.ok) throw new Error((await r.text()) || `Couldn’t ${action} “${t.description}”`);
             const result = await r.json();
-            showSuccess(action === 'approve'
-                ? `Approved “${t.description}” for ${t.organisation.name}. New balance ${result.currency?.symbol || '₵'}${formatNumber(result.newBalance ?? 0)}.`
-                : `Declined “${t.description}”. ${t.user.name} will see your reason.`);
-            setDecision(null); setOpenId(null); load();
+            if (action === 'approve') {
+                toast.success('Withdrawal approved', {
+                    description: `“${t.description}” for ${t.organisation.name}. New balance ${result.currency?.symbol || '₵'}${formatNumber(result.newBalance ?? 0)}.`,
+                });
+            } else {
+                toast.success('Withdrawal declined', {
+                    description: `“${t.description}”. ${t.user.name} will see your reason.`,
+                });
+            }
+            setDecision(null); setOpenId(null); load(); refreshPendingCounts();
         } catch (e) {
             const msg = e instanceof Error ? e.message : `Couldn’t ${action} this request`;
-            setFormError(msg); showError(msg);
+            setFormError(msg); toast.error(msg);
         } finally { setProcessing(false); }
     };
 
@@ -182,9 +188,10 @@ function ApprovalsQueue() {
         }));
         const failed = results.filter(r => !r.ok);
         const done = results.length - failed.length;
-        if (!failed.length) showSuccess(`Approved ${done} request${done === 1 ? '' : 's'}.`);
-        else if (!done) showError(`None of the ${failed.length} requests could be approved.`);
-        else showError(`Approved ${done}; ${failed.length} failed and are still selected.`);
+        if (!failed.length) toast.success(`${done} request${done === 1 ? '' : 's'} approved`);
+        else if (!done) toast.error('Nothing was approved', { description: `None of the ${failed.length} requests could be approved. They are still selected.` });
+        else toast.warning(`${done} approved, ${failed.length} failed`, { description: 'The failed requests are still selected so you can retry.' });
+        refreshPendingCounts();
         setSelectedIds(new Set(failed.map(f => f.id)));
         setBulkProcessing(false);
         load();
@@ -428,7 +435,7 @@ function ApprovalsQueue() {
                     onClose={() => setWaiveId(null)}
                     onWaived={result => {
                         setHistory(p => p.map(t => t.id === waiveId ? { ...t, ...result } : t));
-                        showSuccess('Receipt requirement waived.');
+                        toast.success('Receipt waived');
                     }}
                 />
             )}

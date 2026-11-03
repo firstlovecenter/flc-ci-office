@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { SessionProvider } from 'next-auth/react';
-import { Toaster } from 'sonner';
+import { SileoToaster } from '@/components/ui/sileo-toaster';
 import AutoLogout from '@/components/AutoLogout';
 
 export type ThemeMode = 'light' | 'dark' | 'system';
@@ -87,18 +87,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
     <SessionProvider refetchInterval={SESSION_REFRESH_INTERVAL_SECONDS} refetchOnWindowFocus={true}>
       <ThemeManager>
         <AutoLogout />
-        <Toaster
-          position="top-right"
-          toastOptions={{
-            classNames: {
-              toast: 'bg-card border border-border text-foreground shadow-lg rounded-xl',
-              title: 'font-semibold text-foreground',
-              description: 'text-muted-foreground text-sm',
-              success: 'border-success/30 [&_[data-icon]]:text-success',
-              error: 'border-destructive/30 [&_[data-icon]]:text-destructive',
-            },
-          }}
-        />
+        <SileoToaster />
         {children}
       </ThemeManager>
     </SessionProvider>

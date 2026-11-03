@@ -28,6 +28,12 @@ export const TRANSACTION_STATUS: Record<string, StatusInfo> = {
     CANCELLED: { label: 'Cancelled', tone: 'neutral' },
 };
 
+export const PUBLIC_REQUEST_STATUS: Record<string, StatusInfo> = {
+    PENDING: { label: 'New', tone: 'warning' },
+    PROCESSED: { label: 'Sent for approval', tone: 'success' },
+    REJECTED: { label: 'Rejected', tone: 'danger' },
+};
+
 export const TRANSACTION_TYPE: Record<string, StatusInfo> = {
     INCOME: { label: 'Deposit', tone: 'success' },
     EXPENSE: { label: 'Withdrawal', tone: 'neutral' },

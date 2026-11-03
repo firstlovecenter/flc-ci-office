@@ -2,21 +2,23 @@
 
 import { useState, useEffect, Suspense, useMemo } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { Plus, Search, Pencil, Trash2, Paperclip, Receipt, TrendingUp, Wallet, ArrowLeftRight, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Plus, Pencil, Trash2, Paperclip, Receipt, TrendingUp, Wallet, ArrowLeftRight, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useSession } from 'next-auth/react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Skeleton } from '@/components/ui/skeleton';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn, formatCurrency, isWeekLocked } from '@/lib/utils';
 import { isBankAccount } from '@/lib/org-model';
 import { formatMoney } from '@/lib/format-money';
 import { APP_CURRENCY } from '@/lib/currency-constants';
-import { transactionStatusLabel, TOTALS_IN_LABEL, TOTALS_OUT_LABEL, BALANCE_LABEL } from '@/lib/labels';
+import { TOTALS_IN_LABEL, TOTALS_OUT_LABEL, BALANCE_LABEL } from '@/lib/labels';
 import { runningBalances, canShowRunningBalance } from '@/lib/ledger';
-import { useToast } from '@/components/ToastProvider';
+import { toast } from '@/lib/toast';
+import { refreshPendingCounts } from '@/lib/pending-counts';
+import PageHeader from '@/components/ui/PageHeader';
+import { StatusBadge, TRANSACTION_STATUS, TRANSACTION_TYPE } from '@/components/ui/status';
+import { DetailGrid, RecordSheet, SheetSection } from '@/components/ui/record-sheet';
+import { FilterPills, ListSkeleton, ListToolbar } from '@/components/ui/list-toolbar';
+import { useUrlState } from '@/hooks/useUrlState';
 import { useWithdrawalEligibility } from '@/hooks/useWithdrawalEligibility';
 import { canCancelRequest, displayStatus } from '@/lib/cancel-request';
 import EditTransactionDialog from '@/components/EditTransactionDialog';
@@ -45,13 +47,6 @@ type TransactionWithDetails = {
     createdAt: string; updatedAt: string;
 };
 
-function statusBadgeVariant(status: string): 'success' | 'warning' | 'destructive' | 'secondary' {
-    if (status === 'APPROVED') return 'success';
-    if (status === 'PENDING') return 'warning';
-    if (status === 'CANCELLED') return 'secondary';
-    return 'destructive';
-}
-
 function SummaryCard({ title, value, symbol, Icon, colorClass }: { title: string; value: string; symbol?: string; Icon: any; colorClass: string }) {
     return (
         <div className="rounded-xl border border-border bg-card p-4">
@@ -68,7 +63,6 @@ function SummaryCard({ title, value, symbol, Icon, colorClass }: { title: string
 }
 
 function TransactionsPageContent() {
-    const { showSuccess, showError } = useToast();
     const { data: session } = useSession();
     const router = useRouter();
     const searchParams = useSearchParams();
@@ -82,10 +76,11 @@ function TransactionsPageContent() {
     const [organisation, setOrganisation] = useState<any>(null);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState(searchParams?.get('search') || '');
-    const [typeFilter, setTypeFilter] = useState('ALL');
-    const [approvalFilter, setApprovalFilter] = useState('ALL');
+    // Filters and the open entry live in the URL so a view can be linked to.
+    const [typeFilter, setTypeFilter] = useUrlState('type', 'ALL');
+    const [approvalFilter, setApprovalFilter] = useUrlState('status', 'ALL');
+    const [openId, setOpenId] = useUrlState('id');
     const [editDialog, setEditDialog] = useState<{ open: boolean; transaction: any }>({ open: false, transaction: null });
-    const [detailsDialog, setDetailsDialog] = useState<{ open: boolean; transaction: any }>({ open: false, transaction: null });
     const [receiptDialog, setReceiptDialog] = useState<{ open: boolean; transactionId: string | null }>({ open: false, transactionId: null });
     const [waiveDialog, setWaiveDialog] = useState<{ open: boolean; transactionId: string | null }>({ open: false, transactionId: null });
     const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; transaction: TransactionWithDetails | null }>({ open: false, transaction: null });
@@ -157,17 +152,17 @@ function TransactionsPageContent() {
     const performDelete = async (id: string) => {
         try {
             const r = await fetch(`/api/transactions/${id}`, { method: 'DELETE' });
-            if (r.ok) { showSuccess('Transaction deleted'); fetchTransactions(); fetchSummary(); }
-            else { const d = await r.json(); showError(d.error || 'Failed to delete'); }
-        } catch { showError('Error deleting transaction'); }
+            if (r.ok) { toast.success('Entry deleted'); setOpenId(null); fetchTransactions(); fetchSummary(); refreshPendingCounts(); }
+            else { const d = await r.json(); toast.error(d.error || 'Couldn’t delete this entry'); }
+        } catch { toast.error('Couldn’t delete this entry'); }
     };
 
     const performCancel = async (id: string) => {
         try {
             const r = await fetch(`/api/transactions/${id}/cancel`, { method: 'POST' });
-            if (r.ok) { showSuccess('Withdrawal request cancelled'); fetchTransactions(); fetchSummary(); eligibility.refresh(); }
-            else { const d = await r.json().catch(() => ({})); showError(d.error || 'Failed to cancel request'); fetchTransactions(); }
-        } catch { showError('Error cancelling request'); }
+            if (r.ok) { toast.success('Request cancelled'); setOpenId(null); fetchTransactions(); fetchSummary(); eligibility.refresh(); refreshPendingCounts(); }
+            else { const d = await r.json().catch(() => ({})); toast.error(d.error || 'Couldn’t cancel this request'); fetchTransactions(); }
+        } catch { toast.error('Couldn’t cancel this request'); }
     };
 
     const canEditTransaction = (tx: any) => {
@@ -194,47 +189,34 @@ function TransactionsPageContent() {
         [transactions, openingBalance],
     );
 
+    const openTx = transactions.find(t => t.id === openId) ?? null;
+
     const balance = Number(summary.balance);
     const balanceColor = balance < 0 ? 'text-destructive' : balance < 5000 ? 'text-warning' : 'text-success';
     const fmtAmt = (tx: TransactionWithDetails) => formatCurrency(Number(tx.amountInBase || tx.amount), baseCurrency.code, baseCurrency.symbol);
 
     return (
         <div>
-            {/* Header */}
-            <div className="flex justify-between items-start sm:items-end flex-wrap gap-4 mb-8 pb-6 border-b border-border">
-                <div className="flex items-center gap-4 min-w-0 flex-1">
-                    <div className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0 bg-secondary text-muted-foreground"><Receipt className="h-5 w-5" /></div>
-                    <div className="min-w-0">
-                        <p className="text-[0.6875rem] font-medium uppercase tracking-[0.10em] text-muted-foreground mb-0.5">Ledger</p>
-                        <h1 className="text-[1.625rem] sm:text-[1.875rem] font-semibold tracking-[-0.025em] text-foreground">
-                            {organisation?.name || 'Transaction history'}
-                        </h1>
-                        <p className="text-sm text-muted-foreground mt-0.5">
-                            {organisation
-                                ? (isBankAccount(organisation.level)
-                                    ? 'Entries on this bank account.'
-                                    : 'Including related churches.')
-                                : 'Every entry, recorded and reconciled.'}
-                        </p>
+            <PageHeader
+                eyebrow="Ledger"
+                title={organisation?.name || 'Transaction history'}
+                subtitle={organisation
+                    ? (isBankAccount(organisation.level) ? 'Entries on this bank account.' : 'Including related churches.')
+                    : 'Every entry, recorded and reconciled.'}
+                actions={(
+                    // Gated at the trigger: a blocked leader is told why up front
+                    // instead of opening a form only to be refused on submit.
+                    <div className="flex flex-col items-start gap-1.5 sm:items-end">
+                        <Button className="rounded-full" disabled={eligibility.loading || !eligibility.canSubmit} onClick={() => setNewOpen(true, isLeader ? 'expense' : undefined)}>
+                            <Plus className="mr-1.5 h-4 w-4" />
+                            {isLeader ? 'Request withdrawal' : 'New transaction'}
+                        </Button>
+                        {!eligibility.loading && eligibility.reason && (
+                            <p className="max-w-[260px] text-xs font-medium text-warning sm:text-right">{eligibility.reason}</p>
+                        )}
                     </div>
-                </div>
-                {/* Gated at the trigger: a blocked leader is told why up front
-                    instead of opening a form only to be refused on submit. */}
-                <div className="flex flex-col items-start sm:items-end gap-1.5">
-                    <Button
-                        disabled={eligibility.loading || !eligibility.canSubmit}
-                        onClick={() => setNewOpen(true, isLeader ? 'expense' : undefined)}
-                    >
-                        <Plus className="mr-1.5 h-4 w-4" />
-                        {isLeader ? 'Request withdrawal' : 'New transaction'}
-                    </Button>
-                    {!eligibility.loading && eligibility.reason && (
-                        <p className="text-xs text-warning font-medium max-w-[260px] sm:text-right">
-                            {eligibility.reason}
-                        </p>
-                    )}
-                </div>
-            </div>
+                )}
+            />
 
             {/* Summary */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
@@ -243,30 +225,49 @@ function TransactionsPageContent() {
                 <SummaryCard title={TOTALS_OUT_LABEL} value={Number(summary.expense).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} symbol={baseCurrency.symbol} Icon={TrendingUp} colorClass="text-destructive" />
             </div>
 
-            {/* Filters */}
-            <div className="rounded-xl border border-border bg-card p-3 mb-4 flex flex-wrap gap-3 items-center">
-                <div className="relative flex-1 min-w-[200px]">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-                    <Input placeholder="Search transactions…" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="pl-9 rounded-full" />
+            <div className="mb-3 flex flex-col gap-3">
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                    <FilterPills
+                        label="Status"
+                        value={approvalFilter}
+                        onChange={setApprovalFilter}
+                        options={[
+                            { value: 'ALL', label: 'All' },
+                            { value: 'PENDING', label: 'Pending' },
+                            { value: 'APPROVED', label: 'Approved' },
+                            { value: 'REJECTED', label: 'Declined' },
+                            { value: 'CANCELLED', label: 'Cancelled' },
+                        ]}
+                    />
+                    <span aria-hidden className="hidden h-5 w-px bg-border sm:block" />
+                    <FilterPills
+                        label="Type"
+                        value={typeFilter}
+                        onChange={setTypeFilter}
+                        options={[
+                            { value: 'ALL', label: 'All types' },
+                            { value: 'INCOME', label: 'Deposits' },
+                            { value: 'EXPENSE', label: 'Withdrawals' },
+                        ]}
+                    />
                 </div>
-                <Select value={typeFilter} onValueChange={setTypeFilter}>
-                    <SelectTrigger className="w-[130px]"><SelectValue placeholder="Type" /></SelectTrigger>
-                    <SelectContent><SelectItem value="ALL">All Types</SelectItem><SelectItem value="INCOME">Deposit</SelectItem><SelectItem value="EXPENSE">Withdrawal</SelectItem></SelectContent>
-                </Select>
-                <Select value={approvalFilter} onValueChange={setApprovalFilter}>
-                    <SelectTrigger className="w-[130px]"><SelectValue placeholder="Status" /></SelectTrigger>
-                    <SelectContent><SelectItem value="ALL">All</SelectItem><SelectItem value="PENDING">Pending</SelectItem><SelectItem value="APPROVED">Approved</SelectItem><SelectItem value="REJECTED">Declined</SelectItem><SelectItem value="CANCELLED">Cancelled</SelectItem></SelectContent>
-                </Select>
+                <ListToolbar
+                    search={searchTerm}
+                    onSearch={setSearchTerm}
+                    placeholder="Search descriptions"
+                    count={loading ? null : totalCount}
+                    countLabel={totalCount === 1 ? 'entry' : 'entries'}
+                />
             </div>
 
             {loading ? (
-                <div className="flex flex-col gap-2">{[1,2,3,4,5].map(i => <Skeleton key={i} className="h-14 w-full rounded-xl" />)}</div>
+                <ListSkeleton rows={6} />
             ) : (
                 <>
                     {/* Mobile */}
                     <div className="md:hidden flex flex-col gap-2">
                         {filteredTransactions.map(tx => (
-                            <button key={tx.id} onClick={() => setDetailsDialog({ open: true, transaction: tx })}
+                            <button key={tx.id} onClick={() => setOpenId(tx.id)}
                                 className={cn('w-full text-left rounded-xl border border-border bg-card px-4 py-3 hover:bg-muted/10 transition-colors',
                                     tx.status === 'PENDING' && 'border-warning/30 bg-warning/5',
                                     displayStatus(tx) === 'REJECTED' && 'border-destructive/30 bg-destructive/5 opacity-70',
@@ -282,7 +283,7 @@ function TransactionsPageContent() {
                                         <p className={cn('font-bold text-sm', tx.type === 'INCOME' ? 'text-success' : 'text-destructive')}>
                                             {tx.type === 'INCOME' ? '+' : '−'}{fmtAmt(tx)}
                                         </p>
-                                        <Badge variant={statusBadgeVariant(displayStatus(tx))} className="text-[0.65rem] h-4 mt-0.5">{transactionStatusLabel(displayStatus(tx))}</Badge>
+                                        <StatusBadge map={TRANSACTION_STATUS} status={displayStatus(tx)} className="mt-0.5 text-[0.65rem]" />
                                     </div>
                                 </div>
                             </button>
@@ -290,12 +291,12 @@ function TransactionsPageContent() {
                         {filteredTransactions.length === 0 && (
                             <EmptyState bare icon={<Receipt />} title="No transactions found"
                                 description={searchTerm || typeFilter !== 'ALL' || approvalFilter !== 'ALL' ? 'No entries match the current filters.' : 'Nothing has been recorded on this account yet.'}
-                                action={(searchTerm || typeFilter !== 'ALL' || approvalFilter !== 'ALL') ? <Button variant="outline" size="sm" onClick={() => { setSearchTerm(''); setTypeFilter('ALL'); setApprovalFilter('ALL'); }}>Clear filters</Button> : undefined} />
+                                action={(searchTerm || typeFilter !== 'ALL' || approvalFilter !== 'ALL') ? <Button variant="outline" size="sm" onClick={() => { setSearchTerm(''); setTypeFilter(null); setApprovalFilter(null); }}>Clear filters</Button> : undefined} />
                         )}
                     </div>
 
                     {/* Desktop table */}
-                    <div className="hidden md:block rounded-xl border border-border bg-card overflow-hidden">
+                    <div className="hidden md:block rounded-2xl border border-border bg-card overflow-hidden shadow-xs">
                         <div className="overflow-x-auto">
                             <table className="w-full text-sm">
                                 <thead>
@@ -309,7 +310,7 @@ function TransactionsPageContent() {
                                     {filteredTransactions.map(tx => {
                                         const runBalance = runningBalanceById.get(tx.id) ?? 0;
                                         return (
-                                            <tr key={tx.id} onClick={() => setDetailsDialog({ open: true, transaction: tx })}
+                                            <tr key={tx.id} onClick={() => setOpenId(tx.id)}
                                                 className={cn('border-t border-border cursor-pointer hover:bg-muted/10 transition-colors',
                                                     tx.status === 'PENDING' && 'bg-warning/5',
                                                     displayStatus(tx) === 'REJECTED' && 'bg-destructive/5 opacity-70',
@@ -359,7 +360,7 @@ function TransactionsPageContent() {
                                         <tr><td colSpan={isAdmin ? 6 : 5}>
                                             <EmptyState bare icon={<Receipt />} title="No transactions found"
                                                 description={searchTerm || typeFilter !== 'ALL' || approvalFilter !== 'ALL' ? 'No entries match the current filters.' : 'Nothing has been recorded on this account yet.'}
-                                                action={(searchTerm || typeFilter !== 'ALL' || approvalFilter !== 'ALL') ? <Button variant="outline" size="sm" onClick={() => { setSearchTerm(''); setTypeFilter('ALL'); setApprovalFilter('ALL'); }}>Clear filters</Button> : undefined} />
+                                                action={(searchTerm || typeFilter !== 'ALL' || approvalFilter !== 'ALL') ? <Button variant="outline" size="sm" onClick={() => { setSearchTerm(''); setTypeFilter(null); setApprovalFilter(null); }}>Clear filters</Button> : undefined} />
                                         </td></tr>
                                     )}
                                 </tbody>
@@ -390,99 +391,114 @@ function TransactionsPageContent() {
                 </div>
             )}
 
-            {/* Details dialog */}
-            <Dialog open={detailsDialog.open} onOpenChange={v => { if (!v) setDetailsDialog({ open: false, transaction: null }); }}>
-                <DialogContent className="max-w-lg">
-                    <DialogHeader><DialogTitle>Transaction Details</DialogTitle></DialogHeader>
-                    {detailsDialog.transaction && (() => {
-                        const tx = detailsDialog.transaction;
-                        const receipts = tx.files || [];
-                        const hasReceipt = receipts.length > 0;
-                        const isOwner = session?.user?.id === tx.userId;
-                        const canUpload = tx.status === 'APPROVED' && !tx.receiptWaived && (isOwner || canUploadReceiptAsAdmin);
-                        // Only the approving admin (not the requester) may waive the receipt requirement.
-                        const canWaive = tx.status === 'APPROVED' && !hasReceipt && !tx.receiptWaived && canUploadReceiptAsAdmin;
-                        return (
-                            <div className="space-y-4 pt-2">
-                                <div><p className="text-xs text-muted-foreground mb-0.5">Description</p><p className="font-semibold text-foreground">{tx.description}</p></div>
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div><p className="text-xs text-muted-foreground mb-0.5">Amount</p><p className={cn('text-xl font-bold', tx.type === 'INCOME' ? 'text-success' : 'text-destructive')}>{tx.type === 'INCOME' ? '+' : '−'}{fmtAmt(tx)}</p></div>
-                                    <div><p className="text-xs text-muted-foreground mb-1">Status</p><Badge variant={statusBadgeVariant(displayStatus(tx))}>{transactionStatusLabel(displayStatus(tx))}</Badge></div>
-                                </div>
-                                <div><p className="text-xs text-muted-foreground mb-0.5">Church</p><p className="text-foreground">{tx.organisation?.name}</p></div>
-                                <div><p className="text-xs text-muted-foreground mb-0.5">Submitted By</p><p className="text-foreground font-medium">{tx.user?.name}</p><p className="text-xs text-muted-foreground">{tx.user?.email}</p></div>
-                                <div><p className="text-xs text-muted-foreground mb-0.5">Date</p><p className="text-foreground">{new Date(tx.createdAt).toLocaleString()}</p></div>
-                                {tx.type === 'EXPENSE' && !tx.isCharge && (
-                                    <div className="pt-3 border-t border-border">
-                                        <p className="text-xs text-muted-foreground mb-2">Receipt{receipts.length > 1 ? 's' : ''}</p>
-                                        {hasReceipt ? (
-                                            <div className="space-y-3">
-                                                {receipts.map((receipt: any) => (
-                                                    <div key={receipt.id}>
-                                                        {receipt.fileMime?.startsWith('image/') ? (
-                                                            <a href={receipt.fileUrl} target="_blank" rel="noopener noreferrer">
-                                                                <img src={receipt.fileUrl} alt={receipt.fileName} className="max-w-full max-h-[240px] rounded-lg border border-border cursor-zoom-in" />
-                                                            </a>
-                                                        ) : (
-                                                            <a href={receipt.fileUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline">
-                                                                <Paperclip className="h-3.5 w-3.5" />{receipt.fileName}
-                                                            </a>
-                                                        )}
-                                                        <p className="text-xs text-muted-foreground mt-1">
-                                                            Uploaded by {receipt.uploader?.name || receipt.uploader?.email || 'unknown'} · {new Date(receipt.uploadedAt).toLocaleString()}{receipt.fileSize ? ` · ${formatMoney(receipt.fileSize / 1024, 0)} KB` : ''}
-                                                        </p>
-                                                    </div>
-                                                ))}
+            {/* Details beside the list */}
+            <RecordSheet
+                open={!!openTx}
+                onClose={() => setOpenId(null)}
+                title={openTx?.description ?? ''}
+                badges={openTx && <StatusBadge map={TRANSACTION_STATUS} status={displayStatus(openTx)} />}
+                description={openTx ? `${openTx.organisation?.name} · ${new Date(openTx.createdAt).toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}` : undefined}
+                actions={openTx && (canCancelRequest(openTx, session?.user?.id) || (isAdmin && (canEditTransaction(openTx) || isSuperAdmin))) ? (
+                    <>
+                        {canCancelRequest(openTx, session?.user?.id) && (
+                            <Button variant="outline" className="flex-1 rounded-full border-destructive/30 text-destructive hover:bg-destructive/10" onClick={() => setCancelDialog({ open: true, transaction: openTx })}>Cancel request</Button>
+                        )}
+                        {isAdmin && canEditTransaction(openTx) && (
+                            <Button variant="outline" className="flex-1 rounded-full" onClick={() => setEditDialog({ open: true, transaction: openTx })}><Pencil className="mr-1.5 h-4 w-4" />Edit</Button>
+                        )}
+                        {isAdmin && isSuperAdmin && (
+                            <Button variant="outline" className="rounded-full border-destructive/30 text-destructive hover:bg-destructive/10" onClick={() => setDeleteDialog({ open: true, transaction: openTx })}><Trash2 className="mr-1.5 h-4 w-4" />Delete</Button>
+                        )}
+                    </>
+                ) : undefined}
+            >
+                {openTx && (() => {
+                    const tx = openTx;
+                    const receipts = tx.files || [];
+                    const hasReceipt = receipts.length > 0;
+                    const isOwner = session?.user?.id === tx.userId;
+                    const canUpload = tx.status === 'APPROVED' && !tx.receiptWaived && (isOwner || canUploadReceiptAsAdmin);
+                    // Only the approving admin (not the requester) may waive the receipt requirement.
+                    const canWaive = tx.status === 'APPROVED' && !hasReceipt && !tx.receiptWaived && canUploadReceiptAsAdmin;
+                    return (
+                        <>
+                            <div className="rounded-2xl bg-secondary/60 p-4">
+                                <p className="text-xs text-muted-foreground">Amount</p>
+                                <p className={cn('text-2xl font-semibold tabular-nums tracking-tight', tx.type === 'INCOME' ? 'text-success' : 'text-foreground')}>
+                                    {tx.type === 'INCOME' ? '+' : '−'}{fmtAmt(tx)}
+                                </p>
+                                {canCancelRequest(tx, session?.user?.id) && (
+                                    <p className="mt-1 text-xs text-muted-foreground">You can cancel this request until a manager approves or declines it.</p>
+                                )}
+                            </div>
+                            <SheetSection title="Entry">
+                                <DetailGrid items={[
+                                    { label: 'Type', value: <StatusBadge map={TRANSACTION_TYPE} status={tx.type} /> },
+                                    { label: 'Church', value: tx.organisation?.name },
+                                    { label: 'Submitted by', value: tx.user?.name },
+                                    { label: 'Email', value: tx.user?.email },
+                                    tx.transferId && { label: 'Transfer', value: tx.transferDirection === 'OUT' ? 'Transfer out' : 'Transfer in' },
+                                    !!tx.weekNumber && { label: 'Week', value: `Week ${tx.weekNumber}, ${tx.year}${tx.locked ? ' · locked' : ''}` },
+                                ]} />
+                            </SheetSection>
+                            {tx.type === 'EXPENSE' && !tx.isCharge && (
+                                <SheetSection
+                                    title={`Receipt${receipts.length > 1 ? 's' : ''}`}
+                                    action={hasReceipt && canUpload ? (
+                                        <Button variant="ghost" size="sm" className="h-7 rounded-full" onClick={() => setReceiptDialog({ open: true, transactionId: tx.id })}>
+                                            <Paperclip className="mr-1 h-3.5 w-3.5" />Add
+                                        </Button>
+                                    ) : undefined}
+                                >
+                                    {hasReceipt ? (
+                                        <div className="space-y-3">
+                                            {receipts.map(receipt => (
+                                                <div key={receipt.id}>
+                                                    {receipt.fileMime?.startsWith('image/') ? (
+                                                        <a href={receipt.fileUrl} target="_blank" rel="noopener noreferrer">
+                                                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                                                            <img src={receipt.fileUrl} alt={receipt.fileName} className="max-h-[240px] max-w-full cursor-zoom-in rounded-xl border border-border" />
+                                                        </a>
+                                                    ) : (
+                                                        <a href={receipt.fileUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline">
+                                                            <Paperclip className="h-3.5 w-3.5" />{receipt.fileName}
+                                                        </a>
+                                                    )}
+                                                    <p className="mt-1 text-xs text-muted-foreground">
+                                                        Uploaded by {receipt.uploader?.name || receipt.uploader?.email || 'unknown'} · {new Date(receipt.uploadedAt).toLocaleString()}{receipt.fileSize ? ` · ${formatMoney(receipt.fileSize / 1024, 0)} KB` : ''}
+                                                    </p>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    ) : tx.receiptWaived ? (
+                                        <div className="rounded-xl border border-dashed border-border p-3">
+                                            <p className="text-sm font-medium text-foreground">Receipt requirement waived</p>
+                                            <p className="mt-1 text-xs text-muted-foreground">
+                                                By {tx.receiptWaivedByUser?.name || tx.receiptWaivedByUser?.email || 'an admin'}{tx.receiptWaivedAt ? ` · ${new Date(tx.receiptWaivedAt).toLocaleString()}` : ''}
+                                            </p>
+                                            {tx.receiptWaivedReason && <p className="mt-1 text-xs text-muted-foreground">Reason: {tx.receiptWaivedReason}</p>}
+                                        </div>
+                                    ) : (
+                                        <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-dashed border-border p-3">
+                                            <p className="text-sm text-muted-foreground">{tx.status !== 'APPROVED' ? 'Receipts can be added after approval.' : 'No receipt attached yet.'}</p>
+                                            <div className="flex gap-2">
                                                 {canUpload && (
-                                                    <Button variant="outline" size="sm" onClick={() => { setDetailsDialog({ open: false, transaction: null }); setTimeout(() => setReceiptDialog({ open: true, transactionId: tx.id }), 100); }}>
-                                                        <Paperclip className="mr-1.5 h-3.5 w-3.5" />Add receipts
-                                                    </Button>
-                                                )}
-                                            </div>
-                                        ) : tx.receiptWaived ? (
-                                            <div className="rounded-lg border border-dashed border-border bg-muted/20 p-3">
-                                                <p className="text-sm font-medium text-foreground">Receipt requirement waived</p>
-                                                <p className="text-xs text-muted-foreground mt-1">
-                                                    Waived by {tx.receiptWaivedByUser?.name || tx.receiptWaivedByUser?.email || 'an admin'}{tx.receiptWaivedAt ? ` · ${new Date(tx.receiptWaivedAt).toLocaleString()}` : ''}
-                                                </p>
-                                                {tx.receiptWaivedReason && <p className="text-xs text-muted-foreground mt-1">Reason: {tx.receiptWaivedReason}</p>}
-                                            </div>
-                                        ) : canUpload || canWaive ? (
-                                            <div className="flex flex-wrap gap-2">
-                                                {canUpload && (
-                                                    <Button variant="outline" size="sm" onClick={() => { setDetailsDialog({ open: false, transaction: null }); setTimeout(() => setReceiptDialog({ open: true, transactionId: tx.id }), 100); }}>
-                                                        <Paperclip className="mr-1.5 h-3.5 w-3.5" />Upload receipts
+                                                    <Button variant="outline" size="sm" className="rounded-full" onClick={() => setReceiptDialog({ open: true, transactionId: tx.id })}>
+                                                        <Paperclip className="mr-1.5 h-3.5 w-3.5" />Upload
                                                     </Button>
                                                 )}
                                                 {canWaive && (
-                                                    <Button variant="outline" size="sm" onClick={() => { setDetailsDialog({ open: false, transaction: null }); setTimeout(() => setWaiveDialog({ open: true, transactionId: tx.id }), 100); }}>
-                                                        Waive Receipt Requirement
-                                                    </Button>
+                                                    <Button variant="outline" size="sm" className="rounded-full" onClick={() => setWaiveDialog({ open: true, transactionId: tx.id })}>Waive</Button>
                                                 )}
                                             </div>
-                                        ) : (
-                                            <p className="text-sm text-muted-foreground">{tx.status !== 'APPROVED' ? 'Available after approval.' : 'No receipt attached.'}</p>
-                                        )}
-                                    </div>
-                                )}
-                                {canCancelRequest(tx, session?.user?.id) && (
-                                    <div className="flex flex-col gap-1.5 pt-3 border-t border-border">
-                                        <Button variant="outline" className="w-full text-destructive hover:text-destructive" onClick={() => { setDetailsDialog({ open: false, transaction: null }); setCancelDialog({ open: true, transaction: tx }); }}>Cancel request</Button>
-                                        <p className="text-xs text-muted-foreground">You can cancel this request until a manager approves or declines it.</p>
-                                    </div>
-                                )}
-                                {isAdmin && (
-                                    <div className="flex gap-2 pt-3 border-t border-border">
-                                        {canEditTransaction(tx) && <Button variant="outline" className="flex-1" onClick={() => { setDetailsDialog({ open: false, transaction: null }); setEditDialog({ open: true, transaction: tx }); }}>Edit Transaction</Button>}
-                                        {isSuperAdmin && <Button variant="destructive" className="flex-1" onClick={() => { setDetailsDialog({ open: false, transaction: null }); setDeleteDialog({ open: true, transaction: tx }); }}>Delete</Button>}
-                                    </div>
-                                )}
-                            </div>
-                        );
-                    })()}
-                    <DialogFooter><Button variant="outline" onClick={() => setDetailsDialog({ open: false, transaction: null })}>Close</Button></DialogFooter>
-                </DialogContent>
-            </Dialog>
+                                        </div>
+                                    )}
+                                </SheetSection>
+                            )}
+                        </>
+                    );
+                })()}
+            </RecordSheet>
 
             <ConfirmDialog
                 open={deleteDialog.open}
@@ -527,10 +543,10 @@ function TransactionsPageContent() {
                 organisationId={deptParam}
                 defaultType={newDefaultType}
                 isLeader={isLeader}
-                onCreated={() => { fetchTransactions(); fetchSummary(); eligibility.refresh(); }}
+                onCreated={() => { fetchTransactions(); fetchSummary(); eligibility.refresh(); refreshPendingCounts(); }}
             />
 
-            <EditTransactionDialog open={editDialog.open} transaction={editDialog.transaction} onClose={() => setEditDialog({ open: false, transaction: null })} onSave={() => { showSuccess('Transaction updated'); fetchTransactions(); fetchSummary(); }} isSuperAdmin={isSuperAdmin} userRole={session?.user?.role} />
+            <EditTransactionDialog open={editDialog.open} transaction={editDialog.transaction} onClose={() => setEditDialog({ open: false, transaction: null })} onSave={() => { toast.success('Entry updated'); fetchTransactions(); fetchSummary(); refreshPendingCounts(); }} isSuperAdmin={isSuperAdmin} userRole={session?.user?.role} />
 
             {receiptDialog.transactionId && (
                 <ReceiptUpload
@@ -539,13 +555,10 @@ function TransactionsPageContent() {
                     onClose={() => setReceiptDialog({ open: false, transactionId: null })}
                     onUploaded={uploaded => {
                         const id = receiptDialog.transactionId;
-                        setDetailsDialog(p => p.transaction?.id === id
-                            ? { ...p, transaction: { ...p.transaction, files: [...(p.transaction.files || []), ...uploaded] } }
-                            : p);
                         setTransactions(p => p.map(t => t.id === id
                             ? { ...t, files: [...(t.files || []), ...(uploaded as any[])] }
                             : t));
-                        showSuccess(uploaded.length > 1 ? `${uploaded.length} receipts uploaded.` : 'Receipt uploaded.');
+                        toast.success(uploaded.length > 1 ? `${uploaded.length} receipts uploaded` : 'Receipt uploaded');
                     }}
                 />
             )}
@@ -556,9 +569,8 @@ function TransactionsPageContent() {
                     transactionId={waiveDialog.transactionId}
                     onClose={() => setWaiveDialog({ open: false, transactionId: null })}
                     onWaived={result => {
-                        setDetailsDialog(p => p.transaction?.id === waiveDialog.transactionId ? { ...p, transaction: { ...p.transaction, ...result } } : p);
                         setTransactions(p => p.map(t => t.id === waiveDialog.transactionId ? { ...t, ...result } : t));
-                        showSuccess('Receipt requirement waived.');
+                        toast.success('Receipt waived');
                     }}
                 />
             )}
@@ -568,7 +580,7 @@ function TransactionsPageContent() {
 
 export default function TransactionsPage() {
     return (
-        <Suspense fallback={<div className="flex flex-col gap-2">{[1,2,3].map(i => <Skeleton key={i} className="h-14 w-full rounded-xl" />)}</div>}>
+        <Suspense fallback={<ListSkeleton rows={6} />}>
             <TransactionsPageContent />
         </Suspense>
     );

@@ -1,17 +1,23 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
-import { CheckCircle, XCircle, Inbox, Loader2 } from 'lucide-react';
+import { CheckCircle, ChevronRight, Clock, Inbox, Loader2, XCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn, formatNumber } from '@/lib/utils';
-import { useToast } from '@/components/ToastProvider';
+import { toast } from '@/lib/toast';
+import { refreshPendingCounts } from '@/lib/pending-counts';
+import PageHeader from '@/components/ui/PageHeader';
+import EmptyState from '@/components/ui/EmptyState';
+import { PUBLIC_REQUEST_STATUS, StatusBadge } from '@/components/ui/status';
+import { DetailGrid, RecordSheet, SheetSection } from '@/components/ui/record-sheet';
+import { ErrorState, FilterPills, ListSkeleton, ListToolbar } from '@/components/ui/list-toolbar';
+import { useUrlState } from '@/hooks/useUrlState';
 
 interface PublicRequest {
     id: string; requesterName: string; churchName: string; momoName: string; momoNumber: string;
@@ -19,298 +25,303 @@ interface PublicRequest {
     createdAt: string; campusOrganisationId: string; transactionId: string | null;
 }
 
-const statusBadgeVariant = (s: string): 'success' | 'destructive' | 'warning' => {
-    if (s === 'PROCESSED') return 'success';
-    if (s === 'REJECTED') return 'destructive';
-    return 'warning';
-};
+interface AccountOption { id: string; name: string }
 
-export default function PublicRequestsPage() {
+type Tab = 'PENDING' | 'PROCESSED' | 'REJECTED';
+const STALE_MS = 48 * 3600 * 1000;
+
+const ghs = (n: number | string) => `₵${formatNumber(Number(n))}`;
+
+function fmtDate(d: string) {
+    const dt = new Date(d);
+    return isNaN(dt.getTime()) ? '' : dt.toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
+
+function waited(from: string, now: number) {
+    const m = Math.floor(Math.max(0, now - new Date(from).getTime()) / 60000);
+    if (m < 60) return `${Math.max(1, m)}m`;
+    const h = Math.floor(m / 60);
+    return h < 24 ? `${h}h` : `${Math.floor(h / 24)}d`;
+}
+
+function PublicRequestsQueue() {
     const { data: session } = useSession();
     const router = useRouter();
-    const { showSuccess, showError } = useToast();
+
+    const [tab, setTab] = useUrlState('status', 'PENDING');
+    const [openId, setOpenId] = useUrlState('id');
+    const [search, setSearch] = useState('');
 
     const [requests, setRequests] = useState<PublicRequest[]>([]);
     const [loading, setLoading] = useState(true);
-    const [organisations, setOrganisations] = useState<any[]>([]);
-    const [loadingDepts, setLoadingDepts] = useState(false);
-    const [statusFilter, setStatusFilter] = useState('PENDING');
+    const [loadError, setLoadError] = useState('');
+    const [now, setNow] = useState(() => Date.now());
 
-    const [processDialog, setProcessDialog] = useState<{ open: boolean; request: PublicRequest | null }>({ open: false, request: null });
-    const [selectedDeptId, setSelectedDeptId] = useState('');
-    const [deptBalance, setDeptBalance] = useState<number | null>(null);
+    const [accounts, setAccounts] = useState<AccountOption[]>([]);
+    const [loadingAccounts, setLoadingAccounts] = useState(false);
+    const [accountId, setAccountId] = useState('');
+    const [balance, setBalance] = useState<number | null>(null);
     const [loadingBalance, setLoadingBalance] = useState(false);
     const [processing, setProcessing] = useState(false);
     const [processError, setProcessError] = useState('');
 
-    const [rejectDialog, setRejectDialog] = useState<{ open: boolean; request: PublicRequest | null }>({ open: false, request: null });
-    const [rejecting, setRejecting] = useState(false);
+    const [rejecting, setRejecting] = useState<PublicRequest | null>(null);
+    const [rejectBusy, setRejectBusy] = useState(false);
 
-    const normalizedRole = (session?.user?.role || '').toUpperCase();
-    const normalizedRoles = ((session?.user as any)?.roles || []).map((r: string) => r.toUpperCase());
-    const hasSuperAdminAccess = normalizedRole === 'SUPERADMIN' || normalizedRoles.includes('SUPERADMIN');
-    const hasCampusAdminAccess = normalizedRole === 'CAMPUS_ADMIN' || normalizedRoles.includes('CAMPUS_ADMIN');
-    const canProcessRequests = hasCampusAdminAccess;
+    const roles = [session?.user?.role, ...((session?.user as { roles?: string[] } | undefined)?.roles ?? [])]
+        .filter(Boolean).map(r => String(r).toUpperCase());
+    const isCampusAdmin = roles.includes('CAMPUS_ADMIN');
+    const isSuperAdmin = roles.includes('SUPERADMIN');
 
-    const fetchRequests = useCallback(async () => {
-        setLoading(true);
+    const load = useCallback(async () => {
+        setLoading(true); setLoadError('');
         try {
-            const res = await fetch(statusFilter ? `/api/public-expense?status=${statusFilter}` : '/api/public-expense');
+            const res = await fetch('/api/public-expense');
             if (!res.ok) throw new Error();
             const data = await res.json();
             setRequests(Array.isArray(data) ? data : []);
-        } catch { showError('Failed to load public expense requests.'); }
-        finally { setLoading(false); }
-    }, [statusFilter]);
+            setNow(Date.now());
+        } catch {
+            setLoadError('Public requests didn’t load. Check your connection and try again.');
+        } finally { setLoading(false); }
+    }, []);
 
     useEffect(() => {
         if (!session) return;
-        if (!hasCampusAdminAccess && !hasSuperAdminAccess) { router.replace('/dashboard'); return; }
-        fetchRequests();
-    }, [session, fetchRequests, hasCampusAdminAccess, hasSuperAdminAccess]);
+        if (!isCampusAdmin && !isSuperAdmin) { router.replace('/dashboard'); return; }
+        load();
+        if (isCampusAdmin) loadAccounts();
+    }, [session, isCampusAdmin, isSuperAdmin, router, load]);
 
-    const fetchOrganisations = async () => {
-        if (organisations.length > 0) return;
-        setLoadingDepts(true);
+    const byTab = useMemo(() => ({
+        PENDING: requests.filter(r => r.status === 'PENDING').sort((a, b) => +new Date(a.createdAt) - +new Date(b.createdAt)),
+        PROCESSED: requests.filter(r => r.status === 'PROCESSED').sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt)),
+        REJECTED: requests.filter(r => r.status === 'REJECTED').sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt)),
+    }), [requests]);
+
+    const activeTab = (['PENDING', 'PROCESSED', 'REJECTED'].includes(tab) ? tab : 'PENDING') as Tab;
+    const q = search.trim().toLowerCase();
+    const rows = byTab[activeTab].filter(r => !q ||
+        [r.requesterName, r.churchName, r.description, r.momoName, r.momoNumber].some(v => v?.toLowerCase().includes(q)));
+    const open = requests.find(r => r.id === openId) ?? null;
+
+    // Opening a pending request primes the account picker.
+    const openRequest = (r: PublicRequest) => {
+        setOpenId(r.id);
+        setAccountId(''); setBalance(null); setProcessError('');
+    };
+
+    const loadAccounts = async () => {
+        setLoadingAccounts(true);
         try {
             const res = await fetch('/api/organisations');
             const d = await res.json();
-            const accounts = (Array.isArray(d) ? d : []).filter((o: any) => o.level === 'COUNCIL');
-            setOrganisations(accounts);
-        }
-        catch { showError('Failed to load accounts.'); }
-        finally { setLoadingDepts(false); }
+            setAccounts((Array.isArray(d) ? d : []).filter((o: { level?: string }) => o.level === 'COUNCIL'));
+        } catch { toast.error('Couldn’t load accounts'); }
+        finally { setLoadingAccounts(false); }
     };
 
-    /**
-     * Ask the server for the balance instead of summing the ledger here.
-     *
-     * This used to fetch the account's transactions and add them up, which
-     * quietly meant "the most recent 500 of them" — the list endpoint is
-     * capped. An approver deciding whether an account can cover a request was
-     * being shown a partial balance on any account with a longer history.
-     */
-    const fetchBalance = async (deptId: string) => {
-        setLoadingBalance(true); setDeptBalance(null);
+    // The server computes the balance; summing a capped transaction list here
+    // used to under-report long-lived accounts.
+    const pickAccount = async (id: string) => {
+        setAccountId(id); setBalance(null); setLoadingBalance(true);
         try {
-            const res = await fetch(`/api/organisations/${deptId}/stats?exactLevel=true`, { cache: 'no-store' });
-            if (res.ok) {
-                const d = await res.json();
-                setDeptBalance(d?.balance != null ? Number(d.balance) : null);
-            }
-        } catch { setDeptBalance(null); }
+            const res = await fetch(`/api/organisations/${id}/stats?exactLevel=true`, { cache: 'no-store' });
+            const d = res.ok ? await res.json() : null;
+            setBalance(d?.balance != null ? Number(d.balance) : null);
+        } catch { setBalance(null); }
         finally { setLoadingBalance(false); }
     };
 
-    const openProcessDialog = (req: PublicRequest) => {
-        setProcessDialog({ open: true, request: req }); setSelectedDeptId(''); setDeptBalance(null); setProcessError(''); fetchOrganisations();
-    };
-    const closeProcessDialog = () => { setProcessDialog({ open: false, request: null }); setSelectedDeptId(''); setDeptBalance(null); setProcessError(''); };
+    const amount = open ? Number(open.amount) : 0;
+    const noBalance = balance !== null && balance <= 0;
+    const short = balance !== null && amount > balance;
 
-    const handleProcess = async () => {
-        if (!processDialog.request || !selectedDeptId) return;
-        setProcessError(''); setProcessing(true);
+    const process = async () => {
+        if (!open || !accountId) return;
+        setProcessing(true); setProcessError('');
         try {
-            const res = await fetch(`/api/public-expense/${processDialog.request.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'process', organisationId: selectedDeptId }) });
+            const res = await fetch(`/api/public-expense/${open.id}`, {
+                method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'process', organisationId: accountId }),
+            });
             const data = await res.json();
-            if (!res.ok) setProcessError(data.error || 'Failed to process request.');
-            else { showSuccess('Request processed. A pending expense transaction has been created.'); closeProcessDialog(); fetchRequests(); }
-        } catch { setProcessError('Network error. Please try again.'); }
+            if (!res.ok) { setProcessError(data.error || 'Couldn’t process this request.'); return; }
+            toast.success('Sent for approval', {
+                description: `${open.requesterName}’s request for ${ghs(open.amount)} is now a pending withdrawal.`,
+            });
+            setOpenId(null); load(); refreshPendingCounts();
+        } catch { setProcessError('Network error. Try again.'); }
         finally { setProcessing(false); }
     };
 
-    const handleReject = async () => {
-        if (!rejectDialog.request) return;
-        setRejecting(true);
+    const reject = async () => {
+        if (!rejecting) return;
+        setRejectBusy(true);
         try {
-            const res = await fetch(`/api/public-expense/${rejectDialog.request.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'reject' }) });
-            if (!res.ok) { const d = await res.json(); showError(d.error || 'Failed to reject request.'); }
-            else { showSuccess('Request rejected.'); setRejectDialog({ open: false, request: null }); fetchRequests(); }
-        } catch { showError('Network error. Please try again.'); }
-        finally { setRejecting(false); }
+            const res = await fetch(`/api/public-expense/${rejecting.id}`, {
+                method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'reject' }),
+            });
+            if (!res.ok) { const d = await res.json().catch(() => ({})); toast.error(d.error || 'Couldn’t reject this request'); return; }
+            toast.success('Request rejected', { description: `${rejecting.requesterName} · ${ghs(rejecting.amount)}` });
+            setRejecting(null); setOpenId(null); load(); refreshPendingCounts();
+        } catch { toast.error('Network error. Try again.'); }
+        finally { setRejectBusy(false); }
     };
-
-    const pendingCount = requests.filter(r => r.status === 'PENDING').length;
-    const requestAmount = processDialog.request ? Number(processDialog.request.amount) : 0;
-    const insufficientBalance = deptBalance !== null && requestAmount > deptBalance;
-    const noBalance = deptBalance !== null && deptBalance <= 0;
-
-    const filterButtons: { label: string; value: string }[] = [
-        { label: 'Pending', value: 'PENDING' }, { label: 'Processed', value: 'PROCESSED' },
-        { label: 'Rejected', value: 'REJECTED' }, { label: 'All', value: '' },
-    ];
 
     return (
         <div>
-            {/* Header */}
-            <div className="mb-6 flex items-start justify-between flex-wrap gap-3">
-                <div>
-                    <h1 className="text-[1.5rem] font-bold tracking-tight text-foreground">Public Expense Requests</h1>
-                    <p className="text-sm text-muted-foreground mt-0.5">Expense requests submitted by church members.</p>
-                </div>
-                {pendingCount > 0 && (
-                    <Badge variant="warning" className="gap-1.5 text-sm px-3 py-1">
-                        <Inbox className="h-4 w-4" />{pendingCount} pending
-                    </Badge>
-                )}
+            <PageHeader
+                eyebrow="Inbox"
+                title="Public requests"
+                subtitle="Expense requests church members send through the public form. Send one for approval by choosing the account it comes from."
+            />
+
+            <div className="mb-3 flex flex-col gap-3">
+                <FilterPills
+                    label="Status"
+                    value={activeTab}
+                    onChange={setTab}
+                    options={[
+                        { value: 'PENDING', label: 'New', count: byTab.PENDING.length },
+                        { value: 'PROCESSED', label: 'Sent for approval', count: byTab.PROCESSED.length },
+                        { value: 'REJECTED', label: 'Rejected', count: byTab.REJECTED.length },
+                    ]}
+                />
+                <ListToolbar
+                    search={search}
+                    onSearch={setSearch}
+                    placeholder="Search name, church, MoMo or reason"
+                    count={loading ? null : rows.length}
+                    countLabel={rows.length === 1 ? 'request' : 'requests'}
+                />
             </div>
 
-            {/* Filter tabs */}
-            <div className="flex gap-2 mb-5 flex-wrap">
-                {filterButtons.map(f => (
-                    <button
-                        key={f.value || 'all'}
-                        onClick={() => setStatusFilter(f.value)}
-                        className={cn(
-                            'px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors',
-                            statusFilter === f.value
-                                ? 'bg-primary text-primary-foreground border-primary'
-                                : 'bg-transparent text-muted-foreground border-border hover:bg-muted/20'
-                        )}
-                    >{f.label}</button>
-                ))}
-            </div>
-
-            {loading ? (
-                <div className="rounded-xl border border-border bg-card overflow-hidden">
-                    {[1, 2, 3].map(i => <div key={i} className="p-4 border-b border-border last:border-0"><Skeleton className="h-4 w-48 mb-1.5" /><Skeleton className="h-3 w-32" /></div>)}
-                </div>
-            ) : requests.length === 0 ? (
-                <div className="rounded-xl border border-border bg-card p-10 text-center">
-                    <Inbox className="h-12 w-12 text-muted-foreground/30 mx-auto mb-3" />
-                    <p className="text-muted-foreground">No {statusFilter.toLowerCase() || ''} requests found.</p>
-                </div>
+            {loading ? <ListSkeleton rows={4} /> : loadError ? <ErrorState message={loadError} onRetry={load} /> : rows.length === 0 ? (
+                <EmptyState
+                    icon={<Inbox />}
+                    title={q ? `Nothing matches “${search}”` : activeTab === 'PENDING' ? 'No new requests' : activeTab === 'PROCESSED' ? 'Nothing sent for approval yet' : 'No rejected requests'}
+                    description={q ? 'Try a name, a church, or a MoMo number.' : activeTab === 'PENDING' ? 'Requests from the public form appear here as soon as a member submits one.' : undefined}
+                    action={q ? <Button variant="outline" size="sm" className="rounded-full" onClick={() => setSearch('')}>Clear search</Button> : undefined}
+                />
             ) : (
-                <>
-                    {/* Mobile cards */}
-                    <div className="md:hidden flex flex-col gap-3">
-                        {requests.map(req => (
-                            <div key={req.id} className="rounded-xl border border-border bg-card p-4">
-                                <div className="flex justify-between items-start mb-2">
-                                    <p className="font-bold text-foreground">{req.requesterName}</p>
-                                    <Badge variant={statusBadgeVariant(req.status)}>{req.status}</Badge>
-                                </div>
-                                <p className="text-sm text-muted-foreground">{req.churchName}</p>
-                                <p className="text-sm mt-1">Amount: <strong>GH₵ {formatNumber(Number(req.amount))}</strong></p>
-                                <p className="text-sm text-muted-foreground mt-0.5 mb-2">{req.description}</p>
-                                <p className="text-xs text-muted-foreground/70">{new Date(req.createdAt).toLocaleDateString()}</p>
-                                {req.status === 'PENDING' && canProcessRequests && (
-                                    <div className="flex gap-2 mt-3">
-                                        <Button size="sm" className="bg-success text-success-foreground hover:bg-success/90" onClick={() => openProcessDialog(req)}><CheckCircle className="mr-1 h-3.5 w-3.5" />Process</Button>
-                                        <Button size="sm" variant="outline" className="border-destructive/30 text-destructive hover:bg-destructive/5" onClick={() => setRejectDialog({ open: true, request: req })}><XCircle className="mr-1 h-3.5 w-3.5" />Reject</Button>
-                                    </div>
-                                )}
-                            </div>
-                        ))}
-                    </div>
-
-                    {/* Desktop table */}
-                    <div className="hidden md:block rounded-xl border border-border bg-card overflow-hidden">
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-sm">
-                                <thead>
-                                    <tr className="bg-muted/30">
-                                        {['Requester', 'Church', 'Momo', 'Amount', 'Reason', 'Date', 'Status', ''].map(h => (
-                                            <th key={h} className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-[0.06em] text-muted-foreground whitespace-nowrap">{h}</th>
-                                        ))}
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {requests.map(req => (
-                                        <tr key={req.id} className="border-t border-border hover:bg-muted/10">
-                                            <td className="px-4 py-3 font-semibold text-foreground">{req.requesterName}</td>
-                                            <td className="px-4 py-3 text-muted-foreground">{req.churchName}</td>
-                                            <td className="px-4 py-3"><p className="text-foreground">{req.momoName}</p><p className="text-xs text-muted-foreground">{req.momoNumber}</p></td>
-                                            <td className="px-4 py-3 font-semibold">GH₵ {formatNumber(Number(req.amount))}</td>
-                                            <td className="px-4 py-3 max-w-[200px]"><p className="truncate text-muted-foreground">{req.description}</p></td>
-                                            <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">{new Date(req.createdAt).toLocaleDateString()}</td>
-                                            <td className="px-4 py-3"><Badge variant={statusBadgeVariant(req.status)}>{req.status}</Badge></td>
-                                            <td className="px-4 py-3">
-                                                {req.status === 'PENDING' && canProcessRequests && (
-                                                    <div className="flex gap-2 justify-end">
-                                                        <Button size="sm" className="bg-success text-success-foreground hover:bg-success/90" onClick={() => openProcessDialog(req)}><CheckCircle className="mr-1 h-3.5 w-3.5" />Process</Button>
-                                                        <Button size="sm" variant="outline" className="border-destructive/30 text-destructive hover:bg-destructive/5" onClick={() => setRejectDialog({ open: true, request: req })}><XCircle className="mr-1 h-3.5 w-3.5" />Reject</Button>
-                                                    </div>
-                                                )}
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </>
+                <ul className="divide-y divide-border overflow-hidden rounded-2xl border border-border bg-card shadow-xs">
+                    {rows.map(r => {
+                        const stale = r.status === 'PENDING' && now - +new Date(r.createdAt) > STALE_MS;
+                        return (
+                            <li key={r.id}>
+                                <button data-row onClick={() => openRequest(r)} className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-muted/40">
+                                    <span className="min-w-0 flex-1">
+                                        <span className="block truncate text-sm font-medium text-foreground">{r.description}</span>
+                                        <span className="block truncate text-xs text-muted-foreground">{r.requesterName} · {r.churchName}</span>
+                                    </span>
+                                    {r.status === 'PENDING' ? (
+                                        <span title={fmtDate(r.createdAt)} className={cn('hidden shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium tabular-nums sm:inline-flex', stale ? 'bg-warning/15 text-warning' : 'bg-secondary text-muted-foreground')}>
+                                            <Clock className="size-3" />{waited(r.createdAt, now)}
+                                        </span>
+                                    ) : (
+                                        <StatusBadge map={PUBLIC_REQUEST_STATUS} status={r.status} className="hidden sm:inline-flex" />
+                                    )}
+                                    <span className="w-28 shrink-0 text-right text-sm font-semibold tabular-nums text-foreground">{ghs(r.amount)}</span>
+                                    <ChevronRight className="size-4 shrink-0 text-muted-foreground/60" />
+                                </button>
+                            </li>
+                        );
+                    })}
+                </ul>
             )}
 
-            {/* Process dialog */}
-            <Dialog open={processDialog.open} onOpenChange={v => { if (!v) closeProcessDialog(); }}>
-                <DialogContent className="max-w-lg">
-                    <DialogHeader><DialogTitle className="font-bold">Process Expense Request</DialogTitle></DialogHeader>
-                    {processDialog.request && (
-                        <div className="space-y-4">
-                            <div>
-                                <p className="text-xs font-semibold uppercase tracking-[0.07em] text-muted-foreground mb-2">Request Details</p>
-                                <div className="rounded-lg border border-border bg-muted/20 p-3 space-y-1.5 text-sm">
-                                    {[
-                                        ['Requester', processDialog.request.requesterName],
-                                        ['Church', processDialog.request.churchName],
-                                        ['Momo Name', processDialog.request.momoName],
-                                        ['Momo No.', processDialog.request.momoNumber],
-                                        ['Reason', processDialog.request.description],
-                                    ].map(([k, v]) => (
-                                        <div key={k} className="flex gap-2"><span className="min-w-[100px] text-muted-foreground">{k}:</span><span className="font-medium text-foreground">{v}</span></div>
-                                    ))}
-                                    <div className="flex gap-2"><span className="min-w-[100px] text-muted-foreground">Amount:</span><span className="font-bold text-destructive">GH₵ {formatNumber(Number(processDialog.request.amount))}</span></div>
-                                </div>
-                            </div>
-                            <div className="border-t border-border pt-3">
-                                <p className="text-xs font-semibold uppercase tracking-[0.07em] text-muted-foreground mb-3">Select account to deduct from</p>
-                                <Select value={selectedDeptId} onValueChange={v => { setSelectedDeptId(v); if (v) fetchBalance(v); }} disabled={loadingDepts}>
-                                    <SelectTrigger><SelectValue placeholder={loadingDepts ? 'Loading...' : 'Select account'} /></SelectTrigger>
+            <RecordSheet
+                open={!!open}
+                onClose={() => setOpenId(null)}
+                title={open?.requesterName ?? ''}
+                badges={open && <StatusBadge map={PUBLIC_REQUEST_STATUS} status={open.status} />}
+                description={open ? `${open.churchName} · ${fmtDate(open.createdAt)}` : undefined}
+                actions={open?.status === 'PENDING' && isCampusAdmin ? (
+                    <>
+                        <Button
+                            className="flex-1 rounded-full bg-success text-success-foreground hover:bg-success/90"
+                            disabled={processing || !accountId || loadingBalance || noBalance || short}
+                            onClick={process}
+                        >
+                            {processing ? <><Loader2 className="mr-1.5 h-4 w-4 animate-spin" />Sending…</> : <><CheckCircle className="mr-1.5 h-4 w-4" />Send for approval</>}
+                        </Button>
+                        <Button variant="outline" className="rounded-full border-destructive/30 text-destructive hover:bg-destructive/10" onClick={() => setRejecting(open)}>
+                            <XCircle className="mr-1.5 h-4 w-4" />Reject
+                        </Button>
+                    </>
+                ) : undefined}
+            >
+                {open && (
+                    <>
+                        <div className="rounded-2xl bg-secondary/60 p-4">
+                            <p className="text-xs text-muted-foreground">Requested</p>
+                            <p className="text-2xl font-semibold tabular-nums tracking-tight text-foreground">{ghs(open.amount)}</p>
+                            <p className="mt-1 text-sm text-foreground">{open.description}</p>
+                        </div>
+                        <SheetSection title="Pay to">
+                            <DetailGrid items={[
+                                { label: 'MoMo name', value: open.momoName },
+                                { label: 'MoMo number', value: <span className="tabular-nums">{open.momoNumber}</span> },
+                                { label: 'Church', value: open.churchName },
+                                open.status === 'PENDING' && { label: 'Waiting', value: waited(open.createdAt, now) },
+                            ]} />
+                        </SheetSection>
+                        {open.status === 'PENDING' && isCampusAdmin && (
+                            <SheetSection title="Deduct from">
+                                <Select value={accountId} onValueChange={pickAccount} disabled={loadingAccounts}>
+                                    <SelectTrigger className="rounded-xl"><SelectValue placeholder={loadingAccounts ? 'Loading accounts…' : 'Choose an account'} /></SelectTrigger>
                                     <SelectContent>
-                                        {organisations.map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
+                                        {accounts.map(a => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}
                                     </SelectContent>
                                 </Select>
-                            </div>
-                            {selectedDeptId && (
-                                loadingBalance ? <Skeleton className="h-10 w-full" /> :
-                                deptBalance !== null ? (
-                                    <Alert variant={noBalance || insufficientBalance ? 'destructive' : 'default'}>
+                                {accountId && (loadingBalance ? <Skeleton className="h-10 w-full" /> : balance !== null && (
+                                    <Alert variant={noBalance || short ? 'destructive' : 'default'}>
                                         <AlertDescription>
-                                            {noBalance ? 'This account has no positive balance. Cannot process this request.'
-                                                : insufficientBalance ? `Insufficient balance. Available: GH₵ ${formatNumber(deptBalance)}. Requested: GH₵ ${formatNumber(requestAmount)}.`
-                                                : `Available balance: GH₵ ${formatNumber(deptBalance)}`}
+                                            {noBalance ? 'This account has no money in it, so it can’t cover the request.'
+                                                : short ? `Not enough in this account: ${ghs(balance)} available, ${ghs(amount)} requested.`
+                                                : `${ghs(balance)} available — enough to cover this request.`}
                                         </AlertDescription>
                                     </Alert>
-                                ) : null
-                            )}
-                            {processError && <Alert variant="destructive"><AlertDescription>{processError}</AlertDescription></Alert>}
-                        </div>
-                    )}
-                    <DialogFooter>
-                        <Button variant="outline" onClick={closeProcessDialog} disabled={processing}>Cancel</Button>
-                        <Button className="bg-success text-success-foreground hover:bg-success/90" onClick={handleProcess} disabled={processing || !selectedDeptId || noBalance || insufficientBalance || loadingBalance}>
-                            {processing ? <><Loader2 className="mr-1.5 h-4 w-4 animate-spin" />Processing...</> : <><CheckCircle className="mr-1.5 h-4 w-4" />Confirm &amp; Create Request</>}
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
+                                ))}
+                                <p className="text-xs text-muted-foreground">Sending creates a pending withdrawal on this account, which then goes through normal approval.</p>
+                                {processError && <Alert variant="destructive"><AlertDescription>{processError}</AlertDescription></Alert>}
+                            </SheetSection>
+                        )}
+                        {open.status === 'PROCESSED' && open.transactionId && (
+                            <Button variant="outline" size="sm" className="rounded-full" onClick={() => router.push(`/approvals?id=${open.transactionId}`)}>
+                                Open the withdrawal
+                            </Button>
+                        )}
+                    </>
+                )}
+            </RecordSheet>
 
-            {/* Reject dialog */}
-            <Dialog open={rejectDialog.open} onOpenChange={v => { if (!rejecting) setRejectDialog(p => ({ ...p, open: v })); }}>
+            <Dialog open={!!rejecting} onOpenChange={o => { if (!o && !rejectBusy) setRejecting(null); }}>
                 <DialogContent className="max-w-sm">
-                    <DialogHeader><DialogTitle className="font-bold">Reject Request</DialogTitle></DialogHeader>
-                    <p className="text-sm text-muted-foreground">
-                        Are you sure you want to reject the expense request from <strong className="text-foreground">{rejectDialog.request?.requesterName}</strong> ({rejectDialog.request?.churchName}) for <strong className="text-foreground">GH₵ {rejectDialog.request ? formatNumber(Number(rejectDialog.request.amount)) : ''}</strong>?
-                    </p>
-                    <DialogFooter>
-                        <Button variant="outline" onClick={() => setRejectDialog({ open: false, request: null })} disabled={rejecting}>Cancel</Button>
-                        <Button variant="destructive" onClick={handleReject} disabled={rejecting}>
-                            {rejecting ? <><Loader2 className="mr-1.5 h-4 w-4 animate-spin" />Rejecting...</> : <><XCircle className="mr-1.5 h-4 w-4" />Reject</>}
+                    <DialogHeader>
+                        <DialogTitle>Reject this request?</DialogTitle>
+                        <DialogDescription>
+                            {rejecting && <>{rejecting.requesterName} ({rejecting.churchName}) asked for {ghs(rejecting.amount)}. This can’t be undone.</>}
+                        </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter className="gap-2">
+                        <Button variant="outline" className="rounded-full" onClick={() => setRejecting(null)} disabled={rejectBusy}>Cancel</Button>
+                        <Button variant="destructive" className="rounded-full" onClick={reject} disabled={rejectBusy}>
+                            {rejectBusy ? <><Loader2 className="mr-1.5 h-4 w-4 animate-spin" />Rejecting…</> : 'Reject'}
                         </Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
         </div>
+    );
+}
+
+export default function PublicRequestsPage() {
+    return (
+        <Suspense fallback={<ListSkeleton rows={4} />}>
+            <PublicRequestsQueue />
+        </Suspense>
     );
 }
