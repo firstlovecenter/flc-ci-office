@@ -1,438 +1,320 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
 import Image from 'next/image';
+import Link from 'next/link';
 import { useSession, signOut } from 'next-auth/react';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import {
-  Home, Receipt, PlusCircle, Building2, Wallet, Sun, Moon, Monitor,
-  LogOut, Menu, ChevronLeft, ChevronRight, ChevronDown, X,
-  Search, ClipboardList, BarChart2, TrendingUp,
-  Users, Inbox, Bell, Settings,
+  Sun, Moon, Monitor, LogOut, Menu, ChevronsUpDown, PanelLeftClose, PanelLeft, Search, UserCircle,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useColorMode } from '@/app/providers';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet';
-import { Separator } from '@/components/ui/separator';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import ImpersonationBanner from './ImpersonationBanner';
 import PullToRefresh from './PullToRefresh';
 import RoleSwitcher from './RoleSwitcher';
+import { CommandPaletteProvider, useCommandPalette, useShortcutLabel } from './CommandPalette';
 import { useWithdrawalEligibility, resetWithdrawalEligibility } from '@/hooks/useWithdrawalEligibility';
 import { usePermissions } from '@/hooks/usePermissions';
+import { isNavItemActive, visibleNav, type NavBadgeKey, type NavItem } from '@/lib/nav-config';
 
-const SIDEBAR_WIDTH = 256;
-const SIDEBAR_MINI_WIDTH = 60;
+type PendingCounts = Record<NavBadgeKey, number>;
 
-interface NavItem {
-  text: string;
-  icon: React.ElementType;
-  path: string;
-  show: boolean;
-  badge: number;
-  /** Rendered inert with an explanation instead of navigating to a dead end. */
-  disabled?: boolean;
-  disabledReason?: string | null;
-}
-interface NavSection {
-  title: string | null;
-  items: NavItem[];
-}
-
-interface SidebarBodyProps {
-  isMobile: boolean;
-  sidebarOpen: boolean;
-  setSidebarOpen: (v: boolean) => void;
-  setMobileOpen: (v: boolean) => void;
-  navSections: NavSection[];
-  isActive: (path: string) => boolean;
-  navigate: (path: string) => void;
-  colorMode: ReturnType<typeof useColorMode>;
-  userName: string;
-  userInitial: string;
-  userImage: string | undefined;
-  userRole: string;
-  handleLogout: () => void;
+/* ── Collapse state, remembered on this device ─────────────────── */
+const COLLAPSE_KEY = 'ci-sidebar-collapsed';
+const collapseListeners = new Set<() => void>();
+const readCollapsed = () => { try { return localStorage.getItem(COLLAPSE_KEY) === 'true'; } catch { return false; } };
+const subscribeCollapsed = (l: () => void) => { collapseListeners.add(l); return () => { collapseListeners.delete(l); }; };
+function useCollapsed(): [boolean, (v: boolean) => void] {
+  const value = useSyncExternalStore(subscribeCollapsed, readCollapsed, () => false);
+  const set = useCallback((v: boolean) => {
+    try { localStorage.setItem(COLLAPSE_KEY, String(v)); } catch { /* storage unavailable */ }
+    collapseListeners.forEach(l => l());
+  }, []);
+  return [value, set];
 }
 
-function SidebarBody({
-  isMobile, sidebarOpen, setSidebarOpen, setMobileOpen,
-  navSections, isActive, navigate, colorMode,
-  userName, userInitial, userImage, userRole, handleLogout,
-}: SidebarBodyProps) {
-  const showLabels = isMobile || sidebarOpen;
+/* ── Pieces ────────────────────────────────────────────────────── */
+function NavLink({ item, active, collapsed, badge, disabledReason, onClick }: {
+  item: NavItem; active: boolean; collapsed: boolean; badge: number;
+  disabledReason?: string | null; onClick?: () => void;
+}) {
+  const Icon = item.icon;
+  const disabled = !!disabledReason;
+  const cls = cn(
+    'group relative flex h-10 items-center gap-3 rounded-full px-3 text-sm font-medium transition-colors',
+    disabled
+      ? 'cursor-not-allowed text-muted-foreground/50'
+      : active
+        ? 'bg-foreground text-background shadow-xs'
+        : 'text-muted-foreground hover:bg-accent hover:text-foreground',
+    collapsed && 'mx-auto w-10 justify-center px-0',
+  );
+  const inner = (
+    <>
+      <span className="relative shrink-0">
+        <Icon className={cn('size-[18px]', !active && !disabled && 'opacity-80 group-hover:opacity-100')} />
+        {collapsed && badge > 0 && <span className="absolute -right-1 -top-1 size-2 rounded-full bg-primary ring-2 ring-sidebar-background" />}
+      </span>
+      {!collapsed && <span className="flex-1 truncate">{item.name}</span>}
+      {!collapsed && badge > 0 && (
+        <span className={cn(
+          'min-w-5 rounded-full px-1.5 text-center text-[11px] font-semibold leading-5 tabular-nums',
+          active ? 'bg-background/20 text-background' : 'bg-primary text-primary-foreground',
+        )}>{badge > 99 ? '99+' : badge}</span>
+      )}
+      {!collapsed && active && badge === 0 && <span aria-hidden className="size-1.5 shrink-0 rounded-full bg-primary" />}
+    </>
+  );
+  const el = disabled
+    ? <span aria-disabled className={cls}>{inner}</span>
+    : <Link href={item.href} onClick={onClick} aria-current={active ? 'page' : undefined} className={cls}>{inner}</Link>;
+  const tip = collapsed ? item.name : disabledReason;
+  if (!tip) return el;
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild><span className="block">{el}</span></TooltipTrigger>
+      <TooltipContent side="right">{collapsed && disabledReason ? `${item.name} — ${disabledReason}` : tip}</TooltipContent>
+    </Tooltip>
+  );
+}
+
+function SearchButton({ collapsed, onOpen }: { collapsed: boolean; onOpen: () => void }) {
+  const shortcut = useShortcutLabel();
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      aria-label="Search pages and records"
+      title={`Search (${shortcut})`}
+      className={cn(
+        'flex h-10 w-full items-center gap-3 rounded-full border border-sidebar-border bg-background/60 px-3.5 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground',
+        collapsed && 'mx-auto w-10 justify-center px-0',
+      )}
+    >
+      <Search className="size-4 shrink-0" />
+      {!collapsed && (
+        <>
+          <span className="flex-1 text-left">Search</span>
+          <kbd className="rounded-md border border-sidebar-border bg-card px-1.5 py-0.5 font-mono text-[10px] font-medium">{shortcut}</kbd>
+        </>
+      )}
+    </button>
+  );
+}
+
+function AccountMenu({ collapsed, onNavigate }: { collapsed: boolean; onNavigate?: () => void }) {
+  const { data: session } = useSession();
+  const colorMode = useColorMode();
+  const name = session?.user?.name || 'User';
+  const initial = name[0]?.toUpperCase() || 'U';
+  const image = session?.user?.image || undefined;
+  const subtitle = session?.user?.organisationName || '';
+
+  const logout = () => {
+    onNavigate?.();
+    resetWithdrawalEligibility();
+    signOut({ callbackUrl: '/auth/login' });
+  };
 
   return (
-    <div className="flex flex-col h-full overflow-hidden">
-      {/* Logo row */}
-      <div
-        className={cn('flex items-center gap-2.5 px-3 py-3 shrink-0', !showLabels && 'justify-center')}
-        style={isMobile ? { paddingTop: 'max(0.75rem, env(safe-area-inset-top))' } : undefined}
-      >
-        <div className="relative flex items-center justify-center w-8 h-8 rounded-lg border border-border bg-card overflow-hidden shrink-0">
-          <Image src="/flc-logo.webp" alt="CI Office" width={20} height={20} />
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button className={cn('flex w-full items-center gap-2.5 rounded-2xl p-2 text-left transition-colors hover:bg-accent', collapsed && 'justify-center p-1.5')}>
+          <Avatar className="size-8 shrink-0">
+            <AvatarImage src={image} />
+            <AvatarFallback className="bg-primary/10 text-xs font-semibold text-primary">{initial}</AvatarFallback>
+          </Avatar>
+          {!collapsed && (
+            <>
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-sm font-semibold leading-tight text-foreground">{name}</span>
+                <span className="block truncate text-xs text-muted-foreground">{subtitle}</span>
+              </span>
+              <ChevronsUpDown className="size-4 shrink-0 text-muted-foreground" />
+            </>
+          )}
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" side="top" sideOffset={6} className="w-60">
+        <DropdownMenuLabel className="pb-2 font-normal">
+          <div className="text-sm font-semibold text-foreground">{name}</div>
+          <div className="text-xs text-muted-foreground">{subtitle}</div>
+        </DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem asChild className="gap-2">
+          <Link href="/profile" onClick={onNavigate}><UserCircle className="size-4" />Profile</Link>
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        {([
+          { label: 'Light', value: 'light', Icon: Sun },
+          { label: 'Dark', value: 'dark', Icon: Moon },
+          { label: 'System', value: 'system', Icon: Monitor },
+        ] as const).map(({ label, value, Icon }) => (
+          <DropdownMenuItem key={value} onClick={() => colorMode.setMode(value)} className={cn('gap-2', colorMode.mode === value && 'font-medium text-primary')}>
+            <Icon className="size-4" />{label}
+            {colorMode.mode === value && <span className="ml-auto size-1.5 rounded-full bg-primary" />}
+          </DropdownMenuItem>
+        ))}
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onClick={logout} className="gap-2 text-destructive focus:bg-destructive/10 focus:text-destructive">
+          <LogOut className="size-4" />Log out
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+function SidebarBody({ collapsed, counts, onToggle, onNavigate, floating }: {
+  collapsed: boolean; counts: PendingCounts; floating: boolean;
+  onToggle?: () => void; onNavigate?: () => void;
+}) {
+  const pathname = usePathname();
+  const perms = usePermissions();
+  const palette = useCommandPalette();
+  const eligibility = useWithdrawalEligibility();
+  const groups = visibleNav(perms);
+
+  return (
+    <div className={cn(
+      'flex h-full flex-col bg-sidebar-background',
+      floating && 'overflow-hidden rounded-[1.75rem] border border-sidebar-border shadow-[0_1px_2px_rgb(0_0_0/0.04),0_12px_32px_-20px_rgb(0_0_0/0.18)]',
+    )}>
+      {/* Brand */}
+      <div className={cn('flex items-center gap-2.5 px-4 pb-3 pt-4', collapsed && 'flex-col px-2')}>
+        <div className="flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-border bg-card">
+          <Image src="/flc-logo.webp" alt="" width={22} height={22} />
         </div>
-        {showLabels && (
-          <div className="flex flex-col leading-tight min-w-0">
-            <span className="text-[0.9375rem] font-semibold tracking-tight text-foreground truncate">CI Office</span>
-            <span className="text-[0.5625rem] font-semibold tracking-[0.18em] uppercase text-primary">Accounts</span>
+        {!collapsed && (
+          <div className="min-w-0 flex-1 leading-tight">
+            <p className="truncate text-[0.9375rem] font-semibold tracking-tight text-foreground">CI Office</p>
+            <p className="text-[0.625rem] font-semibold uppercase tracking-[0.18em] text-primary">Accounts</p>
           </div>
         )}
-        {!isMobile && (
+        {onToggle && (
           <button
-            onClick={() => setSidebarOpen(!sidebarOpen)}
-            className={cn('ml-auto p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors', !showLabels && 'hidden')}
+            onClick={onToggle}
+            aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            className="rounded-full p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
           >
-            <ChevronLeft className="size-4" />
-          </button>
-        )}
-        {isMobile && (
-          <button onClick={() => setMobileOpen(false)} className="ml-auto p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent">
-            <X className="size-4" />
+            {collapsed ? <PanelLeft className="size-4" /> : <PanelLeftClose className="size-4" />}
           </button>
         )}
       </div>
 
-      {/* Expand button when collapsed */}
-      {!showLabels && !isMobile && (
-        <button
-          onClick={() => setSidebarOpen(true)}
-          className="flex justify-center p-1.5 mx-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-        >
-          <ChevronRight className="size-4" />
-        </button>
-      )}
+      <div className="px-3 pb-2">
+        <SearchButton collapsed={collapsed} onOpen={() => { onNavigate?.(); palette.open(); }} />
+      </div>
 
-      {/* Search bar */}
-      {showLabels && (
-        <div className="px-2 pb-1 shrink-0">
-          <div
-            className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-accent text-muted-foreground text-sm cursor-text"
-            onClick={() => navigate('/search')}
-          >
-            <Search className="size-3.5 shrink-0" />
-            <span className="truncate text-xs">Search…</span>
-            <kbd className="ml-auto text-[10px] font-mono bg-background border border-border rounded px-1 py-0.5 hidden sm:inline">/</kbd>
+      <nav aria-label="Main" className="flex-1 space-y-4 overflow-y-auto overflow-x-hidden px-3 py-2">
+        {groups.map((g, gi) => (
+          <div key={g.label ?? gi} className="space-y-1">
+            {g.label && !collapsed && (
+              <p className="px-3 pb-1 text-[0.625rem] font-semibold uppercase tracking-[0.14em] text-muted-foreground/70">{g.label}</p>
+            )}
+            {g.label && collapsed && <div className="mx-auto mb-2 h-px w-6 bg-sidebar-border" />}
+            {g.items.map(item => (
+              <NavLink
+                key={item.href}
+                item={item}
+                collapsed={collapsed}
+                active={isNavItemActive(item, pathname)}
+                badge={item.badge ? counts[item.badge] ?? 0 : 0}
+                disabledReason={item.href.startsWith('/transactions?new=') && !eligibility.loading && !eligibility.canSubmit ? (eligibility.reason || 'Not available right now') : null}
+                onClick={onNavigate}
+              />
+            ))}
           </div>
-        </div>
-      )}
-
-      <Separator className="mx-2 w-auto mb-1" />
-
-      {/* Nav sections */}
-      <nav className="flex-1 overflow-y-auto overflow-x-hidden px-2 py-1 space-y-0.5">
-        {navSections.map((section, si) => {
-          const visible = section.items.filter(i => i.show);
-          if (!visible.length) return null;
-          return (
-            <div key={si} className="mb-1">
-              {section.title && showLabels && (
-                <p className={cn('px-2 pt-3 pb-1 text-[0.625rem] font-semibold tracking-[0.14em] uppercase text-muted-foreground/60', si === 0 && 'pt-1')}>
-                  {section.title}
-                </p>
-              )}
-              {section.title && !showLabels && si > 0 && <Separator className="my-1.5" />}
-              {visible.map((item) => {
-                const active = isActive(item.path);
-                const NavIcon = item.icon;
-                const btn = (
-                  <button
-                    onClick={item.disabled ? undefined : () => navigate(item.path)}
-                    disabled={item.disabled}
-                    aria-disabled={item.disabled || undefined}
-                    className={cn(
-                      'flex items-center w-full rounded-lg transition-colors text-sm font-medium',
-                      showLabels ? 'gap-2.5 px-2 py-1.5' : 'justify-center py-2',
-                      item.disabled
-                        ? 'text-muted-foreground/50 cursor-not-allowed'
-                        : active ? 'bg-accent text-foreground' : 'text-muted-foreground hover:text-foreground hover:bg-accent/60'
-                    )}
-                  >
-                    <div className="relative shrink-0">
-                      <NavIcon className={cn('size-[18px]', active && !item.disabled && 'text-foreground')} />
-                      {item.badge > 0 && (
-                        <span className="absolute -top-1.5 -right-1.5 flex items-center justify-center size-4 text-[9px] font-bold bg-destructive text-destructive-foreground rounded-full">
-                          {item.badge > 9 ? '9+' : item.badge}
-                        </span>
-                      )}
-                    </div>
-                    {showLabels && <span className={cn('truncate', active && !item.disabled && 'font-semibold')}>{item.text}</span>}
-                  </button>
-                );
-                // Collapsed rail and disabled items both need a tooltip — the
-                // latter to explain why the action is unavailable.
-                const tip = !showLabels ? item.text : item.disabled ? item.disabledReason : null;
-                return tip ? (
-                  <TooltipProvider key={item.path} delayDuration={0}>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <span className={cn('block', item.disabled && 'cursor-not-allowed')}>{btn}</span>
-                      </TooltipTrigger>
-                      <TooltipContent side="right">{tip}</TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                ) : (
-                  <div key={item.path}>{btn}</div>
-                );
-              })}
-            </div>
-          );
-        })}
+        ))}
       </nav>
 
-      <Separator className="mx-2 w-auto" />
-
-      {/* Bottom user section */}
-      <div className="p-2 shrink-0">
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button className={cn('flex items-center w-full rounded-lg p-2 transition-colors hover:bg-accent', !showLabels && 'justify-center p-1.5')}>
-              <Avatar className="size-8 shrink-0">
-                <AvatarImage src={userImage} />
-                <AvatarFallback className="text-xs font-semibold bg-primary/10 text-primary">{userInitial}</AvatarFallback>
-              </Avatar>
-              {showLabels && (
-                <>
-                  <div className="ml-2 flex-1 min-w-0 text-left">
-                    <p className="text-sm font-semibold text-foreground truncate leading-tight">{userName}</p>
-                    <p className="text-xs text-muted-foreground truncate">{userRole}</p>
-                  </div>
-                  <ChevronDown className="ml-1 size-4 text-muted-foreground shrink-0" />
-                </>
-              )}
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent
-            align="end"
-            side="top"
-            sideOffset={4}
-            style={showLabels ? { width: sidebarOpen ? `${SIDEBAR_WIDTH - 24}px` : '200px' } : {}}
-          >
-            <DropdownMenuLabel className="font-normal pb-2">
-              <div className="font-semibold text-foreground text-sm">{userName}</div>
-              <div className="text-xs text-muted-foreground">{userRole}</div>
-            </DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => navigate('/profile')} className="gap-2">
-              <Avatar className="size-4">
-                <AvatarImage src={userImage} />
-                <AvatarFallback className="text-[9px]">{userInitial}</AvatarFallback>
-              </Avatar>
-              Profile
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            {([
-              { label: 'Light mode', value: 'light', Icon: Sun },
-              { label: 'Dark mode', value: 'dark', Icon: Moon },
-              { label: 'System', value: 'system', Icon: Monitor },
-            ] as const).map(({ label, value, Icon }) => (
-              <DropdownMenuItem
-                key={value}
-                onClick={() => colorMode.setMode(value)}
-                className={cn('gap-2', colorMode.mode === value && 'text-primary font-medium')}
-              >
-                <Icon className="size-4" />
-                {label}
-                {colorMode.mode === value && <span className="ml-auto size-1.5 rounded-full bg-primary" />}
-              </DropdownMenuItem>
-            ))}
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={handleLogout} className="gap-2 text-destructive focus:text-destructive focus:bg-destructive/10">
-              <LogOut className="size-4" />
-              Log out
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+      <div className="border-t border-sidebar-border p-2">
+        <AccountMenu collapsed={collapsed} onNavigate={onNavigate} />
       </div>
     </div>
   );
 }
 
-export default function ModernDashboardLayout({ children }: { children: React.ReactNode }) {
+function Shell({ children }: { children: React.ReactNode }) {
   const { data: session } = useSession();
-  const pathname = usePathname();
-  const router = useRouter();
-  const colorMode = useColorMode();
-  const [pendingCounts, setPendingCounts] = useState({ approvals: 0, transactions: 0, publicRequests: 0 });
+  const palette = useCommandPalette();
+  const [collapsed, setCollapsed] = useCollapsed();
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [searchQuery, setSearchQuery] = useState('');
-  const eligibility = useWithdrawalEligibility();
+  const [counts, setCounts] = useState<PendingCounts>({ approvals: 0, transactions: 0, publicRequests: 0 });
 
   useEffect(() => {
-    if (session?.user) {
-      fetchPendingCounts();
-      const interval = setInterval(fetchPendingCounts, 60000);
-      return () => clearInterval(interval);
-    }
+    if (!session?.user) return;
+    const load = async () => {
+      try {
+        const r = await fetch('/api/pending-counts');
+        if (r.ok) setCounts(await r.json());
+      } catch { /* offline — keep the last counts */ }
+    };
+    load();
+    const id = setInterval(load, 60000);
+    return () => clearInterval(id);
   }, [session]);
 
-  const fetchPendingCounts = async () => {
-    try {
-      const res = await fetch('/api/pending-counts');
-      if (res.ok) setPendingCounts(await res.json());
-    } catch {}
-  };
-
-  // Single source of truth — see hooks/usePermissions.ts. These booleans were
-  // previously derived here and re-derived in seven other files.
-  const {
-    isSuperAdmin, isLeader,
-    canApprove, canManageUsers,
-    canSeeChurches, canSeeAccounts, canSeeAnalytics, canEditExpenseWindow,
-    role: normalizedRole,
-  } = usePermissions();
-
-  const isActive = (path: string) => {
-    const clean = path.split('?')[0];
-    if (clean === '/dashboard') return pathname === '/dashboard';
-    if (clean === '/transactions') return pathname === '/transactions';
-    if (clean === '/organisations') return pathname === '/organisations' || pathname.startsWith('/organisations/');
-    if (clean === '/accounts') return pathname === '/accounts' || pathname.startsWith('/accounts/');
-    return pathname === clean || pathname.startsWith(clean + '/');
-  };
-
-  const navSections: NavSection[] = [
-    {
-      title: null,
-      items: [
-        { text: 'Home', icon: Home, path: '/dashboard', show: true, badge: 0 },
-        { text: 'Request withdrawal', icon: PlusCircle, path: '/transactions?new=expense', show: !isSuperAdmin && !!isLeader, badge: 0, disabled: !eligibility.loading && !eligibility.canSubmit, disabledReason: eligibility.reason },
-        { text: 'Transaction history', icon: Receipt, path: '/transactions', show: true, badge: pendingCounts.transactions },
-      ],
-    },
-    {
-      title: 'Management',
-      items: [
-        { text: 'Approvals', icon: ClipboardList, path: '/approvals', show: canApprove, badge: pendingCounts.approvals },
-        { text: 'Public Requests', icon: Inbox, path: '/public-requests', show: normalizedRole === 'CAMPUS_ADMIN', badge: pendingCounts.publicRequests },
-        { text: 'Users', icon: Users, path: '/users', show: canManageUsers, badge: 0 },
-        { text: 'Churches', icon: Building2, path: '/organisations', show: canSeeChurches, badge: 0 },
-        { text: 'Accounts', icon: Wallet, path: '/accounts', show: canSeeAccounts, badge: 0 },
-        { text: 'Settings', icon: Settings, path: '/settings', show: canEditExpenseWindow, badge: 0 },
-      ],
-    },
-    {
-      title: 'Analytics',
-      items: [
-        { text: 'Reports', icon: BarChart2, path: '/reports', show: true, badge: 0 },
-        { text: 'Analytics', icon: TrendingUp, path: '/analytics', show: canSeeAnalytics, badge: 0 },
-      ],
-    },
-  ];
-
-  const navigate = (path: string) => {
-    setMobileOpen(false);
-    router.push(path);
-  };
-
-  const handleLogout = () => {
-    setMobileOpen(false);
-    resetWithdrawalEligibility();
-    signOut({ callbackUrl: '/auth/login' });
-  };
-
-  const handleSearch = () => {
-    if (!searchQuery.trim()) return;
-    setMobileOpen(false);
-    router.push(`/search?q=${encodeURIComponent(searchQuery)}`);
-  };
-
-  const userName = session?.user?.name || 'User';
-  const userInitial = userName[0]?.toUpperCase() || 'U';
-  const userImage = session?.user?.image || undefined;
-  const userRole = session?.user?.organisationName || '';
-  const sidebarWidth = sidebarOpen ? SIDEBAR_WIDTH : SIDEBAR_MINI_WIDTH;
-
-  const sharedSidebarProps: Omit<SidebarBodyProps, 'isMobile'> = {
-    sidebarOpen, setSidebarOpen, setMobileOpen,
-    navSections, isActive, navigate, colorMode,
-    userName, userInitial, userImage, userRole, handleLogout,
-  };
-
   return (
-    <TooltipProvider>
+    <TooltipProvider delayDuration={0}>
       <ImpersonationBanner />
 
-      {/* Fixed top bar */}
-      <header
-        className={cn(
-          'fixed left-0 right-0 top-0 z-40 flex items-center justify-between px-3',
-          'bg-background/80 backdrop-blur-xl backdrop-saturate-150 border-b border-border',
-          'transition-[padding-left] duration-300 ease-in-out',
-          sidebarOpen ? 'md:pl-[268px]' : 'md:pl-[72px]',
-        )}
-        style={{ height: 'calc(3.5rem + env(safe-area-inset-top))', paddingTop: 'env(safe-area-inset-top)' }}
-      >
-        <Button variant="ghost" size="icon-sm" className="md:hidden shrink-0" onClick={() => setMobileOpen(true)}>
-          <Menu className="size-5" />
-        </Button>
-
-        <div className="hidden md:flex items-center gap-2 min-w-0" />
-
-        {/* Center search — desktop */}
-        <div className="hidden md:flex flex-1 max-w-md mx-4">
-          <div className="relative w-full">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
-            <input
-              placeholder="Search transactions, users, churches…"
-              value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && handleSearch()}
-              className={cn(
-                'w-full h-8 rounded-full bg-accent pl-8 pr-3 text-sm',
-                'border border-transparent focus:border-border focus:bg-card',
-                'placeholder:text-muted-foreground outline-none transition-all'
-              )}
-            />
-          </div>
-        </div>
-
-        <div className="flex items-center gap-1.5 shrink-0 ml-auto md:ml-0">
-          <Button variant="ghost" size="icon-sm" className="md:hidden" onClick={() => router.push('/search')}>
-            <Search className="size-4.5" />
-          </Button>
-          <RoleSwitcher />
-        </div>
-      </header>
-
-      {/* Desktop sidebar */}
-      <aside
-        className={cn(
-          'hidden md:flex flex-col fixed left-0 top-0 bottom-0 z-30',
-          'bg-sidebar-background border-r border-sidebar-border',
-          'transition-[width] duration-300 ease-in-out overflow-hidden'
-        )}
-        style={{ width: sidebarWidth }}
-      >
-        <SidebarBody isMobile={false} {...sharedSidebarProps} />
+      {/* Desktop: floating sidebar */}
+      <aside className={cn(
+        'fixed left-0 top-0 z-30 hidden h-screen p-3 pr-0 transition-[width] duration-200 ease-out md:block',
+        collapsed ? 'w-[84px]' : 'w-[272px]',
+      )}>
+        <SidebarBody collapsed={collapsed} counts={counts} floating onToggle={() => setCollapsed(!collapsed)} />
       </aside>
 
-      {/* Mobile sidebar — sheet */}
+      {/* Mobile: drawer */}
       <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
-        <SheetContent side="left" className="p-0 w-64 bg-sidebar-background border-r border-sidebar-border [&>button]:hidden">
-          <SheetTitle className="sr-only">Navigation menu</SheetTitle>
-          <SidebarBody isMobile={true} {...sharedSidebarProps} />
+        <SheetContent side="left" className="w-[280px] border-r-0 bg-sidebar-background p-0 [&>button]:hidden">
+          <SheetTitle className="sr-only">Navigation</SheetTitle>
+          <SidebarBody collapsed={false} counts={counts} floating={false} onNavigate={() => setMobileOpen(false)} />
         </SheetContent>
       </Sheet>
 
-      {/* Main content */}
-      <main
-        className={cn(
-          'min-h-screen bg-background transition-[padding-left] duration-300 ease-in-out',
-          sidebarOpen ? 'md:pl-[256px]' : 'md:pl-[60px]',
-        )}
-        style={{ paddingTop: 'calc(3.5rem + env(safe-area-inset-top))' }}
-      >
-        <PullToRefresh>
-          <div className="px-4 py-4 md:px-6 md:py-5 max-w-[1600px] mx-auto">
-            {children}
+      <div className={cn('min-h-screen bg-background transition-[padding] duration-200 ease-out', collapsed ? 'md:pl-[84px]' : 'md:pl-[272px]')}>
+        {/* Header: menu + search on mobile, role switcher everywhere */}
+        <header
+          className="sticky top-0 z-20 flex h-14 items-center gap-2 bg-background/80 px-4 backdrop-blur-xl md:px-6 lg:px-8"
+          style={{ paddingTop: 'env(safe-area-inset-top)', height: 'calc(3.5rem + env(safe-area-inset-top))' }}
+        >
+          <Button variant="ghost" size="icon-sm" className="md:hidden" onClick={() => setMobileOpen(true)} aria-label="Open navigation">
+            <Menu className="size-5" />
+          </Button>
+          <div className="ml-auto flex items-center gap-1.5">
+            <Button variant="ghost" size="icon-sm" className="md:hidden" onClick={palette.open} aria-label="Search">
+              <Search className="size-[18px]" />
+            </Button>
+            <RoleSwitcher />
           </div>
-        </PullToRefresh>
-      </main>
+        </header>
+
+        <main>
+          <PullToRefresh>
+            <div className="mx-auto max-w-[1600px] px-4 pb-[calc(2rem+env(safe-area-inset-bottom))] pt-2 md:px-6 lg:px-8">
+              {children}
+            </div>
+          </PullToRefresh>
+        </main>
+      </div>
     </TooltipProvider>
+  );
+}
+
+export default function ModernDashboardLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <CommandPaletteProvider>
+      <Shell>{children}</Shell>
+    </CommandPaletteProvider>
   );
 }
