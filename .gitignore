@@ -50,3 +50,8 @@ claude skills
 # public, and it is a migration-window artifact, not source. Regenerate with
 # `npm run snapshot:capture` at the start of a window.
 scripts/scope-baseline.json
+
+# Cloudflare / OpenNext
+.open-next/
+.wrangler/
+.dev.vars
