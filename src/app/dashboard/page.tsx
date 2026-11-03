@@ -20,6 +20,8 @@ import { useColorMode } from '@/app/providers';
 import { getExpenseWindowStatus, getMsUntilExpenseWindowOpens } from '@/lib/expense-window';
 import { useWithdrawalEligibility } from '@/hooks/useWithdrawalEligibility';
 import { useExpenseWindow } from '@/hooks/useExpenseWindow';
+import PageHeader from '@/components/ui/PageHeader';
+import { AttentionBoard } from '@/components/AttentionBoard';
 
 // ── Animated counter ──────────────────────────────────────────────────────────
 
@@ -353,52 +355,25 @@ export default function DashboardPage() {
     return (
         <>
 
-            {/* Header */}
-            <div className="mb-8 pb-6 border-b border-border flex items-start sm:items-end justify-between gap-4 flex-wrap">
-                <div className="flex items-center gap-5 min-w-0 flex-1">
-                    {isSuperAdmin ? (
-                        <div className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0 bg-secondary text-muted-foreground">
-                            <Building2 className="h-6 w-6" />
-                        </div>
-                    ) : organisationLeader ? (
-                        <Avatar className="w-14 h-14 sm:w-16 sm:h-16 border border-border shrink-0">
-                            {organisationLeader.image && <AvatarImage src={organisationLeader.image} alt={organisationLeader.name} />}
-                            <AvatarFallback className="text-xl">{organisationLeader.name.charAt(0)}</AvatarFallback>
-                        </Avatar>
-                    ) : (
-                        <div className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0 bg-foreground/5 text-foreground">
-                            <Wallet className="h-5 w-5" />
-                        </div>
-                    )}
-                    <div className="min-w-0">
-                        <p className="text-[0.6875rem] font-medium uppercase tracking-[0.10em] text-muted-foreground mb-1">
-                            {isSuperAdmin
-                                ? 'Administration'
-                                : isAccountHolder
-                                    ? 'Your account'
-                                    : isLeader
-                                        ? 'Leader overview'
-                                        : 'Account overview'}
-                        </p>
-                        <div className="flex items-baseline gap-3 flex-wrap">
-                            <h1 className="text-[1.625rem] sm:text-[1.875rem] md:text-[2.25rem] font-medium tracking-[-0.02em] leading-[1.15] text-foreground">
-                                {isSuperAdmin
-                                    ? 'System management'
-                                    : session?.user?.organisationName || 'Dashboard'}
-                            </h1>
-                        </div>
-                        <p className="text-sm text-muted-foreground mt-1.5 max-w-[580px]">
-                            {isSuperAdmin
-                                ? 'Manage every part of the system from one place.'
-                                : holdingOwnAccount
-                                    ? 'Request withdrawals and track your account balance.'
-                                    : organisationLeader
-                                        ? `Led by ${organisationLeader.name}`
-                                        : "Here's what's happening with your finances today."}
-                        </p>
-                    </div>
-                </div>
-            </div>
+            <PageHeader
+                eyebrow={isSuperAdmin ? 'Administration' : isAccountHolder ? 'Your account' : isLeader ? 'Leader overview' : 'Account overview'}
+                title={isSuperAdmin ? 'System management' : session?.user?.organisationName || 'Dashboard'}
+                subtitle={isSuperAdmin
+                    ? 'What needs you first, then the system at a glance.'
+                    : holdingOwnAccount
+                        ? 'Request withdrawals and track your account balance.'
+                        : organisationLeader
+                            ? `Led by ${organisationLeader.name}`
+                            : "Here's what's happening with your finances today."}
+                avatar={!isSuperAdmin && organisationLeader ? (
+                    <Avatar className="size-14 shrink-0 border border-border">
+                        {organisationLeader.image && <AvatarImage src={organisationLeader.image} alt={organisationLeader.name} />}
+                        <AvatarFallback className="text-xl">{organisationLeader.name.charAt(0)}</AvatarFallback>
+                    </Avatar>
+                ) : undefined}
+            />
+
+            <AttentionBoard />
 
             {/* Stats grid */}
             <div className={cn(

@@ -67,29 +67,45 @@ first, waiting-time chip that turns amber after 48 hours, select-all + bulk
 approve, details in a sheet (`?id=` deep-links), approve/decline as a short
 dialog. Business logic and API calls are unchanged.
 
-### Phase 3 — Remaining queues
-- **Public requests** — same queue shape as approvals.
-- **Transaction history** — `ListToolbar` + status/type pills in the URL;
-  row opens a sheet with receipt upload, edit and correction actions
-  (replacing `EditTransactionDialog` / `CorrectTransactionDialog` as entry
-  points).
+### Phase 3 — Remaining queues ✅
+- **Toasts** — Sileo with BMS's wrapper (`lib/toast.ts`): one top-centre
+  pill, short title, detail on hover. `useToast()` still works for old call
+  sites.
+- **Badges** — `refreshPendingCounts()` after any change; the shell also
+  refetches on window focus.
+- **Public requests** — same queue shape; account choice and balance check
+  happen in the sheet.
+- **Transaction history** — status/type pills in the URL; entry details in a
+  sheet. The ledger table stays, since debit/credit/running balance matter.
 
-### Phase 4 — Directories
-- **Users**, **Churches**, **Accounts** — compact rows with a `RecordSheet`;
-  full pages (`/users/[id]`, `/organisations/[id]/dashboard`) stay for depth.
-- Point `/api/search` results at `?id=` sheet URLs so ⌘K opens the record
-  in place (transactions currently open a filtered list).
+### Phase 4 — Directories ✅
+- **Users** — Active / Archived pills, search by name, email, phone or church;
+  sheet with roles and Edit / Full profile / Impersonate.
+- **Churches** — level pills, compact rows; sheet with balance (server sum)
+  and people; its main button drills into the hierarchy.
+- **Accounts** — Open / Closed pills; sheet with balance, holder, and Open
+  dashboard / Transfer / Edit, or Reopen for closed accounts.
+- **⌘K** — results open the record's sheet (`?id=`); pending withdrawals open
+  in the approvals queue.
 
-### Phase 5 — Dashboard
-BMS-style attention board at the top of `/dashboard`: requests waiting over
-48h, overdue receipts, accounts with no activity, closed windows — each tile
-deep-links into the filtered queue. Then hero metric + secondaries.
+### Phase 5 — Dashboard ✅
+`GET /api/attention`, scoped like the lists it links to: requests waiting
+over 48h, newer pending requests, new public requests, overdue receipts (in
+scope for managers, your own for leaders), overdrawn accounts. Empty tiles
+are hidden; when nothing is due the board says so in one line. Charts are
+unchanged.
 
-### Phase 6 — Consistency pass
-- Replace remaining `statusBadgeClass` copies with `StatusBadge`.
-- Remove MUI (`theme.ts`, `NotificationSettings`, `CorrectTransactionDialog`)
-  and the `@mui/*` / `@emotion/*` dependencies.
-- Retire the standalone `/search` page if ⌘K covers its use.
+### Phase 6 — Consistency pass ✅
+- Every status renders through `StatusBadge`; no per-page colour helpers left.
+- MUI removed: `theme.ts`, `NotificationSettings`, `CorrectTransactionDialog`
+  were unreferenced, and `@mui/*` / `@emotion/*` are uninstalled.
+- `/search` stays as the “See all results” page behind ⌘K.
+- `prisma/seed.js` creates its client with the Prisma 7 adapter.
+
+### Still open
+- Many pages still carry `any` types (lint errors predating this work).
+- Charts keep their hard-coded hex colours rather than `--chart-*` tokens.
+- Verify with production-sized data and every role before release.
 
 ## Conventions for new screens
 

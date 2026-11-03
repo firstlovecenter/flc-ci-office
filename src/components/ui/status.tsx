@@ -34,6 +34,16 @@ export const PUBLIC_REQUEST_STATUS: Record<string, StatusInfo> = {
     REJECTED: { label: 'Rejected', tone: 'danger' },
 };
 
+export const USER_STATUS: Record<string, StatusInfo> = {
+    ACTIVE: { label: 'Active', tone: 'success' },
+    ARCHIVED: { label: 'Archived', tone: 'neutral' },
+};
+
+export const ACCOUNT_STATUS: Record<string, StatusInfo> = {
+    OPEN: { label: 'Open', tone: 'success' },
+    CLOSED: { label: 'Closed', tone: 'neutral' },
+};
+
 export const TRANSACTION_TYPE: Record<string, StatusInfo> = {
     INCOME: { label: 'Deposit', tone: 'success' },
     EXPENSE: { label: 'Withdrawal', tone: 'neutral' },

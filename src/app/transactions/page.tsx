@@ -47,7 +47,7 @@ type TransactionWithDetails = {
     createdAt: string; updatedAt: string;
 };
 
-function SummaryCard({ title, value, symbol, Icon, colorClass }: { title: string; value: string; symbol?: string; Icon: any; colorClass: string }) {
+function SummaryCard({ title, value, symbol, Icon, colorClass }: { title: string; value: string; symbol?: string; Icon: React.ElementType; colorClass: string }) {
     return (
         <div className="rounded-xl border border-border bg-card p-4">
             <div className="flex items-center gap-2 mb-2">
@@ -73,14 +73,14 @@ function TransactionsPageContent() {
 
     const [transactions, setTransactions] = useState<TransactionWithDetails[]>([]);
     const [summary, setSummary] = useState({ income: '0', expense: '0', balance: '0' });
-    const [organisation, setOrganisation] = useState<any>(null);
+    const [organisation, setOrganisation] = useState<{ name: string; level: string } | null>(null);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState(searchParams?.get('search') || '');
     // Filters and the open entry live in the URL so a view can be linked to.
     const [typeFilter, setTypeFilter] = useUrlState('type', 'ALL');
     const [approvalFilter, setApprovalFilter] = useUrlState('status', 'ALL');
     const [openId, setOpenId] = useUrlState('id');
-    const [editDialog, setEditDialog] = useState<{ open: boolean; transaction: any }>({ open: false, transaction: null });
+    const [editDialog, setEditDialog] = useState<{ open: boolean; transaction: TransactionWithDetails | null }>({ open: false, transaction: null });
     const [receiptDialog, setReceiptDialog] = useState<{ open: boolean; transactionId: string | null }>({ open: false, transactionId: null });
     const [waiveDialog, setWaiveDialog] = useState<{ open: boolean; transactionId: string | null }>({ open: false, transactionId: null });
     const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; transaction: TransactionWithDetails | null }>({ open: false, transaction: null });
@@ -165,7 +165,7 @@ function TransactionsPageContent() {
         } catch { toast.error('Couldn’t cancel this request'); }
     };
 
-    const canEditTransaction = (tx: any) => {
+    const canEditTransaction = (tx: TransactionWithDetails) => {
         if (!isAdmin) return false;
         if (tx.locked && !isSuperAdmin) return false;
         const oversightAndAbove = ['SUPERADMIN', 'DENOMINATION_ADMIN', 'OVERSIGHT_ADMIN'];
@@ -556,7 +556,7 @@ function TransactionsPageContent() {
                     onUploaded={uploaded => {
                         const id = receiptDialog.transactionId;
                         setTransactions(p => p.map(t => t.id === id
-                            ? { ...t, files: [...(t.files || []), ...(uploaded as any[])] }
+                            ? { ...t, files: [...(t.files || []), ...uploaded.map(u => ({ ...u, uploadedBy: u.uploader?.id ?? '' }))] }
                             : t));
                         toast.success(uploaded.length > 1 ? `${uploaded.length} receipts uploaded` : 'Receipt uploaded');
                     }}

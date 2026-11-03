@@ -111,7 +111,7 @@ export async function GET(request: Request) {
                 id: u.id,
                 title: u.name || 'Unknown',
                 subtitle: u.organisation?.name || u.email,
-                url: `/users/${u.id}`,
+                url: `/users?id=${u.id}`,
                 image: u.image
             })),
             ...organisations.map(d => ({
@@ -119,7 +119,8 @@ export async function GET(request: Request) {
                 id: d.id,
                 title: d.name,
                 subtitle: d.level || 'Church',
-                url: `/organisations/${d.id}/dashboard`
+                // Opens the record's sheet in place; accounts live on /accounts.
+                url: d.level === 'COUNCIL' ? `/accounts?id=${d.id}` : `/organisations?id=${d.id}`
             })),
             ...transactions.map(t => ({
                 type: 'transaction',
@@ -128,7 +129,11 @@ export async function GET(request: Request) {
                 subtitle: `${t.type} - ${formatMoney(t.amount.toString())}`,
                 status: t.status,
                 date: t.createdAt,
-                url: `/transactions?search=${encodeURIComponent(t.description)}`
+                // Pending withdrawals open in the approvals queue; everything else
+                // opens on the ledger, searched down so the entry is on page one.
+                url: t.status === 'PENDING' && t.type === 'EXPENSE'
+                    ? `/approvals?id=${t.id}`
+                    : `/transactions?search=${encodeURIComponent(t.description)}&id=${t.id}`
             }))
         ];
 

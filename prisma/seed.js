@@ -2,7 +2,9 @@ const { PrismaClient } = require('@prisma/client');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 
-const prisma = new PrismaClient();
+// Prisma 7 needs a driver adapter; the bare constructor throws.
+const { PrismaPg } = require('@prisma/adapter-pg');
+const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }) });
 
 async function main() {
     console.log('Starting seed...');

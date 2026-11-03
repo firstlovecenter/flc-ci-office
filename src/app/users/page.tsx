@@ -2,7 +2,7 @@
 
 import { useState, useEffect, Suspense, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { Users, Plus, Search, Camera, Loader2 } from 'lucide-react';
+import { Users, Plus, Camera, Loader2, ChevronRight, Pencil, UserRound } from 'lucide-react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
@@ -10,11 +10,14 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Skeleton } from '@/components/ui/skeleton';
-import { cn } from '@/lib/utils';
-import { useToast } from '@/components/ToastProvider';
+import { toast } from '@/lib/toast';
+import { roleLabel } from '@/lib/labels';
+import EmptyState from '@/components/ui/EmptyState';
+import { StatusBadge, USER_STATUS } from '@/components/ui/status';
+import { DetailGrid, RecordSheet, SheetSection } from '@/components/ui/record-sheet';
+import { FilterPills, ListSkeleton, ListToolbar } from '@/components/ui/list-toolbar';
+import { useUrlState } from '@/hooks/useUrlState';
 import EditUserDialog from '@/components/EditUserDialog';
 import PageHeader from '@/components/ui/PageHeader';
 
@@ -25,7 +28,10 @@ function UsersPageContent() {
     const deptParam = searchParams?.get('dept');
     const fileInputRef = useRef<HTMLInputElement>(null);
     const pendingImageRef = useRef<File | null>(null);
-    const { showSuccess, showError } = useToast();
+    const showSuccess = (m: string) => toast.success(m);
+    const showError = (m: string) => toast.error(m);
+    const [tab, setTab] = useUrlState('status', 'active');
+    const [openId, setOpenId] = useUrlState('id');
 
     const [users, setUsers] = useState<any[]>([]);
     const [organisations, setOrganisations] = useState<any[]>([]);
@@ -66,18 +72,17 @@ function UsersPageContent() {
 
     const handleDelete = async (id: string) => {
         const res = await fetch(`/api/users/${id}`, { method: 'DELETE' });
-        if (res.ok) { showSuccess('User deleted successfully'); fetchUsers(); }
+        if (res.ok) { showSuccess('User deleted'); setOpenId(null); fetchUsers(); }
         else { const d = await res.json(); showError(d.error || 'Failed to delete user'); throw new Error(d.error); }
     };
 
     const handleArchive = async (user: any) => {
         const res = await fetch(`/api/users/${user.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ archived: !user.archived }) });
-        if (res.ok) { showSuccess(`User ${user.archived ? 'restored' : 'archived'} successfully`); fetchUsers(); }
+        if (res.ok) { showSuccess(user.archived ? 'User restored' : 'User archived'); fetchUsers(); }
         else { const d = await res.json(); showError(d.error || 'Failed'); throw new Error(d.error); }
     };
 
-    const handleImpersonate = async (e: React.MouseEvent, user: any) => {
-        e.stopPropagation();
+    const handleImpersonate = async (user: any) => {
         if (impersonatingUserId) return;
         setImpersonatingUserId(user.id);
         try {
@@ -115,7 +120,7 @@ function UsersPageContent() {
             if (formData.image?.startsWith('blob:')) URL.revokeObjectURL(formData.image);
             setOpen(false);
             setFormData({ title: '', name: '', email: '', phone: '', image: '' });
-            showSuccess('User created successfully');
+            showSuccess('User created');
             fetchUsers();
         } catch (err: any) { setError(err.message); showError(err.message); }
         finally { setSubmitting(false); }
@@ -125,76 +130,135 @@ function UsersPageContent() {
     const canCreateUsers = session?.user?.role && adminRoles.includes(session.user.role);
     const isSuperAdmin = session?.user?.role === 'SUPERADMIN' && !session?.user?.isImpersonating;
 
-    const filteredUsers = users.filter(u => {
-        if (!searchQuery.trim()) return true;
-        const q = searchQuery.toLowerCase();
-        return u.name?.toLowerCase().includes(q) || u.email?.toLowerCase().includes(q);
-    });
+    const churchOf = (u: any) => u.userRoles?.[0]?.organisation?.name || u.organisation?.name || 'No church';
+    const activeTab = tab === 'archived' ? 'archived' : 'active';
+    const counts = { active: users.filter(u => !u.archived).length, archived: users.filter(u => u.archived).length };
+    const q = searchQuery.trim().toLowerCase();
+    const filteredUsers = users
+        .filter(u => (activeTab === 'archived') === !!u.archived)
+        .filter(u => !q || [u.name, u.email, u.phone, churchOf(u)].some((v: string | undefined) => v?.toLowerCase().includes(q)));
+    const openUser = users.find(u => u.id === openId) ?? null;
 
     return (
         <div>
             <PageHeader
                 eyebrow="People"
                 title="Users"
-                subtitle={`${users.length} ${users.length === 1 ? 'person' : 'people'} in your scope.`}
-                icon={<Users className="h-5 w-5" />}
+                subtitle="Everyone with a role in the churches you oversee."
                 actions={canCreateUsers && (
-                    <Button onClick={() => setOpen(true)}><Plus className="mr-1.5 h-4 w-4" />Add user</Button>
+                    <Button className="rounded-full" onClick={() => setOpen(true)}><Plus className="mr-1.5 h-4 w-4" />Add user</Button>
                 )}
             />
 
-            {/* Search */}
-            <div className="relative mb-6 max-w-[480px]">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-                <Input placeholder="Search users by name or email" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="pl-9 rounded-full" />
+            <div className="mb-3 flex flex-col gap-3">
+                <FilterPills
+                    label="Status"
+                    value={activeTab}
+                    onChange={setTab}
+                    options={[
+                        { value: 'active', label: 'Active', count: counts.active },
+                        { value: 'archived', label: 'Archived', count: counts.archived },
+                    ]}
+                />
+                <ListToolbar
+                    search={searchQuery}
+                    onSearch={setSearchQuery}
+                    placeholder="Search name, email, phone or church"
+                    count={loading ? null : filteredUsers.length}
+                    countLabel={filteredUsers.length === 1 ? 'person' : 'people'}
+                />
             </div>
 
-            {/* User list */}
-            <div className="flex flex-col gap-2">
-                {loading ? (
-                    [1, 2, 3, 4].map(i => (
-                        <div key={i} className="rounded-xl border border-border bg-card p-4 flex items-center gap-3">
-                            <Skeleton className="w-11 h-11 rounded-full shrink-0" />
-                            <div className="flex-1"><Skeleton className="h-4 w-36 mb-1.5" /><Skeleton className="h-3 w-24" /></div>
-                        </div>
-                    ))
-                ) : filteredUsers.map(user => (
-                    <div key={user.id} className={cn('rounded-xl border border-border bg-card hover:border-foreground/20 hover:bg-foreground/[0.02] transition-colors', user.archived && 'opacity-60')}>
-                        <button onClick={() => { setSelectedUser(user); setEditDialogOpen(true); }} className="w-full text-left p-4">
-                            <div className="flex items-center gap-3">
-                                <Avatar className="w-11 h-11 shrink-0 border border-border">
-                                    {user.image && <AvatarImage src={user.image} alt={user.name || ''} />}
-                                    <AvatarFallback className="font-semibold">{user.name?.[0]?.toUpperCase() || 'U'}</AvatarFallback>
+            {loading ? <ListSkeleton rows={6} /> : filteredUsers.length === 0 ? (
+                <EmptyState
+                    icon={<Users />}
+                    title={q ? `Nobody matches “${searchQuery}”` : activeTab === 'archived' ? 'No archived users' : 'No users yet'}
+                    description={q ? 'Try part of a name, an email, or a church.' : activeTab === 'archived' ? 'People you archive appear here and can be restored.' : 'People you add appear here once they are created.'}
+                    action={q ? <Button variant="outline" size="sm" className="rounded-full" onClick={() => setSearchQuery('')}>Clear search</Button>
+                        : activeTab === 'active' && canCreateUsers ? <Button size="sm" className="rounded-full" onClick={() => setOpen(true)}><Plus className="mr-1.5 h-4 w-4" />Add user</Button> : undefined}
+                />
+            ) : (
+                <ul className="divide-y divide-border overflow-hidden rounded-2xl border border-border bg-card shadow-xs">
+                    {filteredUsers.map(user => (
+                        <li key={user.id}>
+                            <button data-row onClick={() => setOpenId(user.id)} className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-muted/40">
+                                <Avatar className="size-9 shrink-0 border border-border">
+                                    {user.image && <AvatarImage src={user.image} alt="" />}
+                                    <AvatarFallback className="text-xs font-semibold">{user.name?.[0]?.toUpperCase() || 'U'}</AvatarFallback>
                                 </Avatar>
-                                <div className="flex-1 min-w-0">
-                                    <div className="flex items-center gap-2 flex-wrap">
-                                        <p className="font-semibold text-foreground truncate">
-                                            {user.title ? `${user.title} ` : ''}{user.name || 'Unnamed User'}
-                                        </p>
-                                        {user.archived && <Badge variant="warning" className="text-[0.688rem]">Archived</Badge>}
-                                    </div>
-                                    <p className="text-sm text-muted-foreground truncate">
-                                        {user.userRoles?.[0]?.organisation?.name || user.organisation?.name || 'No church'}
-                                        {user.userRoles?.length > 1 ? ` (+${user.userRoles.length - 1} more)` : ''}
-                                    </p>
-                                </div>
-                            </div>
-                        </button>
-                        {isSuperAdmin && !user.archived && user.id !== session?.user?.id && (
-                            <div className="px-4 pb-3 flex justify-end">
-                                <Button variant="outline" size="sm" onClick={e => handleImpersonate(e, user)} disabled={!!impersonatingUserId} className="text-warning border-warning/30 hover:bg-warning/5">
-                                    {impersonatingUserId === user.id ? <><Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />Starting...</> : <><Users className="mr-1.5 h-3.5 w-3.5" />Impersonate</>}
-                                </Button>
-                            </div>
+                                <span className="min-w-0 flex-1">
+                                    <span className="block truncate text-sm font-medium text-foreground">{user.title ? `${user.title} ` : ''}{user.name || 'Unnamed user'}</span>
+                                    <span className="block truncate text-xs text-muted-foreground">
+                                        {churchOf(user)}{user.userRoles?.length > 1 ? ` · +${user.userRoles.length - 1} more` : ''}
+                                    </span>
+                                </span>
+                                {user.userRoles?.[0]?.role && (
+                                    <span className="hidden shrink-0 rounded-full bg-secondary px-2 py-0.5 text-xs text-muted-foreground sm:inline">{roleLabel(user.userRoles[0].role)}</span>
+                                )}
+                                <ChevronRight className="size-4 shrink-0 text-muted-foreground/60" />
+                            </button>
+                        </li>
+                    ))}
+                </ul>
+            )}
+
+            <RecordSheet
+                open={!!openUser}
+                onClose={() => setOpenId(null)}
+                title={openUser ? `${openUser.title ? `${openUser.title} ` : ''}${openUser.name || 'Unnamed user'}` : ''}
+                badges={openUser && <StatusBadge map={USER_STATUS} status={openUser.archived ? 'ARCHIVED' : 'ACTIVE'} />}
+                description={openUser?.email}
+                actions={openUser ? (
+                    <>
+                        {canCreateUsers && (
+                            <Button className="flex-1 rounded-full" onClick={() => { setSelectedUser(openUser); setEditDialogOpen(true); }}>
+                                <Pencil className="mr-1.5 h-4 w-4" />Edit
+                            </Button>
                         )}
-                    </div>
-                ))}
-                {!loading && filteredUsers.length === 0 && (
-                    <p className="text-center py-8 text-sm text-muted-foreground">
-                        {searchQuery ? 'No users match your search' : 'No users found'}
-                    </p>
+                        <Button variant="outline" className="flex-1 rounded-full" onClick={() => router.push(`/users/${openUser.id}`)}>
+                            <UserRound className="mr-1.5 h-4 w-4" />Full profile
+                        </Button>
+                        {isSuperAdmin && !openUser.archived && openUser.id !== session?.user?.id && (
+                            <Button variant="outline" className="rounded-full border-warning/30 text-warning hover:bg-warning/10" disabled={!!impersonatingUserId} onClick={() => handleImpersonate(openUser)}>
+                                {impersonatingUserId === openUser.id ? <><Loader2 className="mr-1.5 h-4 w-4 animate-spin" />Starting…</> : 'Impersonate'}
+                            </Button>
+                        )}
+                    </>
+                ) : undefined}
+            >
+                {openUser && (
+                    <>
+                        <div className="flex items-center gap-4">
+                            <Avatar className="size-16 border border-border">
+                                {openUser.image && <AvatarImage src={openUser.image} alt="" />}
+                                <AvatarFallback className="text-xl font-semibold">{openUser.name?.[0]?.toUpperCase() || 'U'}</AvatarFallback>
+                            </Avatar>
+                            <DetailGrid className="flex-1" items={[
+                                { label: 'Phone', value: openUser.phone },
+                                { label: 'Email', value: openUser.email },
+                            ]} />
+                        </div>
+                        <SheetSection title={`Roles (${openUser.userRoles?.length ?? 0})`}>
+                            {openUser.userRoles?.length ? (
+                                <ul className="divide-y divide-border rounded-xl border border-border">
+                                    {openUser.userRoles.map((ur: any) => (
+                                        <li key={ur.id} className="flex items-center justify-between gap-3 px-3 py-2.5 text-sm">
+                                            <span className="min-w-0 truncate text-foreground">{ur.organisation?.name}</span>
+                                            <span className="shrink-0 text-xs text-muted-foreground">{roleLabel(ur.role)}</span>
+                                        </li>
+                                    ))}
+                                </ul>
+                            ) : <p className="text-sm text-muted-foreground">No roles yet. Edit this user to give them one.</p>}
+                        </SheetSection>
+                        <SheetSection title="Account">
+                            <DetailGrid items={[
+                                { label: 'Added', value: openUser.createdAt ? new Date(openUser.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '' },
+                                { label: 'Last updated', value: openUser.updatedAt ? new Date(openUser.updatedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '' },
+                            ]} />
+                        </SheetSection>
+                    </>
                 )}
-            </div>
+            </RecordSheet>
 
             {/* Create user dialog */}
             <Dialog open={open} onOpenChange={v => { if (!v) { if (formData.image?.startsWith('blob:')) URL.revokeObjectURL(formData.image); setFormData({ title: '', name: '', email: '', phone: '', image: '' }); pendingImageRef.current = null; } setOpen(v); }}>
@@ -236,7 +300,7 @@ function UsersPageContent() {
                 onClose={() => setEditDialogOpen(false)}
                 user={selectedUser}
                 organisations={organisations}
-                onSave={() => { showSuccess('User updated successfully'); fetchUsers(); }}
+                onSave={() => { showSuccess('User updated'); fetchUsers(); }}
                 onDelete={handleDelete}
                 onArchive={handleArchive}
                 currentUserId={session?.user?.id}
@@ -248,7 +312,7 @@ function UsersPageContent() {
 
 export default function UsersPage() {
     return (
-        <Suspense fallback={<div className="flex flex-col gap-2">{[1, 2, 3].map(i => <Skeleton key={i} className="h-16 w-full rounded-xl" />)}</div>}>
+        <Suspense fallback={<ListSkeleton rows={6} />}>
             <UsersPageContent />
         </Suspense>
     );

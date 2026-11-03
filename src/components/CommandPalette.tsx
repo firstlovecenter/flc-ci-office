@@ -46,6 +46,10 @@ interface Row {
     href: string;
 }
 
+const LEVEL_HINT: Record<string, string> = {
+    DENOMINATION: 'HQ', OVERSIGHT: 'Oversight', CAMPUS: 'Campus', COUNCIL: 'Bank account',
+};
+
 const RECORD_GROUP: Record<SearchResult['type'], { group: string; icon: React.ElementType }> = {
     user: { group: 'People', icon: User },
     organisation: { group: 'Churches', icon: Building2 },
@@ -125,9 +129,7 @@ function PaletteBody({ close }: { close: () => void }) {
             group: RECORD_GROUP[r.type]?.group ?? 'Results',
             label: r.title,
             // Church levels arrive as enums ("CAMPUS"); never show those raw.
-            hint: r.type === 'organisation' && r.subtitle && /^[A-Z_]+$/.test(r.subtitle)
-                ? r.subtitle.charAt(0) + r.subtitle.slice(1).toLowerCase().replace(/_/g, ' ')
-                : r.subtitle,
+            hint: r.type === 'organisation' && r.subtitle ? (LEVEL_HINT[r.subtitle] ?? r.subtitle) : r.subtitle,
             icon: RECORD_GROUP[r.type]?.icon ?? ArrowRight,
             href: r.url,
         }));
