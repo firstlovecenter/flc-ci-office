@@ -1,20 +1,25 @@
 'use client';
 
 import React from 'react';
-import { toast } from 'sonner';
+import { toast } from '@/lib/toast';
 
+/**
+ * Kept so existing call sites (`showSuccess`, `showError`…) keep working.
+ * New code should import `toast` from '@/lib/toast' directly — the same API
+ * BMS uses, backed by Sileo.
+ */
 export function useToast() {
     return {
-        showToast: (message: string, severity = 'info', _duration?: number) => {
-            if (severity === 'success') toast.success(message);
-            else if (severity === 'error') toast.error(message);
-            else if (severity === 'warning') toast.warning(message);
-            else toast.info(message);
+        showToast: (message: string, severity = 'info', duration?: number) => {
+            if (severity === 'success') toast.success(message, { duration });
+            else if (severity === 'error') toast.error(message, { duration });
+            else if (severity === 'warning') toast.warning(message, { duration });
+            else toast.info(message, { duration });
         },
-        showSuccess: (message: string, _duration?: number) => toast.success(message),
-        showError: (message: string, _duration?: number) => toast.error(message),
-        showWarning: (message: string, _duration?: number) => toast.warning(message),
-        showInfo: (message: string, _duration?: number) => toast.info(message),
+        showSuccess: (message: string, duration?: number) => toast.success(message, { duration }),
+        showError: (message: string, duration?: number) => toast.error(message, { duration }),
+        showWarning: (message: string, duration?: number) => toast.warning(message, { duration }),
+        showInfo: (message: string, duration?: number) => toast.info(message, { duration }),
     };
 }
 

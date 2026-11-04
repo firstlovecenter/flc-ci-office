@@ -2,20 +2,25 @@
 
 import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { Search, Wallet, Plus, Pencil, ArrowLeftRight, RotateCcw } from 'lucide-react';
+import { Wallet, Plus, Pencil, ArrowLeftRight, RotateCcw, ChevronRight, LayoutDashboard } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
-import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Badge } from '@/components/ui/badge';
-import { Skeleton } from '@/components/ui/skeleton';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { isBankAccount } from '@/lib/org-model';
 import { canAdministerOrganisation, canReopenAccount } from '@/lib/roles';
 import { cn } from '@/lib/utils';
-import { useToast } from '@/components/ToastProvider';
+import { toast } from '@/lib/toast';
+import { roleLabel } from '@/lib/labels';
+import PageHeader from '@/components/ui/PageHeader';
+import EmptyState from '@/components/ui/EmptyState';
+import { ACCOUNT_STATUS, StatusBadge } from '@/components/ui/status';
+import { DetailGrid, RecordSheet, SheetSection } from '@/components/ui/record-sheet';
+import { FilterPills, ListSkeleton, ListToolbar } from '@/components/ui/list-toolbar';
+import { OrgBalance } from '@/components/OrgBalance';
+import { useUrlState } from '@/hooks/useUrlState';
 import EditOrganisationDialog from '@/components/EditOrganisationDialog';
 import TransferFundsDialog from '@/components/TransferFundsDialog';
 
@@ -39,7 +44,10 @@ function AccountsPageContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const campusParam = searchParams?.get('campus');
-    const { showSuccess, showError } = useToast();
+    const showSuccess = (m: string) => toast.success(m);
+    const showError = (m: string) => toast.error(m);
+    const [tab, setTab] = useUrlState('status', 'open');
+    const [openId, setOpenId] = useUrlState('id');
     const [accounts, setAccounts] = useState<any[]>([]);
     const [allOrganisations, setAllOrganisations] = useState<any[]>([]);
     const [campus, setCampus] = useState<any>(null);
@@ -102,7 +110,7 @@ function AccountsPageContent() {
     };
 
     const handleSaveEdit = () => {
-        showSuccess('Account updated successfully');
+        showSuccess('Account updated');
         fetchAccounts();
         fetchAllOrganisations();
     };
@@ -113,7 +121,8 @@ function AccountsPageContent() {
         fetchAllOrganisations();
     };
 
-    const filteredAccounts = accounts.filter((acct: any) => {
+    const activeTab = tab === 'closed' ? 'closed' : 'open';
+    const filteredAccounts = accounts.filter((acct: any) => (activeTab === 'closed') === isClosedAccount(acct)).filter((acct: any) => {
         if (!searchQuery.trim()) return true;
         const q = searchQuery.toLowerCase();
         const holder = acct.userRoles?.find((ur: any) => ur.role?.includes('LEADER'))?.user?.name || '';
@@ -132,6 +141,7 @@ function AccountsPageContent() {
     });
 
     const openAccounts = accounts.filter((a: AccountRow) => !isClosedAccount(a));
+    const selected: AccountRow | null = accounts.find((a: AccountRow) => a.id === openId) ?? null;
     const closedCount = accounts.length - openAccounts.length;
 
     const isLeader = session?.user?.role?.includes('LEADER');
@@ -175,201 +185,134 @@ function AccountsPageContent() {
 
     return (
         <div>
-            <div className="flex items-start sm:items-end justify-between gap-4 flex-wrap mb-8 pb-6 border-b border-border">
-                <div className="flex items-center gap-4 min-w-0 flex-1">
-                    <div className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0 bg-secondary text-muted-foreground">
-                        <Wallet className="h-5 w-5" />
-                    </div>
-                    <div className="min-w-0">
-                        <p className="text-[0.6875rem] font-medium uppercase tracking-[0.10em] text-muted-foreground mb-0.5">
-                            Banking
-                        </p>
-                        <h1 className="text-[1.625rem] sm:text-[1.875rem] font-semibold tracking-[-0.025em] text-foreground">
-                            {campus ? `${campus.name} accounts` : 'Accounts'}
-                        </h1>
-                        <p className="text-sm text-muted-foreground mt-1">
-                            {openAccounts.length} open {openAccounts.length === 1 ? 'account' : 'accounts'}
-                            {campus ? ` under ${campus.name}` : ''}
-                            {closedCount > 0 ? ` · ${closedCount} closed` : ''}
-                        </p>
-                    </div>
-                </div>
-                <div className="flex items-center gap-2 flex-wrap">
-                    {canAdminister && openAccounts.length > 1 && (
-                        <Button variant="outline" onClick={() => { setTransferFromId(null); setTransferOpen(true); }}>
-                            <ArrowLeftRight className="mr-2 h-4 w-4" />
-                            Transfer funds
-                        </Button>
-                    )}
-                    {canCreate && (
-                        <Button asChild>
-                            <Link href={
-                                campusParam
-                                    ? `/organisations/new?parent=${campusParam}&kind=account`
-                                    : '/organisations/new?kind=account'
-                            }>
-                                <Plus className="mr-2 h-4 w-4" />
-                                Open account
-                            </Link>
-                        </Button>
-                    )}
-                </div>
-            </div>
+            <PageHeader
+                eyebrow="Banking"
+                title={campus ? `${campus.name} accounts` : 'Accounts'}
+                subtitle={`${openAccounts.length} open ${openAccounts.length === 1 ? 'account' : 'accounts'}${campus ? ` under ${campus.name}` : ''}. Open one to see its balance and who holds it.`}
+                actions={(
+                    <>
+                        {canAdminister && openAccounts.length > 1 && (
+                            <Button variant="outline" className="rounded-full" onClick={() => { setTransferFromId(null); setTransferOpen(true); }}>
+                                <ArrowLeftRight className="mr-2 h-4 w-4" />Transfer funds
+                            </Button>
+                        )}
+                        {canCreate && (
+                            <Button asChild className="rounded-full">
+                                <Link href={campusParam ? `/organisations/new?parent=${campusParam}&kind=account` : '/organisations/new?kind=account'}>
+                                    <Plus className="mr-2 h-4 w-4" />Open account
+                                </Link>
+                            </Button>
+                        )}
+                    </>
+                )}
+            />
 
-            <div className="relative mb-6 max-w-[480px]">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-                <Input
-                    placeholder="Search accounts, holders, or campuses"
-                    value={searchQuery}
-                    onChange={e => setSearchQuery(e.target.value)}
-                    className="pl-9 rounded-full"
+            <div className="mb-3 flex flex-col gap-3">
+                <FilterPills
+                    label="Status"
+                    value={activeTab}
+                    onChange={setTab}
+                    options={[
+                        { value: 'open', label: 'Open', count: openAccounts.length },
+                        { value: 'closed', label: 'Closed', count: closedCount },
+                    ]}
+                />
+                <ListToolbar
+                    search={searchQuery}
+                    onSearch={setSearchQuery}
+                    placeholder="Search accounts, holders or campuses"
+                    count={loading ? null : filteredAccounts.length}
+                    countLabel={filteredAccounts.length === 1 ? 'account' : 'accounts'}
                 />
             </div>
 
-            <div className="flex flex-col gap-2">
-                {loading ? (
-                    [1, 2, 3, 4, 5].map(i => (
-                        <div key={i} className="rounded-xl border border-border bg-card p-4 flex items-center gap-4">
-                            <Skeleton className="w-10 h-10 md:w-12 md:h-12 rounded-full shrink-0" />
-                            <div className="flex-1">
-                                <Skeleton className="h-4 w-40 mb-1.5" />
-                                <Skeleton className="h-3 w-28" />
-                            </div>
-                        </div>
-                    ))
-                ) : filteredAccounts.map((acct: any) => {
-                    const holder = acct.userRoles?.find((ur: any) => ur.role?.includes('LEADER'))?.user;
-                    const manager = acct.userRoles?.find((ur: any) => ur.role?.includes('ADMIN'))?.user;
-                    // A closed account is a record, not a destination: it holds no
-                    // money and has no holder, so the row does not open.
-                    const closed = isClosedAccount(acct);
+            {loading ? <ListSkeleton rows={6} /> : filteredAccounts.length === 0 ? (
+                <EmptyState
+                    icon={<Wallet />}
+                    title={searchQuery ? `No accounts match “${searchQuery}”` : activeTab === 'closed' ? 'No closed accounts' : 'No open accounts yet'}
+                    description={searchQuery ? 'Try an account name, a holder, or a campus.' : activeTab === 'closed' ? 'Accounts you close stay here as a record and can be reopened.' : 'Accounts appear here once one is opened under a campus.'}
+                    action={searchQuery ? <Button variant="outline" size="sm" className="rounded-full" onClick={() => setSearchQuery('')}>Clear search</Button> : undefined}
+                />
+            ) : (
+                <ul className="divide-y divide-border overflow-hidden rounded-2xl border border-border bg-card shadow-xs">
+                    {filteredAccounts.map((acct: any) => {
+                        const holder = acct.userRoles?.find((ur: any) => ur.role?.includes('LEADER'))?.user;
+                        const closed = isClosedAccount(acct);
+                        return (
+                            <li key={acct.id}>
+                                <button data-row onClick={() => setOpenId(acct.id)} className={cn('flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-muted/40', closed && 'opacity-70')}>
+                                    <Avatar className={cn('size-9 shrink-0 border', closed ? 'border-border bg-muted grayscale' : 'border-primary/20 bg-primary/10')}>
+                                        {holder?.image && <AvatarImage src={holder.image} alt="" />}
+                                        <AvatarFallback className={cn('text-xs font-semibold', closed ? 'text-muted-foreground' : 'text-primary')}>
+                                            {holder?.name?.[0]?.toUpperCase() || acct.name[0]?.toUpperCase() || 'A'}
+                                        </AvatarFallback>
+                                    </Avatar>
+                                    <span className="min-w-0 flex-1">
+                                        <span className="block truncate text-sm font-medium text-foreground">{acct.name}</span>
+                                        <span className="block truncate text-xs text-muted-foreground">
+                                            {closed
+                                                ? `Closed${acct.closedAt ? ` ${new Date(acct.closedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}` : ''}${acct.closureReason ? ` · ${acct.closureReason}` : ''}`
+                                                : `${holder ? (holder.name || holder.email) : 'No holder yet'}${!campusParam && acct.parent?.name ? ` · ${acct.parent.name}` : ''}`}
+                                        </span>
+                                    </span>
+                                    <ChevronRight className="size-4 shrink-0 text-muted-foreground/60" />
+                                </button>
+                            </li>
+                        );
+                    })}
+                </ul>
+            )}
 
-                    return (
-                        <div
-                            key={acct.id}
-                            role={closed ? undefined : 'button'}
-                            tabIndex={closed ? undefined : 0}
-                            onClick={closed ? undefined : () => openAccount(acct)}
-                            onKeyDown={closed ? undefined : e => {
-                                if (e.key === 'Enter' || e.key === ' ') {
-                                    e.preventDefault();
-                                    openAccount(acct);
-                                }
-                            }}
-                            className={cn(
-                                'group text-left rounded-xl border border-border bg-card transition-colors duration-150 py-3 md:py-4 px-3 md:px-5 outline-none',
-                                closed
-                                    ? 'opacity-60 bg-muted/20 border-dashed'
-                                    : 'cursor-pointer hover:border-foreground/20 hover:bg-foreground/[0.02] focus-visible:ring-2 focus-visible:ring-ring/50',
-                            )}
-                        >
-                            <div className="flex items-center gap-3 md:gap-5">
-                                <Avatar className={cn(
-                                    'w-10 h-10 md:w-12 md:h-12 shrink-0 border',
-                                    closed ? 'border-border bg-muted grayscale' : 'border-primary/20 bg-primary/10',
-                                )}>
-                                    {holder?.image && <AvatarImage src={holder.image} alt={holder.name || ''} />}
-                                    <AvatarFallback className={cn('font-semibold', closed ? 'text-muted-foreground' : 'text-primary')}>
-                                        {holder?.name?.[0]?.toUpperCase() || acct.name[0]?.toUpperCase() || 'A'}
-                                    </AvatarFallback>
-                                </Avatar>
-                                <div className="flex-1 min-w-0">
-                                    <div className="flex items-center gap-2 min-w-0 mb-0.5">
-                                        <p className={cn(
-                                            'font-bold truncate text-[0.95rem] md:text-[1.05rem] leading-tight',
-                                            closed ? 'text-muted-foreground line-through decoration-1' : 'text-foreground',
-                                        )}>
-                                            {acct.name}
-                                        </p>
-                                        {closed && <Badge variant="secondary" className="shrink-0">Closed</Badge>}
-                                    </div>
-                                    {closed ? (
-                                        <p className="text-[0.8rem] text-muted-foreground">
-                                            {acct.closedAt ? `Closed ${new Date(acct.closedAt).toLocaleDateString()}` : 'Closed'}
-                                            {acct.closureReason ? ` · ${acct.closureReason}` : ''}
-                                        </p>
-                                    ) : (
-                                        <div className="flex flex-wrap items-center gap-1">
-                                            {holder ? (
-                                                <span className="text-[0.8rem] md:text-sm text-success font-medium">
-                                                    {holder.name || holder.email}
-                                                </span>
-                                            ) : (
-                                                <span className="text-[0.8rem] text-muted-foreground italic">No holder assigned</span>
-                                            )}
-                                            {manager && (
-                                                <span className="hidden md:flex items-center text-sm text-muted-foreground">
-                                                    <span className="mx-1">·</span>
-                                                    <span className="text-warning font-medium mr-1">Manager:</span>
-                                                    {manager.name || manager.email}
-                                                </span>
-                                            )}
-                                        </div>
-                                    )}
-                                    {/* Always shown: account names like "Area 4" or "GLGC"
-                                        carry no campus information on their own, so hiding
-                                        this on mobile left the list unreadable. */}
-                                    {!campusParam && acct.parent?.name && (
-                                        <p className="text-xs text-muted-foreground mt-0.5">
-                                            {acct.parent.name}
-                                        </p>
-                                    )}
-                                </div>
-                                {closed && canReopen && (
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        className="shrink-0"
-                                        onClick={e => { e.stopPropagation(); setReopenTarget(acct); }}
-                                    >
-                                        <RotateCcw className="mr-1.5 h-3.5 w-3.5" />
-                                        Reopen
-                                    </Button>
-                                )}
-                                {!closed && canAdminister && openAccounts.length > 1 && (
-                                    <button
-                                        type="button"
-                                        aria-label={`Transfer funds from ${acct.name}`}
-                                        title={`Transfer funds from ${acct.name}`}
-                                        onClick={e => { e.stopPropagation(); setTransferFromId(acct.id); setTransferOpen(true); }}
-                                        className={cn(
-                                            'shrink-0 p-2 rounded-md text-muted-foreground transition-colors',
-                                            'hover:text-foreground hover:bg-accent',
-                                            'outline-none focus-visible:ring-2 focus-visible:ring-ring/50',
-                                            'md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100',
-                                        )}
-                                    >
-                                        <ArrowLeftRight className="h-4 w-4" />
-                                    </button>
-                                )}
-                                {!closed && canAdminister && (
-                                    <button
-                                        type="button"
-                                        aria-label={`Edit ${acct.name}`}
-                                        title={`Edit ${acct.name}`}
-                                        onClick={e => { e.stopPropagation(); openEditDialog(acct); }}
-                                        className={cn(
-                                            'shrink-0 p-2 rounded-md text-muted-foreground transition-colors',
-                                            'hover:text-foreground hover:bg-accent',
-                                            'outline-none focus-visible:ring-2 focus-visible:ring-ring/50',
-                                            // Always visible on touch — hover-reveal is unreachable there.
-                                            'md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100',
-                                        )}
-                                    >
-                                        <Pencil className="h-4 w-4" />
-                                    </button>
-                                )}
-                            </div>
-                        </div>
-                    );
-                })}
-
-                {!loading && filteredAccounts.length === 0 && (
-                    <p className="text-center py-8 text-sm text-muted-foreground">
-                        {accounts.length === 0 ? 'No accounts yet' : 'No accounts match your search'}
-                    </p>
+            <RecordSheet
+                open={!!selected}
+                onClose={() => setOpenId(null)}
+                title={selected?.name ?? ''}
+                badges={selected && <StatusBadge map={ACCOUNT_STATUS} status={isClosedAccount(selected) ? 'CLOSED' : 'OPEN'} />}
+                description={selected?.parent?.name}
+                actions={selected ? (isClosedAccount(selected) ? (canReopen ? (
+                    <Button className="flex-1 rounded-full" onClick={() => setReopenTarget(selected)}><RotateCcw className="mr-1.5 h-4 w-4" />Reopen</Button>
+                ) : undefined) : (
+                    <>
+                        <Button className="flex-1 rounded-full" onClick={() => openAccount(selected)}><LayoutDashboard className="mr-1.5 h-4 w-4" />Open dashboard</Button>
+                        {canAdminister && openAccounts.length > 1 && (
+                            <Button variant="outline" className="rounded-full" onClick={() => { setTransferFromId(selected.id); setTransferOpen(true); }}><ArrowLeftRight className="mr-1.5 h-4 w-4" />Transfer</Button>
+                        )}
+                        {canAdminister && (
+                            <Button variant="outline" className="rounded-full" onClick={() => openEditDialog(selected)}><Pencil className="mr-1.5 h-4 w-4" />Edit</Button>
+                        )}
+                    </>
+                )) : undefined}
+            >
+                {selected && (
+                    <>
+                        {!isClosedAccount(selected) && <OrgBalance key={selected.id} id={selected.id} exactLevel />}
+                        <SheetSection title="People">
+                            {selected.userRoles?.filter(ur => ur.user).length ? (
+                                <ul className="divide-y divide-border rounded-xl border border-border">
+                                    {selected.userRoles.filter(ur => ur.user).map((ur, i) => (
+                                        <li key={`${ur.user!.id}-${i}`} className="flex items-center gap-3 px-3 py-2.5 text-sm">
+                                            <Avatar className="size-7">
+                                                {ur.user!.image && <AvatarImage src={ur.user!.image} alt="" />}
+                                                <AvatarFallback className="text-[10px]">{ur.user!.name?.[0]?.toUpperCase() || 'U'}</AvatarFallback>
+                                            </Avatar>
+                                            <span className="min-w-0 flex-1 truncate text-foreground">{ur.user!.name || ur.user!.email}</span>
+                                            <span className="shrink-0 text-xs text-muted-foreground">{roleLabel(ur.role)}</span>
+                                        </li>
+                                    ))}
+                                </ul>
+                            ) : <p className="text-sm text-muted-foreground">No holder yet. Edit the account to assign one.</p>}
+                        </SheetSection>
+                        {isClosedAccount(selected) && (
+                            <SheetSection title="Closure">
+                                <DetailGrid items={[
+                                    { label: 'Closed', value: selected.closedAt ? new Date(selected.closedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '' },
+                                    { label: 'Reason', value: selected.closureReason, full: true },
+                                ]} />
+                            </SheetSection>
+                        )}
+                    </>
                 )}
-            </div>
+            </RecordSheet>
 
             <TransferFundsDialog
                 open={transferOpen}
@@ -408,11 +351,7 @@ function AccountsPageContent() {
 
 export default function AccountsPage() {
     return (
-        <Suspense fallback={
-            <div className="flex flex-col gap-2 p-6">
-                {[1, 2, 3].map(i => <Skeleton key={i} className="h-16 w-full rounded-xl" />)}
-            </div>
-        }>
+        <Suspense fallback={<ListSkeleton rows={6} />}>
             <AccountsPageContent />
         </Suspense>
     );

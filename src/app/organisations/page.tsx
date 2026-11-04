@@ -2,18 +2,23 @@
 
 import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { Search, Building2, Plus, Wallet, Pencil } from 'lucide-react';
+import { Building2, Plus, Wallet, Pencil, ChevronRight, ArrowRight } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
-import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
 import { isOrgUnit, isBankAccount } from '@/lib/org-model';
 import { canAdministerOrganisation } from '@/lib/roles';
-import { cn } from '@/lib/utils';
-import { useToast } from '@/components/ToastProvider';
+import { toast } from '@/lib/toast';
+import { roleLabel } from '@/lib/labels';
+import PageHeader from '@/components/ui/PageHeader';
+import EmptyState from '@/components/ui/EmptyState';
+import { RecordSheet, SheetSection } from '@/components/ui/record-sheet';
+import { FilterPills, ListSkeleton, ListToolbar } from '@/components/ui/list-toolbar';
+import { OrgBalance } from '@/components/OrgBalance';
+import { useUrlState } from '@/hooks/useUrlState';
 import EditOrganisationDialog from '@/components/EditOrganisationDialog';
 
 type Organisation = {
@@ -32,6 +37,7 @@ type OrganisationRow = Organisation & {
     _count?: { children?: number };
 };
 
+const SUB_CHURCH_ONE: Record<string, string> = { DENOMINATION: 'oversight', OVERSIGHT: 'campus' };
 const LEVEL_ORDER: Record<string, number> = { CAMPUS: 3, OVERSIGHT: 2, DENOMINATION: 1 };
 /** Child church units under a parent. Campus has no child churches — only bank accounts. */
 const SUB_CHURCHES: Record<string, string> = {
@@ -44,7 +50,9 @@ function OrganisationsPageContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const parentParam = searchParams?.get('parent');
-    const { showSuccess } = useToast();
+    const showSuccess = (m: string) => toast.success(m);
+    const [levelFilter, setLevelFilter] = useUrlState('level', 'ALL');
+    const [openId, setOpenId] = useUrlState('id');
     const [organisations, setOrganisations] = useState<Organisation[]>([]);
     const [allOrganisations, setAllOrganisations] = useState<any[]>([]);
     const [parentOrganisation, setParentOrganisation] = useState<any>(null);
@@ -101,7 +109,7 @@ function OrganisationsPageContent() {
     };
 
     const handleSaveEdit = () => {
-        showSuccess('Church updated successfully');
+        showSuccess('Church updated');
         fetchOrganisations(parentParam);
         fetchAllOrganisations();
         // The header renders the parent, so refresh it too when it was the one edited.
@@ -120,7 +128,8 @@ function OrganisationsPageContent() {
         if (parentParam) fetchParentOrganisation();
     };
 
-    const filteredOrganisations = organisations.filter((dept: any) => {
+    const levelCounts = organisations.reduce<Record<string, number>>((acc, o) => { acc[o.level] = (acc[o.level] ?? 0) + 1; return acc; }, {});
+    const filteredOrganisations = organisations.filter((dept: any) => levelFilter === 'ALL' || dept.level === levelFilter).filter((dept: any) => {
         if (!searchQuery.trim()) return true;
         const q = searchQuery.toLowerCase();
         const leaderName = dept.userRoles?.find((ur: any) => ur.role?.includes('LEADER'))?.user?.name || '';
@@ -143,7 +152,12 @@ function OrganisationsPageContent() {
         setEditDialogOpen(true);
     };
 
+    const selected = (organisations as OrganisationRow[]).find(o => o.id === openId) ?? null;
+    const LEVEL_NAME: Record<string, string> = { DENOMINATION: 'HQ', OVERSIGHT: 'Oversight', CAMPUS: 'Campus' };
+    const drillLabel = (o: OrganisationRow) => o.level === 'CAMPUS' ? 'Open accounts' : `Open ${(SUB_CHURCHES[o.level] || 'churches').toLowerCase()}`;
+
     const drillInto = (dept: OrganisationRow) => {
+        setOpenId(null);
         document.cookie = `activeOrganisationId=${dept.id}; path=/; max-age=86400; SameSite=Strict${window.location.protocol === 'https:' ? '; Secure' : ''}`;
         if (dept.level === 'DENOMINATION' || dept.level === 'OVERSIGHT') {
             router.push(`/organisations?parent=${dept.id}`);
@@ -164,178 +178,149 @@ function OrganisationsPageContent() {
         );
     }
 
+    const title = parentOrganisation ? `${parentOrganisation.name} ${SUB_CHURCHES[parentOrganisation.level] || ''}` : 'Churches';
+    const subtitleBits = [
+        !parentOrganisation ? 'HQ → Oversight → Campus. Open a church to see its balance and people.' : null,
+        parentLeader ? `Leader: ${parentLeader.name || parentLeader.email}` : null,
+        parentAdmin ? `Manager: ${parentAdmin.name || parentAdmin.email}` : null,
+    ].filter(Boolean);
+    const levelOptions = ['DENOMINATION', 'OVERSIGHT', 'CAMPUS'].filter(l => levelCounts[l]);
+
     return (
         <div>
-            <div className="flex items-start sm:items-end justify-between gap-4 flex-wrap mb-8 pb-6 border-b border-border">
-                <div className="flex items-center gap-4 min-w-0 flex-1">
-                    <div className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0 bg-secondary text-muted-foreground">
-                        <Building2 className="h-5 w-5" />
-                    </div>
-                    <div className="min-w-0">
-                        <p className="text-[0.6875rem] font-medium uppercase tracking-[0.10em] text-muted-foreground mb-0.5">
-                            {parentOrganisation ? 'Churches' : 'Church hierarchy'}
-                        </p>
-                        <div className="flex items-center gap-2 flex-wrap">
-                            <h1 className="text-[1.625rem] sm:text-[1.875rem] font-semibold tracking-[-0.025em] text-foreground">
-                                {parentOrganisation
-                                    ? `${parentOrganisation.name} ${SUB_CHURCHES[parentOrganisation.level] || ''}`
-                                    : 'Churches'}
-                            </h1>
-                            {parentOrganisation && canAdminister && (
-                                <button
-                                    type="button"
-                                    aria-label={`Edit ${parentOrganisation.name}`}
-                                    title={`Edit ${parentOrganisation.name}`}
-                                    onClick={() => openEditDialog(parentOrganisation)}
-                                    className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-                                >
-                                    <Pencil className="h-4 w-4" />
-                                </button>
-                            )}
-                        </div>
-                        <p className="text-sm text-muted-foreground mt-1">
-                            {organisations.length} {organisations.length === 1 ? 'church' : 'churches'}
-                            {!parentOrganisation ? ' · HQ → Oversight → Campus' : ''}
-                            {parentLeader ? ` · Leader: ${parentLeader.name || parentLeader.email}` : ''}
-                            {parentAdmin ? ` · Manager: ${parentAdmin.name || parentAdmin.email}` : ''}
-                        </p>
-                    </div>
-                </div>
-                <div className="flex items-center gap-2 flex-wrap">
-                    {parentOrganisation?.level === 'OVERSIGHT' && (
-                        <Button variant="outline" asChild>
-                            <Link href="/accounts">
-                                <Wallet className="mr-2 h-4 w-4" />
-                                View accounts
-                            </Link>
-                        </Button>
-                    )}
-                    {canCreate && (
-                        <Button asChild>
-                            <Link href={parentParam ? `/organisations/new?parent=${parentParam}` : '/organisations/new'}>
-                                <Plus className="mr-2 h-4 w-4" />
-                                Add church
-                            </Link>
-                        </Button>
-                    )}
-                </div>
-            </div>
+            <PageHeader
+                eyebrow={parentOrganisation ? 'Churches' : 'Church hierarchy'}
+                title={title}
+                subtitle={subtitleBits.join(' · ')}
+                titleAdornment={parentOrganisation && canAdminister ? (
+                    <button
+                        type="button"
+                        aria-label={`Edit ${parentOrganisation.name}`}
+                        title={`Edit ${parentOrganisation.name}`}
+                        onClick={() => openEditDialog(parentOrganisation)}
+                        className="rounded-full p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                    >
+                        <Pencil className="h-4 w-4" />
+                    </button>
+                ) : undefined}
+                actions={(
+                    <>
+                        {parentOrganisation?.level === 'OVERSIGHT' && (
+                            <Button variant="outline" asChild className="rounded-full">
+                                <Link href="/accounts"><Wallet className="mr-2 h-4 w-4" />View accounts</Link>
+                            </Button>
+                        )}
+                        {canCreate && (
+                            <Button asChild className="rounded-full">
+                                <Link href={parentParam ? `/organisations/new?parent=${parentParam}` : '/organisations/new'}><Plus className="mr-2 h-4 w-4" />Add church</Link>
+                            </Button>
+                        )}
+                    </>
+                )}
+            />
 
-            <div className="relative mb-6 max-w-[480px]">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-                <Input
-                    placeholder={parentOrganisation
-                        ? `Search ${SUB_CHURCHES[parentOrganisation.level] || 'churches'} or leaders`
-                        : 'Search churches or leaders'}
-                    value={searchQuery}
-                    onChange={e => setSearchQuery(e.target.value)}
-                    className="pl-9 rounded-full"
+            <div className="mb-3 flex flex-col gap-3">
+                {levelOptions.length > 1 && (
+                    <FilterPills
+                        label="Level"
+                        value={levelFilter}
+                        onChange={setLevelFilter}
+                        options={[
+                            { value: 'ALL', label: 'All', count: organisations.length },
+                            ...levelOptions.map(l => ({ value: l, label: l === 'DENOMINATION' ? 'HQ' : l === 'OVERSIGHT' ? 'Oversights' : 'Campuses', count: levelCounts[l] })),
+                        ]}
+                    />
+                )}
+                <ListToolbar
+                    search={searchQuery}
+                    onSearch={setSearchQuery}
+                    placeholder={parentOrganisation ? `Search ${(SUB_CHURCHES[parentOrganisation.level] || 'churches').toLowerCase()} or leaders` : 'Search churches or leaders'}
+                    count={loading ? null : filteredOrganisations.length}
+                    countLabel={filteredOrganisations.length === 1 ? 'church' : 'churches'}
                 />
             </div>
 
-            <div className="flex flex-col gap-2">
-                {loading ? (
-                    [1, 2, 3, 4, 5].map(i => (
-                        <div key={i} className="rounded-xl border border-border bg-card p-4 flex items-center gap-4">
-                            <Skeleton className="w-10 h-10 md:w-12 md:h-12 rounded-full shrink-0" />
-                            <div className="flex-1">
-                                <Skeleton className="h-4 w-40 mb-1.5" />
-                                <Skeleton className="h-3 w-28" />
-                            </div>
-                        </div>
-                    ))
-                ) : filteredOrganisations.map((dept: any) => {
-                    const leader = dept.userRoles?.find((ur: any) => ur.role?.includes('LEADER'))?.user;
-                    const admin = dept.userRoles?.find((ur: any) => ur.role?.includes('ADMIN'))?.user;
-                    const childOrgCount = (dept.children || []).filter((c: any) => isOrgUnit(c.level)).length;
-                    // Count the accounts themselves, not `_count.children` — Prisma's
-                    // _count ignores the include's `isActive` filter, so it counted
-                    // closed rows too (Revival showed 17 accounts instead of 13).
-                    const bankAccountCount = dept.level === 'CAMPUS'
-                        ? (dept.children || []).filter((c: { level: string }) => isBankAccount(c.level)).length
-                        : 0;
-                    const childChurchLabel = SUB_CHURCHES[dept.level];
+            {loading ? <ListSkeleton rows={6} /> : filteredOrganisations.length === 0 ? (
+                <EmptyState
+                    icon={<Building2 />}
+                    title={searchQuery ? `No churches match “${searchQuery}”` : 'No churches here yet'}
+                    description={searchQuery ? 'Try a church name or a leader.' : 'Churches appear here once they are added under this level.'}
+                    action={searchQuery ? <Button variant="outline" size="sm" className="rounded-full" onClick={() => setSearchQuery('')}>Clear search</Button> : undefined}
+                />
+            ) : (
+                <ul className="divide-y divide-border overflow-hidden rounded-2xl border border-border bg-card shadow-xs">
+                    {filteredOrganisations.map((dept: any) => {
+                        const leader = dept.userRoles?.find((ur: any) => ur.role?.includes('LEADER'))?.user;
+                        const childOrgCount = (dept.children || []).filter((c: any) => isOrgUnit(c.level)).length;
+                        // Count the accounts themselves, not `_count.children` — Prisma's
+                        // _count ignores the include's `isActive` filter.
+                        const bankAccountCount = dept.level === 'CAMPUS'
+                            ? (dept.children || []).filter((c: { level: string }) => isBankAccount(c.level)).length
+                            : 0;
+                        const childLabel = dept.level === 'CAMPUS'
+                            ? `${bankAccountCount} ${bankAccountCount === 1 ? 'account' : 'accounts'}`
+                            : SUB_CHURCHES[dept.level] && childOrgCount > 0
+                                ? `${childOrgCount} ${childOrgCount === 1 ? SUB_CHURCH_ONE[dept.level] : SUB_CHURCHES[dept.level].toLowerCase()}`
+                                : null;
+                        return (
+                            <li key={dept.id}>
+                                <button data-row onClick={() => setOpenId(dept.id)} className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-muted/40">
+                                    <Avatar className="size-9 shrink-0 border border-primary/20 bg-primary/10">
+                                        {leader?.image && <AvatarImage src={leader.image} alt="" />}
+                                        <AvatarFallback className="text-xs font-semibold text-primary">{leader?.name?.[0]?.toUpperCase() || dept.name[0]?.toUpperCase() || 'C'}</AvatarFallback>
+                                    </Avatar>
+                                    <span className="min-w-0 flex-1">
+                                        <span className="block truncate text-sm font-medium text-foreground">{dept.name}</span>
+                                        <span className="block truncate text-xs text-muted-foreground">
+                                            {leader ? (leader.name || leader.email) : 'No leader yet'}{childLabel ? ` · ${childLabel}` : ''}
+                                        </span>
+                                    </span>
+                                    <span className="hidden shrink-0 rounded-full bg-secondary px-2 py-0.5 text-xs text-muted-foreground sm:inline">{LEVEL_NAME[dept.level] ?? dept.level}</span>
+                                    <ChevronRight className="size-4 shrink-0 text-muted-foreground/60" />
+                                </button>
+                            </li>
+                        );
+                    })}
+                </ul>
+            )}
 
-                    return (
-                        <div
-                            key={dept.id}
-                            role="button"
-                            tabIndex={0}
-                            onClick={() => drillInto(dept)}
-                            onKeyDown={e => {
-                                if (e.key === 'Enter' || e.key === ' ') {
-                                    e.preventDefault();
-                                    drillInto(dept);
-                                }
-                            }}
-                            className="group cursor-pointer text-left rounded-xl border border-border bg-card hover:border-foreground/20 hover:bg-foreground/[0.02] transition-colors duration-150 py-3 md:py-4 px-3 md:px-5 outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-                        >
-                            <div className="flex items-center gap-3 md:gap-5">
-                                <Avatar className="w-10 h-10 md:w-12 md:h-12 shrink-0 border border-primary/20 bg-primary/10">
-                                    {leader?.image && <AvatarImage src={leader.image} alt={leader.name || ''} />}
-                                    <AvatarFallback className="text-primary font-semibold">
-                                        {leader?.name?.[0]?.toUpperCase() || dept.name[0]?.toUpperCase() || 'D'}
-                                    </AvatarFallback>
-                                </Avatar>
-                                <div className="flex-1 min-w-0">
-                                    <p className="font-bold text-foreground truncate text-[0.95rem] md:text-[1.05rem] mb-0.5 leading-tight">
-                                        {dept.name}
-                                    </p>
-                                    <div className="flex flex-wrap items-center gap-1">
-                                        {leader ? (
-                                            <span className="text-[0.8rem] md:text-sm text-success font-medium">
-                                                {leader.name || leader.email}
-                                            </span>
-                                        ) : (
-                                            <span className="text-[0.8rem] text-muted-foreground italic">No leader assigned</span>
-                                        )}
-                                        {admin && (
-                                            <span className="hidden md:flex items-center text-sm text-muted-foreground">
-                                                <span className="mx-1">·</span>
-                                                <span className="text-warning font-medium mr-1">Manager:</span>
-                                                {admin.name || admin.email}
-                                            </span>
-                                        )}
-                                    </div>
-                                    {dept.level === 'CAMPUS' && (
-                                        <p className="hidden md:block text-xs text-muted-foreground mt-0.5">
-                                            {bankAccountCount} bank {bankAccountCount === 1 ? 'account' : 'accounts'}
-                                        </p>
-                                    )}
-                                    {childChurchLabel && childOrgCount > 0 && (
-                                        <p className="hidden md:block text-xs text-muted-foreground mt-0.5">
-                                            {childOrgCount} {childChurchLabel.toLowerCase()}
-                                        </p>
-                                    )}
-                                </div>
-                                {canAdminister && (
-                                    <button
-                                        type="button"
-                                        aria-label={`Edit ${dept.name}`}
-                                        title={`Edit ${dept.name}`}
-                                        onClick={e => { e.stopPropagation(); openEditDialog(dept); }}
-                                        className={cn(
-                                            'shrink-0 p-2 rounded-md text-muted-foreground transition-colors',
-                                            'hover:text-foreground hover:bg-accent',
-                                            'outline-none focus-visible:ring-2 focus-visible:ring-ring/50',
-                                            // Always visible on touch — hover-reveal is unreachable there.
-                                            'md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100',
-                                        )}
-                                    >
-                                        <Pencil className="h-4 w-4" />
-                                    </button>
-                                )}
-                            </div>
-                        </div>
-                    );
-                })}
-
-                {!loading && filteredOrganisations.length === 0 && (
-                    <p className="text-center py-8 text-sm text-muted-foreground">
-                        {organisations.length === 0 ? 'No churches found' : 'No churches match your search'}
-                    </p>
+            <RecordSheet
+                open={!!selected}
+                onClose={() => setOpenId(null)}
+                title={selected?.name ?? ''}
+                badges={selected && <span className="rounded-full bg-secondary px-2 py-0.5 text-xs font-medium text-muted-foreground">{LEVEL_NAME[selected.level] ?? selected.level}</span>}
+                description={selected ? (selected.level === 'CAMPUS' ? 'Balance across this campus’s accounts.' : 'Balance across every church and account beneath it.') : undefined}
+                actions={selected ? (
+                    <>
+                        <Button className="flex-1 rounded-full" onClick={() => drillInto(selected)}>{drillLabel(selected)}<ArrowRight className="ml-1.5 h-4 w-4" /></Button>
+                        {canAdminister && (
+                            <Button variant="outline" className="rounded-full" onClick={() => openEditDialog(selected)}><Pencil className="mr-1.5 h-4 w-4" />Edit</Button>
+                        )}
+                    </>
+                ) : undefined}
+            >
+                {selected && (
+                    <>
+                        <OrgBalance key={selected.id} id={selected.id} />
+                        <SheetSection title="People">
+                            {selected.userRoles?.filter(ur => ur.user).length ? (
+                                <ul className="divide-y divide-border rounded-xl border border-border">
+                                    {selected.userRoles.filter(ur => ur.user).map((ur, i) => (
+                                        <li key={`${ur.user!.id}-${i}`} className="flex items-center gap-3 px-3 py-2.5 text-sm">
+                                            <Avatar className="size-7">
+                                                {ur.user!.image && <AvatarImage src={ur.user!.image} alt="" />}
+                                                <AvatarFallback className="text-[10px]">{ur.user!.name?.[0]?.toUpperCase() || 'U'}</AvatarFallback>
+                                            </Avatar>
+                                            <span className="min-w-0 flex-1 truncate text-foreground">{ur.user!.name || ur.user!.email}</span>
+                                            <span className="shrink-0 text-xs text-muted-foreground">{roleLabel(ur.role)}</span>
+                                        </li>
+                                    ))}
+                                </ul>
+                            ) : <p className="text-sm text-muted-foreground">No leader or manager yet. Edit the church to assign one.</p>}
+                        </SheetSection>
+                    </>
                 )}
-            </div>
+            </RecordSheet>
 
             <EditOrganisationDialog
                 open={editDialogOpen}
@@ -351,11 +336,7 @@ function OrganisationsPageContent() {
 
 export default function OrganisationsPage() {
     return (
-        <Suspense fallback={
-            <div className="flex flex-col gap-2 p-6">
-                {[1, 2, 3].map(i => <Skeleton key={i} className="h-16 w-full rounded-xl" />)}
-            </div>
-        }>
+        <Suspense fallback={<ListSkeleton rows={6} />}>
             <OrganisationsPageContent />
         </Suspense>
     );
