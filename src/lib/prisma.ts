@@ -16,9 +16,9 @@ import { Pool } from 'pg';
  * `prisma.$transaction(...)`) are unchanged.
  */
 
-function createClient(max: number) {
+function createClient(max: number, connectionString = process.env.DATABASE_URL) {
     const pool = new Pool({
-        connectionString: process.env.DATABASE_URL,
+        connectionString,
         max,
         idleTimeoutMillis: 30000,
         connectionTimeoutMillis: 10000,
@@ -31,13 +31,27 @@ function createClient(max: number) {
 }
 
 type CfContext = object;
+type CfEnv = { HYPERDRIVE?: { connectionString: string } };
 
 const CF_CONTEXT = Symbol.for('__cloudflare-context__');
 
-function getWorkerCtx(): CfContext | undefined {
+function getCloudflareContext() {
     // Set by @opennextjs/cloudflare for the duration of each request.
-    const cf = (globalThis as Record<symbol, { ctx?: CfContext } | undefined>)[CF_CONTEXT];
-    return cf?.ctx;
+    return (globalThis as Record<symbol, { ctx?: CfContext; env?: CfEnv } | undefined>)[CF_CONTEXT];
+}
+
+export function getWorkerCtx(): CfContext | undefined {
+    return getCloudflareContext()?.ctx;
+}
+
+/**
+ * On Workers, connect through Hyperdrive when it is bound: it keeps warm,
+ * pooled connections next to the database, so a request no longer pays for a
+ * fresh TCP + TLS + Postgres auth handshake to Neon. Falls back to
+ * DATABASE_URL when the binding is absent.
+ */
+function workerConnectionString(): string | undefined {
+    return getCloudflareContext()?.env?.HYPERDRIVE?.connectionString ?? process.env.DATABASE_URL;
 }
 
 const perRequest = new WeakMap<CfContext, PrismaClient>();
@@ -50,7 +64,7 @@ function getClient(): PrismaClient {
         let client = perRequest.get(ctx);
         if (!client) {
             // Sockets are torn down by the runtime when the request ends.
-            client = createClient(5).client;
+            client = createClient(5, workerConnectionString()).client;
             perRequest.set(ctx, client);
         }
         return client;

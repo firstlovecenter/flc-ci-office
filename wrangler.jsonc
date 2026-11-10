@@ -14,6 +14,21 @@
       "service": "ci-office"
     }
   ],
+  // Run the Worker next to the Neon database (aws us-east-1, project
+  // "flc-accounts") instead of next to the visitor. Each API call makes
+  // several sequential queries (session revalidation alone is more than one);
+  // from a distant edge location each one is a long round trip.
+  "placement": {
+    "region": "aws:us-east-1"
+  },
+  // Pooled, warm connections to Neon. src/lib/prisma.ts uses this binding
+  // when present and falls back to DATABASE_URL otherwise. Create the config
+  // (caching disabled — financial data must never be served stale) with:
+  //   npx wrangler hyperdrive create ci-office-db --connection-string="<DATABASE_URL>" --caching-disabled
+  // then uncomment and paste its id:
+  // "hyperdrive": [
+  //   { "binding": "HYPERDRIVE", "id": "<hyperdrive-config-id>" }
+  // ],
   "observability": {
     "enabled": true
   }
