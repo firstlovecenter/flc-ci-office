@@ -1,7 +1,7 @@
 import { NextAuthOptions } from 'next-auth';
 import CredentialsProvider from 'next-auth/providers/credentials';
 import bcrypt from 'bcryptjs';
-import { prisma } from '@/lib/prisma';
+import { prisma, getWorkerCtx } from '@/lib/prisma';
 import type { Role } from '@prisma/client';
 
 /**
@@ -142,6 +142,40 @@ async function loadAuthClaimsFromDb(userId: string): Promise<AuthClaims> {
       organisationId: activeRole.organisationId,
     },
   };
+}
+
+/**
+ * Per-request memo for the routine revalidation reads.
+ *
+ * One getServerSession() runs the jwt callback and then the session callback,
+ * and both reload the same claims — two identical DB round trips per API call.
+ * Sharing the in-flight promise for the life of one Workers request halves
+ * that without weakening fail-closed revalidation: every new request still
+ * reads the DB. Off Workers (Node, tests) there is no request key, so every
+ * call reads the DB exactly as before.
+ *
+ * Only the periodic jwt revalidation and the session callback use this; the
+ * update/impersonation paths always read fresh.
+ */
+const claimsByRequest = new WeakMap<object, Map<string, Promise<AuthClaims>>>();
+
+function loadAuthClaimsForRequest(userId: string): Promise<AuthClaims> {
+  const requestKey = getWorkerCtx();
+  if (!requestKey) return loadAuthClaimsFromDb(userId);
+
+  let byUser = claimsByRequest.get(requestKey);
+  if (!byUser) {
+    byUser = new Map();
+    claimsByRequest.set(requestKey, byUser);
+  }
+  let pending = byUser.get(userId);
+  if (!pending) {
+    pending = loadAuthClaimsFromDb(userId);
+    // Never cache a failure: a retry within the request must hit the DB again.
+    pending.catch(() => byUser!.delete(userId));
+    byUser.set(userId, pending);
+  }
+  return pending;
 }
 
 function applyClaimsToToken(token: Record<string, unknown>, claims: AuthClaims) {
@@ -300,7 +334,7 @@ export const authOptions: NextAuthOptions = {
             // Fail closed: every session read reloads role/org from DB.
             // JWT is only a carrier for id + expiry + impersonation flags.
             try {
-                const claims = await loadAuthClaimsFromDb(token.id as string);
+                const claims = await loadAuthClaimsForRequest(token.id as string);
                 session.user.id = claims.id;
                 session.user.name = claims.name as string;
                 session.user.email = claims.email as string;
@@ -412,7 +446,7 @@ export const authOptions: NextAuthOptions = {
             // so revoked roles / org moves take effect without waiting for update().
             if (token.id && !user) {
                 try {
-                    const claims = await loadAuthClaimsFromDb(token.id as string);
+                    const claims = await loadAuthClaimsForRequest(token.id as string);
                     applyClaimsToToken(token as any, claims);
                 } catch {
                     return { expired: true } as any;
