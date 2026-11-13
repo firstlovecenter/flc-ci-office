@@ -1,14 +1,14 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { auditActorId } from '@/lib/audit-actor';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { hasOrganisationAccess, getLeaderRoleForLevel, getAdminRoleForLevel } from '@/lib/organisations';
-import { canAdministerOrganisation } from '@/lib/roles';
+import { hasOrganisationAccess, getLeaderRoleForLevel, getAdminRoleForLevel, canCreateOrganisationLevel } from '@/lib/organisations';
+import { canAdministerOrganisation, canAssignRole, ORGANISATION_HIERARCHY } from '@/lib/roles';
+import { authorizeTargetUser, callerOrganisationId, getCallerScope, loadTargetScope } from '@/lib/user-scope';
 import { validateParentChild, validateAccountTypeForLevel } from '@/lib/org-model';
-import { sendSms, formatGhanaPhone } from '@/lib/sms';
-import { generateFirstRoleAssignmentSms } from '@/lib/sms-templates';
-import { sendEmail, isEmailConfigured } from '@/lib/email';
-import { generateFirstRoleAssignmentEmail } from '@/lib/email-templates';
+import { sendSetupLinkEmail } from '@/lib/password-reset';
+import { syncLegacyUserColumns } from '@/lib/user-claims';
 import crypto from 'crypto';
 import type { AccountType, OrganisationLevel } from '@prisma/client';
 
@@ -169,6 +169,89 @@ export async function PUT(
         const nextLevel = (level || currentOrganisation.level) as OrganisationLevel;
         const nextParentId = parentId === undefined ? currentOrganisation.parentId : (parentId || null);
 
+        // ── Privileged changes ────────────────────────────────────────────────
+        // Level, parent and leader/admin assignment are compared against the
+        // stored values: the edit dialog re-sends all of them on every save, so
+        // an unchanged value must neither need a privilege nor trip a 403.
+        if (level !== undefined && !Object.hasOwn(ORGANISATION_HIERARCHY, level)) {
+            return NextResponse.json({ error: 'Invalid church level' }, { status: 400 });
+        }
+        if (name !== undefined && (typeof name !== 'string' || !name.trim() || name.length > 200)) {
+            return NextResponse.json({ error: 'Name must be between 1 and 200 characters' }, { status: 400 });
+        }
+
+        const isSuperAdmin = session.user.role === 'SUPERADMIN';
+        const callerOrgId = callerOrganisationId(session);
+        const levelChanged = level !== undefined && level !== currentOrganisation.level;
+        const parentChanged = parentId !== undefined && (parentId || null) !== currentOrganisation.parentId;
+        const nextAdminRole = getAdminRoleForLevel(nextLevel);
+        const leaderChanged = !!leaderId && leaderId !== currentLeaderRole?.userId;
+        const adminChanged =
+            !!nextAdminRole && adminId !== undefined && (adminId || null) !== (currentAdminRole?.userId ?? null);
+
+        const forbid = (error: string) => NextResponse.json({ error }, { status: 403 });
+
+        if (!isSuperAdmin) {
+            if ((levelChanged || parentChanged) && organisationId === callerOrgId) {
+                return forbid('You cannot change the level or parent of your own church');
+            }
+
+            if (levelChanged) {
+                if (currentOrganisation.level === 'COUNCIL' || nextLevel === 'COUNCIL') {
+                    return forbid('Only a super admin can convert between a church and an account');
+                }
+                let callerLevel: OrganisationLevel | undefined;
+                if (callerOrgId) {
+                    const callerOrg = await prisma.organisation.findUnique({
+                        where: { id: callerOrgId },
+                        select: { level: true },
+                    });
+                    callerLevel = callerOrg?.level ?? undefined;
+                }
+                if (!canCreateOrganisationLevel(session.user.role, callerLevel, nextLevel)) {
+                    return forbid('You do not have permission to set this church level');
+                }
+                const rewrittenRoles = [
+                    currentLeaderRole ? getLeaderRoleForLevel(nextLevel) : null,
+                    currentAdminRole ? nextAdminRole : null,
+                ];
+                if (rewrittenRoles.some((r) => r && !canAssignRole(session.user.role, r))) {
+                    return forbid('You do not have permission to grant the roles this level implies');
+                }
+            }
+
+            if (parentChanged) {
+                const scope = await getCallerScope({ role: session.user.role, organisationId: callerOrgId });
+                if (!nextParentId || scope === 'ALL' || !scope.has(nextParentId)) {
+                    return forbid('You do not have access to the selected parent church');
+                }
+            }
+
+            if (leaderChanged && !canAssignRole(session.user.role, getLeaderRoleForLevel(nextLevel))) {
+                return forbid('You do not have permission to assign this role');
+            }
+            if (adminChanged && nextAdminRole && !canAssignRole(session.user.role, nextAdminRole)) {
+                return forbid('You do not have permission to assign this role');
+            }
+        }
+
+        // Anyone newly granted a role must exist, be active and — for a
+        // non-super caller — not belong to another tenant.
+        const incomingUserIds = [leaderChanged ? leaderId : null, adminChanged && adminId ? adminId : null];
+        for (const uid of incomingUserIds) {
+            if (!uid) continue;
+            const target = await loadTargetScope(uid);
+            if (!target || target.archived) {
+                return NextResponse.json({ error: 'Selected user not found or inactive' }, { status: 400 });
+            }
+            const decision = await authorizeTargetUser(
+                { id: session.user.id, role: session.user.role, organisationId: callerOrgId },
+                target,
+                { allowUnassigned: true },
+            );
+            if (!decision.ok) return forbid(decision.error);
+        }
+
         let parentLevel: OrganisationLevel | null = null;
         if (nextParentId) {
             const parent = await prisma.organisation.findUnique({
@@ -221,16 +304,7 @@ export async function PUT(
                     data: { role: newLeaderRole },
                 });
 
-                // Update the user's activeRole if this is their active role
-                const leaderUser = await prisma.user.findUnique({
-                    where: { id: currentLeaderRole.userId },
-                });
-                if (leaderUser?.activeUserRoleId === currentLeaderRole.id) {
-                    await prisma.user.update({
-                        where: { id: currentLeaderRole.userId },
-                        data: { activeRole: newLeaderRole },
-                    });
-                }
+                await syncLegacyUserColumns(prisma, currentLeaderRole.userId);
             }
 
             // Update existing admin's role if they exist and new level has admin role
@@ -240,16 +314,7 @@ export async function PUT(
                     data: { role: newAdminRole },
                 });
 
-                // Update the user's activeRole if this is their active role
-                const adminUser = await prisma.user.findUnique({
-                    where: { id: currentAdminRole.userId },
-                });
-                if (adminUser?.activeUserRoleId === currentAdminRole.id) {
-                    await prisma.user.update({
-                        where: { id: currentAdminRole.userId },
-                        data: { activeRole: newAdminRole },
-                    });
-                }
+                await syncLegacyUserColumns(prisma, currentAdminRole.userId);
             }
         }
 
@@ -267,33 +332,8 @@ export async function PUT(
                         where: { id: currentLeaderRole.id },
                     });
 
-                    // Check if old leader has any other roles
-                    const oldLeaderRemainingRoles = await prisma.userRole.findMany({
-                        where: { userId: currentLeaderId },
-                    });
-
-                    if (oldLeaderRemainingRoles.length === 0) {
-                        // Old leader has no more roles - clear their access
-                        await prisma.user.update({
-                            where: { id: currentLeaderId },
-                            data: {
-                                activeUserRoleId: null,
-                                activeRole: null,
-                                organisationId: null,
-                            },
-                        });
-                    } else {
-                        // Set the first remaining role as active
-                        const newActiveRole = oldLeaderRemainingRoles[0];
-                        await prisma.user.update({
-                            where: { id: currentLeaderId },
-                            data: {
-                                activeUserRoleId: newActiveRole.id,
-                                activeRole: newActiveRole.role,
-                                organisationId: newActiveRole.organisationId,
-                            },
-                        });
-                    }
+                    // Recompute the legacy columns from whatever roles remain.
+                    await syncLegacyUserColumns(prisma, currentLeaderId as string);
                 }
 
                 // Get new leader info
@@ -329,52 +369,12 @@ export async function PUT(
                     },
                 });
 
-                // Send auth setup via SMS and/or email
+                // Send auth setup by email
                 const needsPasswordSetup = !newLeader.password || newLeader.password === '';
                 
                 if (isFirstRole || needsPasswordSetup) {
-                    const resetToken = crypto.randomBytes(32).toString('hex');
-                    const resetTokenExpiry = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-
-                    await prisma.passwordReset.create({
-                        data: {
-                            id: crypto.randomUUID(),
-                            userId: leaderId,
-                            token: resetToken,
-                            expiresAt: resetTokenExpiry,
-                        },
-                    });
-
-                    const baseUrl = process.env.NEXTAUTH_URL || 'https://your-app.com';
-                    const resetLink = `${baseUrl.replace(/\/+$/, '')}/auth/reset-password?token=${resetToken}`;
-
-                    const smsMessage = await generateFirstRoleAssignmentSms({
-                        userName: newLeader.name || 'User',
-                        role: leaderRole,
-                        organisation: name,
-                        resetLink,
-                    });
-
-                    try {
-                        if (newLeader.phone) {
-                            await sendSms({
-                                to: formatGhanaPhone(newLeader.phone),
-                                message: smsMessage,
-                            });
-                        }
-                    } catch (smsError) {
-                        console.error('Failed to send SMS to new leader:', smsError);
-                    }
-
-                    if (newLeader.email && isEmailConfigured()) {
-                        const { subject, html } = generateFirstRoleAssignmentEmail({
-                            userName: newLeader.name || 'User',
-                            role: leaderRole,
-                            organisation: name,
-                            resetLink,
-                        });
-                        await sendEmail({ to: newLeader.email, subject, html });
-                    }
+                    // Setup link is delivered by email only; users without an email get none.
+                    await sendSetupLinkEmail({ user: newLeader, role: leaderRole, organisationName: name });
 
                 }
 
@@ -382,7 +382,7 @@ export async function PUT(
                 await prisma.auditLog.create({
                     data: {
                         id: crypto.randomUUID(),
-                        userId: session.user.id,
+                        userId: auditActorId(session),
                         actionType: 'UPDATE',
                         entityType: 'Organisation',
                         entityId: organisationId,
@@ -407,34 +407,8 @@ export async function PUT(
                         where: { id: currentAdminRole.id },
                     });
 
-                    // Check if old admin has any other roles
-                    const oldAdminRemainingRoles = await prisma.userRole.findMany({
-                        where: { userId: currentAdminId },
-                    });
-
-                    if (oldAdminRemainingRoles.length === 0) {
-                        // Old admin has no more roles - clear their access
-                        await prisma.user.update({
-                            where: { id: currentAdminId },
-                            data: {
-                                activeUserRoleId: null,
-                                activeRole: null,
-                                organisationId: null,
-                                updatedAt: new Date(),
-                            },
-                        });
-                    } else {
-                        // Set the first remaining role as active
-                        const newActiveRole = oldAdminRemainingRoles[0];
-                        await prisma.user.update({
-                            where: { id: currentAdminId },
-                            data: {
-                                activeUserRoleId: newActiveRole.id,
-                                activeRole: newActiveRole.role,
-                                organisationId: newActiveRole.organisationId,
-                            },
-                        });
-                    }
+                    // Recompute the legacy columns from whatever roles remain.
+                    await syncLegacyUserColumns(prisma, currentAdminId as string);
                 }
 
                 // If a new admin is assigned
@@ -472,52 +446,12 @@ export async function PUT(
                         },
                     });
 
-                    // Send auth setup via SMS and/or email
+                    // Send auth setup by email
                     const needsPasswordSetup = !newAdmin.password || newAdmin.password === '';
                     
                     if (isFirstRole || needsPasswordSetup) {
-                        const resetToken = crypto.randomBytes(32).toString('hex');
-                        const resetTokenExpiry = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-
-                        await prisma.passwordReset.create({
-                            data: {
-                                id: crypto.randomUUID(),
-                                userId: adminId,
-                                token: resetToken,
-                                expiresAt: resetTokenExpiry,
-                            },
-                        });
-
-                        const baseUrl = process.env.NEXTAUTH_URL || 'https://your-app.com';
-                        const resetLink = `${baseUrl.replace(/\/+$/, '')}/auth/reset-password?token=${resetToken}`;
-
-                        const smsMessage = await generateFirstRoleAssignmentSms({
-                            userName: newAdmin.name || 'User',
-                            role: adminRole,
-                            organisation: name,
-                            resetLink,
-                        });
-
-                        try {
-                            if (newAdmin.phone) {
-                                await sendSms({
-                                    to: formatGhanaPhone(newAdmin.phone),
-                                    message: smsMessage,
-                                });
-                            }
-                        } catch (smsError) {
-                            console.error('Failed to send SMS to new admin:', smsError);
-                        }
-
-                        if (newAdmin.email && isEmailConfigured()) {
-                            const { subject, html } = generateFirstRoleAssignmentEmail({
-                                userName: newAdmin.name || 'User',
-                                role: adminRole,
-                                organisation: name,
-                                resetLink,
-                            });
-                            await sendEmail({ to: newAdmin.email, subject, html });
-                        }
+                        // Setup link is delivered by email only; users without an email get none.
+                        await sendSetupLinkEmail({ user: newAdmin, role: adminRole, organisationName: name });
 
                     }
 
@@ -525,7 +459,7 @@ export async function PUT(
                     await prisma.auditLog.create({
                         data: {
                             id: crypto.randomUUID(),
-                            userId: session.user.id,
+                            userId: auditActorId(session),
                             actionType: 'UPDATE',
                             entityType: 'Organisation',
                             entityId: organisationId,
@@ -539,7 +473,7 @@ export async function PUT(
                     await prisma.auditLog.create({
                         data: {
                             id: crypto.randomUUID(),
-                            userId: session.user.id,
+                            userId: auditActorId(session),
                             actionType: 'UPDATE',
                             entityType: 'Organisation',
                             entityId: organisationId,
@@ -556,7 +490,7 @@ export async function PUT(
         await prisma.auditLog.create({
             data: {
                 id: crypto.randomUUID(),
-                userId: session.user.id,
+                userId: auditActorId(session),
                 actionType: 'UPDATE',
                 entityType: 'Organisation',
                 entityId: updatedOrganisation.id,
@@ -638,7 +572,7 @@ export async function DELETE(
         await prisma.auditLog.create({
             data: {
                 id: crypto.randomUUID(),
-                userId: session.user.id,
+                userId: auditActorId(session),
                 actionType: 'DELETE',
                 entityType: 'Organisation',
                 entityId: organisationId,

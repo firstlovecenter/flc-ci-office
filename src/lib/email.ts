@@ -5,8 +5,15 @@
  */
 
 import { Resend } from 'resend';
+import { escapeHtml } from '@/lib/html-escape';
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+// Created lazily: the Resend constructor throws without a key, which would
+// make merely importing this module (e.g. for the templates) fail.
+let resendClient: Resend | null = null;
+function getResend(): Resend {
+  if (!resendClient) resendClient = new Resend(process.env.RESEND_API_KEY);
+  return resendClient;
+}
 
 const FROM_EMAIL = process.env.EMAIL_FROM || 'CI-OFFICE <noreply@flc-ci.org>';
 const APP_NAME = 'CI-OFFICE';
@@ -32,7 +39,7 @@ export async function sendEmail(options: EmailOptions): Promise<boolean> {
       return false;
     }
 
-    const { data, error } = await resend.emails.send({
+    const { data, error } = await getResend().emails.send({
       from: FROM_EMAIL,
       to: [options.to],
       subject: options.subject,
@@ -89,7 +96,7 @@ export interface EmailLayoutOptions {
 }
 
 export function emailLayout(content: string, options?: EmailLayoutOptions): string {
-  const preheader = options?.preheader ?? 'You have a new notification from CI-OFFICE.';
+  const preheader = escapeHtml(options?.preheader ?? 'You have a new notification from CI-OFFICE.');
   const year = new Date().getFullYear();
 
   return `<!DOCTYPE html>

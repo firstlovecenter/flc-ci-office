@@ -46,7 +46,7 @@ This project has extensive documentation organized by topic. For developers join
 ### Migration Notes
 - [Multi-Department Migration](./docs/migrations/multi-department-migration.md) - UserRole system migration
 - [Session Fix](./docs/migrations/session-fix-summary.md) - Session management updates
-- [Email Removal](./docs/migrations/email-removal-summary.md) - SMS-only transition
+- [Email Removal](./docs/migrations/email-removal-summary.md) - historical note (superseded: password reset is email-only)
 - [Phone Migration](./docs/migrations/phone-migration.md) - Phone field implementation
 
 ### User Guides
@@ -154,13 +154,12 @@ This project has extensive documentation organized by topic. For developers join
 
 > **💡 For detailed setup instructions**, see [Multi-Currency User Guide](./docs/guides/multi-currency-user-guide.md) and [Quick Reference](./docs/quick-reference.md)
 
-### Default Login Credentials
+### First Login
 
-After seeding, you can log in with:
-
-- **SuperAdmin**: `admin@flc.org` / `password123`
-- **Campus Manager**: `campus.admin@flc.org` / `password123`
-- **Account Holder**: `council.leader@flc.org` / `password123`
+There are no default credentials. Seeding (`npm run db:seed`) refuses to run in
+production, and in other environments requires `SEED_ADMIN_PASSWORD` to be set
+explicitly (see `prisma/seed.ts`). Real users set their password through the
+emailed setup link.
 
 > **🔒 For role information**, see [Role Management](./docs/roles/role-management.md) and [Multiple Admins](./docs/roles/multiple-admins.md)
 
@@ -236,9 +235,9 @@ Accounts sit under a campus. They are not churches and not part of the hierarchy
 > **📖 See**: [Currency Architecture](./docs/architecture/currency-system-status.md) | [User Guide](./docs/guides/multi-currency-user-guide.md)
 
 ### Communication Channels
+- **Password reset / account setup**: email only (Resend), via a single-use link on the configured `NEXTAUTH_URL` origin. Never by SMS and never a short code.
 - **Authentication**: Email-based login with phone number as secondary identifier
 - **SMS Notifications**: Primary notification channel via SMSOptics (Ghana)
-  - Password reset codes
   - Role assignment notifications
   - Transaction alerts
 - **Push Notifications**: PWA push notifications for real-time updates
@@ -256,8 +255,8 @@ Accounts sit under a campus. They are not churches and not part of the hierarchy
 
 ### Authentication
 - `POST /api/auth/[...nextauth]` - NextAuth endpoints
-- `POST /api/auth/forgot-password` - Request password reset (SMS)
-- `POST /api/auth/reset-password` - Reset password with code
+- `POST /api/auth/forgot-password` - Request a password reset link (email only; generic response)
+- `POST /api/auth/reset-password` - Reset password with the emailed single-use token
 
 ### Transactions
 - `GET /api/transactions` - List transactions (with currency conversion)

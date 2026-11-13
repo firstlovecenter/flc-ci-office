@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
+import { auditActorId } from '@/lib/audit-actor';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import crypto from 'crypto';
@@ -23,6 +24,9 @@ import {
 import { getAppCurrency } from '@/lib/currency';
 import { statusWhere } from '@/lib/cancel-request';
 import { getApprovalAdmins } from '@/lib/approval-admins';
+import { parsePositiveAmount, MAX_DESCRIPTION_LENGTH, truncateForSms } from '@/lib/amount-validation';
+import { canWriteOnDate, LOCKED_WEEK_ERROR } from '@/lib/period-lock';
+import { checkRateLimit } from '@/lib/rate-limit';
 
 // Force dynamic rendering - data is user/role specific
 export const dynamic = 'force-dynamic';
@@ -328,7 +332,34 @@ export async function POST(request: Request) {
     try {
         const body = await request.json();
         const { type, amount, description, organisationId, date } = body;
-        
+
+        // Validate inputs before any type-based rule so a negative/zero/NaN
+        // amount can never reach the ledger.
+        if (type !== 'INCOME' && type !== 'EXPENSE') {
+            return NextResponse.json({ error: 'Invalid transaction type' }, { status: 400 });
+        }
+        const parsedAmount = parsePositiveAmount(amount);
+        if (!parsedAmount.ok) {
+            return NextResponse.json({ error: parsedAmount.error }, { status: 400 });
+        }
+        // A deposit's description is optional in the UI; a withdrawal needs one.
+        if (
+            typeof description !== 'string' ||
+            (type === 'EXPENSE' && !description.trim()) ||
+            description.length > MAX_DESCRIPTION_LENGTH
+        ) {
+            return NextResponse.json(
+                { error: `Description is required for withdrawals and must be at most ${MAX_DESCRIPTION_LENGTH} characters` },
+                { status: 400 }
+            );
+        }
+        if (typeof organisationId !== 'string' || !organisationId) {
+            return NextResponse.json({ error: 'Organisation is required' }, { status: 400 });
+        }
+        if (date && Number.isNaN(new Date(date).getTime())) {
+            return NextResponse.json({ error: 'Invalid date' }, { status: 400 });
+        }
+
         // If a custom date is provided, compute week number from that date
         // Otherwise use current week
         let weekNumber: number;
@@ -336,6 +367,10 @@ export async function POST(request: Request) {
         let transactionDate: Date | undefined;
         if (date) {
             transactionDate = new Date(date);
+            // A closed week may only be written to by Oversight and above.
+            if (!canWriteOnDate(session.user.role, transactionDate)) {
+                return NextResponse.json({ error: LOCKED_WEEK_ERROR }, { status: 400 });
+            }
             const weekInfo = getWeekFromDate(transactionDate);
             weekNumber = weekInfo.weekNumber;
             year = weekInfo.year;
@@ -349,6 +384,28 @@ export async function POST(request: Request) {
         const canAccess = await hasOrganisationAccess(session.user, organisationId);
         if (!canAccess) {
             return new NextResponse('Unauthorized', { status: 403 });
+        }
+
+        // Idempotency: a retry (double tap, flaky network) carrying the same key
+        // returns the original row rather than creating a second one. Keys are
+        // scoped to the user so one user's key can never surface another's row.
+        const rawKey = request.headers.get('idempotency-key');
+        if (rawKey !== null && !/^[A-Za-z0-9_-]{8,64}$/.test(rawKey)) {
+            return NextResponse.json({ error: 'Invalid Idempotency-Key' }, { status: 400 });
+        }
+        const idempotencyKey = rawKey ? `${session.user.id}:${rawKey}` : null;
+        const findReplay = async () =>
+            idempotencyKey
+                ? prisma.transaction.findUnique({
+                      where: { idempotencyKey },
+                      include: { organisation: true, currency: true },
+                  })
+                : null;
+        const replayResponse = (tx: NonNullable<Awaited<ReturnType<typeof findReplay>>>) =>
+            NextResponse.json({ ...tx, idempotentReplay: true });
+        {
+            const replay = await findReplay();
+            if (replay) return replayResponse(replay);
         }
 
         // Determine if this is a leader role (time-restricted) or admin
@@ -434,7 +491,7 @@ export async function POST(request: Request) {
 
         // App is GHS-only — amounts are already in Ghana Cedis.
         const ghs = await getAppCurrency();
-        const amountDec = toDecimal(amount);
+        const amountDec = parsedAmount.value;
         const amountToPersist = toMoney2dp(amountDec);
         const amountInBase = amountToPersist;
 
@@ -468,9 +525,62 @@ export async function POST(request: Request) {
             }
         }
 
-        const transaction = await prisma.transaction.create({
+        // Possible-duplicate check: same account, type and amount already
+        // recorded on the same day. Needs an explicit confirmation to proceed.
+        if (body.confirmDuplicate !== true) {
+            const day = transactionDate ?? new Date();
+            const dayStart = new Date(Date.UTC(day.getUTCFullYear(), day.getUTCMonth(), day.getUTCDate()));
+            const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
+            const duplicates = await prisma.transaction.findMany({
+                where: {
+                    organisationId,
+                    type,
+                    amount: amountToPersist,
+                    isCharge: false,
+                    cancelledAt: null,
+                    status: { in: ['PENDING', 'APPROVED'] },
+                    createdAt: { gte: dayStart, lt: dayEnd },
+                },
+                orderBy: { createdAt: 'desc' },
+                take: 5,
+                select: {
+                    id: true,
+                    description: true,
+                    amount: true,
+                    status: true,
+                    createdAt: true,
+                    user: { select: { name: true } },
+                },
+            });
+            if (duplicates.length > 0) {
+                // A concurrent copy of THIS request may have just committed; that
+                // is a replay, not a duplicate.
+                const replay = await findReplay();
+                if (replay) return replayResponse(replay);
+                return NextResponse.json(
+                    {
+                        code: 'POSSIBLE_DUPLICATE',
+                        error: 'A transaction with the same amount was already entered on this day.',
+                        duplicates: duplicates.map((d) => ({
+                            id: d.id,
+                            description: d.description,
+                            amount: moneyToString(d.amount),
+                            status: d.status,
+                            createdAt: d.createdAt,
+                            enteredBy: d.user?.name ?? null,
+                        })),
+                    },
+                    { status: 409 }
+                );
+            }
+        }
+
+        let transaction;
+        try {
+          transaction = await prisma.transaction.create({
             data: {
                 id: crypto.randomUUID(),
+                ...(idempotencyKey ? { idempotencyKey } : {}),
                 type,
                 amount: amountToPersist,
                 currencyId: ghs.id,
@@ -491,13 +601,21 @@ export async function POST(request: Request) {
             include: { organisation: true,
                 currency: true,
             },
-        });
+          });
+        } catch (err) {
+            // Lost the race to a concurrent copy of this same request.
+            if ((err as { code?: string })?.code === 'P2002' && idempotencyKey) {
+                const replay = await findReplay();
+                if (replay) return replayResponse(replay);
+            }
+            throw err;
+        }
 
         // Create Audit Log
         await prisma.auditLog.create({
             data: {
                 id: crypto.randomUUID(),
-                userId: session.user.id,
+                userId: auditActorId(session),
                 actionType: 'CREATE',
                 entityType: 'Transaction',
                 entityId: transaction.id,
@@ -511,14 +629,16 @@ export async function POST(request: Request) {
                 const campusAdmins = await getApprovalAdmins(transaction.organisationId);
 
                 // Send SMS and email to all campus admins
-                if (campusAdmins.length > 0) {
+                // Per-user cap on notification fan-out (secondary, per-isolate).
+                const smsAllowed = checkRateLimit(`tx-notify:${session.user.id}`, { maxRequests: 20, windowSeconds: 10 * 60 }).success;
+                if (campusAdmins.length > 0 && smsAllowed) {
                     const currencySymbol = transaction.currency?.symbol || '$';
                     const smsMessage = await generatePendingApprovalRequestSms({
                         userName: session.user.name || 'A user',
                         transactionType: type.toLowerCase(),
                         currency: currencySymbol,
                         amount: formatNumber(amount),
-                        description: description,
+                        description: truncateForSms(description, 80),
                     });
                     
                     console.log(`[SMS] Sending pending approval SMS to ${campusAdmins.length} campus admin(s)`);
@@ -709,158 +829,9 @@ export async function POST(request: Request) {
     }
 }
 
-export async function PUT(request: Request) {
-    const session = await getServerSession(authOptions);
-
-    if (!session) {
-        return new NextResponse('Unauthorized', { status: 401 });
-    }
-
-    try {
-        const body = await request.json();
-        const { id, type, amount, description, organisationId } = body;
-
-        const transaction = await prisma.transaction.findUnique({
-            where: { id },
-        });
-
-        if (!transaction) {
-            return new NextResponse('Not Found', { status: 404 });
-        }
-
-        // Leaders cannot edit transactions at all
-        const leaderRolesCheck = ['DENOMINATION_LEADER', 'OVERSIGHT_LEADER', 'CAMPUS_LEADER', 'STREAM_LEADER', 'COUNCIL_LEADER'];
-        if (leaderRolesCheck.includes(session.user.role)) {
-            return new NextResponse('Leaders are not permitted to edit transactions', { status: 403 });
-        }
-
-        // Check permissions
-        const canAccess = await hasOrganisationAccess(session.user, transaction.organisationId);
-        if (!canAccess) {
-            return new NextResponse('Forbidden', { status: 403 });
-        }
-
-        // Check locking
-        if (transaction.locked) { // Check DB flag
-            if (session.user.role !== 'SUPERADMIN') {
-                return new NextResponse('Transaction is locked', { status: 400 });
-            }
-        }
-
-        // Check if the week is logically locked
-        const { isWeekLocked } = await import('@/lib/utils');
-        if (isWeekLocked(transaction.weekNumber, transaction.year)) {
-            // Only oversight admin and above can edit past-week transactions
-            const oversightAndAboveRoles = ['SUPERADMIN', 'DENOMINATION_ADMIN', 'OVERSIGHT_ADMIN'];
-            if (!oversightAndAboveRoles.includes(session.user.role)) {
-                return new NextResponse('Week is locked. Only Oversight Admin and above can edit past-week transactions.', { status: 400 });
-            }
-        }
-
-        const ghs = await getAppCurrency();
-        const amountToPersist = toMoney2dp(toDecimal(amount));
-
-        const updatedTransaction = await prisma.transaction.update({
-            where: { id },
-            data: {
-                type,
-                amount: amountToPersist,
-                description,
-                organisationId,
-                currencyId: ghs.id,
-                exchangeRate: null,
-                amountInBase: amountToPersist,
-                updatedAt: new Date(),
-            },
-            include: { organisation: true,
-                currency: true,
-            },
-        });
-
-        // Audit Log
-        await prisma.auditLog.create({
-            data: {
-                id: crypto.randomUUID(),
-                userId: session.user.id,
-                actionType: 'UPDATE',
-                entityType: 'Transaction',
-                entityId: transaction.id,
-                beforeData: transaction as any,
-                afterData: updatedTransaction as any,
-            },
-        });
-
-        return NextResponse.json(updatedTransaction);
-    } catch (error) {
-        return new NextResponse('Internal Error', { status: 500 });
-    }
-}
-
-export async function DELETE(request: Request) {
-    const session = await getServerSession(authOptions);
-
-    if (!session) {
-        return new NextResponse('Unauthorized', { status: 401 });
-    }
-
-    try {
-        const { searchParams } = new URL(request.url);
-        const id = searchParams.get('id');
-
-        if (!id) {
-            return new NextResponse('Missing ID', { status: 400 });
-        }
-
-        const transaction = await prisma.transaction.findUnique({
-            where: { id },
-        });
-
-        if (!transaction) {
-            return new NextResponse('Not Found', { status: 404 });
-        }
-
-        // Check permissions
-        const canAccess = await hasOrganisationAccess(session.user, transaction.organisationId);
-        if (!canAccess) {
-            return new NextResponse('Forbidden', { status: 403 });
-        }
-
-        // Check locking
-        if (transaction.locked) {
-            if (session.user.role !== 'SUPERADMIN') {
-                return new NextResponse('Transaction is locked', { status: 400 });
-            }
-        }
-
-        const { isWeekLocked: isWeekLockedFn } = await import('@/lib/utils');
-        if (isWeekLockedFn(transaction.weekNumber, transaction.year)) {
-            const oversightAndAboveRoles = ['SUPERADMIN', 'DENOMINATION_ADMIN', 'OVERSIGHT_ADMIN'];
-            if (!oversightAndAboveRoles.includes(session.user.role)) {
-                return new NextResponse('Week is locked. Only Oversight Admin and above can delete past-week transactions.', { status: 400 });
-            }
-        }
-
-        await prisma.transaction.delete({
-            where: { id },
-        });
-
-        // Audit Log
-        await prisma.auditLog.create({
-            data: {
-                id: crypto.randomUUID(),
-                userId: session.user.id,
-                actionType: 'DELETE',
-                entityType: 'Transaction',
-                entityId: transaction.id,
-                beforeData: transaction as any,
-            },
-        });
-
-        return NextResponse.json({ success: true });
-    } catch (error) {
-        return new NextResponse('Internal Error', { status: 500 });
-    }
-}
+// NOTE: the collection-level PUT and DELETE were removed. They duplicated
+// PUT/DELETE /api/transactions/[id] without its destination-access, role and
+// validation checks, and nothing in the app called them.
 
 export async function PATCH(request: Request) {
     const session = await getServerSession(authOptions);
@@ -927,7 +898,7 @@ export async function PATCH(request: Request) {
         await prisma.auditLog.create({
             data: {
                 id: crypto.randomUUID(),
-                userId: session.user.id,
+                userId: auditActorId(session),
                 actionType: action === 'approve' ? 'APPROVE' : 'REJECT',
                 entityType: 'Transaction',
                 entityId: transaction.id,

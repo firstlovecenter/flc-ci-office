@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { auditActorId } from '@/lib/audit-actor';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { getCurrentWeek } from '@/lib/utils';
@@ -81,7 +82,7 @@ export async function POST() {
 
         // Audit log
         await createAuditLog({
-            userId: session.user.id,
+            userId: auditActorId(session),
             actionType: 'UPDATE',
             entityType: 'Transaction',
             entityId: 'bulk-lock',

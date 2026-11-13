@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { syncLegacyUserColumns } from '@/lib/user-claims';
+import { auditActorId } from '@/lib/audit-actor';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { getDescendantOrganisationIds, hasOrganisationAccess } from '@/lib/organisations';
@@ -317,7 +319,7 @@ export async function POST(
                 await tx.auditLog.create({
                     data: {
                         id: crypto.randomUUID(),
-                        userId: session.user.id,
+                        userId: auditActorId(session),
                         actionType: 'TRANSFER',
                         entityType: 'Transaction',
                         entityId: transferId || organisationId,
@@ -338,56 +340,30 @@ export async function POST(
                 });
             }
 
-            // 1. Remove all user roles for this organisation
+            // 1. Remove all user roles for this organisation, then recompute every
+            // affected user's legacy columns from the roles they still hold. A
+            // user who keeps live roles elsewhere is re-pointed to one of them
+            // (never nulled), and one with none loses access entirely.
             const userRolesToRemove = await tx.userRole.findMany({
                 where: { organisationId },
             });
+            const affectedUserIds = new Set<string>(userRolesToRemove.map((ur) => ur.userId));
 
-            for (const userRole of userRolesToRemove) {
-                // Delete the user role
-                await tx.userRole.delete({
-                    where: { id: userRole.id },
-                });
+            await tx.userRole.deleteMany({ where: { organisationId } });
 
-                // Check if this was the user's active role
-                const user = await tx.user.findUnique({
-                    where: { id: userRole.userId },
-                    select: { activeUserRoleId: true },
-                });
-
-                if (user?.activeUserRoleId === userRole.id) {
-                    // Find another role for this user
-                    const remainingRole = await tx.userRole.findFirst({
-                        where: { userId: userRole.userId },
-                    });
-
-                    if (remainingRole) {
-                        // Set the next available role as active
-                        await tx.user.update({
-                            where: { id: userRole.userId },
-                            data: {
-                                activeUserRoleId: remainingRole.id,
-                                activeRole: remainingRole.role,
-                                organisationId: remainingRole.organisationId,
-                            },
-                        });
-                    } else {
-                        // User has no more roles - clear their access
-                        await tx.user.update({
-                            where: { id: userRole.userId },
-                            data: {
-                                activeUserRoleId: null,
-                                activeRole: null,
-                                organisationId: null,
-                            },
-                        });
-                    }
-                }
-            }
-
-            // 2. Remove users from being directly assigned to this organisation
-            await tx.user.updateMany({
+            // 2. Users whose legacy home posting was this organisation.
+            const legacyHomed = await tx.user.findMany({
                 where: { organisationId },
+                select: { id: true, activeRole: true },
+            });
+            for (const u of legacyHomed) affectedUserIds.add(u.id);
+
+            for (const userId of affectedUserIds) {
+                await syncLegacyUserColumns(tx, userId);
+            }
+            // A pinned SUPERADMIN is skipped by the sync; just drop the stale org pointer.
+            await tx.user.updateMany({
+                where: { organisationId, activeRole: 'SUPERADMIN' },
                 data: { organisationId: null },
             });
 
@@ -422,7 +398,7 @@ export async function POST(
             await tx.auditLog.create({
                 data: {
                     id: crypto.randomUUID(),
-                    userId: session.user.id,
+                    userId: auditActorId(session),
                     actionType: 'DELETE',
                     entityType: isAccount ? 'BankAccount' : 'Organisation',
                     entityId: organisationId,

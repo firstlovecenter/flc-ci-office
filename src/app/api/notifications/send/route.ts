@@ -5,6 +5,12 @@ import { prisma } from '@/lib/prisma';
 import * as webpush from 'web-push';
 import { sendSms, formatGhanaPhone } from '@/lib/sms';
 import { Role } from '@prisma/client';
+import { ROLE_HIERARCHY } from '@/lib/roles';
+import { callerOrganisationId, getCallerScope } from '@/lib/user-scope';
+import { checkRateLimit } from '@/lib/rate-limit';
+
+const MAX_SMS_LENGTH = 320; // two segments
+const MAX_RECIPIENTS = 100;
 
 // Configure web-push with VAPID keys
 // In production, these should be environment variables
@@ -50,7 +56,7 @@ export async function POST(req: NextRequest) {
     
     // Check if this is an SMS request
     if (body.message && body.recipientType) {
-      return handleSMSRequest(body);
+      return handleSMSRequest(session, body);
     }
 
     // Push notifications are not currently available (PushSubscription model not in schema)
@@ -133,40 +139,77 @@ export async function POST(req: NextRequest) {
   }
 }
 
-async function handleSMSRequest(body: any) {
+async function handleSMSRequest(
+  session: { user: { id: string; role: string; organisationId?: string | null; activeUserRole?: { organisationId?: string | null } | null } },
+  body: any,
+) {
   const { message, recipientType, phoneNumber, role, organisationId } = body;
 
-  if (!message || !message.trim()) {
+  if (typeof message !== 'string' || !message.trim()) {
     return NextResponse.json({ error: 'Message is required' }, { status: 400 });
   }
+  if (message.length > MAX_SMS_LENGTH) {
+    return NextResponse.json({ error: `Message must be at most ${MAX_SMS_LENGTH} characters` }, { status: 400 });
+  }
+
+  // Operator-paid SMS: cap how often one person can fan out (secondary,
+  // per-isolate control).
+  const rl = checkRateLimit(`notify-sms:${session.user.id}`, { maxRequests: 5, windowSeconds: 10 * 60 });
+  if (!rl.success) {
+    return NextResponse.json({ error: 'Too many notifications sent. Please try again later.' }, { status: 429 });
+  }
+
+  // Non-super callers may only reach people in their own church subtree.
+  const isSuperAdmin = session.user.role === 'SUPERADMIN';
+  const scope = await getCallerScope({
+    role: session.user.role,
+    organisationId: callerOrganisationId(session),
+  });
+  const scopeIds = scope === 'ALL' ? null : [...scope];
+  const outOfScope = (id: string) => scopeIds !== null && !scopeIds.includes(id);
 
   try {
     let recipients: { phone?: string; email?: string; name: string }[] = [];
 
     if (recipientType === 'individual') {
-      if (!phoneNumber) {
+      if (typeof phoneNumber !== 'string' || !phoneNumber) {
         return NextResponse.json({ error: 'Phone number is required' }, { status: 400 });
       }
       const formattedPhone = formatGhanaPhone(phoneNumber);
       if (!formattedPhone) {
         return NextResponse.json({ error: 'Invalid phone number format' }, { status: 400 });
       }
-      // Try to find user by phone to get their email
       const userByPhone = await prisma.user.findFirst({
-        where: { phone: phoneNumber },
+        where: {
+          phone: phoneNumber,
+          archived: false,
+          // Anyone but a super admin may only message users holding a live
+          // role inside their own subtree — never an arbitrary number.
+          ...(isSuperAdmin ? {} : { userRoles: { some: { organisationId: { in: scopeIds ?? [] } } } }),
+        },
         select: { email: true, name: true },
       });
+      if (!userByPhone && !isSuperAdmin) {
+        return NextResponse.json({ error: 'Recipient is not in your church hierarchy' }, { status: 403 });
+      }
       recipients.push({ phone: formattedPhone, email: userByPhone?.email || undefined, name: userByPhone?.name || 'Individual' });
     } else if (recipientType === 'role') {
-      if (!role) {
-        return NextResponse.json({ error: 'Role is required' }, { status: 400 });
+      if (typeof role !== 'string' || !Object.hasOwn(ROLE_HIERARCHY, role)) {
+        return NextResponse.json({ error: 'A valid role is required' }, { status: 400 });
       }
-      
-      // Get all users with this role and phone/email
+      if (organisationId && outOfScope(organisationId)) {
+        return NextResponse.json({ error: 'Church is outside your hierarchy' }, { status: 403 });
+      }
+
       const userRoles = await prisma.userRole.findMany({
         where: {
           role: role as Role,
+          user: { archived: false },
+          ...(scopeIds !== null
+            ? { organisationId: organisationId ? organisationId : { in: scopeIds } }
+            : organisationId ? { organisationId } : {}),
         },
+        take: MAX_RECIPIENTS + 1,
         include: {
           user: {
             select: {
@@ -186,15 +229,19 @@ async function handleSMSRequest(body: any) {
         }))
         .filter(r => r.phone || r.email);
     } else if (recipientType === 'organisation') {
-      if (!organisationId) {
+      if (typeof organisationId !== 'string' || !organisationId) {
         return NextResponse.json({ error: 'Church is required' }, { status: 400 });
       }
+      if (outOfScope(organisationId)) {
+        return NextResponse.json({ error: 'Church is outside your hierarchy' }, { status: 403 });
+      }
 
-      // Get all users in this organisation (via UserRoles for multi-role support)
       const userRolesInDept = await prisma.userRole.findMany({
         where: {
           organisationId: organisationId,
+          user: { archived: false },
         },
+        take: MAX_RECIPIENTS + 1,
         include: {
           user: {
             select: {
@@ -221,6 +268,15 @@ async function handleSMSRequest(body: any) {
           name: ur.user.name || 'User',
         }))
         .filter(r => r.phone || r.email);
+    } else {
+      return NextResponse.json({ error: 'Invalid recipient type' }, { status: 400 });
+    }
+
+    if (recipients.length > MAX_RECIPIENTS) {
+      return NextResponse.json(
+        { error: `Too many recipients (maximum ${MAX_RECIPIENTS}). Narrow the audience.` },
+        { status: 400 }
+      );
     }
 
     if (recipients.length === 0) {

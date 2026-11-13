@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { uploadToCloudinary } from '@/lib/cloudinary';
+import { authorizeTargetUser, callerOrganisationId, loadTargetScope } from '@/lib/user-scope';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -35,6 +36,24 @@ export async function POST(req: NextRequest) {
         }
         if (!userId) {
             return NextResponse.json({ error: 'No user ID provided' }, { status: 400 });
+        }
+
+        // Same authorisation as editing the user: known target, caller outranks
+        // them over ALL their roles, every org inside the caller's subtree.
+        // Self is always allowed; SUPERADMIN is exempt. Checked before uploading.
+        const targetScope = await loadTargetScope(userId);
+        if (!targetScope) {
+            return NextResponse.json({ error: 'User not found' }, { status: 404 });
+        }
+        if (userId !== session.user.id) {
+            const decision = await authorizeTargetUser(
+                { id: session.user.id, role: session.user.role, organisationId: callerOrganisationId(session) },
+                targetScope,
+                { requireHierarchy: true },
+            );
+            if (!decision.ok) {
+                return NextResponse.json({ error: decision.error }, { status: decision.status });
+            }
         }
 
         const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif'];

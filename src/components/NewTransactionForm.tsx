@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Loader2 } from 'lucide-react';
 import { useSession } from 'next-auth/react';
 import { Button } from '@/components/ui/button';
@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { cn, formatNumber, formatTransactionType } from '@/lib/utils';
 import {
     isBankAccount,
@@ -23,6 +24,16 @@ import { APP_CURRENCY } from '@/lib/currency-constants';
 import type { AccountType } from '@prisma/client';
 
 type TransactionType = 'INCOME' | 'EXPENSE';
+
+/** A same-day, same-amount entry the server found. */
+interface DuplicateCandidate {
+    id: string;
+    description: string;
+    amount: string;
+    status: string;
+    createdAt: string;
+    enteredBy: string | null;
+}
 
 const EXPENSE_PRESETS = ['HR', 'Ministry expense', 'Bussing', 'Construction'];
 const INCOME_PRESETS = ['Tithe', 'Offering', 'Donation', 'Pledge', 'Seed', 'Special Offering'];
@@ -77,6 +88,15 @@ export default function NewTransactionForm({
     const [loading, setLoading] = useState(false);
     const [organisationBalance, setOrganisationBalance] = useState<string | null>(null);
     const [balanceLoading, setBalanceLoading] = useState(false);
+    const [duplicates, setDuplicates] = useState<DuplicateCandidate[] | null>(null);
+    // Synchronous guard: `loading` state updates after the next render, so a
+    // fast double tap would otherwise fire two submissions.
+    const submittingRef = useRef(false);
+    // One idempotency key per submission intent. It is reused while the payload
+    // is unchanged (retry after a dropped connection, double tap) and replaced
+    // as soon as the user changes anything, so a genuine second entry is never
+    // swallowed as a replay.
+    const attemptRef = useRef<{ key: string; fingerprint: string } | null>(null);
 
     const needsApproval = !isSuperAdmin && type !== 'INCOME';
     const selectedOrganisation = organisations.find((o) => o.id === organisationId);
@@ -119,8 +139,14 @@ export default function NewTransactionForm({
             .finally(() => setBalanceLoading(false));
     }, [organisationId]);
 
-    const handleSubmit = async (e: React.FormEvent) => {
+    const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
+        return submit(false);
+    };
+
+    const submit = async (confirmDuplicate: boolean) => {
+        if (submittingRef.current) return;
+        submittingRef.current = true;
         setError('');
         setLoading(true);
 
@@ -133,6 +159,7 @@ export default function NewTransactionForm({
                     ? 'Withdrawal requests are not accepted on Sundays.'
                     : `Withdrawal requests can only be made between ${win.timeRange}`);
                 setLoading(false);
+                submittingRef.current = false;
                 return;
             }
         }
@@ -142,11 +169,13 @@ export default function NewTransactionForm({
             if (bal <= 0) {
                 setError('This account does not have a positive balance.');
                 setLoading(false);
+                submittingRef.current = false;
                 return;
             }
             if (parseFloat(amount) > bal) {
                 setError(`Insufficient balance. Available: ${APP_CURRENCY.symbol}${formatNumber(organisationBalance)}`);
                 setLoading(false);
+                submittingRef.current = false;
                 return;
             }
         }
@@ -155,17 +184,34 @@ export default function NewTransactionForm({
             const finalDescription = descriptionPreset
                 ? (description ? `${descriptionPreset} - ${description}` : descriptionPreset)
                 : description;
+            const fingerprint = JSON.stringify([type, amount, finalDescription, organisationId, transactionDate]);
+            if (!attemptRef.current || attemptRef.current.fingerprint !== fingerprint) {
+                attemptRef.current = { key: crypto.randomUUID(), fingerprint };
+            }
             const r = await fetch('/api/transactions', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Idempotency-Key': attemptRef.current.key,
+                },
                 body: JSON.stringify({
                     type,
                     amount: parseFloat(amount),
                     description: finalDescription,
                     organisationId,
                     date: transactionDate ? new Date(transactionDate).toISOString() : undefined,
+                    ...(confirmDuplicate ? { confirmDuplicate: true } : {}),
                 }),
             });
+            if (r.status === 409) {
+                const d = await r.json().catch(() => null);
+                if (d?.code === 'POSSIBLE_DUPLICATE' && Array.isArray(d.duplicates)) {
+                    // Nothing was saved; ask before going ahead.
+                    setDuplicates(d.duplicates);
+                    return;
+                }
+                throw new Error(d?.error || 'Failed to create transaction');
+            }
             if (!r.ok) {
                 let msg = 'Failed to create transaction';
                 try { const d = await r.json(); msg = d.error || msg; } catch { /* non-JSON error body */ }
@@ -179,6 +225,7 @@ export default function NewTransactionForm({
             } else {
                 showSuccess('Transaction created successfully');
             }
+            attemptRef.current = null;
             onSuccess?.();
         } catch (err) {
             const msg = err instanceof Error ? err.message : 'Error creating transaction';
@@ -186,6 +233,7 @@ export default function NewTransactionForm({
             showError(msg);
         } finally {
             setLoading(false);
+            submittingRef.current = false;
         }
     };
 
@@ -302,6 +350,34 @@ export default function NewTransactionForm({
                     </div>
                 </form>
             </div>
+            <ConfirmDialog
+                open={duplicates !== null}
+                onOpenChange={(o) => { if (!o) setDuplicates(null); }}
+                title="Possible duplicate"
+                description={
+                    <>
+                        You already entered {duplicates && duplicates.length > 1 ? 'transactions' : 'a transaction'} of{' '}
+                        <strong>{APP_CURRENCY.symbol}{formatNumber(amount || '0')}</strong> for this account on this day.
+                        Is this a second, separate {type === 'INCOME' ? 'deposit' : 'withdrawal'}, or a duplicate?
+                    </>
+                }
+                detail={
+                    <ul className="space-y-2">
+                        {duplicates?.map((d) => (
+                            <li key={d.id} className="text-xs">
+                                <span className="font-medium tabular-nums">{APP_CURRENCY.symbol}{formatNumber(d.amount)}</span>
+                                {' · '}{new Date(d.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                {d.enteredBy ? ` · ${d.enteredBy}` : ''}
+                                {' · '}{d.status.toLowerCase()}
+                                {d.description ? <span className="block text-muted-foreground truncate">{d.description}</span> : null}
+                            </li>
+                        ))}
+                    </ul>
+                }
+                confirmLabel="It's a separate transaction — save"
+                cancelLabel="Cancel, don't save"
+                onConfirm={async () => { setDuplicates(null); await submit(true); }}
+            />
         </div>
     );
 }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { auditActorId } from '@/lib/audit-actor';
 import crypto from 'crypto';
 
 // Get user profile
@@ -156,7 +157,7 @@ export async function PATCH(req: NextRequest) {
         await prisma.auditLog.create({
             data: {
                 id: crypto.randomUUID(),
-                userId: session.user.id,
+                userId: auditActorId(session),
                 actionType: 'UPDATE',
                 entityType: 'User',
                 entityId: session.user.id,

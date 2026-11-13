@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { auditActorId } from '@/lib/audit-actor';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { createAuditLog } from '@/lib/audit';
@@ -9,6 +10,15 @@ import { getOrganisationApprovedBalance } from '@/lib/balance';
 import { sendSms } from '@/lib/sms';
 import { generateCorrectionNotificationSms, generateOrganisationTransferSms, generateAdminTransactionAlertSms } from '@/lib/sms-templates';
 import crypto from 'crypto';
+import type { Prisma } from '@prisma/client';
+import { hasOrganisationAccess } from '@/lib/organisations';
+import { assertMoneyBearingOrganisation } from '@/lib/org-model';
+import { parsePositiveAmount } from '@/lib/amount-validation';
+import { canWriteToLockedWeek, LOCKED_WEEK_ERROR } from '@/lib/period-lock';
+import { isWeekLocked } from '@/lib/utils';
+
+class CorrectionConflictError extends Error {}
+
 
 export async function POST(
     request: Request,
@@ -49,14 +59,6 @@ export async function POST(
                         level: true,
                     },
                 },
-                user: {
-                    select: {
-                        id: true,
-                        name: true,
-                        email: true,
-                        phone: true,
-                    },
-                },
                 currency: true,
             },
         });
@@ -68,24 +70,87 @@ export async function POST(
             );
         }
 
-        // Validate the new organisation if provided
+        // Scope: a non-super admin may only correct inside their own subtree —
+        // both the transaction's organisation and any destination. Checked
+        // before anything is written.
+        if (session.user.role !== 'SUPERADMIN') {
+            const scopeUser = {
+                role: session.user.role,
+                organisationId: session.user.activeUserRole?.organisationId || session.user.organisationId,
+            };
+            const canSource = await hasOrganisationAccess(scopeUser, originalTransaction.organisationId);
+            const canDest = isOrganisationChange ? await hasOrganisationAccess(scopeUser, newOrganisationId) : true;
+            if (!canSource || !canDest) {
+                return NextResponse.json(
+                    { error: 'You do not have access to this transaction or destination' },
+                    { status: 403 }
+                );
+            }
+        }
+
+        if (originalTransaction.status !== 'APPROVED') {
+            return NextResponse.json(
+                { error: 'Only approved transactions can be corrected' },
+                { status: 400 }
+            );
+        }
+        if (originalTransaction.correctedAt) {
+            return NextResponse.json(
+                { error: 'This transaction has already been corrected' },
+                { status: 409 }
+            );
+        }
+        if (reason !== undefined && reason !== null && (typeof reason !== 'string' || reason.length > 300)) {
+            return NextResponse.json({ error: 'Reason must be at most 300 characters' }, { status: 400 });
+        }
+        if (isAmountChange) {
+            const parsed = parsePositiveAmount(newAmount, 'New amount');
+            if (!parsed.ok) {
+                return NextResponse.json({ error: parsed.error }, { status: 400 });
+            }
+        }
+        // Correction rows carry the original's week; a closed week needs Oversight+.
+        if (
+            originalTransaction.weekNumber && originalTransaction.year &&
+            isWeekLocked(originalTransaction.weekNumber, originalTransaction.year) &&
+            !canWriteToLockedWeek(session.user.role)
+        ) {
+            return NextResponse.json({ error: LOCKED_WEEK_ERROR }, { status: 403 });
+        }
+
+        // Validate the new organisation if provided: it must be an active,
+        // money-bearing account.
         let newOrganisation = null;
         if (isOrganisationChange) {
             newOrganisation = await prisma.organisation.findUnique({
                 where: { id: newOrganisationId },
-                select: { id: true, name: true, level: true },
+                select: { id: true, name: true, level: true, isActive: true },
             });
-            if (!newOrganisation) {
+            if (!newOrganisation || !newOrganisation.isActive) {
                 return NextResponse.json(
                     { error: 'New organisation not found' },
                     { status: 404 }
                 );
             }
+            const moneyError = assertMoneyBearingOrganisation(newOrganisation.level);
+            if (moneyError) {
+                return NextResponse.json({ error: moneyError }, { status: 400 });
+            }
         }
+
+        // Claim the original exactly once. Runs inside the same DB transaction
+        // as the rows it justifies, so a replay or race creates nothing.
+        const claimOriginal = async (tx: Prisma.TransactionClient) => {
+            const claimed = await tx.transaction.updateMany({
+                where: { id: originalTransaction.id, status: 'APPROVED', correctedAt: null },
+                data: { correctedAt: new Date() },
+            });
+            if (claimed.count !== 1) throw new CorrectionConflictError();
+        };
 
         // Calculate the difference using Decimal arithmetic
         const originalAmountDec = toDecimal(originalTransaction.amount);
-        const newAmountDec = isAmountChange ? toDecimal(newAmount) : originalAmountDec;
+        const newAmountDec = isAmountChange ? toDecimal(newAmount) : originalAmountDec; // validated above
         const correctionAmountDec = newAmountDec.minus(originalAmountDec);
         const originalAmount = moneyToString(originalAmountDec);
         const newAmountValue = moneyToString(newAmountDec);
@@ -111,7 +176,9 @@ export async function POST(
                 ? originalAmountDec.mul(toDecimal(originalTransaction.exchangeRate))
                 : originalAmountDec;
 
-            const reversalTransaction = await prisma.transaction.create({
+            const { reversalTransaction, newTransaction } = await prisma.$transaction(async (tx) => {
+            await claimOriginal(tx);
+            const reversalTransaction = await tx.transaction.create({
                 data: {
                     id: crypto.randomUUID(),
                     type: reverseType,
@@ -142,7 +209,7 @@ export async function POST(
                 ? newAmountDec.mul(toDecimal(originalTransaction.exchangeRate))
                 : newAmountDec;
 
-            const newTransaction = await prisma.transaction.create({
+            const newTransaction = await tx.transaction.create({
                 data: {
                     id: crypto.randomUUID(),
                     type: originalTransaction.type,
@@ -166,9 +233,12 @@ export async function POST(
                 },
             });
 
+            return { reversalTransaction, newTransaction };
+            });
+
             // Audit logs for both transactions
             await createAuditLog({
-                userId: session.user.id,
+                userId: auditActorId(session),
                 actionType: 'CREATE',
                 entityType: 'Transaction',
                 entityId: reversalTransaction.id,
@@ -184,7 +254,7 @@ export async function POST(
             });
 
             await createAuditLog({
-                userId: session.user.id,
+                userId: auditActorId(session),
                 actionType: 'CREATE',
                 entityType: 'Transaction',
                 entityId: newTransaction.id,
@@ -321,7 +391,9 @@ export async function POST(
         // Create the correction transaction
         const correctionDescription = `CORRECTION: ${reason || 'Amount adjustment'} (Original: ${formatCurrency(originalAmount, originalTransaction.currency?.code, originalTransaction.currency?.symbol)} → New: ${formatCurrency(newAmountValue, originalTransaction.currency?.code, originalTransaction.currency?.symbol)}) - Ref: ${originalTransaction.id.substring(0, 8)}`;
 
-        const correctionTransaction = await prisma.transaction.create({
+        const correctionTransaction = await prisma.$transaction(async (tx) => {
+        await claimOriginal(tx);
+        return tx.transaction.create({
             data: {
                 id: crypto.randomUUID(),
                 type: correctionType,
@@ -350,10 +422,11 @@ export async function POST(
                 currency: true,
             },
         });
+        });
 
         // Create audit log
         await createAuditLog({
-            userId: session.user.id,
+            userId: auditActorId(session),
             actionType: 'CREATE',
             entityType: 'Transaction',
             entityId: correctionTransaction.id,
@@ -452,6 +525,12 @@ export async function POST(
             message: `Correction transaction created successfully. ${correctionType === 'INCOME' ? 'Credited' : 'Debited'} ${formatCurrency(absoluteCorrectionAmount, originalTransaction.currency?.code, originalTransaction.currency?.symbol)}`,
         });
     } catch (error) {
+        if (error instanceof CorrectionConflictError) {
+            return NextResponse.json(
+                { error: 'This transaction has already been corrected' },
+                { status: 409 }
+            );
+        }
         return NextResponse.json(
             { error: 'Failed to create correction transaction' },
             { status: 500 }

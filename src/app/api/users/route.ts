@@ -6,6 +6,9 @@ import bcrypt from 'bcryptjs';
 import { getDescendantOrganisationIds } from '@/lib/organisations';
 import { validateRoleAssignment } from '@/lib/roleValidation';
 import crypto from 'crypto';
+import { canAssignRole, ROLE_HIERARCHY } from '@/lib/roles';
+import { sendSetupLinkEmail } from '@/lib/password-reset';
+import type { Role } from '@prisma/client';
 
 // Force dynamic rendering - user list is role/organisation specific
 export const dynamic = 'force-dynamic';
@@ -39,35 +42,38 @@ export async function GET(request: Request) {
             filterOrganisationId = session.user.activeUserRole.organisationId;
         }
 
-        // For available users (leader selection), we want all registered users
-        // that are not archived, regardless of their current organisation
-        if (availableOnly) {
-            // Get all non-archived users - they can be selected as leaders
-            // Admins can see users that don't have roles yet, or users within their hierarchy
-            if (session.user.role !== 'SUPERADMIN') {
-                // Get users that are either:
-                // 1. Have no organisation (unassigned users)
-                // 2. Are in the admin's organisation hierarchy
-                const allowedOrganisationIds = filterOrganisationId 
-                    ? await getDescendantOrganisationIds(filterOrganisationId)
-                    : [];
-                    
+        // Visibility is derived from live UserRole rows, never the legacy
+        // organisationId alone (null there must not read as "unrestricted").
+        const allowedOrganisationIds = filterOrganisationId
+            ? await getDescendantOrganisationIds(filterOrganisationId)
+            : [];
+
+        if (session.user.role !== 'SUPERADMIN') {
+            if (availableOnly) {
+                // Leader selection: users with no live role at all (nothing to
+                // be cross-tenant with), or whose every live role is in scope.
+                // Pinned global admins without role rows are never offered.
                 whereClause.OR = [
-                    { organisationId: null },
-                    { organisationId: { in: allowedOrganisationIds } },
+                    {
+                        userRoles: { none: {} },
+                        OR: [
+                            { activeRole: null },
+                            { activeRole: { notIn: ['SUPERADMIN', 'DENOMINATION_ADMIN'] } },
+                        ],
+                    },
+                    {
+                        userRoles: {
+                            some: { organisationId: { in: allowedOrganisationIds } },
+                            none: { organisationId: { notIn: allowedOrganisationIds } },
+                        },
+                    },
                 ];
-            }
-            // SUPERADMIN can see all users
-        } else {
-            // Filter users based on organisation hierarchy (original behavior)
-            if (session.user.role !== 'SUPERADMIN') {
-                if (filterOrganisationId) {
-                    const allowedOrganisationIds = await getDescendantOrganisationIds(filterOrganisationId);
-                    whereClause.organisationId = { in: allowedOrganisationIds };
-                } else {
+            } else {
+                if (!filterOrganisationId) {
                     // User has no organisation, can't see any users
                     return NextResponse.json([]);
                 }
+                whereClause.userRoles = { some: { organisationId: { in: allowedOrganisationIds } } };
             }
         }
 
@@ -127,24 +133,47 @@ export async function POST(request: Request) {
         const body = await request.json();
         const { title, name, email, phone, roleOrganisationPairs } = body;
 
-        // Validate required fields
         if (!phone?.trim()) {
             return NextResponse.json({ error: 'Phone number is required' }, { status: 400 });
         }
-
-        // Validate required fields
-        if (!phone?.trim()) {
-            return NextResponse.json({ error: 'Phone number is required' }, { status: 400 });
+        if (typeof email !== 'string' || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()) || email.length > 254) {
+            return NextResponse.json({ error: 'A valid email address is required' }, { status: 400 });
+        }
+        if (name !== undefined && name !== null && (typeof name !== 'string' || name.length > 100)) {
+            return NextResponse.json({ error: 'Name must be at most 100 characters' }, { status: 400 });
         }
 
-        // Users can now be created without roles initially
-        const hasRoles = roleOrganisationPairs && roleOrganisationPairs.length > 0;
-        
-        // Extract unique roles for backward compatibility validation (only if roles provided)
-        const userRoles: string[] = hasRoles ? Array.from(new Set(roleOrganisationPairs.map((pair: any) => pair.role as string))) : [];
-        const firstDept = hasRoles ? roleOrganisationPairs[0].organisationId : null;
+        // Users can be created without roles initially.
+        const rawPairs = roleOrganisationPairs ?? [];
+        if (!Array.isArray(rawPairs) || rawPairs.length > 20) {
+            return NextResponse.json({ error: 'Invalid role assignments' }, { status: 400 });
+        }
+        const seen = new Set<string>();
+        const pairs: Array<{ role: Role; organisationId: string }> = [];
+        for (const pair of rawPairs) {
+            if (
+                !pair || typeof pair.role !== 'string' || typeof pair.organisationId !== 'string' ||
+                !Object.hasOwn(ROLE_HIERARCHY, pair.role)
+            ) {
+                return NextResponse.json({ error: 'Invalid role assignments' }, { status: 400 });
+            }
+            const key = `${pair.role}:${pair.organisationId}`;
+            if (!seen.has(key)) {
+                seen.add(key);
+                pairs.push({ role: pair.role as Role, organisationId: pair.organisationId });
+            }
+        }
+        const hasRoles = pairs.length > 0;
+        const userRoles: string[] = Array.from(new Set(pairs.map((p) => p.role as string)));
+        const firstDept = hasRoles ? pairs[0].organisationId : null;
 
-        // Validate role assignments only if roles are provided
+        // The caller may only grant roles strictly below their own.
+        for (const role of userRoles) {
+            if (!canAssignRole(session.user.role, role)) {
+                return NextResponse.json({ error: `You cannot assign the role: ${role}` }, { status: 403 });
+            }
+        }
+
         if (hasRoles) {
             const validation = await validateRoleAssignment('new-user', userRoles, firstDept, email);
             if (!validation.valid) {
@@ -152,102 +181,78 @@ export async function POST(request: Request) {
             }
         }
 
-        // Check if user exists
         const existingUser = await prisma.user.findUnique({
-            where: { email: email.toLowerCase() },
+            where: { email: email.trim().toLowerCase() },
         });
-
         if (existingUser) {
             return new NextResponse('User already exists', { status: 400 });
         }
 
-        // For non-superadmins, verify they can create users in the target organisation
+        // For non-superadmins, every target organisation must be inside their subtree.
         if (session.user.role !== 'SUPERADMIN') {
             const filterOrganisationId = session.user.activeUserRole?.organisationId || session.user.organisationId;
-            
             if (!filterOrganisationId) {
                 return new NextResponse('Forbidden - No organisation assigned', { status: 403 });
             }
-
-            // Get all organisations this admin oversees
             const allowedOrganisationIds = await getDescendantOrganisationIds(filterOrganisationId);
-            
-            // Verify all target organisations are within their scope
-            for (const pair of roleOrganisationPairs) {
+            for (const pair of pairs) {
                 if (!allowedOrganisationIds.includes(pair.organisationId)) {
                     return new NextResponse('Forbidden - Cannot create user in this organisation', { status: 403 });
                 }
             }
-
-            // Verify the role being assigned is appropriate for the admin's level
-            // Admins can only assign roles at their level or below
-            const userDept = firstDept ? await prisma.organisation.findUnique({ where: { id: firstDept } }) : null;
-            const adminDept = await prisma.organisation.findUnique({ where: { id: filterOrganisationId } });
-            
-            if (userDept && adminDept) {
-                const ORGANISATION_HIERARCHY: Record<string, number> = {
-                    DENOMINATION: 1,
-                    OVERSIGHT: 2,
-                    CAMPUS: 3,
-                    STREAM: 4,
-                    COUNCIL: 5,
-                };
-
-                const userDeptLevel = userDept.level ? ORGANISATION_HIERARCHY[userDept.level] : 999;
-                const adminDeptLevel = adminDept.level ? ORGANISATION_HIERARCHY[adminDept.level] : 999;
-
-                // User organisation must be at admin's level or below
-                if (userDeptLevel < adminDeptLevel) {
-                    return new NextResponse('Forbidden - Cannot create user at higher organisation level', { status: 403 });
-                }
-            }
         }
 
-        // Create the user with a random password (user will set via password reset email)
+        // The user and every role row are created together: a failure leaves
+        // nothing behind (no half-committed privileged user).
         const randomPassword = crypto.randomBytes(32).toString('hex');
-        const user = await prisma.user.create({
-            data: {
-                id: crypto.randomUUID(),
-                title: title?.trim() || null,
-                name,
-                email: email.toLowerCase(),
-                phone: phone.trim(),
-                password: await bcrypt.hash(randomPassword, 10),
-                activeRole: hasRoles ? (userRoles[0] as any) : null, // Keep for backward compatibility
-                organisationId: firstDept, // Set to first organisation for backward compatibility
-                updatedAt: new Date(),
-            },
-        });
+        const passwordHash = await bcrypt.hash(randomPassword, 10);
+        const now = new Date();
+        const userId = crypto.randomUUID();
+        const roleRows = pairs.map((p) => ({
+            id: crypto.randomUUID(),
+            userId,
+            role: p.role,
+            organisationId: p.organisationId,
+            updatedAt: now,
+        }));
 
-        // Create UserRole entries for each role-organisation pair (only if roles provided)
-        if (hasRoles && roleOrganisationPairs.length > 0) {
-            await prisma.userRole.createMany({
-                data: roleOrganisationPairs.map((pair: any) => ({
-                    userId: user.id,
-                    role: pair.role,
-                    organisationId: pair.organisationId,
-                })),
-            });
-
-            // Set the first UserRole as active
-            const firstUserRole = await prisma.userRole.findFirst({
-                where: {
-                    userId: user.id,
-                },
-                orderBy: {
-                    createdAt: 'asc',
+        const user = await prisma.$transaction(async (tx) => {
+            const created = await tx.user.create({
+                data: {
+                    id: userId,
+                    title: title?.trim() || null,
+                    name,
+                    email: email.trim().toLowerCase(),
+                    phone: phone.trim(),
+                    password: passwordHash,
+                    // Legacy columns mirror the first live role row.
+                    activeRole: hasRoles ? roleRows[0].role : null,
+                    organisationId: firstDept,
+                    updatedAt: now,
                 },
             });
-
-            if (firstUserRole) {
-                await prisma.user.update({
-                    where: { id: user.id },
-                    data: { activeUserRoleId: firstUserRole.id },
+            if (hasRoles) {
+                await tx.userRole.createMany({ data: roleRows });
+                return tx.user.update({
+                    where: { id: userId },
+                    data: { activeUserRoleId: roleRows[0].id },
                 });
             }
-        }
+            return created;
+        });
 
-        // Note: Password reset email will be sent when first role is assigned (in PUT /api/users/[id])
+        // Setup link is delivered by email only.
+        if (hasRoles) {
+            const organisation = await prisma.organisation.findUnique({
+                where: { id: pairs[0].organisationId },
+                select: { name: true },
+            });
+            await sendSetupLinkEmail({
+                user: { id: user.id, name: user.name, email: user.email },
+                role: pairs[0].role,
+                organisationName: organisation?.name || 'Unknown church',
+            });
+        }
 
         const { password: _, ...safeUser } = user;
 

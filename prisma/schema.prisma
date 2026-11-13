@@ -221,6 +221,10 @@ model Transaction {
   /// status REJECTED so older deployments read it without a new enum value;
   /// see lib/cancel-request.ts.
   cancelledAt          DateTime?
+  /// Set when a correction has been applied; a transaction is corrected at most once.
+  correctedAt          DateTime?
+  /// Client-supplied (user-scoped) key making a create request safe to retry.
+  idempotencyKey       String?                @unique
   requestedAmount      Decimal?               @db.Decimal(14, 2)
   isCharge             Boolean                @default(false)
   receiptWaived        Boolean                @default(false)
@@ -257,6 +261,8 @@ model User {
   name                          String?
   email                         String                     @unique
   password                      String?
+  /// Set whenever the password is reset/changed; sessions issued earlier are rejected.
+  passwordChangedAt             DateTime?
   image                         String?
   organisationId                String?
   /// Set when the user's home posting is a bank account rather than a church.

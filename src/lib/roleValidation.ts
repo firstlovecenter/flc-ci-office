@@ -1,7 +1,6 @@
 import { prisma } from '@/lib/prisma';
 
-// The email that is locked as the only SUPERADMIN
-const SUPERADMIN_EMAIL = 'skaduteye@gmail.com';
+import { SUPERADMIN_EMAIL } from '@/lib/superadmin';
 
 /**
  * Validates role assignment constraints:

@@ -14,9 +14,7 @@ function ResetPasswordForm() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const urlToken = searchParams.get('token');
-    const urlCode = searchParams.get('code');
 
-    const [resetCode, setResetCode] = useState(urlCode || '');
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
@@ -25,8 +23,6 @@ function ResetPasswordForm() {
     const [error, setError] = useState('');
     const [success, setSuccess] = useState(false);
 
-    const usingUrlToken = !!(urlToken || urlCode);
-
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setError('');
@@ -34,7 +30,7 @@ function ResetPasswordForm() {
 
         if (password !== confirmPassword) { setError('Passwords do not match'); return; }
         if (password.length < 8) { setError('Password must be at least 8 characters long'); return; }
-        if (!usingUrlToken && !resetCode.trim()) { setError('Please enter the reset code sent via SMS'); return; }
+        if (!urlToken) { setError('This reset link is incomplete. Please use the link from your email.'); return; }
 
         setLoading(true);
         try {
@@ -42,7 +38,7 @@ function ResetPasswordForm() {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    token: urlToken || urlCode || resetCode.trim().toUpperCase(),
+                    token: urlToken,
                     password,
                 }),
             });
@@ -106,9 +102,9 @@ function ResetPasswordForm() {
                     Set a new password
                 </h1>
                 <p className="text-sm text-muted-foreground mb-8">
-                    {usingUrlToken
+                    {urlToken
                         ? 'Choose a new password to continue.'
-                        : 'Enter the 6-digit code sent to your phone and a new password.'}
+                        : 'Open the reset link from your email to choose a new password.'}
                 </p>
 
                 {error && (
@@ -118,28 +114,6 @@ function ResetPasswordForm() {
                 )}
 
                 <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-                    {!usingUrlToken && (
-                        <div className="space-y-1.5">
-                            <Label htmlFor="resetCode" className="text-xs text-muted-foreground tracking-[0.02em]">
-                                Reset code
-                            </Label>
-                            <Input
-                                id="resetCode"
-                                name="resetCode"
-                                autoComplete="off"
-                                autoFocus
-                                required
-                                value={resetCode}
-                                onChange={(e) => setResetCode(e.target.value.toUpperCase())}
-                                disabled={loading}
-                                placeholder="F823A5"
-                                maxLength={6}
-                                className="tracking-[0.25em] uppercase"
-                            />
-                            <p className="text-xs text-muted-foreground">6-character code from the SMS</p>
-                        </div>
-                    )}
-
                     <div className="space-y-1.5">
                         <Label htmlFor="password" className="text-xs text-muted-foreground tracking-[0.02em]">
                             New password
@@ -199,7 +173,7 @@ function ResetPasswordForm() {
                         type="submit"
                         size="lg"
                         className="mt-2 w-full font-medium"
-                        disabled={loading || (!usingUrlToken && !resetCode.trim()) || !password || !confirmPassword}
+                        disabled={loading || !urlToken || !password || !confirmPassword}
                     >
                         {loading ? 'Resetting…' : 'Reset password'}
                     </Button>

@@ -5,6 +5,8 @@
  */
 import { emailLayout } from './email';
 import { formatRoleLabel } from '@/lib/org-model';
+import { escapeHtml } from '@/lib/html-escape';
+import { getAppOrigin } from '@/lib/password-reset-origin';
 
 type PillColor = 'green' | 'red' | 'blue' | 'amber' | 'slate';
 type BtnStyle = 'primary' | 'success' | 'amber';
@@ -26,17 +28,25 @@ function infoBox(content: string, color: BoxColor): string {
   return `<div class="ib ib-${color}"><p>${content}</p></div>`;
 }
 
-function ctaButton(text: string, url: string, style: BtnStyle = 'primary'): string {
-  return `<div class="btn-wrap"><a href="${url}" class="btn btn-${style}">${text}</a></div>`;
+/**
+ * Only https links on the configured app origin may become a button. Anything
+ * else renders nothing rather than a link to an arbitrary destination.
+ */
+export function safeAppUrl(url: string): string | null {
+  const origin = getAppOrigin();
+  if (!origin) return null;
+  try {
+    const parsed = new URL(url);
+    return parsed.origin === origin ? parsed.toString() : null;
+  } catch {
+    return null;
+  }
 }
 
-function otpBlock(code: string): string {
-  return `
-    <div class="otp-wrap">
-      <p class="otp-lbl">Your Reset Code</p>
-      <p class="otp-code">${code}</p>
-      <p class="otp-sub">Enter this code to reset your password</p>
-    </div>`;
+function ctaButton(text: string, url: string, style: BtnStyle = 'primary'): string {
+  const safe = safeAppUrl(url);
+  if (!safe) return '';
+  return `<div class="btn-wrap"><a href="${escapeHtml(safe)}" class="btn btn-${style}">${text}</a></div>`;
 }
 
 function heading(eyebrow: string, title: string, subtitle?: string): string {
@@ -55,17 +65,15 @@ function divider(): string {
 
 interface PasswordResetEmailParams {
   userName?: string;
-  resetCode: string;
-  resetUrl?: string;
-  expirationHours?: number;
-  otpExpirationMinutes?: number;
+  resetUrl: string;
+  expirationMinutes?: number;
 }
 
 export function generatePasswordResetEmail(
   params: PasswordResetEmailParams,
 ): { subject: string; html: string } {
-  const { userName, resetCode, resetUrl, expirationHours = 12, otpExpirationMinutes = 15 } = params;
-  const name = userName || 'there';
+  const { userName, resetUrl, expirationMinutes = 60 } = params;
+  const name = escapeHtml(userName || 'there');
 
   const content = `
     ${heading(
@@ -73,19 +81,17 @@ export function generatePasswordResetEmail(
       'Password Reset Requested',
       `Hi ${name}, we received a request to reset your password.`,
     )}
-    ${otpBlock(resetCode)}
-    ${resetUrl ? ctaButton('Reset My Password', resetUrl) : ''}
+    ${ctaButton('Reset My Password', resetUrl)}
     ${divider()}
     <p class="helper">
-      This code expires in <strong>${otpExpirationMinutes} minute${otpExpirationMinutes !== 1 ? 's' : ''}</strong>.
-      ${resetUrl ? `The reset link expires in <strong>${expirationHours} hour${expirationHours !== 1 ? 's' : ''}</strong>.` : ''}
+      This link can be used once and expires in <strong>${expirationMinutes} minute${expirationMinutes !== 1 ? 's' : ''}</strong>.
       If you didn&rsquo;t request a password reset, no action is needed &mdash; your account remains secure.
     </p>`;
 
   return {
-    subject: 'Your password reset code',
+    subject: 'Reset your CI-OFFICE password',
     html: emailLayout(content, {
-      preheader: `Your password reset code is ${resetCode}. Code expires in ${otpExpirationMinutes} minutes.`,
+      preheader: `Use the link to reset your password. It expires in ${expirationMinutes} minutes.`,
     }),
   };
 }
@@ -100,8 +106,10 @@ interface FirstRoleAssignmentEmailParams {
 export function generateFirstRoleAssignmentEmail(
   params: FirstRoleAssignmentEmailParams,
 ): { subject: string; html: string } {
-  const { userName, role, organisation, resetLink } = params;
+  const { userName: rawUserName, role, organisation: rawOrganisation, resetLink } = params;
   const roleDisplay = formatRoleLabel(role);
+  const userName = escapeHtml(rawUserName);
+  const organisation = escapeHtml(rawOrganisation);
 
   const content = `
     ${heading(
@@ -111,7 +119,7 @@ export function generateFirstRoleAssignmentEmail(
     )}
     ${dataTable([
       ['Full name', userName],
-      ['Role', `${pill(roleDisplay, 'blue')}`],
+      ['Role', pill(escapeHtml(roleDisplay), 'blue')],
       ['Church', organisation],
     ])}
     ${infoBox('This is your first time signing in. Please set a strong password to secure your account.', 'blue')}
@@ -125,7 +133,7 @@ export function generateFirstRoleAssignmentEmail(
   return {
     subject: 'Welcome to CI-OFFICE — set up your password',
     html: emailLayout(content, {
-      preheader: `Hi ${userName}, you've been added to CI-OFFICE as ${roleDisplay}. Set your password to get started.`,
+      preheader: `Hi ${rawUserName}, you've been added to CI-OFFICE as ${roleDisplay}. Set your password to get started.`,
     }),
   };
 }
@@ -152,7 +160,12 @@ interface AccountClosureEmailParams {
 export function generateAccountClosureEmail(
   params: AccountClosureEmailParams,
 ): { subject: string; html: string } {
-  const { userName, accountName, campusName, fundsSummary, reason, closedOn, role } = params;
+  const { userName: rawUserName, accountName: rawAccountName, campusName: rawCampusName, fundsSummary: rawFundsSummary, reason: rawReason, closedOn, role } = params;
+  const userName = escapeHtml(rawUserName);
+  const accountName = escapeHtml(rawAccountName);
+  const campusName = rawCampusName ? escapeHtml(rawCampusName) : rawCampusName;
+  const fundsSummary = escapeHtml(rawFundsSummary);
+  const reason = rawReason ? escapeHtml(rawReason) : rawReason;
 
   const closedOnLabel = closedOn.toLocaleDateString('en-GB', {
     day: 'numeric', month: 'long', year: 'numeric',
@@ -167,7 +180,7 @@ export function generateAccountClosureEmail(
     ${dataTable([
       ['Account', accountName],
       ...(campusName ? [['Campus', campusName] as [string, string]] : []),
-      ...(role ? [['Your role', pill(formatRoleLabel(role), 'slate')] as [string, string]] : []),
+      ...(role ? [['Your role', pill(escapeHtml(formatRoleLabel(role)), 'slate')] as [string, string]] : []),
       ['Closed on', closedOnLabel],
       ['Remaining balance', fundsSummary],
       ...(reason?.trim() ? [['Reason', reason.trim()] as [string, string]] : []),
@@ -180,9 +193,9 @@ export function generateAccountClosureEmail(
     </p>`;
 
   return {
-    subject: `Account closed — ${accountName}`,
+    subject: `Account closed — ${rawAccountName}`,
     html: emailLayout(content, {
-      preheader: `${accountName} has been closed. ${fundsSummary}.`,
+      preheader: `${rawAccountName} has been closed. ${rawFundsSummary}.`,
     }),
   };
 }

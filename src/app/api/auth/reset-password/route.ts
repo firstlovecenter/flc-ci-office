@@ -31,65 +31,22 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    let passwordReset;
-
-    // If token is 6 characters, it's a code - search by prefix
-    // If token is longer, it's the full token - search exact match
-    if (token.length === 6) {
-      // Find token that starts with this 6-digit code
-      const allResets = await prisma.passwordReset.findMany({
-        where: {
-          used: false,
-          expiresAt: {
-            gt: new Date(), // Not expired
-          },
-        },
-        include: { user: true },
-        orderBy: { createdAt: 'desc' },
-      });
-
-      // Find the one whose token starts with the provided code
-      passwordReset = allResets.find(reset => 
-        reset.token.toUpperCase().startsWith(token.toUpperCase())
-      );
-
-      // OTP code is stricter than link expiry: valid for only 15 minutes from creation.
-      if (passwordReset) {
-        const otpExpiry = new Date(passwordReset.createdAt.getTime() + 15 * 60 * 1000);
-        if (new Date() > otpExpiry) {
-          return NextResponse.json(
-            { error: 'This reset code has expired. Please request a new one.' },
-            { status: 400 }
-          );
-        }
-      }
-    } else {
-      // Full token provided - direct lookup
-      passwordReset = await prisma.passwordReset.findUnique({
-        where: { token },
-        include: { user: true },
-      });
-    }
-
-    if (!passwordReset) {
+    // Only the full random token is accepted: exact lookup, single use.
+    if (typeof token !== 'string' || !/^[0-9a-f]{64}$/.test(token)) {
       return NextResponse.json(
         { error: 'Invalid or expired reset token' },
         { status: 400 }
       );
     }
 
-    // Check if token is already used
-    if (passwordReset.used) {
-      return NextResponse.json(
-        { error: 'This reset link has already been used' },
-        { status: 400 }
-      );
-    }
+    const passwordReset = await prisma.passwordReset.findUnique({
+      where: { token },
+      select: { id: true, userId: true, used: true, expiresAt: true },
+    });
 
-    // Check if token is expired
-    if (new Date() > passwordReset.expiresAt) {
+    if (!passwordReset || passwordReset.used || new Date() > passwordReset.expiresAt) {
       return NextResponse.json(
-        { error: 'This reset link has expired. Please request a new one.' },
+        { error: 'Invalid or expired reset token' },
         { status: 400 }
       );
     }
@@ -97,23 +54,32 @@ export async function POST(request: NextRequest) {
     // Hash the new password
     const hashedPassword = await bcrypt.hash(password, 12);
 
-    // Update user password and mark token as used
-    await prisma.$transaction([
-      prisma.user.update({
+    // Consume the token atomically (guards against a concurrent replay), set the
+    // password, and invalidate every other outstanding reset for the account.
+    const now = new Date();
+    const consumed = await prisma.$transaction(async (tx) => {
+      const claim = await tx.passwordReset.updateMany({
+        where: { id: passwordReset.id, used: false, expiresAt: { gt: now } },
+        data: { used: true, usedAt: now },
+      });
+      if (claim.count !== 1) return false;
+      await tx.user.update({
         where: { id: passwordReset.userId },
-        data: { 
-          password: hashedPassword,
-          updatedAt: new Date(),
-        },
-      }),
-      prisma.passwordReset.update({
-        where: { id: passwordReset.id },
-        data: {
-          used: true,
-          usedAt: new Date(),
-        },
-      }),
-    ]);
+        data: { password: hashedPassword, passwordChangedAt: now, updatedAt: now },
+      });
+      await tx.passwordReset.updateMany({
+        where: { userId: passwordReset.userId, used: false },
+        data: { used: true, usedAt: now },
+      });
+      return true;
+    });
+
+    if (!consumed) {
+      return NextResponse.json(
+        { error: 'Invalid or expired reset token' },
+        { status: 400 }
+      );
+    }
 
     return NextResponse.json({
       message: 'Password has been reset successfully. You can now log in with your new password.',
