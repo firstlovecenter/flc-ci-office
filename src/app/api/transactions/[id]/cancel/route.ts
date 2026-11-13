@@ -7,6 +7,7 @@ import { moneyToString } from '@/lib/money';
 import { canCancelRequest, displayStatus } from '@/lib/cancel-request';
 import { getApprovalAdmins } from '@/lib/approval-admins';
 import { sendSms } from '@/lib/sms';
+import { truncateForSms } from '@/lib/amount-validation';
 import { generateRequestCancelledSms } from '@/lib/sms-templates';
 import { formatNumber } from '@/lib/utils';
 
@@ -85,7 +86,7 @@ export async function POST(
             userName: session.user.name || 'A user',
             currency: transaction.currency?.symbol || '$',
             amount: formatNumber(moneyToString(transaction.amount)),
-            description: transaction.description,
+            description: truncateForSms(transaction.description, 80),
         });
         for (const admin of admins) {
             if (admin.phone) {

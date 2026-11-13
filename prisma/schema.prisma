@@ -221,6 +221,8 @@ model Transaction {
   /// status REJECTED so older deployments read it without a new enum value;
   /// see lib/cancel-request.ts.
   cancelledAt          DateTime?
+  /// Set when a correction has been applied; a transaction is corrected at most once.
+  correctedAt          DateTime?
   requestedAmount      Decimal?               @db.Decimal(14, 2)
   isCharge             Boolean                @default(false)
   receiptWaived        Boolean                @default(false)

@@ -23,6 +23,9 @@ import {
 import { getAppCurrency } from '@/lib/currency';
 import { statusWhere } from '@/lib/cancel-request';
 import { getApprovalAdmins } from '@/lib/approval-admins';
+import { parsePositiveAmount, MAX_DESCRIPTION_LENGTH, truncateForSms } from '@/lib/amount-validation';
+import { canWriteOnDate, LOCKED_WEEK_ERROR } from '@/lib/period-lock';
+import { checkRateLimit } from '@/lib/rate-limit';
 
 // Force dynamic rendering - data is user/role specific
 export const dynamic = 'force-dynamic';
@@ -328,7 +331,29 @@ export async function POST(request: Request) {
     try {
         const body = await request.json();
         const { type, amount, description, organisationId, date } = body;
-        
+
+        // Validate inputs before any type-based rule so a negative/zero/NaN
+        // amount can never reach the ledger.
+        if (type !== 'INCOME' && type !== 'EXPENSE') {
+            return NextResponse.json({ error: 'Invalid transaction type' }, { status: 400 });
+        }
+        const parsedAmount = parsePositiveAmount(amount);
+        if (!parsedAmount.ok) {
+            return NextResponse.json({ error: parsedAmount.error }, { status: 400 });
+        }
+        if (typeof description !== 'string' || !description.trim() || description.length > MAX_DESCRIPTION_LENGTH) {
+            return NextResponse.json(
+                { error: `Description is required and must be at most ${MAX_DESCRIPTION_LENGTH} characters` },
+                { status: 400 }
+            );
+        }
+        if (typeof organisationId !== 'string' || !organisationId) {
+            return NextResponse.json({ error: 'Organisation is required' }, { status: 400 });
+        }
+        if (date && Number.isNaN(new Date(date).getTime())) {
+            return NextResponse.json({ error: 'Invalid date' }, { status: 400 });
+        }
+
         // If a custom date is provided, compute week number from that date
         // Otherwise use current week
         let weekNumber: number;
@@ -336,6 +361,10 @@ export async function POST(request: Request) {
         let transactionDate: Date | undefined;
         if (date) {
             transactionDate = new Date(date);
+            // A closed week may only be written to by Oversight and above.
+            if (!canWriteOnDate(session.user.role, transactionDate)) {
+                return NextResponse.json({ error: LOCKED_WEEK_ERROR }, { status: 400 });
+            }
             const weekInfo = getWeekFromDate(transactionDate);
             weekNumber = weekInfo.weekNumber;
             year = weekInfo.year;
@@ -434,7 +463,7 @@ export async function POST(request: Request) {
 
         // App is GHS-only — amounts are already in Ghana Cedis.
         const ghs = await getAppCurrency();
-        const amountDec = toDecimal(amount);
+        const amountDec = parsedAmount.value;
         const amountToPersist = toMoney2dp(amountDec);
         const amountInBase = amountToPersist;
 
@@ -511,14 +540,16 @@ export async function POST(request: Request) {
                 const campusAdmins = await getApprovalAdmins(transaction.organisationId);
 
                 // Send SMS and email to all campus admins
-                if (campusAdmins.length > 0) {
+                // Per-user cap on notification fan-out (secondary, per-isolate).
+                const smsAllowed = checkRateLimit(`tx-notify:${session.user.id}`, { maxRequests: 20, windowSeconds: 10 * 60 }).success;
+                if (campusAdmins.length > 0 && smsAllowed) {
                     const currencySymbol = transaction.currency?.symbol || '$';
                     const smsMessage = await generatePendingApprovalRequestSms({
                         userName: session.user.name || 'A user',
                         transactionType: type.toLowerCase(),
                         currency: currencySymbol,
                         amount: formatNumber(amount),
-                        description: description,
+                        description: truncateForSms(description, 80),
                     });
                     
                     console.log(`[SMS] Sending pending approval SMS to ${campusAdmins.length} campus admin(s)`);
@@ -709,158 +740,9 @@ export async function POST(request: Request) {
     }
 }
 
-export async function PUT(request: Request) {
-    const session = await getServerSession(authOptions);
-
-    if (!session) {
-        return new NextResponse('Unauthorized', { status: 401 });
-    }
-
-    try {
-        const body = await request.json();
-        const { id, type, amount, description, organisationId } = body;
-
-        const transaction = await prisma.transaction.findUnique({
-            where: { id },
-        });
-
-        if (!transaction) {
-            return new NextResponse('Not Found', { status: 404 });
-        }
-
-        // Leaders cannot edit transactions at all
-        const leaderRolesCheck = ['DENOMINATION_LEADER', 'OVERSIGHT_LEADER', 'CAMPUS_LEADER', 'STREAM_LEADER', 'COUNCIL_LEADER'];
-        if (leaderRolesCheck.includes(session.user.role)) {
-            return new NextResponse('Leaders are not permitted to edit transactions', { status: 403 });
-        }
-
-        // Check permissions
-        const canAccess = await hasOrganisationAccess(session.user, transaction.organisationId);
-        if (!canAccess) {
-            return new NextResponse('Forbidden', { status: 403 });
-        }
-
-        // Check locking
-        if (transaction.locked) { // Check DB flag
-            if (session.user.role !== 'SUPERADMIN') {
-                return new NextResponse('Transaction is locked', { status: 400 });
-            }
-        }
-
-        // Check if the week is logically locked
-        const { isWeekLocked } = await import('@/lib/utils');
-        if (isWeekLocked(transaction.weekNumber, transaction.year)) {
-            // Only oversight admin and above can edit past-week transactions
-            const oversightAndAboveRoles = ['SUPERADMIN', 'DENOMINATION_ADMIN', 'OVERSIGHT_ADMIN'];
-            if (!oversightAndAboveRoles.includes(session.user.role)) {
-                return new NextResponse('Week is locked. Only Oversight Admin and above can edit past-week transactions.', { status: 400 });
-            }
-        }
-
-        const ghs = await getAppCurrency();
-        const amountToPersist = toMoney2dp(toDecimal(amount));
-
-        const updatedTransaction = await prisma.transaction.update({
-            where: { id },
-            data: {
-                type,
-                amount: amountToPersist,
-                description,
-                organisationId,
-                currencyId: ghs.id,
-                exchangeRate: null,
-                amountInBase: amountToPersist,
-                updatedAt: new Date(),
-            },
-            include: { organisation: true,
-                currency: true,
-            },
-        });
-
-        // Audit Log
-        await prisma.auditLog.create({
-            data: {
-                id: crypto.randomUUID(),
-                userId: session.user.id,
-                actionType: 'UPDATE',
-                entityType: 'Transaction',
-                entityId: transaction.id,
-                beforeData: transaction as any,
-                afterData: updatedTransaction as any,
-            },
-        });
-
-        return NextResponse.json(updatedTransaction);
-    } catch (error) {
-        return new NextResponse('Internal Error', { status: 500 });
-    }
-}
-
-export async function DELETE(request: Request) {
-    const session = await getServerSession(authOptions);
-
-    if (!session) {
-        return new NextResponse('Unauthorized', { status: 401 });
-    }
-
-    try {
-        const { searchParams } = new URL(request.url);
-        const id = searchParams.get('id');
-
-        if (!id) {
-            return new NextResponse('Missing ID', { status: 400 });
-        }
-
-        const transaction = await prisma.transaction.findUnique({
-            where: { id },
-        });
-
-        if (!transaction) {
-            return new NextResponse('Not Found', { status: 404 });
-        }
-
-        // Check permissions
-        const canAccess = await hasOrganisationAccess(session.user, transaction.organisationId);
-        if (!canAccess) {
-            return new NextResponse('Forbidden', { status: 403 });
-        }
-
-        // Check locking
-        if (transaction.locked) {
-            if (session.user.role !== 'SUPERADMIN') {
-                return new NextResponse('Transaction is locked', { status: 400 });
-            }
-        }
-
-        const { isWeekLocked: isWeekLockedFn } = await import('@/lib/utils');
-        if (isWeekLockedFn(transaction.weekNumber, transaction.year)) {
-            const oversightAndAboveRoles = ['SUPERADMIN', 'DENOMINATION_ADMIN', 'OVERSIGHT_ADMIN'];
-            if (!oversightAndAboveRoles.includes(session.user.role)) {
-                return new NextResponse('Week is locked. Only Oversight Admin and above can delete past-week transactions.', { status: 400 });
-            }
-        }
-
-        await prisma.transaction.delete({
-            where: { id },
-        });
-
-        // Audit Log
-        await prisma.auditLog.create({
-            data: {
-                id: crypto.randomUUID(),
-                userId: session.user.id,
-                actionType: 'DELETE',
-                entityType: 'Transaction',
-                entityId: transaction.id,
-                beforeData: transaction as any,
-            },
-        });
-
-        return NextResponse.json({ success: true });
-    } catch (error) {
-        return new NextResponse('Internal Error', { status: 500 });
-    }
-}
+// NOTE: the collection-level PUT and DELETE were removed. They duplicated
+// PUT/DELETE /api/transactions/[id] without its destination-access, role and
+// validation checks, and nothing in the app called them.
 
 export async function PATCH(request: Request) {
     const session = await getServerSession(authOptions);

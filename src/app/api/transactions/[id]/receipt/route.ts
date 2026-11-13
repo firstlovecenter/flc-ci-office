@@ -11,6 +11,7 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 const ALLOWED_MIME = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'application/pdf'];
+const MAX_RECEIPTS_PER_TRANSACTION = 10;
 const MAX_BYTES = 5 * 1024 * 1024;
 
 export async function POST(
@@ -89,6 +90,14 @@ export async function POST(
 
     if (file.size > MAX_BYTES) {
         return NextResponse.json({ error: 'File too large. Maximum size is 5MB.' }, { status: 400 });
+    }
+
+    const existingReceipts = await prisma.file.count({ where: { transactionId } });
+    if (existingReceipts >= MAX_RECEIPTS_PER_TRANSACTION) {
+        return NextResponse.json(
+            { error: `A transaction can have at most ${MAX_RECEIPTS_PER_TRANSACTION} receipts.` },
+            { status: 400 },
+        );
     }
 
     const buffer = Buffer.from(await file.arrayBuffer());

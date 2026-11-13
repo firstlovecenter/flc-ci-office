@@ -10,6 +10,9 @@ import { formatNumber, isWeekLocked, getWeekFromDate } from '@/lib/utils';
 import { toDecimal, eq, moneyToString, toMoney2dp } from '@/lib/money';
 import { getOrganisationApprovedBalance } from '@/lib/balance';
 import { getAppCurrency } from '@/lib/currency';
+import { parsePositiveAmount, MAX_DESCRIPTION_LENGTH } from '@/lib/amount-validation';
+import { canWriteOnDate, canWriteToLockedWeek, LOCKED_WEEK_ERROR } from '@/lib/period-lock';
+import { assertMoneyBearingOrganisation } from '@/lib/org-model';
 
 export async function PUT(
     request: Request,
@@ -37,6 +40,26 @@ export async function PUT(
                 { error: 'Transaction not found' },
                 { status: 404 }
             );
+        }
+
+        if (type !== 'INCOME' && type !== 'EXPENSE') {
+            return NextResponse.json({ error: 'Invalid transaction type' }, { status: 400 });
+        }
+        const parsedAmount = parsePositiveAmount(amount);
+        if (!parsedAmount.ok) {
+            return NextResponse.json({ error: parsedAmount.error }, { status: 400 });
+        }
+        if (typeof description !== 'string' || !description.trim() || description.length > MAX_DESCRIPTION_LENGTH) {
+            return NextResponse.json(
+                { error: `Description is required and must be at most ${MAX_DESCRIPTION_LENGTH} characters` },
+                { status: 400 }
+            );
+        }
+        if (typeof organisationId !== 'string' || !organisationId) {
+            return NextResponse.json({ error: 'Organisation is required' }, { status: 400 });
+        }
+        if (date && Number.isNaN(new Date(date).getTime())) {
+            return NextResponse.json({ error: 'Invalid date' }, { status: 400 });
         }
 
         // Only admins can edit transactions
@@ -89,9 +112,28 @@ export async function PUT(
             }
         }
 
+        // The destination must exist and be a money-bearing account, and a
+        // row may only be dated into a closed week by Oversight and above.
+        if (organisationId !== existingTransaction.organisationId) {
+            const destination = await prisma.organisation.findUnique({
+                where: { id: organisationId },
+                select: { level: true, isActive: true },
+            });
+            if (!destination || !destination.isActive) {
+                return NextResponse.json({ error: 'Destination account not found or inactive' }, { status: 400 });
+            }
+            const moneyError = assertMoneyBearingOrganisation(destination.level);
+            if (moneyError) {
+                return NextResponse.json({ error: moneyError }, { status: 400 });
+            }
+        }
+        if (date && !canWriteOnDate(session.user.role, new Date(date))) {
+            return NextResponse.json({ error: LOCKED_WEEK_ERROR }, { status: 403 });
+        }
+
         // GHS only — amountInBase equals amount
         const ghs = await getAppCurrency();
-        const amountToPersist = toMoney2dp(toDecimal(amount));
+        const amountToPersist = toMoney2dp(parsedAmount.value);
 
         // If date is provided, recalculate week number and year from the new date
         let weekData: { weekNumber?: number; year?: number } = {};
@@ -269,21 +311,34 @@ export async function PATCH(
             }
         }
 
-        // Update transaction status
-        let finalApprovedAmount = transaction.amount;
-        if (status === 'APPROVED' && approvedAmount !== undefined) {
-            finalApprovedAmount = approvedAmount;
+        // Validate any approver-supplied amount/charge before touching the row.
+        let approvedAmountValue: ReturnType<typeof toDecimal> | undefined;
+        if (status === 'APPROVED' && approvedAmount !== undefined && approvedAmount !== null) {
+            const parsed = parsePositiveAmount(approvedAmount, 'Approved amount');
+            if (!parsed.ok) {
+                return NextResponse.json({ error: parsed.error }, { status: 400 });
+            }
+            approvedAmountValue = parsed.value;
+        }
+        if (status === 'APPROVED' && charges !== undefined && charges !== null && charges !== '' && charges !== 0) {
+            const parsedCharge = parsePositiveAmount(charges, 'Charge');
+            if (!parsedCharge.ok) {
+                return NextResponse.json({ error: parsedCharge.error }, { status: 400 });
+            }
         }
 
         // If the approver changed the amount, keep the originally requested
         // amount on the record instead of silently overwriting it.
-        const amountWasChanged = status === 'APPROVED' && approvedAmount !== undefined && !eq(transaction.amount, approvedAmount);
+        const amountWasChanged = approvedAmountValue !== undefined && !eq(transaction.amount, approvedAmountValue);
 
         const updatedTransaction = await prisma.transaction.update({
             where: { id: transactionId },
             data: {
                 status,
-                amount: status === 'APPROVED' && approvedAmount !== undefined ? approvedAmount : transaction.amount,
+                // amount and amountInBase move together (GHS-only: they are equal).
+                ...(approvedAmountValue !== undefined
+                    ? { amount: toMoney2dp(approvedAmountValue), amountInBase: toMoney2dp(approvedAmountValue) }
+                    : {}),
                 requestedAmount: amountWasChanged ? transaction.amount : undefined,
                 approvedBy: status === 'APPROVED' ? session.user.id : undefined,
                 approvedAt: status === 'APPROVED' ? new Date() : undefined,
@@ -341,8 +396,14 @@ export async function PATCH(
                     approvedBy: session.user.id,
                     approvedAt: new Date(),
                     locked: false,
-                    weekNumber: transaction.weekNumber,
-                    year: transaction.year,
+                    // A charge is a new row: never write it into a closed week
+                    // unless the approver may (approving the pending request
+                    // itself in a locked week stays allowed).
+                    ...(transaction.weekNumber && transaction.year &&
+                        isWeekLocked(transaction.weekNumber, transaction.year) &&
+                        !canWriteToLockedWeek(session.user.role)
+                        ? getWeekFromDate(new Date())
+                        : { weekNumber: transaction.weekNumber, year: transaction.year }),
                     updatedAt: new Date(),
                 },
             });
@@ -429,7 +490,7 @@ export async function PATCH(
                     approvedBy: status === 'APPROVED' ? session.user.id : undefined,
                     rejectedBy: status === 'REJECTED' ? session.user.id : undefined,
                     rejectionReason: status === 'REJECTED' ? rejectionReason : undefined,
-                    ...(amountWasChanged ? { amount: moneyToString(finalApprovedAmount), requestedAmount: moneyToString(transaction.amount) } : {}),
+                    ...(amountWasChanged ? { amount: moneyToString(approvedAmountValue ?? transaction.amount), requestedAmount: moneyToString(transaction.amount) } : {}),
                 },
             },
         });
