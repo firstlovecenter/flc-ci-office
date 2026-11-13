@@ -50,9 +50,9 @@ export async function PUT(
         if (!parsedAmount.ok) {
             return NextResponse.json({ error: parsedAmount.error }, { status: 400 });
         }
-        if (typeof description !== 'string' || !description.trim() || description.length > MAX_DESCRIPTION_LENGTH) {
+        if (typeof description !== 'string' || (type === 'EXPENSE' && !description.trim()) || description.length > MAX_DESCRIPTION_LENGTH) {
             return NextResponse.json(
-                { error: `Description is required and must be at most ${MAX_DESCRIPTION_LENGTH} characters` },
+                { error: `Description is required for withdrawals and must be at most ${MAX_DESCRIPTION_LENGTH} characters` },
                 { status: 400 }
             );
         }

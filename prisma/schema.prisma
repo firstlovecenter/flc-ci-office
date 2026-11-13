@@ -223,6 +223,8 @@ model Transaction {
   cancelledAt          DateTime?
   /// Set when a correction has been applied; a transaction is corrected at most once.
   correctedAt          DateTime?
+  /// Client-supplied (user-scoped) key making a create request safe to retry.
+  idempotencyKey       String?                @unique
   requestedAmount      Decimal?               @db.Decimal(14, 2)
   isCharge             Boolean                @default(false)
   receiptWaived        Boolean                @default(false)

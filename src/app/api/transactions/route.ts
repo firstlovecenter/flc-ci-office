@@ -342,9 +342,14 @@ export async function POST(request: Request) {
         if (!parsedAmount.ok) {
             return NextResponse.json({ error: parsedAmount.error }, { status: 400 });
         }
-        if (typeof description !== 'string' || !description.trim() || description.length > MAX_DESCRIPTION_LENGTH) {
+        // A deposit's description is optional in the UI; a withdrawal needs one.
+        if (
+            typeof description !== 'string' ||
+            (type === 'EXPENSE' && !description.trim()) ||
+            description.length > MAX_DESCRIPTION_LENGTH
+        ) {
             return NextResponse.json(
-                { error: `Description is required and must be at most ${MAX_DESCRIPTION_LENGTH} characters` },
+                { error: `Description is required for withdrawals and must be at most ${MAX_DESCRIPTION_LENGTH} characters` },
                 { status: 400 }
             );
         }
@@ -379,6 +384,28 @@ export async function POST(request: Request) {
         const canAccess = await hasOrganisationAccess(session.user, organisationId);
         if (!canAccess) {
             return new NextResponse('Unauthorized', { status: 403 });
+        }
+
+        // Idempotency: a retry (double tap, flaky network) carrying the same key
+        // returns the original row rather than creating a second one. Keys are
+        // scoped to the user so one user's key can never surface another's row.
+        const rawKey = request.headers.get('idempotency-key');
+        if (rawKey !== null && !/^[A-Za-z0-9_-]{8,64}$/.test(rawKey)) {
+            return NextResponse.json({ error: 'Invalid Idempotency-Key' }, { status: 400 });
+        }
+        const idempotencyKey = rawKey ? `${session.user.id}:${rawKey}` : null;
+        const findReplay = async () =>
+            idempotencyKey
+                ? prisma.transaction.findUnique({
+                      where: { idempotencyKey },
+                      include: { organisation: true, currency: true },
+                  })
+                : null;
+        const replayResponse = (tx: NonNullable<Awaited<ReturnType<typeof findReplay>>>) =>
+            NextResponse.json({ ...tx, idempotentReplay: true });
+        {
+            const replay = await findReplay();
+            if (replay) return replayResponse(replay);
         }
 
         // Determine if this is a leader role (time-restricted) or admin
@@ -498,9 +525,62 @@ export async function POST(request: Request) {
             }
         }
 
-        const transaction = await prisma.transaction.create({
+        // Possible-duplicate check: same account, type and amount already
+        // recorded on the same day. Needs an explicit confirmation to proceed.
+        if (body.confirmDuplicate !== true) {
+            const day = transactionDate ?? new Date();
+            const dayStart = new Date(Date.UTC(day.getUTCFullYear(), day.getUTCMonth(), day.getUTCDate()));
+            const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
+            const duplicates = await prisma.transaction.findMany({
+                where: {
+                    organisationId,
+                    type,
+                    amount: amountToPersist,
+                    isCharge: false,
+                    cancelledAt: null,
+                    status: { in: ['PENDING', 'APPROVED'] },
+                    createdAt: { gte: dayStart, lt: dayEnd },
+                },
+                orderBy: { createdAt: 'desc' },
+                take: 5,
+                select: {
+                    id: true,
+                    description: true,
+                    amount: true,
+                    status: true,
+                    createdAt: true,
+                    user: { select: { name: true } },
+                },
+            });
+            if (duplicates.length > 0) {
+                // A concurrent copy of THIS request may have just committed; that
+                // is a replay, not a duplicate.
+                const replay = await findReplay();
+                if (replay) return replayResponse(replay);
+                return NextResponse.json(
+                    {
+                        code: 'POSSIBLE_DUPLICATE',
+                        error: 'A transaction with the same amount was already entered on this day.',
+                        duplicates: duplicates.map((d) => ({
+                            id: d.id,
+                            description: d.description,
+                            amount: moneyToString(d.amount),
+                            status: d.status,
+                            createdAt: d.createdAt,
+                            enteredBy: d.user?.name ?? null,
+                        })),
+                    },
+                    { status: 409 }
+                );
+            }
+        }
+
+        let transaction;
+        try {
+          transaction = await prisma.transaction.create({
             data: {
                 id: crypto.randomUUID(),
+                ...(idempotencyKey ? { idempotencyKey } : {}),
                 type,
                 amount: amountToPersist,
                 currencyId: ghs.id,
@@ -521,7 +601,15 @@ export async function POST(request: Request) {
             include: { organisation: true,
                 currency: true,
             },
-        });
+          });
+        } catch (err) {
+            // Lost the race to a concurrent copy of this same request.
+            if ((err as { code?: string })?.code === 'P2002' && idempotencyKey) {
+                const replay = await findReplay();
+                if (replay) return replayResponse(replay);
+            }
+            throw err;
+        }
 
         // Create Audit Log
         await prisma.auditLog.create({
