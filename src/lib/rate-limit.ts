@@ -87,18 +87,18 @@ export const rateLimits = {
 } as const;
 
 /**
- * Extract client IP from request headers.
- * Checks x-forwarded-for, x-real-ip, then falls back to 'unknown'.
+ * Extract the client IP for secondary rate limiting.
+ *
+ * Only headers the platform sets itself are trusted: `cf-connecting-ip`
+ * (Cloudflare) then `x-real-ip`. The leftmost `x-forwarded-for` hop is
+ * client-controlled and is never used. This is a secondary control —
+ * sensitive flows must also be limited per account.
  */
 export function getClientIp(request: Request): string {
-  const forwarded = request.headers.get('x-forwarded-for');
-  if (forwarded) {
-    return forwarded.split(',')[0].trim();
-  }
+  const cf = request.headers.get('cf-connecting-ip');
+  if (cf) return cf.trim();
   const realIp = request.headers.get('x-real-ip');
-  if (realIp) {
-    return realIp;
-  }
+  if (realIp) return realIp.trim();
   return 'unknown';
 }
 

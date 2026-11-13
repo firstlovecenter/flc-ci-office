@@ -67,6 +67,7 @@ type AuthClaims = {
   organisationName: string | undefined;
   activeUserRoleId: string | null;
   activeUserRole: { id: string; role: string; organisationId: string } | null;
+  passwordChangedAt: number | null;
 };
 
 /**
@@ -106,6 +107,7 @@ async function loadAuthClaimsFromDb(userId: string): Promise<AuthClaims> {
       organisationLevel: dbUser.organisation?.level || undefined,
       organisationName: dbUser.organisation?.name || undefined,
       activeUserRoleId: dbUser.activeUserRoleId || null,
+      passwordChangedAt: dbUser.passwordChangedAt?.getTime() ?? null,
       activeUserRole: dbUser.activeUserRole
         ? {
             id: dbUser.activeUserRole.id,
@@ -136,12 +138,25 @@ async function loadAuthClaimsFromDb(userId: string): Promise<AuthClaims> {
     organisationLevel: activeRole.organisation?.level || undefined,
     organisationName: activeRole.organisation?.name || undefined,
     activeUserRoleId: activeRole.id,
+    passwordChangedAt: dbUser.passwordChangedAt?.getTime() ?? null,
     activeUserRole: {
       id: activeRole.id,
       role: activeRole.role as string,
       organisationId: activeRole.organisationId,
     },
   };
+}
+
+/**
+ * A session issued before the account's last password change is no longer
+ * valid: resetting a (possibly compromised) password must end other sessions.
+ */
+function issuedBeforePasswordChange(loginAt: unknown, claims: AuthClaims): boolean {
+  return (
+    typeof loginAt === 'number' &&
+    claims.passwordChangedAt !== null &&
+    claims.passwordChangedAt > loginAt
+  );
 }
 
 /**
@@ -335,6 +350,9 @@ export const authOptions: NextAuthOptions = {
             // JWT is only a carrier for id + expiry + impersonation flags.
             try {
                 const claims = await loadAuthClaimsForRequest(token.id as string);
+                if (!token.isImpersonating && issuedBeforePasswordChange(token.loginAt, claims)) {
+                    throw new Error('Session expired or invalid');
+                }
                 session.user.id = claims.id;
                 session.user.name = claims.name as string;
                 session.user.email = claims.email as string;
@@ -447,6 +465,9 @@ export const authOptions: NextAuthOptions = {
             if (token.id && !user) {
                 try {
                     const claims = await loadAuthClaimsForRequest(token.id as string);
+                    if (!token.isImpersonating && issuedBeforePasswordChange(token.loginAt, claims)) {
+                        return { expired: true } as any;
+                    }
                     applyClaimsToToken(token as any, claims);
                 } catch {
                     return { expired: true } as any;

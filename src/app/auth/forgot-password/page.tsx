@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
 import { ArrowLeft } from 'lucide-react';
@@ -11,7 +10,6 @@ import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
 export default function ForgotPasswordPage() {
-    const router = useRouter();
     const [identifier, setIdentifier] = useState('');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
@@ -27,7 +25,7 @@ export default function ForgotPasswordPage() {
             const response = await fetch('/api/auth/forgot-password', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ identifier }),
+                body: JSON.stringify({ email: identifier }),
             });
 
             const data = await response.json();
@@ -35,7 +33,6 @@ export default function ForgotPasswordPage() {
 
             setSuccess(true);
             setIdentifier('');
-            setTimeout(() => router.push('/auth/reset-password'), 2000);
         } catch (err) {
             setError(err instanceof Error ? err.message : 'An error occurred');
         } finally {
@@ -66,7 +63,7 @@ export default function ForgotPasswordPage() {
                     Forgot your password?
                 </h1>
                 <p className="text-sm text-muted-foreground mb-8">
-                    Enter the email or phone number on your account. We&apos;ll send a reset code by SMS and email when available.
+                    Enter the email address on your account. We&apos;ll email you a link to reset your password.
                 </p>
 
                 {error && (
@@ -77,7 +74,7 @@ export default function ForgotPasswordPage() {
                 {success && (
                     <Alert variant="success" className="mb-4">
                         <AlertDescription>
-                            If an account exists, a reset code has been sent. Redirecting&hellip;
+                            If an account exists for that email, a reset link has been sent. Check your inbox.
                         </AlertDescription>
                     </Alert>
                 )}
@@ -85,12 +82,14 @@ export default function ForgotPasswordPage() {
                 <form onSubmit={handleSubmit} className="flex flex-col gap-4">
                     <div className="space-y-1.5">
                         <Label htmlFor="identifier" className="text-xs text-muted-foreground tracking-[0.02em]">
-                            Email or phone
+                            Email address
                         </Label>
                         <Input
                             id="identifier"
                             name="identifier"
-                            placeholder="email@example.com or 0241234567"
+                            type="email"
+                            autoComplete="email"
+                            placeholder="email@example.com"
                             autoFocus
                             required
                             value={identifier}

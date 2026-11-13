@@ -4,8 +4,7 @@ import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/lib/auth';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
-import { sendSms, formatGhanaPhone } from '@/lib/sms';
-import { generateFirstRoleAssignmentSms } from '@/lib/sms-templates';
+import { sendSetupLinkEmail } from '@/lib/password-reset';
 import { canManageUser, canAssignRole, ROLE_HIERARCHY } from '@/lib/roles';
 import { getDescendantOrganisationIds } from '@/lib/organisations';
 import type { Role } from '@prisma/client';
@@ -362,60 +361,20 @@ export async function PUT(
             
             if (hasRolesNow && needsPasswordCreation) {
                 try {
-                    // First role assignment: Send password creation SMS
-                    const resetToken = crypto.randomBytes(32).toString('hex');
-                    const expiresAt = new Date();
-                    expiresAt.setHours(expiresAt.getHours() + 24); // 24 hour expiration
-
-                    // Invalidate any existing password reset tokens
-                    await prisma.passwordReset.updateMany({
-                        where: {
-                            userId: userId,
-                            used: false,
-                        },
-                        data: {
-                            used: true,
-                            usedAt: new Date(),
-                        },
-                    });
-
-                    // Create new password reset record
-                    await prisma.passwordReset.create({
-                        data: {
-                            id: crypto.randomUUID(),
-                            token: resetToken,
-                            userId: userId,
-                            expiresAt,
-                        },
-                    });
-
-                    const resetCode = resetToken.substring(0, 6).toUpperCase();
-                    const resetLink = `${process.env.NEXTAUTH_URL}/auth/reset-password?token=${resetCode}`;
+                    // First role assignment: setup link goes by email only.
                     const primaryRolePair = roleOrganisationPairs[0];
                     const organisation = await prisma.organisation.findUnique({
                         where: { id: primaryRolePair.organisationId },
                         select: { name: true },
                     });
 
-                    const smsContent = await generateFirstRoleAssignmentSms({
-                        userName: name || email || 'User',
+                    await sendSetupLinkEmail({
+                        user: { id: userId, name: name ?? targetUser.name, email: updatedUser.email },
                         role: primaryRolePair.role,
-                        organisation: organisation?.name || 'Unknown church',
-                        resetLink,
+                        organisationName: organisation?.name || 'Unknown church',
                     });
-
-                    if (phoneNumber) {
-                        const formattedPhone = formatGhanaPhone(phoneNumber);
-                        if (formattedPhone) {
-                            await sendSms({
-                                to: formattedPhone,
-                                message: smsContent,
-                            }).catch(() => false);
-                        }
-                    }
-
                 } catch (notificationError) {
-                    console.error('Failed to send role notification SMS:', notificationError);
+                    console.error('Failed to send setup email:', notificationError);
                 }
             }
         }

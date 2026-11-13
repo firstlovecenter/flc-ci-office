@@ -3,10 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { sendSms, formatGhanaPhone } from '@/lib/sms';
-import crypto from 'crypto';
 import {
-    generatePasswordResetSms,
-    generateFirstRoleAssignmentSms,
     generateRoleAssignmentSms,
     generateTransactionNotificationSms,
     generateOrganisationAlertSms,
@@ -44,55 +41,20 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: 'Invalid phone number format' }, { status: 400 });
         }
 
-        // For password_reset and first_role_assignment, create a proper PasswordReset record
-        // so the code in the SMS actually works
-        const resolvedParams = { ...templateParams };
+        // Password reset / account setup links are email-only and can never be
+        // sent through this SMS endpoint.
         if (template === 'password_reset' || template === 'first_role_assignment') {
-            // Find the user by phone number
-            const targetUser = await prisma.user.findFirst({
-                where: { phone: phoneNumber },
-            });
-
-            if (!targetUser) {
-                return NextResponse.json({ error: 'User not found with this phone number' }, { status: 404 });
-            }
-
-            // Expire any existing unused reset tokens
-            await prisma.passwordReset.updateMany({
-                where: { userId: targetUser.id, used: false },
-                data: { used: true, usedAt: new Date() },
-            });
-
-            // Generate a proper reset token and store it
-            const resetToken = crypto.randomBytes(32).toString('hex');
-            await prisma.passwordReset.create({
-                data: {
-                    id: crypto.randomUUID(),
-                    userId: targetUser.id,
-                    token: resetToken,
-                    expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hours
-                },
-            });
-
-            // Use the first 6 chars as the code in the SMS
-            const resetCode = resetToken.substring(0, 6).toUpperCase();
-            resolvedParams.resetCode = resetCode;
-            if (template === 'first_role_assignment') {
-                const baseUrl = process.env.NEXTAUTH_URL || 'https://flc-accounts.vercel.app';
-                resolvedParams.resetLink = `${baseUrl}/auth/reset-password?code=${resetCode}`;
-            }
+            return NextResponse.json(
+                { error: 'Password reset and account setup are delivered by email only' },
+                { status: 400 }
+            );
         }
+        const resolvedParams = { ...templateParams };
 
         // Generate message from template (use resolvedParams which has server-generated reset codes)
         let message: string;
         try {
             switch (template) {
-                case 'password_reset':
-                    message = await generatePasswordResetSms(resolvedParams);
-                    break;
-                case 'first_role_assignment':
-                    message = await generateFirstRoleAssignmentSms(resolvedParams);
-                    break;
                 case 'role_assignment':
                     message = await generateRoleAssignmentSms(resolvedParams);
                     break;

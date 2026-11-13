@@ -257,6 +257,8 @@ model User {
   name                          String?
   email                         String                     @unique
   password                      String?
+  /// Set whenever the password is reset/changed; sessions issued earlier are rejected.
+  passwordChangedAt             DateTime?
   image                         String?
   organisationId                String?
   /// Set when the user's home posting is a bank account rather than a church.

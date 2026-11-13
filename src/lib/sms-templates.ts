@@ -8,31 +8,11 @@
 
 import { formatRoleLabel, formatMoneyMovement } from '@/lib/org-model';
 
-interface PasswordResetSmsParams {
-    resetCode: string;
-    expirationMinutes?: number;
-    resetUrl?: string;
-}
-
-export function generatePasswordResetSms(params: PasswordResetSmsParams): string {
-    const { resetCode, expirationMinutes = 30 } = params;
-    const validityText = expirationMinutes < 60
-        ? `${expirationMinutes} minute${expirationMinutes !== 1 ? 's' : ''}`
-        : `${Math.round(expirationMinutes / 60)} hour${Math.round(expirationMinutes / 60) !== 1 ? 's' : ''}`;
-    return `Your password reset code is ${resetCode}. Valid for ${validityText}. If you did not request this, please ignore.`;
-}
-
-interface FirstRoleAssignmentSmsParams {
-    userName: string;
-    role: string;
-    organisation: string;
-    resetLink: string;
-}
-
-export function generateFirstRoleAssignmentSms(params: FirstRoleAssignmentSmsParams): string {
-    const { userName, resetLink } = params;
-    return `Welcome ${userName}! to CI-OFFICE. Set your password here: ${resetLink}`;
-}
+/*
+ * Password reset and account-setup links are never sent by SMS — they go by
+ * email only (see src/lib/password-reset.ts). No SMS template may carry a
+ * reset link or code.
+ */
 
 interface RoleAssignmentSmsParams {
     userName: string;

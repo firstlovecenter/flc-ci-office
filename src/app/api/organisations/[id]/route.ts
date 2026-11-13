@@ -5,10 +5,7 @@ import { authOptions } from '@/lib/auth';
 import { hasOrganisationAccess, getLeaderRoleForLevel, getAdminRoleForLevel } from '@/lib/organisations';
 import { canAdministerOrganisation } from '@/lib/roles';
 import { validateParentChild, validateAccountTypeForLevel } from '@/lib/org-model';
-import { sendSms, formatGhanaPhone } from '@/lib/sms';
-import { generateFirstRoleAssignmentSms } from '@/lib/sms-templates';
-import { sendEmail, isEmailConfigured } from '@/lib/email';
-import { generateFirstRoleAssignmentEmail } from '@/lib/email-templates';
+import { sendSetupLinkEmail } from '@/lib/password-reset';
 import crypto from 'crypto';
 import type { AccountType, OrganisationLevel } from '@prisma/client';
 
@@ -329,52 +326,12 @@ export async function PUT(
                     },
                 });
 
-                // Send auth setup via SMS and/or email
+                // Send auth setup by email
                 const needsPasswordSetup = !newLeader.password || newLeader.password === '';
                 
                 if (isFirstRole || needsPasswordSetup) {
-                    const resetToken = crypto.randomBytes(32).toString('hex');
-                    const resetTokenExpiry = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-
-                    await prisma.passwordReset.create({
-                        data: {
-                            id: crypto.randomUUID(),
-                            userId: leaderId,
-                            token: resetToken,
-                            expiresAt: resetTokenExpiry,
-                        },
-                    });
-
-                    const baseUrl = process.env.NEXTAUTH_URL || 'https://your-app.com';
-                    const resetLink = `${baseUrl.replace(/\/+$/, '')}/auth/reset-password?token=${resetToken}`;
-
-                    const smsMessage = await generateFirstRoleAssignmentSms({
-                        userName: newLeader.name || 'User',
-                        role: leaderRole,
-                        organisation: name,
-                        resetLink,
-                    });
-
-                    try {
-                        if (newLeader.phone) {
-                            await sendSms({
-                                to: formatGhanaPhone(newLeader.phone),
-                                message: smsMessage,
-                            });
-                        }
-                    } catch (smsError) {
-                        console.error('Failed to send SMS to new leader:', smsError);
-                    }
-
-                    if (newLeader.email && isEmailConfigured()) {
-                        const { subject, html } = generateFirstRoleAssignmentEmail({
-                            userName: newLeader.name || 'User',
-                            role: leaderRole,
-                            organisation: name,
-                            resetLink,
-                        });
-                        await sendEmail({ to: newLeader.email, subject, html });
-                    }
+                    // Setup link is delivered by email only; users without an email get none.
+                    await sendSetupLinkEmail({ user: newLeader, role: leaderRole, organisationName: name });
 
                 }
 
@@ -472,52 +429,12 @@ export async function PUT(
                         },
                     });
 
-                    // Send auth setup via SMS and/or email
+                    // Send auth setup by email
                     const needsPasswordSetup = !newAdmin.password || newAdmin.password === '';
                     
                     if (isFirstRole || needsPasswordSetup) {
-                        const resetToken = crypto.randomBytes(32).toString('hex');
-                        const resetTokenExpiry = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-
-                        await prisma.passwordReset.create({
-                            data: {
-                                id: crypto.randomUUID(),
-                                userId: adminId,
-                                token: resetToken,
-                                expiresAt: resetTokenExpiry,
-                            },
-                        });
-
-                        const baseUrl = process.env.NEXTAUTH_URL || 'https://your-app.com';
-                        const resetLink = `${baseUrl.replace(/\/+$/, '')}/auth/reset-password?token=${resetToken}`;
-
-                        const smsMessage = await generateFirstRoleAssignmentSms({
-                            userName: newAdmin.name || 'User',
-                            role: adminRole,
-                            organisation: name,
-                            resetLink,
-                        });
-
-                        try {
-                            if (newAdmin.phone) {
-                                await sendSms({
-                                    to: formatGhanaPhone(newAdmin.phone),
-                                    message: smsMessage,
-                                });
-                            }
-                        } catch (smsError) {
-                            console.error('Failed to send SMS to new admin:', smsError);
-                        }
-
-                        if (newAdmin.email && isEmailConfigured()) {
-                            const { subject, html } = generateFirstRoleAssignmentEmail({
-                                userName: newAdmin.name || 'User',
-                                role: adminRole,
-                                organisation: name,
-                                resetLink,
-                            });
-                            await sendEmail({ to: newAdmin.email, subject, html });
-                        }
+                        // Setup link is delivered by email only; users without an email get none.
+                        await sendSetupLinkEmail({ user: newAdmin, role: adminRole, organisationName: name });
 
                     }
 

@@ -1,3 +1,6 @@
+> **Superseded:** password reset and account setup are now delivered by email only,
+> as a single-use link. No SMS channel and no short codes are used for recovery.
+
 # Email Integration Removed - SMS Only
 
 ## Summary

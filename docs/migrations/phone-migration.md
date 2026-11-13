@@ -27,7 +27,7 @@ The following users received placeholder phone numbers and should update them:
 ⚠️ **ACTION REQUIRED**: All users with placeholder phone numbers (starting with `233000`) should update their profiles with real phone numbers as soon as possible.
 
 - Placeholder phone numbers **will not receive SMS notifications**
-- Password reset and role assignment notifications require valid phone numbers
+- Role assignment notifications use phone numbers; password reset and account setup are email-only
 - Users can update their phone numbers in their profile settings
 
 ## Phone Number Format
