@@ -3,6 +3,7 @@ import CredentialsProvider from 'next-auth/providers/credentials';
 import bcrypt from 'bcryptjs';
 import { prisma, getWorkerCtx } from '@/lib/prisma';
 import type { Role } from '@prisma/client';
+import { SUPERADMIN_EMAIL, isPinnedSuperAdminEmail } from '@/lib/superadmin';
 
 /**
  * In-memory account lockout tracker.
@@ -75,13 +76,13 @@ type AuthClaims = {
  * JWT is a session carrier only — claims are revalidated from here.
  * Throws on missing/archived users so callers can fail closed.
  */
-async function loadAuthClaimsFromDb(userId: string): Promise<AuthClaims> {
+export async function loadAuthClaimsFromDb(userId: string): Promise<AuthClaims> {
   const dbUser = await prisma.user.findUnique({
     where: { id: userId },
     include: {
       organisation: true,
       activeUserRole: { include: { organisation: true } },
-      userRoles: { include: { organisation: true } },
+      userRoles: { include: { organisation: true }, orderBy: { createdAt: 'asc' } },
     },
   });
 
@@ -89,25 +90,29 @@ async function loadAuthClaimsFromDb(userId: string): Promise<AuthClaims> {
     throw new Error('User account is no longer active');
   }
 
+  const passwordChangedAt = dbUser.passwordChangedAt?.getTime() ?? null;
   const allRoles = dbUser.userRoles
     .map((ur) => ur.role)
     .filter((r): r is Role => r !== null);
-  const isSuperUser =
-    dbUser.activeRole === 'SUPERADMIN' || dbUser.activeRole === 'DENOMINATION_ADMIN';
 
-  if (isSuperUser) {
+  // SUPERADMIN is the one explicit exception to "claims come from UserRole
+  // rows": a pinned account flag, and only for the pinned identity.
+  if (dbUser.activeRole === 'SUPERADMIN') {
+    if (!isPinnedSuperAdminEmail(dbUser.email)) {
+      throw new Error('User account is no longer active');
+    }
     return {
       id: dbUser.id,
       email: dbUser.email,
       name: dbUser.name,
       image: dbUser.image,
-      role: dbUser.activeRole as string,
-      roles: allRoles.length > 0 ? (allRoles as string[]) : [dbUser.activeRole as string],
+      role: 'SUPERADMIN',
+      roles: allRoles.length > 0 ? (allRoles as string[]) : ['SUPERADMIN'],
       organisationId: dbUser.organisationId || undefined,
       organisationLevel: dbUser.organisation?.level || undefined,
       organisationName: dbUser.organisation?.name || undefined,
       activeUserRoleId: dbUser.activeUserRoleId || null,
-      passwordChangedAt: dbUser.passwordChangedAt?.getTime() ?? null,
+      passwordChangedAt,
       activeUserRole: dbUser.activeUserRole
         ? {
             id: dbUser.activeUserRole.id,
@@ -118,12 +123,19 @@ async function loadAuthClaimsFromDb(userId: string): Promise<AuthClaims> {
     };
   }
 
-  if (dbUser.userRoles.length === 0) {
+  // Everyone else: live UserRole rows only. The legacy activeRole /
+  // organisationId columns are never an authority — a revoked role must not
+  // survive in them — so no rows means no access.
+  const liveRoles = dbUser.userRoles.filter((ur) => ur.role !== null);
+  if (liveRoles.length === 0) {
     throw new Error('User account is no longer active');
   }
 
-  const activeRole = dbUser.activeUserRole || dbUser.userRoles[0];
-  if (!activeRole?.role) {
+  const activeRole =
+    liveRoles.find((ur) => ur.id === dbUser.activeUserRoleId) ?? liveRoles[0];
+
+  // A SUPERADMIN row for anyone but the pinned identity is never honoured.
+  if (activeRole.role === 'SUPERADMIN' && !isPinnedSuperAdminEmail(dbUser.email)) {
     throw new Error('User account is no longer active');
   }
 
@@ -138,7 +150,7 @@ async function loadAuthClaimsFromDb(userId: string): Promise<AuthClaims> {
     organisationLevel: activeRole.organisation?.level || undefined,
     organisationName: activeRole.organisation?.name || undefined,
     activeUserRoleId: activeRole.id,
-    passwordChangedAt: dbUser.passwordChangedAt?.getTime() ?? null,
+    passwordChangedAt,
     activeUserRole: {
       id: activeRole.id,
       role: activeRole.role as string,
@@ -248,16 +260,7 @@ export const authOptions: NextAuthOptions = {
                             : { phone: loginIdentifier }),
                         archived: false,
                     },
-                    include: { organisation: true,
-                        activeUserRole: {
-                            include: { organisation: true,
-                            },
-                        },
-                        userRoles: {
-                            include: { organisation: true,
-                            },
-                        },
-                    },
+                    select: { id: true, password: true },
                 });
 
                 if (!user) {
@@ -281,62 +284,26 @@ export const authOptions: NextAuthOptions = {
                 // Successful login - clear any lockout tracking
                 clearLoginAttempts(loginIdentifier);
 
-                // SUPERADMIN users may not have UserRole entries (legacy setup)
-                // Check if user has a direct activeRole set
-                if (user.activeRole === 'SUPERADMIN' || user.activeRole === 'DENOMINATION_ADMIN') {
-                    const allRoles = user.userRoles.length > 0 
-                        ? user.userRoles.map(ur => ur.role).filter((r): r is Role => r !== null)
-                        : (user.activeRole ? [user.activeRole] : []);
-                    
+                // Claims come from the same loader as every later request, so
+                // login cannot grant more than revalidation would.
+                try {
+                    const claims = await loadAuthClaimsFromDb(user.id);
                     return {
-                        id: user.id,
-                        email: user.email,
-                        name: user.name,
-                        image: user.image,
-                        role: user.activeRole,
-                        roles: allRoles as string[],
-                        organisationId: user.organisationId || undefined,
-                        organisationLevel: user.organisation?.level || undefined,
-                        organisationName: user.organisation?.name,
-                        activeUserRoleId: user.activeUserRoleId || undefined,
-                        activeUserRole: user.activeUserRole ? {
-                            id: user.activeUserRole.id,
-                            role: user.activeUserRole.role as string,
-                            organisationId: user.activeUserRole.organisationId,
-                        } : undefined,
+                        id: claims.id,
+                        email: claims.email,
+                        name: claims.name,
+                        image: claims.image,
+                        role: claims.role,
+                        roles: claims.roles,
+                        organisationId: claims.organisationId,
+                        organisationLevel: claims.organisationLevel,
+                        organisationName: claims.organisationName,
+                        activeUserRoleId: claims.activeUserRoleId || undefined,
+                        activeUserRole: claims.activeUserRole || undefined,
                     } as any;
-                }
-
-                // For other users, they need at least one UserRole entry
-                if (user.userRoles.length === 0) {
+                } catch {
                     return null;
                 }
-
-                // Use activeUserRole if set, otherwise use first userRole
-                const activeRole = user.activeUserRole || user.userRoles[0];
-                const allRoles: Role[] = user.userRoles.map(ur => ur.role).filter((r): r is Role => r !== null);
-
-                if (!activeRole) {
-                    return null;
-                }
-
-                return {
-                    id: user.id,
-                    email: user.email,
-                    name: user.name,
-                    image: user.image,
-                    role: activeRole.role,
-                    roles: allRoles as string[],
-                    organisationId: activeRole.organisationId,
-                    organisationLevel: activeRole.organisation?.level,
-                    organisationName: activeRole.organisation?.name,
-                    activeUserRoleId: activeRole.id,
-                    activeUserRole: {
-                        id: activeRole.id,
-                        role: activeRole.role as string,
-                        organisationId: activeRole.organisationId,
-                    },
-                } as any;
             },
         }),
     ],
@@ -432,13 +399,51 @@ export const authOptions: NextAuthOptions = {
                     return token;
                 }
 
-                // Handle start impersonation — only SUPERADMIN may do this
-                if ((session as any)?.impersonateUserId && token.role === 'SUPERADMIN') {
+                // Handle start impersonation. The same controls as
+                // POST /api/admin/impersonate apply here, because a client can
+                // call session update({ impersonateUserId }) directly: only the
+                // pinned SUPERADMIN identity, no nesting, never self.
+                if ((session as any)?.impersonateUserId) {
+                    const targetId = (session as any).impersonateUserId as string;
+                    if (
+                        token.role !== 'SUPERADMIN' ||
+                        !isPinnedSuperAdminEmail(token.email as string) ||
+                        token.isImpersonating ||
+                        typeof targetId !== 'string' ||
+                        targetId === token.id
+                    ) {
+                        // Ignore the request; keep the caller's own session.
+                        return token;
+                    }
                     try {
-                        const claims = await loadAuthClaimsFromDb((session as any).impersonateUserId as string);
+                        // Throws for missing/archived targets.
+                        const claims = await loadAuthClaimsFromDb(targetId);
                         const origAdminId = token.id as string;
                         const origAdminEmail = token.email as string;
                         const origAdminName = token.name as string;
+                        try {
+                            await prisma.auditLog.create({
+                                data: {
+                                    userId: origAdminId,
+                                    actionType: 'IMPERSONATE',
+                                    entityType: 'User',
+                                    entityId: targetId,
+                                    description: `Super admin impersonated user: ${claims.name} (${claims.email})`,
+                                    severity: 'CRITICAL',
+                                    success: true,
+                                    metadata: {
+                                        targetUserId: targetId,
+                                        targetUserEmail: claims.email,
+                                        adminId: origAdminId,
+                                        adminEmail: origAdminEmail,
+                                    },
+                                },
+                            });
+                        } catch (error) {
+                            // Fail closed: no audit row, no impersonation.
+                            console.error('Failed to audit impersonation:', error);
+                            return token;
+                        }
                         applyClaimsToToken(token as any, claims);
                         token.isImpersonating = true;
                         token.originalAdminId = origAdminId;

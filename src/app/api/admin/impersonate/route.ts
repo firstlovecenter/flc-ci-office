@@ -2,8 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { auditActorId } from '@/lib/audit-actor';
 
-const SUPERADMIN_EMAIL = 'skaduteye@gmail.com';
+import { SUPERADMIN_EMAIL } from '@/lib/superadmin';
 
 export async function POST(request: NextRequest) {
     try {
@@ -50,7 +51,7 @@ export async function POST(request: NextRequest) {
         // Log the impersonation action
         await prisma.auditLog.create({
             data: {
-                userId: session.user.id,
+                userId: auditActorId(session),
                 actionType: 'IMPERSONATE',
                 entityType: 'User',
                 entityId: targetUser.id,

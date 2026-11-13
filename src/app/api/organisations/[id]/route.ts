@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { auditActorId } from '@/lib/audit-actor';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { hasOrganisationAccess, getLeaderRoleForLevel, getAdminRoleForLevel, canCreateOrganisationLevel } from '@/lib/organisations';
@@ -7,6 +8,7 @@ import { canAdministerOrganisation, canAssignRole, ORGANISATION_HIERARCHY } from
 import { authorizeTargetUser, callerOrganisationId, getCallerScope, loadTargetScope } from '@/lib/user-scope';
 import { validateParentChild, validateAccountTypeForLevel } from '@/lib/org-model';
 import { sendSetupLinkEmail } from '@/lib/password-reset';
+import { syncLegacyUserColumns } from '@/lib/user-claims';
 import crypto from 'crypto';
 import type { AccountType, OrganisationLevel } from '@prisma/client';
 
@@ -302,16 +304,7 @@ export async function PUT(
                     data: { role: newLeaderRole },
                 });
 
-                // Update the user's activeRole if this is their active role
-                const leaderUser = await prisma.user.findUnique({
-                    where: { id: currentLeaderRole.userId },
-                });
-                if (leaderUser?.activeUserRoleId === currentLeaderRole.id) {
-                    await prisma.user.update({
-                        where: { id: currentLeaderRole.userId },
-                        data: { activeRole: newLeaderRole },
-                    });
-                }
+                await syncLegacyUserColumns(prisma, currentLeaderRole.userId);
             }
 
             // Update existing admin's role if they exist and new level has admin role
@@ -321,16 +314,7 @@ export async function PUT(
                     data: { role: newAdminRole },
                 });
 
-                // Update the user's activeRole if this is their active role
-                const adminUser = await prisma.user.findUnique({
-                    where: { id: currentAdminRole.userId },
-                });
-                if (adminUser?.activeUserRoleId === currentAdminRole.id) {
-                    await prisma.user.update({
-                        where: { id: currentAdminRole.userId },
-                        data: { activeRole: newAdminRole },
-                    });
-                }
+                await syncLegacyUserColumns(prisma, currentAdminRole.userId);
             }
         }
 
@@ -348,33 +332,8 @@ export async function PUT(
                         where: { id: currentLeaderRole.id },
                     });
 
-                    // Check if old leader has any other roles
-                    const oldLeaderRemainingRoles = await prisma.userRole.findMany({
-                        where: { userId: currentLeaderId },
-                    });
-
-                    if (oldLeaderRemainingRoles.length === 0) {
-                        // Old leader has no more roles - clear their access
-                        await prisma.user.update({
-                            where: { id: currentLeaderId },
-                            data: {
-                                activeUserRoleId: null,
-                                activeRole: null,
-                                organisationId: null,
-                            },
-                        });
-                    } else {
-                        // Set the first remaining role as active
-                        const newActiveRole = oldLeaderRemainingRoles[0];
-                        await prisma.user.update({
-                            where: { id: currentLeaderId },
-                            data: {
-                                activeUserRoleId: newActiveRole.id,
-                                activeRole: newActiveRole.role,
-                                organisationId: newActiveRole.organisationId,
-                            },
-                        });
-                    }
+                    // Recompute the legacy columns from whatever roles remain.
+                    await syncLegacyUserColumns(prisma, currentLeaderId as string);
                 }
 
                 // Get new leader info
@@ -423,7 +382,7 @@ export async function PUT(
                 await prisma.auditLog.create({
                     data: {
                         id: crypto.randomUUID(),
-                        userId: session.user.id,
+                        userId: auditActorId(session),
                         actionType: 'UPDATE',
                         entityType: 'Organisation',
                         entityId: organisationId,
@@ -448,34 +407,8 @@ export async function PUT(
                         where: { id: currentAdminRole.id },
                     });
 
-                    // Check if old admin has any other roles
-                    const oldAdminRemainingRoles = await prisma.userRole.findMany({
-                        where: { userId: currentAdminId },
-                    });
-
-                    if (oldAdminRemainingRoles.length === 0) {
-                        // Old admin has no more roles - clear their access
-                        await prisma.user.update({
-                            where: { id: currentAdminId },
-                            data: {
-                                activeUserRoleId: null,
-                                activeRole: null,
-                                organisationId: null,
-                                updatedAt: new Date(),
-                            },
-                        });
-                    } else {
-                        // Set the first remaining role as active
-                        const newActiveRole = oldAdminRemainingRoles[0];
-                        await prisma.user.update({
-                            where: { id: currentAdminId },
-                            data: {
-                                activeUserRoleId: newActiveRole.id,
-                                activeRole: newActiveRole.role,
-                                organisationId: newActiveRole.organisationId,
-                            },
-                        });
-                    }
+                    // Recompute the legacy columns from whatever roles remain.
+                    await syncLegacyUserColumns(prisma, currentAdminId as string);
                 }
 
                 // If a new admin is assigned
@@ -526,7 +459,7 @@ export async function PUT(
                     await prisma.auditLog.create({
                         data: {
                             id: crypto.randomUUID(),
-                            userId: session.user.id,
+                            userId: auditActorId(session),
                             actionType: 'UPDATE',
                             entityType: 'Organisation',
                             entityId: organisationId,
@@ -540,7 +473,7 @@ export async function PUT(
                     await prisma.auditLog.create({
                         data: {
                             id: crypto.randomUUID(),
-                            userId: session.user.id,
+                            userId: auditActorId(session),
                             actionType: 'UPDATE',
                             entityType: 'Organisation',
                             entityId: organisationId,
@@ -557,7 +490,7 @@ export async function PUT(
         await prisma.auditLog.create({
             data: {
                 id: crypto.randomUUID(),
-                userId: session.user.id,
+                userId: auditActorId(session),
                 actionType: 'UPDATE',
                 entityType: 'Organisation',
                 entityId: updatedOrganisation.id,
@@ -639,7 +572,7 @@ export async function DELETE(
         await prisma.auditLog.create({
             data: {
                 id: crypto.randomUUID(),
-                userId: session.user.id,
+                userId: auditActorId(session),
                 actionType: 'DELETE',
                 entityType: 'Organisation',
                 entityId: organisationId,

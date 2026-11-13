@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { auditActorId } from '@/lib/audit-actor';
 import { createAuditLog } from '@/lib/audit';
 import { moneyToString } from '@/lib/money';
 import { canCancelRequest, displayStatus } from '@/lib/cancel-request';
@@ -67,7 +68,7 @@ export async function POST(
     }
 
     await createAuditLog({
-        userId: session.user.id,
+        userId: auditActorId(session),
         actionType: 'UPDATE',
         entityType: 'Transaction',
         entityId: transactionId,

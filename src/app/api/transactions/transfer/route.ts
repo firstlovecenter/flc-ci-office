@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { auditActorId } from '@/lib/audit-actor';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { hasOrganisationAccess } from '@/lib/organisations';
@@ -155,7 +156,7 @@ export async function POST(request: Request) {
         ]);
 
         await createAuditLog({
-            userId: session.user.id,
+            userId: auditActorId(session),
             actionType: 'TRANSFER',
             entityType: 'Transaction',
             entityId: transferId,

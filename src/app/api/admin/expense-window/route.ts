@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession, type Session } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { auditActorId } from '@/lib/audit-actor';
 import { createAuditLog } from '@/lib/audit';
 import { canEditAnyCampusExpenseWindow, canEditExpenseWindow } from '@/lib/roles';
 import {
@@ -141,7 +142,7 @@ export async function PUT(request: NextRequest) {
             return `${openLabel}–${closeLabel}`;
         };
         await createAuditLog({
-            userId: session.user.id,
+            userId: auditActorId(session),
             actionType: 'UPDATE',
             entityType: 'Organisation',
             entityId: campus.id,

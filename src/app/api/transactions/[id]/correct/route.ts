@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { auditActorId } from '@/lib/audit-actor';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { createAuditLog } from '@/lib/audit';
@@ -237,7 +238,7 @@ export async function POST(
 
             // Audit logs for both transactions
             await createAuditLog({
-                userId: session.user.id,
+                userId: auditActorId(session),
                 actionType: 'CREATE',
                 entityType: 'Transaction',
                 entityId: reversalTransaction.id,
@@ -253,7 +254,7 @@ export async function POST(
             });
 
             await createAuditLog({
-                userId: session.user.id,
+                userId: auditActorId(session),
                 actionType: 'CREATE',
                 entityType: 'Transaction',
                 entityId: newTransaction.id,
@@ -425,7 +426,7 @@ export async function POST(
 
         // Create audit log
         await createAuditLog({
-            userId: session.user.id,
+            userId: auditActorId(session),
             actionType: 'CREATE',
             entityType: 'Transaction',
             entityId: correctionTransaction.id,

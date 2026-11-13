@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { auditActorId } from '@/lib/audit-actor';
 import { OrganisationLevel } from '@prisma/client';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
@@ -348,7 +349,7 @@ export async function POST(request: Request) {
         await prisma.auditLog.create({
             data: {
                 id: crypto.randomUUID(),
-                userId: session.user.id,
+                userId: auditActorId(session),
                 actionType: 'CREATE',
                 entityType: 'Organisation',
                 entityId: organisation.id,

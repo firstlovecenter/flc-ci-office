@@ -1,14 +1,22 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { auditActorId } from '@/lib/audit-actor';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/lib/auth';
-import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import { sendSetupLinkEmail } from '@/lib/password-reset';
-import { canManageUser, canAssignRole, ROLE_HIERARCHY } from '@/lib/roles';
-import { getDescendantOrganisationIds } from '@/lib/organisations';
+import { canAssignRole, ROLE_HIERARCHY } from '@/lib/roles';
 import type { Role } from '@prisma/client';
 import { validateRoleAssignment } from '@/lib/roleValidation';
+import {
+    authorizeTargetUser,
+    callerOrganisationId,
+    getCallerScope,
+    loadTargetScope,
+} from '@/lib/user-scope';
+
+const ADMIN_ROLES = ['SUPERADMIN', 'DENOMINATION_ADMIN', 'OVERSIGHT_ADMIN', 'CAMPUS_ADMIN', 'STREAM_ADMIN', 'COUNCIL_ADMIN'];
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 // GET - Fetch a single user by ID
 export async function GET(
@@ -22,99 +30,56 @@ export async function GET(
     }
 
     try {
-        const adminRoles = ['SUPERADMIN', 'DENOMINATION_ADMIN', 'OVERSIGHT_ADMIN', 'CAMPUS_ADMIN', 'STREAM_ADMIN', 'COUNCIL_ADMIN'];
-        if (!adminRoles.includes(session.user.role)) {
-            return NextResponse.json(
-                { error: 'Admin role required' },
-                { status: 403 }
-            );
+        if (!ADMIN_ROLES.includes(session.user.role)) {
+            return NextResponse.json({ error: 'Admin role required' }, { status: 403 });
         }
 
         const params = await context.params;
         const userId = params.id;
-        
-        if (!adminRoles.includes(session.user.role)) {
-            return NextResponse.json(
-                { error: 'Admin role required' },
-                { status: 403 }
-            );
+        const isSuperAdmin = session.user.role === 'SUPERADMIN';
+
+        // Scope is derived from live roles + the legacy org, and an empty scope
+        // fails closed for everyone but SUPERADMIN.
+        const scope = await loadTargetScope(userId);
+        if (!scope) {
+            return NextResponse.json({ error: 'User not found' }, { status: 404 });
+        }
+        const decision = await authorizeTargetUser(
+            { id: session.user.id, role: session.user.role, organisationId: callerOrganisationId(session) },
+            scope,
+        );
+        if (!decision.ok) {
+            return NextResponse.json({ error: decision.error }, { status: decision.status });
         }
 
-        // Get the user
         const user = await prisma.user.findUnique({
             where: { id: userId },
-            include: { organisation: {
-                    select: {
-                        id: true,
-                        name: true,
-                        level: true,
-                    },
-                },
+            include: {
+                organisation: { select: { id: true, name: true, level: true } },
                 userRoles: {
-                    include: { organisation: {
-                            select: {
-                                id: true,
-                                name: true,
-                                level: true,
-                            },
-                        },
-                    },
+                    include: { organisation: { select: { id: true, name: true, level: true } } },
                 },
-                auditLogs: {
-                    select: {
-                        id: true,
-                        actionType: true,
-                        description: true,
-                        timestamp: true,
-                        ipAddress: true,
-                    },
-                    orderBy: {
-                        timestamp: 'desc',
-                    },
-                    take: 50,
-                },
+                // Audit history (incl. IP addresses) is for SUPERADMIN only.
+                ...(isSuperAdmin
+                    ? {
+                          auditLogs: {
+                              select: { id: true, actionType: true, description: true, timestamp: true, ipAddress: true },
+                              orderBy: { timestamp: 'desc' as const },
+                              take: 50,
+                          },
+                      }
+                    : {}),
             },
         });
 
         if (!user) {
-            return NextResponse.json(
-                { error: 'User not found' },
-                { status: 404 }
-            );
+            return NextResponse.json({ error: 'User not found' }, { status: 404 });
         }
 
-        // For non-superadmins, verify they can access this user
-        if (session.user.role !== 'SUPERADMIN') {
-            const filterOrganisationId = session.user.activeUserRole?.organisationId || session.user.organisationId;
-            
-            if (!filterOrganisationId) {
-                return NextResponse.json(
-                    { error: 'No church assigned' },
-                    { status: 403 }
-                );
-            }
-
-            // Get all organisations this admin oversees
-            const allowedOrganisationIds = await getDescendantOrganisationIds(filterOrganisationId);
-            
-            // Check if user is in admin's organisation hierarchy
-            if (user.organisationId && !allowedOrganisationIds.includes(user.organisationId)) {
-                return NextResponse.json(
-                    { error: 'Cannot view users outside your church hierarchy' },
-                    { status: 403 }
-                );
-            }
-        }
-
-        // Remove password from response
         const { password: _, ...userWithoutPassword } = user;
-
         return NextResponse.json(userWithoutPassword);
     } catch (error) {
-        return NextResponse.json(
-            { error: 'Failed to fetch user' },
-            { status: 500 }
-        );
+        return NextResponse.json({ error: 'Failed to fetch user' }, { status: 500 });
     }
 }
 
@@ -133,88 +98,76 @@ export async function PUT(
         const body = await request.json();
         const { title, name, email, phone, image, roleOrganisationPairs } = body;
         const userId = params.id;
+        const isSuperAdmin = session.user.role === 'SUPERADMIN';
 
-        // Validate required fields
         if (!phone?.trim()) {
             return NextResponse.json({ error: 'Phone number is required' }, { status: 400 });
         }
-
-        // Check if user has admin role
-        const adminRoles = ['SUPERADMIN', 'DENOMINATION_ADMIN', 'OVERSIGHT_ADMIN', 'CAMPUS_ADMIN', 'STREAM_ADMIN', 'COUNCIL_ADMIN'];
-        if (!adminRoles.includes(session.user.role)) {
-            return NextResponse.json(
-                { error: 'Admin role required' },
-                { status: 403 }
-            );
+        if (!ADMIN_ROLES.includes(session.user.role)) {
+            return NextResponse.json({ error: 'Admin role required' }, { status: 403 });
+        }
+        if (name !== undefined && name !== null && (typeof name !== 'string' || name.length > 100)) {
+            return NextResponse.json({ error: 'Name must be at most 100 characters' }, { status: 400 });
         }
 
-        // Get the user being edited
+        // Validate requested role/organisation pairs.
+        let pairs: Array<{ role: Role; organisationId: string }> | undefined;
+        if (roleOrganisationPairs !== undefined) {
+            if (!Array.isArray(roleOrganisationPairs) || roleOrganisationPairs.length > 20) {
+                return NextResponse.json({ error: 'Invalid role assignments' }, { status: 400 });
+            }
+            const seen = new Set<string>();
+            pairs = [];
+            for (const pair of roleOrganisationPairs) {
+                if (
+                    !pair || typeof pair.role !== 'string' || typeof pair.organisationId !== 'string' ||
+                    !Object.hasOwn(ROLE_HIERARCHY, pair.role)
+                ) {
+                    return NextResponse.json({ error: 'Invalid role assignments' }, { status: 400 });
+                }
+                const key = `${pair.role}:${pair.organisationId}`;
+                if (seen.has(key)) continue;
+                seen.add(key);
+                pairs.push({ role: pair.role as Role, organisationId: pair.organisationId });
+            }
+        }
+
+        // The target's authority is judged over ALL of their roles and orgs,
+        // never just the legacy activeRole/organisationId columns.
+        const targetScope = await loadTargetScope(userId);
+        if (!targetScope) {
+            return NextResponse.json({ error: 'User not found' }, { status: 404 });
+        }
         const targetUser = await prisma.user.findUnique({
             where: { id: userId },
-            include: { organisation: true,
-                userRoles: {
-                    include: { organisation: true,
-                    },
-                },
-            },
+            select: { id: true, name: true, email: true, phone: true, password: true },
         });
-
         if (!targetUser) {
-            return NextResponse.json(
-                { error: 'User not found' },
-                { status: 404 }
-            );
+            return NextResponse.json({ error: 'User not found' }, { status: 404 });
         }
 
-        // Extract unique roles and organisations for validation
-        const userRoles: string[] | undefined = roleOrganisationPairs ? Array.from(new Set(roleOrganisationPairs.map((pair: any) => pair.role as string))) : undefined;
-        const firstDept = roleOrganisationPairs?.[0]?.organisationId;
-
-        // Validate role assignments if roles are being updated
-        if (userRoles) {
-            const validation = await validateRoleAssignment(userId, userRoles, firstDept, email);
-            if (!validation.valid) {
-                return NextResponse.json({ error: validation.error }, { status: 400 });
-            }
+        const caller = { id: session.user.id, role: session.user.role, organisationId: callerOrganisationId(session) };
+        const decision = await authorizeTargetUser(caller, targetScope, {
+            // Only the first-role-assignment flow may touch a user with no scope.
+            allowUnassigned: !!pairs && pairs.length > 0,
+            requireHierarchy: true,
+        });
+        if (!decision.ok) {
+            return NextResponse.json({ error: decision.error }, { status: decision.status });
         }
 
-        // Check if admin can manage this user based on role hierarchy
-        // For users with multiple roles, check against their highest role
-        const targetUserRoles = targetUser.userRoles.map(ur => ur.role).filter((r): r is Role => r !== null);
-        const targetUserHighestRole = targetUser.activeRole || targetUserRoles[0] || 'COUNCIL_LEADER';
-        if (!canManageUser(session.user.role, targetUserHighestRole)) {
-            return NextResponse.json(
-                { error: 'You cannot manage users with equal or higher roles' },
-                { status: 403 }
-            );
-        }
-
-        // For non-superadmins, verify organisation access
-        if (session.user.role !== 'SUPERADMIN') {
-            const filterOrganisationId = session.user.activeUserRole?.organisationId || session.user.organisationId;
-            
-            if (!filterOrganisationId) {
-                return NextResponse.json(
-                    { error: 'No church assigned' },
-                    { status: 403 }
-                );
+        if (pairs) {
+            const userRoles = Array.from(new Set(pairs.map((p) => p.role as string)));
+            if (userRoles.length > 0) {
+                const validation = await validateRoleAssignment(userId, userRoles, pairs[0].organisationId, email);
+                if (!validation.valid) {
+                    return NextResponse.json({ error: validation.error }, { status: 400 });
+                }
             }
-
-            // Get all organisations this admin oversees
-            const allowedOrganisationIds = await getDescendantOrganisationIds(filterOrganisationId);
-            
-            // Check current user's organisation
-            if (targetUser.organisationId && !allowedOrganisationIds.includes(targetUser.organisationId)) {
-                return NextResponse.json(
-                    { error: 'Cannot manage users outside your church hierarchy' },
-                    { status: 403 }
-                );
-            }
-
-            // Check target organisations (if being changed)
-            if (roleOrganisationPairs) {
-                for (const pair of roleOrganisationPairs) {
-                    if (!allowedOrganisationIds.includes(pair.organisationId)) {
+            if (!isSuperAdmin) {
+                const scope = await getCallerScope(caller);
+                for (const pair of pairs) {
+                    if (scope === 'ALL' || !scope.has(pair.organisationId)) {
                         return NextResponse.json(
                             { error: 'Cannot assign user to a church outside your hierarchy' },
                             { status: 403 }
@@ -222,182 +175,162 @@ export async function PUT(
                     }
                 }
             }
-        }
-
-        // Check if admin can assign the new roles
-        if (userRoles) {
             for (const role of userRoles) {
                 if (!canAssignRole(session.user.role, role)) {
-                    return NextResponse.json(
-                        { error: `You cannot assign the role: ${role}` },
-                        { status: 403 }
-                    );
+                    return NextResponse.json({ error: `You cannot assign the role: ${role}` }, { status: 403 });
                 }
             }
         }
 
-        // Prepare update data
-        const updateData: any = {
+        const updateData: Record<string, unknown> = {
             title: title?.trim() || null,
             name,
-            email: email ? email.toLowerCase() : undefined,
+            updatedAt: new Date(),
         };
-
-        // Update image if provided
         if (image !== undefined) {
             updateData.image = image || null;
         }
 
+        // Email is the password-reset channel, so changing it is an account
+        // takeover vector. Only SUPERADMIN may change it on an account that can
+        // already sign in; an admin may set it on a not-yet-activated account
+        // (no password yet). An unchanged value is ignored.
+        let emailChanged = false;
+        if (typeof email === 'string' && email.trim()) {
+            const nextEmail = email.trim().toLowerCase();
+            if (!EMAIL_PATTERN.test(nextEmail) || nextEmail.length > 254) {
+                return NextResponse.json({ error: 'Invalid email address' }, { status: 400 });
+            }
+            if (nextEmail !== targetUser.email.toLowerCase()) {
+                if (!isSuperAdmin && targetUser.password) {
+                    return NextResponse.json(
+                        { error: 'Only a super admin can change the email of an active account.' },
+                        { status: 403 }
+                    );
+                }
+                updateData.email = nextEmail;
+                emailChanged = true;
+            }
+        }
+
         // Phone number update restriction: only user themselves, SUPERADMIN, or DENOMINATION_ADMIN
         if (phone !== undefined && phone?.trim() !== targetUser.phone) {
-            const canUpdatePhone = 
-                userId === session.user.id || // User updating their own phone
-                session.user.role === 'SUPERADMIN' || 
+            const canUpdatePhone =
+                userId === session.user.id ||
+                isSuperAdmin ||
                 session.user.role === 'DENOMINATION_ADMIN';
-            
             if (!canUpdatePhone) {
-                return NextResponse.json(
-                    { error: 'You have no access to do this.' },
-                    { status: 403 }
-                );
+                return NextResponse.json({ error: 'You have no access to do this.' }, { status: 403 });
             }
-            
             updateData.phone = phone.trim();
         }
 
-        // Validate phone number if being updated
-        if (updateData.phone && !updateData.phone.trim()) {
-            return NextResponse.json(
-                { error: 'Phone number cannot be empty' },
-                { status: 400 }
-            );
-        }
+        // User row, role replacement and legacy columns change together or not
+        // at all — a failure can never leave a user with zero roles.
+        const hadRoles = targetScope.roles.length > 0 && (await prisma.userRole.count({ where: { userId } })) > 0;
+        const hasRolesNow = !!pairs && pairs.length > 0;
+        const now = new Date();
 
-        // Update backward compatibility fields if role-organisation pairs are provided
-        if (roleOrganisationPairs && roleOrganisationPairs.length > 0 && userRoles && userRoles.length > 0) {
-            updateData.roles = userRoles;
-            updateData.activeRole = userRoles[0];
-            updateData.organisationId = firstDept;
-        }
+        await prisma.$transaction(async (tx) => {
+            await tx.user.update({ where: { id: userId }, data: updateData });
 
-        // Update the user
-        const updatedUser = await prisma.user.update({
-            where: { id: userId },
-            data: updateData,
-            include: { organisation: true,
-            },
+            if (emailChanged) {
+                // Links already sent went to the old address.
+                await tx.passwordReset.updateMany({
+                    where: { userId, used: false },
+                    data: { used: true, usedAt: now },
+                });
+            }
+
+            if (pairs !== undefined) {
+                await tx.userRole.deleteMany({ where: { userId } });
+                if (pairs.length > 0) {
+                    const rows = pairs.map((p) => ({
+                        id: crypto.randomUUID(),
+                        userId,
+                        role: p.role,
+                        organisationId: p.organisationId,
+                        updatedAt: now,
+                    }));
+                    await tx.userRole.createMany({ data: rows });
+                    // Legacy columns are derived from the live rows.
+                    await tx.user.update({
+                        where: { id: userId },
+                        data: {
+                            activeUserRoleId: rows[0].id,
+                            activeRole: rows[0].role,
+                            organisationId: rows[0].organisationId,
+                            updatedAt: now,
+                        },
+                    });
+                } else {
+                    // All roles removed — revoke access.
+                    await tx.user.update({
+                        where: { id: userId },
+                        data: {
+                            password: null,
+                            passwordChangedAt: now,
+                            activeUserRoleId: null,
+                            activeRole: null,
+                            organisationId: null,
+                            updatedAt: now,
+                        },
+                    });
+                    await tx.passwordReset.updateMany({
+                        where: { userId, used: false },
+                        data: { used: true, usedAt: now },
+                    });
+                }
+            }
         });
 
-        // Handle UserRole updates if role-organisation pairs are provided
-        if (roleOrganisationPairs !== undefined) {
-            // Get existing roles to determine if this is first assignment or removal
-            const existingUserRoles = await prisma.userRole.findMany({
-                where: { userId: userId },
-            });
-            const hadRolesBefore = existingUserRoles.length > 0;
-            const hasRolesNow = roleOrganisationPairs.length > 0;
-            
-            // First role assignment: never had roles before AND getting roles now
-            const isFirstRoleAssignment = !hadRolesBefore && hasRolesNow;
-            
-            // Re-assignment: had roles, then removed (0 roles), now getting roles again
-            const isReassignmentAfterRemoval = hadRolesBefore && hasRolesNow;
+        const updatedUser = await prisma.user.findUnique({
+            where: { id: userId },
+            include: { organisation: true },
+        });
+        if (!updatedUser) {
+            return NextResponse.json({ error: 'User not found' }, { status: 404 });
+        }
 
-            // Delete existing UserRole entries
-            await prisma.userRole.deleteMany({
-                where: { userId: userId },
-            });
-
-            if (hasRolesNow) {
-                // Create new UserRole entries
-                await prisma.userRole.createMany({
-                    data: roleOrganisationPairs.map((pair: any) => ({
-                        userId: userId,
-                        role: pair.role,
-                        organisationId: pair.organisationId,
-                    })),
+        // Setup link (email only) for a first assignment, or a re-assignment
+        // to someone whose password was revoked.
+        if (pairs !== undefined && hasRolesNow && (!hadRoles || !targetUser.password)) {
+            try {
+                const organisation = await prisma.organisation.findUnique({
+                    where: { id: pairs[0].organisationId },
+                    select: { name: true },
                 });
-
-                // Set the first UserRole as active
-                const firstUserRole = await prisma.userRole.findFirst({
-                    where: { userId: userId },
-                    orderBy: { createdAt: 'asc' },
+                await sendSetupLinkEmail({
+                    user: { id: userId, name: updatedUser.name, email: updatedUser.email },
+                    role: pairs[0].role,
+                    organisationName: organisation?.name || 'Unknown church',
                 });
-
-                if (firstUserRole) {
-                    await prisma.user.update({
-                        where: { id: userId },
-                        data: { activeUserRoleId: firstUserRole.id },
-                    });
-                }
-            } else {
-                // All roles removed - revoke access by invalidating password
-                await prisma.user.update({
-                    where: { id: userId },
-                    data: {
-                        password: null, // Revoke login access
-                        activeUserRoleId: null,
-                        activeRole: null,
-                        organisationId: null,
-                    },
-                });
-                
-                // Invalidate any password reset tokens
-                await prisma.passwordReset.updateMany({
-                    where: {
-                        userId: userId,
-                        used: false,
-                    },
-                    data: {
-                        used: true,
-                        usedAt: new Date(),
-                    },
-                });
-            }
-
-            // Send SMS notification for first role assignment OR re-assignment after removal (password creation)
-            const phoneNumber = updateData.phone || targetUser?.phone;
-            const needsPasswordCreation = isFirstRoleAssignment || (isReassignmentAfterRemoval && !targetUser.password);
-            
-            if (hasRolesNow && needsPasswordCreation) {
-                try {
-                    // First role assignment: setup link goes by email only.
-                    const primaryRolePair = roleOrganisationPairs[0];
-                    const organisation = await prisma.organisation.findUnique({
-                        where: { id: primaryRolePair.organisationId },
-                        select: { name: true },
-                    });
-
-                    await sendSetupLinkEmail({
-                        user: { id: userId, name: name ?? targetUser.name, email: updatedUser.email },
-                        role: primaryRolePair.role,
-                        organisationName: organisation?.name || 'Unknown church',
-                    });
-                } catch (notificationError) {
-                    console.error('Failed to send setup email:', notificationError);
-                }
+            } catch (notificationError) {
+                console.error('Failed to send setup email:', notificationError);
             }
         }
 
-        // Remove password from response
         const { password: _, ...userWithoutPassword } = updatedUser;
 
         // Create audit log (skip for SUPERADMIN)
-        if (session.user.role !== 'SUPERADMIN') {
+        if (!isSuperAdmin) {
             await prisma.auditLog.create({
                 data: {
                     id: crypto.randomUUID(),
-                    userId: session.user.id,
+                    userId: auditActorId(session),
                     actionType: 'UPDATE',
                     entityType: 'User',
                     entityId: updatedUser.id,
-                    afterData: { title, name, email, roleOrganisationPairs },
+                    afterData: { title, name, emailChanged, roleOrganisationPairs: pairs },
                 },
             });
         }
 
         return NextResponse.json(userWithoutPassword);
     } catch (error) {
+        if ((error as { code?: string })?.code === 'P2002') {
+            return NextResponse.json({ error: 'That email or phone number is already in use' }, { status: 409 });
+        }
         return NextResponse.json(
             { error: 'Failed to update user. Please try again.' },
             { status: 500 }
@@ -498,95 +431,48 @@ export async function PATCH(
         const { archived } = body;
         const userId = params.id;
 
-        // Check if user has admin role
+        if (typeof archived !== 'boolean') {
+            return NextResponse.json({ error: 'archived must be a boolean' }, { status: 400 });
+        }
+
         const adminRoles = ['SUPERADMIN', 'DENOMINATION_ADMIN', 'OVERSIGHT_ADMIN', 'CAMPUS_ADMIN'];
         if (!adminRoles.includes(session.user.role)) {
-            return NextResponse.json(
-                { error: 'Admin role required' },
-                { status: 403 }
-            );
+            return NextResponse.json({ error: 'Admin role required' }, { status: 403 });
         }
 
-        // Prevent archiving yourself
         if (userId === session.user.id) {
-            return NextResponse.json(
-                { error: 'You cannot archive your own account' },
-                { status: 400 }
-            );
+            return NextResponse.json({ error: 'You cannot archive your own account' }, { status: 400 });
         }
 
-        // Get the user being archived
-        const targetUser = await prisma.user.findUnique({
-            where: { id: userId },
-            include: { organisation: true,
-                userRoles: true,
-            },
-        });
-
-        if (!targetUser) {
-            return NextResponse.json(
-                { error: 'User not found' },
-                { status: 404 }
-            );
+        const scope = await loadTargetScope(userId);
+        if (!scope) {
+            return NextResponse.json({ error: 'User not found' }, { status: 404 });
         }
 
-        // Check if admin can manage this user based on role hierarchy
-        // User can be managed if admin can manage their highest role
-        const targetUserRoles = targetUser.userRoles.map(ur => ur.role).filter((r): r is Role => r !== null);
-        const targetHighestRole = targetUserRoles.length > 0
-            ? targetUserRoles.reduce((highest, role) => {
-                const highestLevel = ROLE_HIERARCHY[highest] || 999;
-                const roleLevel = ROLE_HIERARCHY[role] || 999;
-                return roleLevel < highestLevel ? role : highest;
-              }, targetUserRoles[0])
-            : targetUser.activeRole || 'COUNCIL_LEADER';
-            
-        if (!canManageUser(session.user.role, targetHighestRole)) {
-            return NextResponse.json(
-                { error: 'You cannot archive users with equal or higher roles' },
-                { status: 403 }
-            );
+        // Highest role over ALL of the target's roles, every org inside the
+        // caller's subtree, and an empty scope fails closed.
+        const decision = await authorizeTargetUser(
+            { id: session.user.id, role: session.user.role, organisationId: callerOrganisationId(session) },
+            scope,
+            { requireHierarchy: true },
+        );
+        if (!decision.ok) {
+            return NextResponse.json({ error: decision.error }, { status: decision.status });
         }
 
-        // For non-superadmins, verify organisation access
-        if (session.user.role !== 'SUPERADMIN') {
-            const filterOrganisationId = session.user.activeUserRole?.organisationId || session.user.organisationId;
-            
-            if (!filterOrganisationId) {
-                return NextResponse.json(
-                    { error: 'No church assigned' },
-                    { status: 403 }
-                );
-            }
-
-            // Get all organisations this admin oversees
-            const allowedOrganisationIds = await getDescendantOrganisationIds(filterOrganisationId);
-            
-            // Check if user is in admin's organisation hierarchy
-            if (targetUser.organisationId && !allowedOrganisationIds.includes(targetUser.organisationId)) {
-                return NextResponse.json(
-                    { error: 'Cannot archive users outside your church hierarchy' },
-                    { status: 403 }
-                );
-            }
-        }
-
-        // Update archived status
         const updatedUser = await prisma.user.update({
             where: { id: userId },
             data: { archived },
             include: { organisation: true },
         });
 
-        // Remove password from response
         const { password: _, ...userWithoutPassword } = updatedUser;
 
-        // Create audit log (skip for SUPERADMIN)
         if (session.user.role !== 'SUPERADMIN') {
             await prisma.auditLog.create({
                 data: {
                     id: crypto.randomUUID(),
-                    userId: session.user.id,
+                    userId: auditActorId(session),
                     actionType: 'UPDATE',
                     entityType: 'User',
                     entityId: userId,

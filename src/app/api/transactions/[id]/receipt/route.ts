@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { auditActorId } from '@/lib/audit-actor';
 import { uploadToCloudinary, destroyCloudinaryAsset, publicIdFromCloudinaryUrl } from '@/lib/cloudinary';
 import { hasOrganisationAccess } from '@/lib/organisations';
 import { createAuditLog } from '@/lib/audit';
@@ -134,7 +135,7 @@ export async function POST(
         });
 
         await createAuditLog({
-            userId: session.user.id,
+            userId: auditActorId(session),
             actionType: 'FILE_UPLOAD',
             entityType: 'Transaction',
             entityId: transactionId,
@@ -190,7 +191,7 @@ export async function DELETE(
     await prisma.file.deleteMany({ where: { transactionId } });
 
     await createAuditLog({
-        userId: session.user.id,
+        userId: auditActorId(session),
         actionType: 'DELETE',
         entityType: 'Transaction',
         entityId: transactionId,

@@ -39,9 +39,15 @@ export async function POST(request: NextRequest) {
         }
 
         // Update active user role
+        // Keep the legacy columns in step with the selected row.
         await prisma.user.update({
             where: { id: user.id },
-            data: { activeUserRoleId: userRoleId },
+            data: {
+                activeUserRoleId: userRoleId,
+                ...(user.activeRole === 'SUPERADMIN'
+                    ? {}
+                    : { activeRole: userRole.role, organisationId: userRole.organisationId }),
+            },
         });
 
         return NextResponse.json({ success: true, userRoleId });
