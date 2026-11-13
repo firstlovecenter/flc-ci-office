@@ -3,6 +3,9 @@ import { prisma } from '@/lib/prisma';
 import bcrypt from 'bcryptjs';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
+import { validateRoleAssignment } from '@/lib/roleValidation';
+import { validatePassword } from '@/lib/password-validation';
+import { SUPERADMIN_EMAIL } from '@/lib/superadmin';
 
 export const dynamic = 'force-dynamic';
 
@@ -13,6 +16,19 @@ export async function POST(request: Request) {
     }
     if (session.user.role !== 'SUPERADMIN') {
         return NextResponse.json({ error: 'Forbidden - SUPERADMIN only' }, { status: 403 });
+    }
+
+    // Demo seeding never runs in production unless explicitly enabled, and
+    // never with a built-in password: one must come from SEED_PASSWORD.
+    if (process.env.NODE_ENV === 'production' && process.env.ALLOW_PRODUCTION_SEED !== 'true') {
+        return NextResponse.json({ error: 'Seeding is disabled in production' }, { status: 403 });
+    }
+    const seedPassword = process.env.SEED_PASSWORD;
+    if (!seedPassword || !validatePassword(seedPassword).valid) {
+        return NextResponse.json(
+            { error: 'SEED_PASSWORD is not configured with a strong password' },
+            { status: 400 }
+        );
     }
 
     try {
@@ -70,14 +86,20 @@ export async function POST(request: Request) {
             },
         });
 
-        const hashedPassword = await bcrypt.hash('password123', 10);
+        const hashedPassword = await bcrypt.hash(seedPassword, 10);
+
+        // SUPERADMIN creation goes through the same pin as role assignment.
+        const roleCheck = await validateRoleAssignment('new-user', ['SUPERADMIN'], hq.id, SUPERADMIN_EMAIL);
+        if (!roleCheck.valid) {
+            return NextResponse.json({ error: roleCheck.error }, { status: 400 });
+        }
 
         const superAdmin = await prisma.user.upsert({
-            where: { email: 'admin@flc.org' },
+            where: { email: SUPERADMIN_EMAIL },
             update: {},
             create: {
                 id: 'superadmin-1',
-                email: 'admin@flc.org',
+                email: SUPERADMIN_EMAIL,
                 name: 'Super Admin',
                 phone: '0501234567',
                 password: hashedPassword,
@@ -159,15 +181,10 @@ export async function POST(request: Request) {
         return NextResponse.json({
             success: true,
             message: 'Database seeded successfully',
-            credentials: {
-                superAdmin: 'admin@flc.org / password123',
-                campusManager: 'campus.admin@flc.org / password123',
-                accountHolder: 'council.leader@flc.org / password123',
-            },
         });
     } catch (error: any) {
         return NextResponse.json(
-            { success: false, error: error.message },
+            { success: false, error: 'Seeding failed' },
             { status: 500 }
         );
     }

@@ -4,7 +4,24 @@ import crypto from 'crypto';
 
 const prisma = new PrismaClient();
 
+// Seeding creates privileged demo accounts. It never runs in production unless
+// explicitly enabled, and it never uses a built-in password: one must be
+// supplied via SEED_PASSWORD (min 12 chars) and is never printed.
+function requireSeedPassword(): string {
+    if (process.env.NODE_ENV === 'production' && process.env.ALLOW_PRODUCTION_SEED !== 'true') {
+        console.error('Refusing to seed in production (set ALLOW_PRODUCTION_SEED=true to override).');
+        process.exit(1);
+    }
+    const pw = process.env.SEED_PASSWORD;
+    if (!pw || pw.length < 12) {
+        console.error('Set SEED_PASSWORD (at least 12 characters) to seed demo users.');
+        process.exit(1);
+    }
+    return pw;
+}
+
 async function main() {
+    const seedPassword = requireSeedPassword();
     console.log('Starting seed...');
 
     // Churches: HQ → Oversight → Campus (lowest). Then a bank account under campus.
@@ -64,14 +81,14 @@ async function main() {
 
     console.log('Created churches and account');
 
-    const hashedPassword = await bcrypt.hash('password123', 10);
+    const hashedPassword = await bcrypt.hash(seedPassword, 10);
 
     await prisma.user.upsert({
-        where: { email: 'admin@flc.org' },
+        where: { email: 'skaduteye@gmail.com' },
         update: { updatedAt: new Date() },
         create: {
             id: crypto.randomUUID(),
-            email: 'admin@flc.org',
+            email: 'skaduteye@gmail.com',
             name: 'Super Admin',
             phone: '0501234567',
             password: hashedPassword,
@@ -109,10 +126,7 @@ async function main() {
 
     console.log('Created users');
     console.log('Seed completed successfully!');
-    console.log('\nLogin credentials:');
-    console.log('SuperAdmin: admin@flc.org / password123');
-    console.log('Campus Manager: campus.admin@flc.org / password123');
-    console.log('Account Holder: council.leader@flc.org / password123');
+    console.log('Demo users created. Passwords come from SEED_PASSWORD (not printed).');
 }
 
 main()

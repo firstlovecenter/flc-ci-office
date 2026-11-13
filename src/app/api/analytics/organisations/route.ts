@@ -34,7 +34,7 @@ export async function GET(request: Request) {
         const { searchParams } = new URL(request.url);
         const startDate = searchParams.get('startDate');
         const endDate = searchParams.get('endDate');
-        const limit = parseInt(searchParams.get('limit') || '10');
+        const limit = Math.min(Math.max(parseInt(searchParams.get('limit') || '10') || 10, 1), 100);
         const level = searchParams.get('level');
 
         // Build date filter
@@ -141,7 +141,15 @@ export async function GET(request: Request) {
             ? Prisma.sql`AND t."createdAt" >= ${new Date(startDate)} AND t."createdAt" <= ${new Date(endDate)}`
             : Prisma.empty;
 
-        const hierarchyData = await prisma.$queryRaw<Array<{
+        // The roll-up must honour the same scope as the list above; an empty
+        // scope yields no rows rather than database-wide totals.
+        const hierarchyScopeFilter = allowedOrganisationIds === null
+            ? Prisma.empty
+            : Prisma.sql`AND d.id IN (${Prisma.join(allowedOrganisationIds.length ? allowedOrganisationIds : [''])})`;
+
+        const hierarchyData = allowedOrganisationIds !== null && allowedOrganisationIds.length === 0
+            ? []
+            : await prisma.$queryRaw<Array<{
             level: string;
             count: number;
             total_income: number;
@@ -155,6 +163,7 @@ export async function GET(request: Request) {
             FROM "Organisation" d
             LEFT JOIN "Transaction" t ON d.id = t."organisationId"
             WHERE d."isActive" = true
+            ${hierarchyScopeFilter}
             ${hierarchyDateFilter}
             GROUP BY d.level
             ORDER BY 

@@ -6,6 +6,12 @@ import { sendSms } from '@/lib/sms';
 import { generatePublicExpenseRequestSms, generatePublicExpenseLeaderSubmittedSms } from '@/lib/sms-templates';
 import { formatTimeInExpenseWindowTimeZone, getExpenseWindowStatus } from '@/lib/expense-window';
 import { getExpenseWindowForOrganisation } from '@/lib/expense-window-settings';
+import { checkRateLimit, getClientIp, rateLimitResponse } from '@/lib/rate-limit';
+import { parsePositiveAmount, MAX_DESCRIPTION_LENGTH } from '@/lib/amount-validation';
+
+const PHONE_PATTERN = /^\+?[0-9][0-9 -]{6,18}$/;
+const MAX_PUBLIC_AMOUNT = 100_000;
+const PER_CAMPUS_HOURLY_LIMIT = 50;
 
 export const dynamic = 'force-dynamic';
 
@@ -67,6 +73,11 @@ export async function GET(request: Request) {
 // Public endpoint — no auth required
 export async function POST(request: Request) {
     try {
+        // Unauthenticated + operator-paid SMS: throttle per client (secondary,
+        // per-isolate) before doing any work.
+        const rl = checkRateLimit(`public-expense:${getClientIp(request)}`, { maxRequests: 5, windowSeconds: 60 * 60 });
+        if (!rl.success) return rateLimitResponse(rl);
+
         const body = await request.json();
         const campusOrganisationId = body.campusOrganisationId || body.oversightOrganisationId;
         const { requesterName, leaderPhone, churchName, momoName, momoNumber, amount, description } = body;
@@ -78,8 +89,23 @@ export async function POST(request: Request) {
             );
         }
 
-        if (typeof amount !== 'number' || amount <= 0) {
-            return NextResponse.json({ error: 'Amount must be a positive number.' }, { status: 400 });
+        const textFields: Array<[unknown, number]> = [
+            [campusOrganisationId, 64], [requesterName, 100], [leaderPhone, 20],
+            [churchName, 150], [momoName, 100], [momoNumber, 20], [description, MAX_DESCRIPTION_LENGTH],
+        ];
+        if (textFields.some(([v, max]) => typeof v !== 'string' || !v.trim() || v.length > max)) {
+            return NextResponse.json({ error: 'One or more fields are missing, too long or invalid.' }, { status: 400 });
+        }
+        if (!PHONE_PATTERN.test(leaderPhone.trim()) || !PHONE_PATTERN.test(momoNumber.trim())) {
+            return NextResponse.json({ error: 'Enter valid phone numbers.' }, { status: 400 });
+        }
+
+        const parsedAmount = parsePositiveAmount(amount);
+        if (!parsedAmount.ok) {
+            return NextResponse.json({ error: parsedAmount.error }, { status: 400 });
+        }
+        if (parsedAmount.value.gt(MAX_PUBLIC_AMOUNT)) {
+            return NextResponse.json({ error: 'Amount is above the maximum for a public request.' }, { status: 400 });
         }
 
         const campus = await prisma.organisation.findUnique({
@@ -104,6 +130,20 @@ export async function POST(request: Request) {
             );
         }
 
+        // DB-backed throttles (hold across isolates and IPs).
+        const hourAgo = new Date(Date.now() - 60 * 60 * 1000);
+        const campusRecent = await prisma.publicExpenseRequest.count({
+            where: { campusOrganisationId, createdAt: { gt: hourAgo } },
+        });
+        if (campusRecent >= PER_CAMPUS_HOURLY_LIMIT) {
+            return NextResponse.json({ error: 'Too many requests for this campus. Please try again later.' }, { status: 429 });
+        }
+        // An unverified, body-supplied number may be texted at most once per hour.
+        const phoneRecent = await prisma.publicExpenseRequest.count({
+            where: { leaderPhone: leaderPhone.trim(), createdAt: { gt: hourAgo } },
+        });
+        const smsLeader = phoneRecent === 0;
+
         const publicRequest = await prisma.publicExpenseRequest.create({
             data: {
                 requesterName: requesterName.trim(),
@@ -111,7 +151,7 @@ export async function POST(request: Request) {
                 churchName: churchName.trim(),
                 momoName: momoName.trim(),
                 momoNumber: momoNumber.trim(),
-                amount,
+                amount: parsedAmount.value.toFixed(2),
                 description: description.trim(),
                 campusOrganisationId,
                 updatedAt: new Date(),
@@ -119,14 +159,16 @@ export async function POST(request: Request) {
         });
 
         try {
+          if (smsLeader) {
             const submittedSms = generatePublicExpenseLeaderSubmittedSms({
-                requesterName: requesterName.trim(),
-                amount,
-                churchName: churchName.trim(),
+                requesterName: requesterName.trim().slice(0, 60),
+                amount: Number(parsedAmount.value.toFixed(2)),
+                churchName: churchName.trim().slice(0, 60),
             });
             sendSms({ to: leaderPhone.trim(), message: submittedSms }).catch((err) => {
                 console.error('[Notify] Submission SMS to leader failed:', err?.message || err);
             });
+          }
         } catch (err) {
             console.error('[Notify] Error sending submission SMS to leader:', err);
         }
@@ -154,12 +196,12 @@ export async function POST(request: Request) {
                 }, []);
 
             const smsMessage = generatePublicExpenseRequestSms({
-                requesterName,
-                churchName,
-                amount,
-                momoName,
-                momoNumber,
-                description,
+                requesterName: requesterName.trim().slice(0, 60),
+                churchName: churchName.trim().slice(0, 60),
+                amount: Number(parsedAmount.value.toFixed(2)),
+                momoName: momoName.trim().slice(0, 60),
+                momoNumber: momoNumber.trim(),
+                description: description.trim().slice(0, 120),
                 campusOrganisationName: campus.name,
             });
 
