@@ -3,9 +3,10 @@
  *
  *   node scripts/migrate-on-deploy.mjs   (run by `npm run build`)
  *
- * Only on Vercel production builds (VERCEL_ENV=production). Preview builds of
- * unmerged branches share the same database URL, and must never change it;
- * local builds skip too. Set RUN_MIGRATIONS=1 to force a run elsewhere.
+ * Runs on Vercel production builds (VERCEL_ENV=production) or when
+ * RUN_MIGRATIONS=1 is set (e.g. Cloudflare CLI deploys via scripts/ship.ps1).
+ * Preview builds of unmerged branches share the same database URL and must
+ * never change it; local builds skip too.
  *
  * Runs `prisma migrate deploy` and nothing else: it only applies migrations not
  * yet recorded in _prisma_migrations, never resets, never drops, never
