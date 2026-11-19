@@ -4,7 +4,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { getDescendantOrganisationIds, hasOrganisationAccess } from '@/lib/organisations';
 import { getISOWeek, getISOWeekYear, subWeeks } from 'date-fns';
-import { toDecimal, moneyToString, type Money } from '@/lib/money';
+import { toDecimal, sumDecimals, moneyToString, type Money } from '@/lib/money';
 import { Prisma } from '@prisma/client';
 import { getAppCurrency, APP_CURRENCY } from '@/lib/currency';
 
@@ -52,13 +52,23 @@ export async function GET(
             ? [id]
             : await getDescendantOrganisationIds(id);
 
-        const transactions = await prisma.transaction.findMany({
-            where: {
-                organisationId: { in: organisationIds },
-                status: 'APPROVED',
-            },
-            orderBy: { createdAt: 'desc' },
-        });
+        const [transactions, pendingExpenses] = await Promise.all([
+            prisma.transaction.findMany({
+                where: {
+                    organisationId: { in: organisationIds },
+                    status: 'APPROVED',
+                },
+                orderBy: { createdAt: 'desc' },
+            }),
+            prisma.transaction.findMany({
+                where: {
+                    organisationId: { in: organisationIds },
+                    status: 'PENDING',
+                    type: 'EXPENSE',
+                },
+                select: { amount: true, amountInBase: true },
+            }),
+        ]);
 
         const D = Prisma.Decimal;
         let income: Money = new D(0);
@@ -104,10 +114,16 @@ export async function GET(
             }
         }
 
+        const actualBalance = income.minus(expense);
+        const pendingTotal = sumDecimals(pendingExpenses.map(t => t.amountInBase ?? t.amount));
+        const availableBalance = actualBalance.minus(pendingTotal);
+
         return NextResponse.json({
             income: moneyToString(income),
             expense: moneyToString(expense),
-            balance: moneyToString(income.minus(expense)),
+            balance: moneyToString(actualBalance),
+            availableBalance: moneyToString(availableBalance),
+            pendingTotal: moneyToString(pendingTotal),
             weeklyIncome: moneyToString(weeklyIncome),
             chartData: chartData.map(({ week, income: inc, expense: exp }) => ({
                 week,

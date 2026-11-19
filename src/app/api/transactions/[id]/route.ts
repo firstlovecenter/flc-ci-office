@@ -7,8 +7,9 @@ import { hasOrganisationAccess } from '@/lib/organisations';
 import { sendSms } from '@/lib/sms';
 import { generateTransactionApprovedSms, generateTransactionDeclinedSms, generateTransactionChargeSms, generateCreditAlertSms, generateDebitAlertSms, generateTransactionEditNotificationSms, generateApproverApprovedSms, generateApproverDeclinedSms } from '@/lib/sms-templates';
 import { formatNumber, isWeekLocked, getWeekFromDate } from '@/lib/utils';
-import { toDecimal, eq, moneyToString, toMoney2dp } from '@/lib/money';
-import { getOrganisationApprovedBalance } from '@/lib/balance';
+import { toDecimal, eq, gt, isPositive, moneyToString, toMoney2dp } from '@/lib/money';
+import { getOrganisationApprovedBalance, getOrganisationAvailableBalance } from '@/lib/balance';
+import { hasAccountBalance } from '@/lib/org-model';
 import { getAppCurrency } from '@/lib/currency';
 
 export async function PUT(
@@ -266,6 +267,27 @@ export async function PATCH(
 
             if (!hasAccess) {
                 return new NextResponse('You do not have access to this church', { status: 403 });
+            }
+        }
+
+        // Balance check at approval time — prevents overdrafts from concurrent pending requests.
+        // Available balance = approved balance minus all OTHER pending expenses for this account.
+        if (status === 'APPROVED' && transaction.type === 'EXPENSE' && hasAccountBalance(transaction.organisation.accountType)) {
+            const amountToApprove = toDecimal(approvedAmount !== undefined ? approvedAmount : transaction.amount);
+            const available = await getOrganisationAvailableBalance(transaction.organisationId, transactionId);
+
+            if (!isPositive(available)) {
+                return NextResponse.json(
+                    { error: 'Insufficient balance. This account has no remaining balance after accounting for other pending requests.' },
+                    { status: 400 }
+                );
+            }
+
+            if (gt(amountToApprove, available)) {
+                return NextResponse.json(
+                    { error: `Insufficient balance. Available after other pending requests: ${moneyToString(available)}. This withdrawal is ${moneyToString(amountToApprove)}.` },
+                    { status: 400 }
+                );
             }
         }
 

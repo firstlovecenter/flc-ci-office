@@ -101,6 +101,7 @@ export async function GET(request: Request) {
             baseCurrency,
             incomeTransactions,
             expenseTransactions,
+            pendingExpenseTransactions,
             weeklyIncomeTransactions,
             last4WeeksIncomeTransactions,
             last4WeeksExpenseTransactions,
@@ -112,6 +113,10 @@ export async function GET(request: Request) {
             }),
             prisma.transaction.findMany({
                 where: { ...whereClause, type: 'EXPENSE', status: 'APPROVED' },
+                select: { amount: true, amountInBase: true },
+            }),
+            prisma.transaction.findMany({
+                where: { ...whereClause, type: 'EXPENSE', status: 'PENDING' },
                 select: { amount: true, amountInBase: true },
             }),
             prisma.transaction.findMany({
@@ -159,6 +164,7 @@ export async function GET(request: Request) {
 
         const totalIncome = sumTx(incomeTransactions);
         const totalExpense = sumTx(expenseTransactions);
+        const pendingTotal = sumTx(pendingExpenseTransactions);
         const weeklyIncome = sumTx(weeklyIncomeTransactions);
 
         const chartData = weekRanges.map((week) => {
@@ -184,11 +190,15 @@ export async function GET(request: Request) {
             };
         });
 
+        const actualBalance = totalIncome.minus(totalExpense);
+
         return NextResponse.json(
             {
                 income: moneyToString(totalIncome),
                 expense: moneyToString(totalExpense),
-                balance: moneyToString(totalIncome.minus(totalExpense)),
+                balance: moneyToString(actualBalance),
+                availableBalance: moneyToString(actualBalance.minus(pendingTotal)),
+                pendingTotal: moneyToString(pendingTotal),
                 weeklyIncome: moneyToString(weeklyIncome),
                 chartData,
                 currency: { code: baseCurrency.code, symbol: baseCurrency.symbol },

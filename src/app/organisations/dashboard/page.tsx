@@ -37,7 +37,7 @@ export default function OrganisationDashboardPage() {
     const [allOrganisations, setAllOrganisations] = useState<any[]>([]);
     const [organisationLeader, setOrganisationLeader] = useState<{ name: string; image: string | null } | null>(null);
     const [stats, setStats] = useState({
-        income: 0, expense: 0, balance: 0, weeklyIncome: 0,
+        income: 0, expense: 0, balance: 0, availableBalance: 0, pendingTotal: 0, weeklyIncome: 0,
         chartData: [] as { week: string; income: number; expense: number }[],
         currency: { code: 'GHS', symbol: '₵' },
     });
@@ -189,6 +189,7 @@ export default function OrganisationDashboardPage() {
             {/* Stat cards */}
             <div className={cn('grid gap-3 sm:gap-4 mb-6', isAdvancedView ? 'grid-cols-2 lg:grid-cols-4' : 'grid-cols-2')}>
                 <StatCard title="Account Balance" amount={stats.balance} currencySymbol={stats.currency.symbol} colorClass={getBalanceColor(stats.balance)} />
+                <StatCard title="Available Balance" amount={stats.availableBalance} currencySymbol={stats.currency.symbol} colorClass={getBalanceColor(stats.availableBalance)} />
                 <StatCard title="This Week's Income" amount={stats.weeklyIncome} currencySymbol={stats.currency.symbol} colorClass="text-success" />
                 {isAdvancedView && <>
                     <StatCard title="Total Inflows" amount={stats.income} currencySymbol={stats.currency.symbol} colorClass="text-blue-500" />

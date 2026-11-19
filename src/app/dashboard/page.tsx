@@ -132,6 +132,8 @@ export default function DashboardPage() {
         income: string;
         expense: string;
         balance: string;
+        availableBalance: string;
+        pendingTotal: string;
         weeklyIncome: string;
         chartData: { week: string; income: string; expense: string }[];
         superAdminStats: undefined | {
@@ -144,7 +146,7 @@ export default function DashboardPage() {
             todaysLogins: number;
             criticalErrors: number;
         };
-    }>({ income: '0', expense: '0', balance: '0', weeklyIncome: '0', chartData: [], superAdminStats: undefined });
+    }>({ income: '0', expense: '0', balance: '0', availableBalance: '0', pendingTotal: '0', weeklyIncome: '0', chartData: [], superAdminStats: undefined });
 
     const [baseCurrency, setBaseCurrency] = useState<{ code: string; symbol: string } | null>(null);
     const [organisationLeader, setOrganisationLeader] = useState<{ name: string; image: string | null } | null>(null);
@@ -320,9 +322,11 @@ export default function DashboardPage() {
         { title: 'Active churches', amount: stats.superAdminStats.activeOrganisations, icon: Building2, color: '#6B7280', isBlinking: false },
     ] : isLeader ? [
         { title: 'Account Balance', amount: stats.balance || 0, icon: Wallet, color: getStatColor('balance', stats.balance), isBlinking: Number(stats.balance || 0) < 5000 },
+        { title: 'Available Balance', amount: stats.availableBalance || 0, icon: Wallet, color: getStatColor('balance', stats.availableBalance), isBlinking: Number(stats.availableBalance || 0) < 5000 },
         { title: "This Week's Income", amount: stats.weeklyIncome || 0, icon: TrendingUp, color: getStatColor('weeklyIncome'), isBlinking: false },
     ] : [
         { title: 'Account Balance', amount: stats.balance || 0, icon: Wallet, color: getStatColor('balance', stats.balance), isBlinking: Number(stats.balance || 0) < 5000 },
+        { title: 'Available Balance', amount: stats.availableBalance || 0, icon: Wallet, color: getStatColor('balance', stats.availableBalance), isBlinking: Number(stats.availableBalance || 0) < 5000 },
         { title: 'Total Inflows', amount: stats.income || 0, icon: TrendingUp, color: getStatColor('income'), isBlinking: false },
         { title: 'Total Expenses', amount: stats.expense || 0, icon: TrendingDown, color: getStatColor('expense'), isBlinking: false },
         { title: "This Week's Income", amount: stats.weeklyIncome || 0, icon: TrendingUp, color: getStatColor('weeklyIncome'), isBlinking: false },

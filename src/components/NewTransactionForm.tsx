@@ -76,6 +76,8 @@ export default function NewTransactionForm({
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
     const [organisationBalance, setOrganisationBalance] = useState<string | null>(null);
+    const [organisationAvailableBalance, setOrganisationAvailableBalance] = useState<string | null>(null);
+    const [organisationPendingTotal, setOrganisationPendingTotal] = useState<string | null>(null);
     const [balanceLoading, setBalanceLoading] = useState(false);
 
     const needsApproval = !isSuperAdmin && type !== 'INCOME';
@@ -114,7 +116,13 @@ export default function NewTransactionForm({
         setBalanceLoading(true);
         fetch(`/api/organisations/${organisationId}/stats?exactLevel=true`, { cache: 'no-store' })
             .then(r => (r.ok ? r.json() : null))
-            .then(d => { if (d) setOrganisationBalance(d.balance); })
+            .then(d => {
+                if (d) {
+                    setOrganisationBalance(d.balance);
+                    setOrganisationAvailableBalance(d.availableBalance ?? d.balance);
+                    setOrganisationPendingTotal(d.pendingTotal ?? '0');
+                }
+            })
             .catch(() => { /* balance stays null; the card shows a fallback */ })
             .finally(() => setBalanceLoading(false));
     }, [organisationId]);
@@ -137,15 +145,15 @@ export default function NewTransactionForm({
             }
         }
 
-        if (type === 'EXPENSE' && showBalance && organisationBalance !== null) {
-            const bal = Number(organisationBalance);
-            if (bal <= 0) {
-                setError('This account does not have a positive balance.');
+        if (type === 'EXPENSE' && showBalance && organisationAvailableBalance !== null) {
+            const avail = Number(organisationAvailableBalance);
+            if (avail <= 0) {
+                setError('This account has no available balance after pending requests.');
                 setLoading(false);
                 return;
             }
-            if (parseFloat(amount) > bal) {
-                setError(`Insufficient balance. Available: ${APP_CURRENCY.symbol}${formatNumber(organisationBalance)}`);
+            if (parseFloat(amount) > avail) {
+                setError(`Insufficient balance. Available after pending requests: ${APP_CURRENCY.symbol}${formatNumber(organisationAvailableBalance)}`);
                 setLoading(false);
                 return;
             }
@@ -163,7 +171,11 @@ export default function NewTransactionForm({
                     amount: parseFloat(amount),
                     description: finalDescription,
                     organisationId,
-                    date: transactionDate ? new Date(transactionDate).toISOString() : undefined,
+                    // Only send date for backdated submissions. When the date
+                    // equals today, omit it so the server timestamps with now().
+                    date: transactionDate && transactionDate !== new Date().toISOString().split('T')[0]
+                        ? new Date(transactionDate).toISOString()
+                        : undefined,
                 }),
             });
             if (!r.ok) {
@@ -220,15 +232,26 @@ export default function NewTransactionForm({
 
             {showBalance && (
                 <div className="relative rounded-xl border border-border bg-muted/20 p-4 overflow-hidden">
-                    <p className="text-[0.6875rem] font-semibold uppercase tracking-[0.10em] text-muted-foreground mb-1.5">Available balance</p>
                     {balanceLoading ? <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /> : organisationBalance !== null ? (
-                        <>
-                            <p className="text-[1.625rem] font-semibold tracking-[-0.02em] tabular-nums text-success">
-                                {APP_CURRENCY.symbol}{formatNumber(organisationBalance)}
-                            </p>
-                            <p className="text-xs text-muted-foreground mt-0.5">You cannot request more than this amount.</p>
-                        </>
+                        <div className="flex justify-between gap-4">
+                            <div>
+                                <p className="text-[0.6875rem] font-semibold uppercase tracking-[0.10em] text-muted-foreground mb-1.5">Account balance</p>
+                                <p className="text-[1.625rem] font-semibold tracking-[-0.02em] tabular-nums text-foreground">
+                                    {APP_CURRENCY.symbol}{formatNumber(organisationBalance)}
+                                </p>
+                            </div>
+                            <div className="text-right">
+                                <p className="text-[0.6875rem] font-semibold uppercase tracking-[0.10em] text-muted-foreground mb-1.5">Available</p>
+                                <p className={`text-[1.625rem] font-semibold tracking-[-0.02em] tabular-nums ${Number(organisationAvailableBalance) > 0 ? 'text-success' : 'text-destructive'}`}>
+                                    {APP_CURRENCY.symbol}{formatNumber(organisationAvailableBalance ?? '0')}
+                                </p>
+                                {Number(organisationPendingTotal) > 0 && (
+                                    <p className="text-xs text-muted-foreground mt-0.5">{APP_CURRENCY.symbol}{formatNumber(organisationPendingTotal!)} pending</p>
+                                )}
+                            </div>
+                        </div>
                     ) : <p className="text-sm text-muted-foreground">Unable to load balance</p>}
+                    <p className="text-xs text-muted-foreground mt-2">You cannot request more than the available balance.</p>
                 </div>
             )}
 

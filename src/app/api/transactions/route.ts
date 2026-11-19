@@ -12,7 +12,7 @@ import { getUserBaseCurrency, convertToUserBaseCurrency } from '@/lib/currency-c
 import { formatTimeInExpenseWindowTimeZone, getExpenseWindowStatus } from '@/lib/expense-window';
 import { getExpenseWindowForOrganisation } from '@/lib/expense-window-settings';
 import { toDecimal, gt, isPositive, moneyToString, toMoney2dp } from '@/lib/money';
-import { getOrganisationApprovedBalance } from '@/lib/balance';
+import { getOrganisationApprovedBalance, getOrganisationAvailableBalance } from '@/lib/balance';
 import { getOverdueUnreceiptedApprovals } from '@/lib/receipt-compliance';
 import {
     assertMoneyBearingOrganisation,
@@ -450,19 +450,21 @@ export async function POST(request: Request) {
         }
 
         // Balance check for operating accounts only — special projects have no spendable balance.
+        // Uses available balance (approved minus all existing pending requests) so that
+        // two simultaneous pending requests cannot together exceed the actual balance.
         if (type === 'EXPENSE' && hasAccountBalance(organisation.accountType)) {
-            const deptBalance = await getOrganisationApprovedBalance(organisationId);
+            const availableBalance = await getOrganisationAvailableBalance(organisationId);
 
-            if (!isPositive(deptBalance)) {
+            if (!isPositive(availableBalance)) {
                 return NextResponse.json(
-                    { error: 'This account does not have a positive balance. Withdrawal requests cannot be made without a positive balance.' },
+                    { error: 'This account does not have sufficient balance. Withdrawal requests cannot be made when the balance is fully committed.' },
                     { status: 400 }
                 );
             }
 
-            if (gt(amountDec, deptBalance)) {
+            if (gt(amountDec, availableBalance)) {
                 return NextResponse.json(
-                    { error: `Insufficient balance. The available balance is ${moneyToString(deptBalance)}. You cannot request more than this amount.` },
+                    { error: `Insufficient balance. The available balance after pending requests is ${moneyToString(availableBalance)}. You cannot request more than this amount.` },
                     { status: 400 }
                 );
             }

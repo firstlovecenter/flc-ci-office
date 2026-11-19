@@ -64,4 +64,33 @@ export async function getOrganisationApprovedBalance(organisationId: string): Pr
     return balance;
 }
 
+/**
+ * Returns the spendable balance: approved balance minus the sum of all PENDING
+ * expense requests. Use this for validation instead of the approved balance so
+ * that two simultaneous pending requests cannot together exceed the balance and
+ * both get approved.
+ *
+ * @param excludeTransactionId When called at approval time, pass the id of the
+ *   transaction being approved so it is not counted against itself.
+ */
+export async function getOrganisationAvailableBalance(
+    organisationId: string,
+    excludeTransactionId?: string,
+): Promise<Money> {
+    const approved = await getOrganisationApprovedBalance(organisationId);
+
+    const pendingExpenses = await prisma.transaction.findMany({
+        where: {
+            organisationId,
+            status: 'PENDING',
+            type: 'EXPENSE',
+            ...(excludeTransactionId ? { id: { not: excludeTransactionId } } : {}),
+        },
+        select: { amount: true, amountInBase: true },
+    });
+
+    const committed = sumDecimals(pendingExpenses.map(t => t.amountInBase ?? t.amount));
+    return approved.minus(committed);
+}
+
 export { toDecimal };

@@ -6,7 +6,7 @@ import { formatNumber } from '@/lib/utils';
 import { cn } from '@/lib/utils';
 import { BALANCE_LABEL, TOTALS_IN_LABEL, TOTALS_OUT_LABEL } from '@/lib/labels';
 
-interface Stats { income: string; expense: string; balance: string; weeklyIncome?: string; currency?: { symbol: string } }
+interface Stats { income: string; expense: string; balance: string; availableBalance?: string; pendingTotal?: string; weeklyIncome?: string; currency?: { symbol: string } }
 
 /**
  * Balance and totals for one church or account, from the server's own sum
@@ -31,12 +31,30 @@ export function OrgBalance({ id, exactLevel = false }: { id: string; exactLevel?
 
     const sym = stats.currency?.symbol ?? '₵';
     const balance = Number(stats.balance);
+    const available = stats.availableBalance !== undefined ? Number(stats.availableBalance) : null;
+    const pending = stats.pendingTotal !== undefined ? Number(stats.pendingTotal) : null;
+    const hasPending = pending !== null && pending > 0;
     return (
         <div className="rounded-2xl bg-secondary/60 p-4">
-            <p className="text-xs text-muted-foreground">{BALANCE_LABEL}</p>
-            <p className={cn('text-2xl font-semibold tabular-nums tracking-tight', balance < 0 ? 'text-destructive' : 'text-foreground')}>
-                {balance < 0 ? '−' : ''}{sym}{formatNumber(Math.abs(balance))}
-            </p>
+            <div className="flex items-start justify-between gap-4">
+                <div>
+                    <p className="text-xs text-muted-foreground">{BALANCE_LABEL}</p>
+                    <p className={cn('text-2xl font-semibold tabular-nums tracking-tight', balance < 0 ? 'text-destructive' : 'text-foreground')}>
+                        {balance < 0 ? '−' : ''}{sym}{formatNumber(Math.abs(balance))}
+                    </p>
+                </div>
+                {available !== null && (
+                    <div className="text-right">
+                        <p className="text-xs text-muted-foreground">Available</p>
+                        <p className={cn('text-2xl font-semibold tabular-nums tracking-tight', available < 0 ? 'text-destructive' : 'text-success')}>
+                            {available < 0 ? '−' : ''}{sym}{formatNumber(Math.abs(available))}
+                        </p>
+                        {hasPending && (
+                            <p className="text-[0.7rem] text-muted-foreground mt-0.5">{sym}{formatNumber(pending!)} pending</p>
+                        )}
+                    </div>
+                )}
+            </div>
             <div className="mt-3 grid grid-cols-2 gap-3 border-t border-border/70 pt-3 text-sm">
                 <div>
                     <p className="text-xs text-muted-foreground">{TOTALS_IN_LABEL}</p>
