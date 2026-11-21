@@ -72,18 +72,3 @@ export async function POST(request: NextRequest) {
     );
   }
 }
-
-export async function GET() {
-  const session = await getServerSession(authOptions);
-  if (!session) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-  if (session.user.role !== 'SUPERADMIN') {
-    return NextResponse.json({ error: 'Forbidden - SUPERADMIN only' }, { status: 403 });
-  }
-
-  return NextResponse.json({
-    message: 'POST to this endpoint with { "phone": "0XXXXXXXXX" }',
-    configured: isSmsConfigured(),
-  });
-}
