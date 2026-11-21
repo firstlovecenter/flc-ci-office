@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { sendSms, checkSmsBalance, formatGhanaPhone, isSmsConfigured } from '@/lib/sms';
+import { sendSms, formatGhanaPhone, isSmsConfigured } from '@/lib/sms';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 
@@ -19,10 +19,7 @@ export async function POST(request: NextRequest) {
 
     if (!isSmsConfigured()) {
       return NextResponse.json(
-        {
-          success: false,
-          error: 'FLASHSMS is not fully configured (missing base URL, API key, or sender ID)',
-        },
+        { success: false, error: 'FLC notify is not configured (missing FLC_NOTIFY_URL or FLC_NOTIFY_KEY)' },
         { status: 500 }
       );
     }
@@ -30,30 +27,16 @@ export async function POST(request: NextRequest) {
     const recipient = phone || '0557382057';
     const formattedPhone = formatGhanaPhone(recipient);
 
-    // Check balance first
-    const balance = await checkSmsBalance();
-
-    // Send test SMS
     const success = await sendSms({
       to: formattedPhone,
-      message: 'Test SMS from CI Office via FLASHSMS',
+      message: 'Test SMS from CI Office via FLC notify',
     });
 
     if (success) {
-      return NextResponse.json({
-        success: true,
-        message: 'SMS sent successfully',
-        recipient: formattedPhone,
-        balance: balance,
-      });
+      return NextResponse.json({ success: true, message: 'SMS sent successfully', recipient: formattedPhone });
     } else {
       return NextResponse.json(
-        {
-          success: false,
-          error: 'Failed to send SMS',
-          recipient: formattedPhone,
-          balance: balance,
-        },
+        { success: false, error: 'Failed to send SMS', recipient: formattedPhone },
         { status: 500 }
       );
     }
@@ -77,10 +60,8 @@ export async function GET() {
     return NextResponse.json({ error: 'Forbidden - SUPERADMIN only' }, { status: 403 });
   }
 
-  const balance = await checkSmsBalance();
   return NextResponse.json({
     message: 'POST to this endpoint with { "phone": "0XXXXXXXXX" }',
     configured: isSmsConfigured(),
-    balance: balance,
   });
 }

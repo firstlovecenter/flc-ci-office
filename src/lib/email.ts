@@ -1,12 +1,8 @@
 /**
- * Resend Email Service — auth and access changes only (password reset, first
- * login setup, losing access to a closed account).
- * Do not use for transaction or report notifications.
+ * Email via FLC notify service (relay to Resend).
+ * Set FLC_NOTIFY_URL and FLC_NOTIFY_KEY in your environment.
+ * Do not use for transaction or report notifications — auth/access changes only.
  */
-
-import { Resend } from 'resend';
-
-const resend = new Resend(process.env.RESEND_API_KEY);
 
 const FROM_EMAIL = process.env.EMAIL_FROM || 'CI-OFFICE <noreply@flc-ci.org>';
 const APP_NAME = 'CI-OFFICE';
@@ -19,43 +15,42 @@ export interface EmailOptions {
 }
 
 export function isEmailConfigured(): boolean {
-  return !!process.env.RESEND_API_KEY;
+  return !!process.env.FLC_NOTIFY_URL && !!process.env.FLC_NOTIFY_KEY;
 }
 
-/**
- * Send a single transactional email via Resend.
- * Returns true on success, false on failure. Never throws.
- */
 export async function sendEmail(options: EmailOptions): Promise<boolean> {
   try {
-    if (!isEmailConfigured()) {
+    const url = process.env.FLC_NOTIFY_URL?.replace(/\/+$/, '');
+    const key = process.env.FLC_NOTIFY_KEY;
+    if (!url || !key) {
+      console.warn('[Email] FLC notify not configured');
       return false;
     }
 
-    const { data, error } = await resend.emails.send({
-      from: FROM_EMAIL,
-      to: [options.to],
-      subject: options.subject,
-      html: options.html,
-      ...(options.text ? { text: options.text } : {}),
+    const response = await fetch(`${url}/send-email`, {
+      method: 'POST',
+      headers: { 'x-secret-key': key, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        from: FROM_EMAIL,
+        to: options.to,
+        subject: options.subject,
+        html: options.html,
+        ...(options.text ? { text: options.text } : {}),
+      }),
     });
 
-    if (error) {
-      console.error('[Email] Resend error:', error);
+    const data = await response.json().catch(() => null);
+    if (!response.ok || !data?.success) {
+      console.error('[Email] FLC notify error:', data?.error ?? data?.message ?? response.status);
       return false;
     }
-
-    return !!data?.id;
+    return !!data?.data?.id;
   } catch (err: any) {
     console.error('[Email] Send error:', err.message);
     return false;
   }
 }
 
-/**
- * Send email to multiple recipients (one at a time via Resend batch semantics).
- * Never throws.
- */
 export async function sendBulkEmail(
   recipients: { email: string; name?: string }[],
   subject: string,

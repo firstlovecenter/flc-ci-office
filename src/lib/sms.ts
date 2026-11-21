@@ -1,9 +1,8 @@
 /**
- * FLASHSMS Service
- * API Documentation: https://app.flashsms.africa/api/v1/docs/
+ * SMS via FLC notify service (relay to FlashSMS Africa).
+ * Set FLC_NOTIFY_URL and FLC_NOTIFY_KEY in your environment.
+ * Optionally set FLC_NOTIFY_SENDER_ID for a custom sender name.
  */
-
-const FLASHSMS_BASE_URL = process.env.FLASHSMS_BASE_URL;
 
 /**
  * GSM-7 character set (basic + extension)
@@ -90,11 +89,8 @@ export function getSmsSegmentCount(message: string): number {
   return Math.ceil(length / 153); // 153 chars per segment when concatenated
 }
 
-/**
- * Check if SMS service is properly configured
- */
 export function isSmsConfigured(): boolean {
-  return !!process.env.FLASHSMS_BASE_URL && !!process.env.FLASHSMS_API_KEY && !!process.env.FLASHSMS_SENDER_ID;
+  return !!process.env.FLC_NOTIFY_URL && !!process.env.FLC_NOTIFY_KEY;
 }
 
 export interface SmsOptions {
@@ -102,157 +98,74 @@ export interface SmsOptions {
   message: string;
 }
 
-export interface SmsResponse {
-  success: boolean;
-  data?: {
-    messageId: string;
-    recipientsSent: number;
-    invalidRecipients: string[];
-    creditsUsed: number;
-    remainingCredits: number;
-  };
-  error?: string;
-}
-
-/**
- * Send SMS using FLASHSMS
- */
 export async function sendSms(options: SmsOptions): Promise<boolean> {
   try {
     if (!isSmsConfigured()) {
-      console.error('FLASHSMS is not fully configured (missing base URL, API key, or sender ID)');
+      console.error('FLC notify is not configured (missing FLC_NOTIFY_URL or FLC_NOTIFY_KEY)');
       return false;
     }
-
-    const baseUrl = process.env.FLASHSMS_BASE_URL;
-    const apiKey = process.env.FLASHSMS_API_KEY;
-    const senderId = process.env.FLASHSMS_SENDER_ID;
-
-    if (!baseUrl || !apiKey || !senderId) {
-      console.error('FLASHSMS is not fully configured (missing base URL, API key, or sender ID)');
-      return false;
-    }
-    
-    // Sanitize message for GSM-7 compatibility
+    const url = process.env.FLC_NOTIFY_URL!.replace(/\/+$/, '');
+    const key = process.env.FLC_NOTIFY_KEY!;
+    const sender = process.env.FLC_NOTIFY_SENDER_ID;
     const sanitizedMessage = sanitizeForGsm7(options.message);
 
-    const response = await fetch(`${baseUrl}/sms/send`, {
+    const response = await fetch(`${url}/send-sms`, {
       method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
+      headers: { 'x-secret-key': key, 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        recipients: [formatGhanaPhone(options.to)],
+        recipient: formatGhanaPhone(options.to),
         message: sanitizedMessage,
-        senderId: senderId,
+        ...(sender ? { sender } : {}),
       }),
     });
 
-    const data: SmsResponse = await response.json();
-
-    if (data.success && data.data && data.data.recipientsSent > 0) {
-      return true;
-    } else {
-      console.error('FLASHSMS send failed:', data.error || 'Unknown error');
-      return false;
-    }
+    const data = await response.json();
+    if (response.ok && data.success) return true;
+    console.error('FLC notify SMS send failed:', data.error ?? data.message ?? 'Unknown error');
+    return false;
   } catch (error: any) {
-    console.error('FLASHSMS error:', error.message);
+    console.error('FLC notify SMS error:', error.message);
     return false;
   }
 }
 
-/**
- * Send bulk SMS to multiple recipients (more efficient - single API call)
- */
 export async function sendBulkSms(
   recipients: string[],
   message: string
 ): Promise<{ sent: number; failed: number }> {
   try {
     if (!isSmsConfigured()) {
-      console.error('FLASHSMS is not fully configured (missing base URL, API key, or sender ID)');
+      console.error('FLC notify is not configured');
       return { sent: 0, failed: recipients.length };
     }
-
-    const baseUrl = process.env.FLASHSMS_BASE_URL;
-    const apiKey = process.env.FLASHSMS_API_KEY;
-    const senderId = process.env.FLASHSMS_SENDER_ID;
-
-    if (!baseUrl || !apiKey || !senderId) {
-      console.error('FLASHSMS is not fully configured (missing base URL, API key, or sender ID)');
-      return { sent: 0, failed: recipients.length };
-    }
-
-    // Format all phone numbers
+    const url = process.env.FLC_NOTIFY_URL!.replace(/\/+$/, '');
+    const key = process.env.FLC_NOTIFY_KEY!;
+    const sender = process.env.FLC_NOTIFY_SENDER_ID;
     const formattedRecipients = recipients.map(formatGhanaPhone);
-    
-    // Sanitize message for GSM-7 compatibility
     const sanitizedMessage = sanitizeForGsm7(message);
 
-    const response = await fetch(`${baseUrl}/sms/send`, {
+    const response = await fetch(`${url}/send-sms`, {
       method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
+      headers: { 'x-secret-key': key, 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        recipients: formattedRecipients,
+        recipient: formattedRecipients,
         message: sanitizedMessage,
-        senderId: senderId,
+        ...(sender ? { sender } : {}),
       }),
     });
 
-    const data: SmsResponse = await response.json();
-
-    if (data.success && data.data) {
-      return {
-        sent: data.data.recipientsSent,
-        failed: data.data.invalidRecipients.length,
-      };
-    } else {
-      console.error('FLASHSMS bulk send failed:', data.error || 'Unknown error');
-      return { sent: 0, failed: recipients.length };
-    }
-  } catch (error: any) {
-    console.error('FLASHSMS bulk error:', error.message);
-    return { sent: 0, failed: recipients.length };
-  }
-}
-
-/**
- * Check SMS credit balance
- */
-export async function checkSmsBalance(): Promise<number | null> {
-  try {
-    if (!isSmsConfigured()) {
-      return null;
-    }
-
-    const baseUrl = process.env.FLASHSMS_BASE_URL;
-    const apiKey = process.env.FLASHSMS_API_KEY;
-
-    if (!baseUrl || !apiKey) {
-      return null;
-    }
-
-    const response = await fetch(`${baseUrl}/balance`, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-      },
-    });
-
     const data = await response.json();
-
-    if (data.success && data.data) {
-      return data.data.balance;
+    if (response.ok && data.success) {
+      return {
+        sent: data.data?.recipientCount ?? formattedRecipients.length,
+        failed: data.data?.invalidRecipientCount ?? 0,
+      };
     }
-    return null;
+    console.error('FLC notify bulk SMS failed:', data.error ?? data.message ?? 'Unknown error');
+    return { sent: 0, failed: recipients.length };
   } catch (error: any) {
-    console.error('FLASHSMS balance check error:', error.message);
-    return null;
+    console.error('FLC notify bulk SMS error:', error.message);
+    return { sent: 0, failed: recipients.length };
   }
 }
 
