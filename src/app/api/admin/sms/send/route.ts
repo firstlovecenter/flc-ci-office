@@ -5,7 +5,6 @@ import { prisma } from '@/lib/prisma';
 import { sendSms, formatGhanaPhone } from '@/lib/sms';
 import crypto from 'crypto';
 import {
-    generatePasswordResetSms,
     generateFirstRoleAssignmentSms,
     generateRoleAssignmentSms,
     generateTransactionNotificationSms,
@@ -44,10 +43,10 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: 'Invalid phone number format' }, { status: 400 });
         }
 
-        // For password_reset and first_role_assignment, create a proper PasswordReset record
+        // For first_role_assignment, create a proper PasswordReset record
         // so the code in the SMS actually works
         const resolvedParams = { ...templateParams };
-        if (template === 'password_reset' || template === 'first_role_assignment') {
+        if (template === 'first_role_assignment') {
             // Find the user by phone number
             const targetUser = await prisma.user.findFirst({
                 where: { phone: phoneNumber },
@@ -87,9 +86,6 @@ export async function POST(req: NextRequest) {
         let message: string;
         try {
             switch (template) {
-                case 'password_reset':
-                    message = await generatePasswordResetSms(resolvedParams);
-                    break;
                 case 'first_role_assignment':
                     message = await generateFirstRoleAssignmentSms(resolvedParams);
                     break;

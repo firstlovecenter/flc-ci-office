@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { prisma } from '@/lib/prisma';
-import { sendSms, formatGhanaPhone } from '@/lib/sms';
-import { generatePasswordResetSms } from '@/lib/sms-templates';
 import { sendEmail, isEmailConfigured } from '@/lib/email';
 import { generatePasswordResetEmail } from '@/lib/email-templates';
 import { checkRateLimit, rateLimits, getClientIp, rateLimitResponse } from '@/lib/rate-limit';
@@ -69,19 +67,7 @@ export async function POST(request: NextRequest) {
       ? `${baseUrl}/auth/reset-password?token=${token}`
       : undefined;
 
-    let smsSent = false;
     let emailSent = false;
-
-    if (user.phone) {
-      const formattedPhone = formatGhanaPhone(user.phone);
-      if (formattedPhone) {
-        const smsContent = await generatePasswordResetSms({
-          resetCode,
-          expirationMinutes: 15,
-        });
-        smsSent = await sendSms({ to: formattedPhone, message: smsContent });
-      }
-    }
 
     if (user.email && isEmailConfigured()) {
       const { subject, html } = generatePasswordResetEmail({
@@ -94,7 +80,7 @@ export async function POST(request: NextRequest) {
       emailSent = await sendEmail({ to: user.email, subject, html });
     }
 
-    if (!smsSent && !emailSent) {
+    if (!emailSent) {
       return NextResponse.json(
         { error: 'Failed to send password reset instructions. Please contact support.' },
         { status: 500 }
@@ -104,7 +90,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       message: 'If an account exists with this information, password reset instructions have been sent.',
       channels: {
-        sms: smsSent,
         email: emailSent,
       },
     });

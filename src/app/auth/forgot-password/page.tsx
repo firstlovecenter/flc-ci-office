@@ -66,7 +66,7 @@ export default function ForgotPasswordPage() {
                     Forgot your password?
                 </h1>
                 <p className="text-sm text-muted-foreground mb-8">
-                    Enter the email or phone number on your account. We&apos;ll send a reset code by SMS and email when available.
+                    Enter the email or phone number on your account. We&apos;ll send a reset code to your email address.
                 </p>
 
                 {error && (
@@ -77,7 +77,7 @@ export default function ForgotPasswordPage() {
                 {success && (
                     <Alert variant="success" className="mb-4">
                         <AlertDescription>
-                            If an account exists, a reset code has been sent. Redirecting&hellip;
+                            If an account exists, a reset code has been sent to your email. Redirecting&hellip;
                         </AlertDescription>
                     </Alert>
                 )}

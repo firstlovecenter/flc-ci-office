@@ -34,7 +34,7 @@ function ResetPasswordForm() {
 
         if (password !== confirmPassword) { setError('Passwords do not match'); return; }
         if (password.length < 8) { setError('Password must be at least 8 characters long'); return; }
-        if (!usingUrlToken && !resetCode.trim()) { setError('Please enter the reset code sent via SMS'); return; }
+        if (!usingUrlToken && !resetCode.trim()) { setError('Please enter the reset code sent to your email'); return; }
 
         setLoading(true);
         try {
@@ -108,7 +108,7 @@ function ResetPasswordForm() {
                 <p className="text-sm text-muted-foreground mb-8">
                     {usingUrlToken
                         ? 'Choose a new password to continue.'
-                        : 'Enter the 6-digit code sent to your phone and a new password.'}
+                        : 'Enter the 6-character code sent to your email and a new password.'}
                 </p>
 
                 {error && (
@@ -136,7 +136,7 @@ function ResetPasswordForm() {
                                 maxLength={6}
                                 className="tracking-[0.25em] uppercase"
                             />
-                            <p className="text-xs text-muted-foreground">6-character code from the SMS</p>
+                            <p className="text-xs text-muted-foreground">6-character code from your email</p>
                         </div>
                     )}
 

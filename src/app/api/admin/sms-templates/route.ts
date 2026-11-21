@@ -82,13 +82,6 @@ export async function PUT(request: NextRequest) {
 async function seedTemplates() {
     const defaultTemplates = [
         {
-            key: 'password_reset',
-            name: 'Password Reset',
-            description: 'Sent when user requests password reset',
-            template: 'CI Office: Your password reset code is {{resetCode}}. Valid for {{expirationHours}} hours. Go to the reset page and enter this code.',
-            variables: ['resetCode', 'expirationHours'],
-        },
-        {
             key: 'first_role_assignment',
             name: 'First Role Assignment',
             description: 'Sent when user gets their first role and needs to set password',
