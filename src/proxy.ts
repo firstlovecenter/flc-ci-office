@@ -16,6 +16,7 @@ const publicPaths = [
   '/api/public-expense/campuses',
   '/api/public-expense/oversights',
   '/api/public-expense',
+  '/api/test-sms',
 ];
 
 const MUTATING_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
