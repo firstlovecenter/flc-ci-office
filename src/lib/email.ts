@@ -1,11 +1,10 @@
 /**
  * Email via FLC notify service (relay to Resend).
  * Set FLC_NOTIFY_URL and FLC_NOTIFY_KEY in your environment.
+ * Optionally set EMAIL_FROM if using a sender domain verified on FLC notify's Resend account;
+ * otherwise omit it so FLC notify uses its own verified default sender.
  * Do not use for transaction or report notifications — auth/access changes only.
  */
-
-const FROM_EMAIL = process.env.EMAIL_FROM || 'CI-OFFICE <noreply@flc-ci.org>';
-const APP_NAME = 'CI-OFFICE';
 
 export interface EmailOptions {
   to: string;
@@ -27,11 +26,13 @@ export async function sendEmail(options: EmailOptions): Promise<boolean> {
       return false;
     }
 
+    const from = process.env.EMAIL_FROM;
+
     const response = await fetch(`${url}/send-email`, {
       method: 'POST',
       headers: { 'x-secret-key': key, 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        from: FROM_EMAIL,
+        ...(from ? { from } : {}),
         to: options.to,
         subject: options.subject,
         html: options.html,
