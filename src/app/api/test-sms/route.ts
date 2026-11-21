@@ -5,6 +5,28 @@ import { authOptions } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
 
+export async function GET(request: NextRequest) {
+  const secret = request.nextUrl.searchParams.get('secret');
+  const expected = process.env.CRON_SECRET;
+  if (!expected || secret !== expected) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  const phone = request.nextUrl.searchParams.get('phone') ?? '0557382057';
+  const formattedPhone = formatGhanaPhone(phone);
+
+  if (!isSmsConfigured()) {
+    return NextResponse.json({ success: false, error: 'FLC notify is not configured' }, { status: 500 });
+  }
+
+  const success = await sendSms({
+    to: formattedPhone,
+    message: `Test SMS from CI-Office via FLC Notify. Time: ${new Date().toISOString()}`,
+  });
+
+  return NextResponse.json({ success, phone: formattedPhone });
+}
+
 export async function POST(request: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session) {
